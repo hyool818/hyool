@@ -84,7 +84,7 @@
             background:
 
                 radial-gradient(
-                    circle at 50% 42%,
+                    circle at 50% 38%,
                     rgba(255,255,255,0.045),
                     transparent 48%
                 ),
@@ -103,20 +103,20 @@
 
 
         /* ========================================
-           中央微光
+           中央幻想微光
         ======================================== */
 
         .orb {
 
             position: fixed;
 
-            width: 520px;
+            width: 560px;
 
-            height: 520px;
+            height: 560px;
 
             left: 50%;
 
-            top: 42%;
+            top: 38%;
 
             transform:
                 translate(-50%, -50%);
@@ -132,7 +132,7 @@
                     transparent 70%
                 );
 
-            filter: blur(25px);
+            filter: blur(28px);
 
             animation:
 
@@ -214,7 +214,7 @@
 
 
         /* ========================================
-           幻灵
+           幻灵入口
         ======================================== */
 
         .spirit-link {
@@ -245,6 +245,8 @@
         }
 
 
+        /* 幻灵底部光线 */
+
         .spirit-link::after {
 
             content: "";
@@ -274,6 +276,46 @@
         }
 
 
+        /* 幻灵简介 */
+
+        .spirit-description {
+
+            position: absolute;
+
+            top: 34px;
+
+            left: 50%;
+
+            transform:
+                translateX(-50%)
+                translateY(-5px);
+
+            width: max-content;
+
+            color:
+                rgba(255,255,255,0.38);
+
+            font-size: 11px;
+
+            letter-spacing: 2px;
+
+            white-space: nowrap;
+
+            opacity: 0;
+
+            pointer-events: none;
+
+            transition:
+
+                opacity 0.35s ease,
+
+                transform 0.35s ease;
+
+        }
+
+
+        /* 幻灵 Hover */
+
         .spirit-link:hover {
 
             color: #ffffff;
@@ -292,6 +334,17 @@
         .spirit-link:hover::after {
 
             width: 100%;
+
+        }
+
+
+        .spirit-link:hover .spirit-description {
+
+            opacity: 1;
+
+            transform:
+                translateX(-50%)
+                translateY(0);
 
         }
 
@@ -350,9 +403,7 @@
         }
 
 
-        /* ========================================
-           导航标题底部光线
-        ======================================== */
+        /* 导航底部光线 */
 
         .nav-title::after {
 
@@ -386,7 +437,7 @@
 
 
         /* ========================================
-           简介
+           导航简介
         ======================================== */
 
         .nav-description {
@@ -460,7 +511,7 @@
 
 
         /* ========================================
-           中央主视觉
+           主视觉区域
         ======================================== */
 
         .hero {
@@ -478,18 +529,19 @@
 
             align-items: center;
 
-            justify-content: center;
+            justify-content: flex-start;
 
             text-align: center;
 
             padding:
-                40px 30px 100px;
+
+                23vh 30px 140px;
 
         }
 
 
         /* ========================================
-           核心理念
+           中文主题
         ======================================== */
 
         .theme {
@@ -499,19 +551,19 @@
             font-size:
 
                 clamp(
-                    32px,
+                    34px,
                     5vw,
-                    62px
+                    64px
                 );
 
             font-weight: 300;
 
-            letter-spacing: 9px;
+            letter-spacing: 10px;
 
             line-height: 1.4;
 
             color:
-                rgba(255,255,255,0.92);
+                rgba(255,255,255,0.94);
 
             text-shadow:
 
@@ -532,25 +584,125 @@
 
 
         /* ========================================
-           页脚
+           英文副标题
         ======================================== */
 
-        .footer {
+        .subtitle {
+
+            margin-top: 24px;
+
+            color:
+                rgba(255,255,255,0.25);
+
+            font-size:
+
+                clamp(
+                    11px,
+                    1.5vw,
+                    15px
+                );
+
+            font-weight: 300;
+
+            letter-spacing: 5px;
+
+            line-height: 1.6;
+
+            opacity: 0;
+
+            animation:
+
+                subtitleAppear
+                1.6s
+                ease
+                0.8s
+                forwards;
+
+        }
+
+
+        /* ========================================
+           底部英文
+        ======================================== */
+
+        .bottom-text {
 
             position: fixed;
 
             z-index: 10;
 
-            left: 5vw;
+            left: 0;
 
-            bottom: 30px;
+            bottom: 28px;
+
+            width: 100%;
+
+            text-align: center;
 
             color:
-                rgba(255,255,255,0.18);
+                rgba(255,255,255,0.14);
 
-            font-size: 10px;
+            font-size: 9px;
 
-            letter-spacing: 3px;
+            letter-spacing: 5px;
+
+            font-weight: 300;
+
+            pointer-events: none;
+
+        }
+
+
+        /* ========================================
+           中文主题出现
+        ======================================== */
+
+        @keyframes themeAppear {
+
+            from {
+
+                opacity: 0;
+
+                transform:
+                    translateY(25px);
+
+            }
+
+            to {
+
+                opacity: 1;
+
+                transform:
+                    translateY(0);
+
+            }
+
+        }
+
+
+        /* ========================================
+           英文副标题出现
+        ======================================== */
+
+        @keyframes subtitleAppear {
+
+            from {
+
+                opacity: 0;
+
+                transform:
+                    translateY(12px);
+
+            }
+
+            to {
+
+                opacity: 1;
+
+                transform:
+                    translateY(0);
+
+            }
 
         }
 
@@ -564,7 +716,7 @@
             0%,
             100% {
 
-                opacity: 0.5;
+                opacity: 0.45;
 
                 transform:
 
@@ -575,39 +727,12 @@
 
             50% {
 
-                opacity: 0.85;
+                opacity: 0.8;
 
                 transform:
 
                     translate(-50%, -50%)
                     scale(1.15);
-
-            }
-
-        }
-
-
-        /* ========================================
-           主标题出现
-        ======================================== */
-
-        @keyframes themeAppear {
-
-            from {
-
-                opacity: 0;
-
-                transform:
-                    translateY(20px);
-
-            }
-
-            to {
-
-                opacity: 1;
-
-                transform:
-                    translateY(0);
 
             }
 
@@ -638,6 +763,14 @@
             .nav-title {
 
                 font-size: 14px;
+
+            }
+
+
+            .hero {
+
+                padding-top:
+                    20vh;
 
             }
 
@@ -701,11 +834,42 @@
             }
 
 
+            .hero {
+
+                padding:
+
+                    20vh 20px 120px;
+
+            }
+
+
             .theme {
 
                 font-size: 30px;
 
                 letter-spacing: 4px;
+
+            }
+
+
+            .subtitle {
+
+                margin-top: 18px;
+
+                font-size: 10px;
+
+                letter-spacing: 3px;
+
+            }
+
+
+            .bottom-text {
+
+                font-size: 8px;
+
+                letter-spacing: 3px;
+
+                bottom: 20px;
 
             }
 
@@ -745,6 +909,13 @@
 
             }
 
+
+            .subtitle {
+
+                font-size: 9px;
+
+            }
+
         }
 
 
@@ -759,7 +930,9 @@
     <div class="page">
 
 
-        <!-- 背景 -->
+        <!-- ==================================
+             背景
+        =================================== -->
 
         <div class="background"></div>
 
@@ -767,13 +940,15 @@
 
 
         <!-- ==================================
-             顶部
+             顶部导航
         =================================== -->
 
         <header class="navbar">
 
 
-            <!-- Logo + 幻灵 -->
+            <!-- ==============================
+                 左侧 Logo + 幻灵
+            =============================== -->
 
             <div class="brand">
 
@@ -799,6 +974,14 @@
 
                     · 幻灵
 
+
+                    <span class="spirit-description">
+
+                        幻灵空间 · 数字生命
+
+                    </span>
+
+
                 </a>
 
 
@@ -806,7 +989,7 @@
 
 
             <!-- ==================================
-                 导航
+                 右侧导航
             =================================== -->
 
             <nav class="nav">
@@ -820,11 +1003,16 @@
                 >
 
                     <span class="nav-title">
+
                         AI
+
                     </span>
 
+
                     <span class="nav-description">
+
                         Agent · AI能力
+
                     </span>
 
                 </a>
@@ -838,11 +1026,16 @@
                 >
 
                     <span class="nav-title">
+
                         创作
+
                     </span>
 
+
                     <span class="nav-description">
+
                         图片 · 视频 · 音乐 · 小说
+
                     </span>
 
                 </a>
@@ -856,11 +1049,16 @@
                 >
 
                     <span class="nav-title">
+
                         世界
+
                     </span>
 
+
                     <span class="nav-description">
+
                         游戏 · 虚拟世界
+
                     </span>
 
                 </a>
@@ -874,11 +1072,16 @@
                 >
 
                     <span class="nav-title">
+
                         工具
+
                     </span>
 
+
                     <span class="nav-description">
+
                         实用工具 · 效率创造
+
                     </span>
 
                 </a>
@@ -892,11 +1095,16 @@
                 >
 
                     <span class="nav-title">
+
                         社区
+
                     </span>
 
+
                     <span class="nav-description">
+
                         灵感 · 分享 · 交流
+
                     </span>
 
                 </a>
@@ -915,6 +1123,8 @@
         <main class="hero">
 
 
+            <!-- 中文 -->
+
             <h1 class="theme">
 
                 幻想 × 无限 × 生命
@@ -922,14 +1132,25 @@
             </h1>
 
 
+            <!-- 英文 -->
+
+            <div class="subtitle">
+
+                Fantasy · Infinite · Life
+
+            </div>
+
+
         </main>
 
 
-        <!-- 页脚 -->
+        <!-- ==================================
+             底部英文
+        =================================== -->
 
-        <div class="footer">
+        <div class="bottom-text">
 
-            HYOOL
+            ENTER THE DIGITAL WORLD
 
         </div>
 
