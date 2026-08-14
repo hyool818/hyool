@@ -4,59 +4,498 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>HYOOL — 幻想 × 无限 × 生命</title>
+    <title>HYOOL — 幻灵 · 数字世界</title>
+
+    <meta
+        name="description"
+        content="HYOOL — 幻灵 · 数字世界"
+    >
 
     <style>
+
+        /* =========================
+           基础
+        ========================= */
+
         * {
             box-sizing: border-box;
         }
 
-        html,
-        body {
-            margin: 0;
-            min-height: 100%;
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
+            margin: 0;
+            min-height: 100vh;
+
             background: #050507;
-            color: white;
+            color: #ffffff;
+
             font-family:
                 Arial,
                 "Microsoft YaHei",
                 sans-serif;
+        }
+
+
+        /* =========================
+           页面
+        ========================= */
+
+        .page {
+            min-height: 100vh;
+
+            position: relative;
+
+            overflow: hidden;
+        }
+
+
+        /* =========================
+           背景微光
+        ========================= */
+
+        .background-light {
+            position: fixed;
+
+            width: 600px;
+            height: 600px;
+
+            left: 50%;
+            top: 42%;
+
+            transform:
+                translate(-50%, -50%);
+
+            background:
+                radial-gradient(
+                    circle,
+                    rgba(255,255,255,0.055)
+                    0%,
+
+                    rgba(255,255,255,0.018)
+                    30%,
+
+                    transparent
+                    70%
+                );
+
+            filter: blur(30px);
+
+            pointer-events: none;
+
+            z-index: 0;
+        }
+
+
+        /* =========================
+           导航栏
+        ========================= */
+
+        .navbar {
+            position: relative;
+
+            z-index: 10;
+
+            width: 100%;
+
+            height: 90px;
 
             display: flex;
+
             align-items: center;
+
+            justify-content: space-between;
+
+            padding:
+                0 6vw;
+        }
+
+
+        /* =========================
+           Logo
+        ========================= */
+
+        .brand {
+            display: flex;
+
+            align-items: center;
+
+            text-decoration: none;
+        }
+
+        .brand img {
+            display: block;
+
+            width: 150px;
+
+            height: auto;
+        }
+
+
+        /* =========================
+           导航
+        ========================= */
+
+        .nav {
+            display: flex;
+
+            align-items: center;
+
+            gap: 36px;
+        }
+
+        .nav a {
+            position: relative;
+
+            color:
+                rgba(255,255,255,0.58);
+
+            text-decoration: none;
+
+            font-size: 14px;
+
+            letter-spacing: 2px;
+
+            transition:
+                color 0.3s ease;
+        }
+
+        .nav a::after {
+            content: "";
+
+            position: absolute;
+
+            left: 0;
+            bottom: -8px;
+
+            width: 0;
+            height: 1px;
+
+            background: #ffffff;
+
+            transition:
+                width 0.3s ease;
+        }
+
+        .nav a:hover {
+            color: #ffffff;
+        }
+
+        .nav a:hover::after {
+            width: 100%;
+        }
+
+
+        /* =========================
+           主视觉
+        ========================= */
+
+        .hero {
+            position: relative;
+
+            z-index: 2;
+
+            min-height:
+                calc(100vh - 90px);
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
             justify-content: center;
-        }
 
-        .content {
             text-align: center;
+
+            padding:
+                60px 30px 100px;
         }
 
-        h1 {
-            font-size: 48px;
-            margin: 0 0 20px;
+
+        /* =========================
+           核心主题
+        ========================= */
+
+        .theme {
+            margin: 0;
+
+            font-size:
+                clamp(
+                    32px,
+                    5vw,
+                    64px
+                );
+
+            font-weight: 400;
+
+            letter-spacing: 10px;
+
+            line-height: 1.4;
+
+            opacity: 0;
+
+            animation:
+                themeAppear
+                1.5s
+                ease
+                0.2s
+                forwards;
+        }
+
+
+        /* =========================
+           副标题
+        ========================= */
+
+        .description {
+            margin-top: 28px;
+
+            color:
+                rgba(255,255,255,0.42);
+
+            font-size:
+                clamp(
+                    14px,
+                    2vw,
+                    18px
+                );
+
             letter-spacing: 4px;
+
+            opacity: 0;
+
+            animation:
+                descriptionAppear
+                1.5s
+                ease
+                0.7s
+                forwards;
         }
 
-        p {
-            color: #888;
-            font-size: 18px;
-            letter-spacing: 6px;
+
+        /* =========================
+           底部提示
+        ========================= */
+
+        .scroll-hint {
+            position: absolute;
+
+            bottom: 42px;
+
+            left: 50%;
+
+            transform:
+                translateX(-50%);
+
+            color:
+                rgba(255,255,255,0.25);
+
+            font-size: 11px;
+
+            letter-spacing: 4px;
+
+            opacity: 0;
+
+            animation:
+                hintAppear
+                1.5s
+                ease
+                1.4s
+                forwards;
         }
+
+
+        /* =========================
+           动画
+        ========================= */
+
+        @keyframes themeAppear {
+
+            from {
+                opacity: 0;
+
+                transform:
+                    translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+
+                transform:
+                    translateY(0);
+            }
+        }
+
+
+        @keyframes descriptionAppear {
+
+            from {
+                opacity: 0;
+
+                transform:
+                    translateY(15px);
+            }
+
+            to {
+                opacity: 1;
+
+                transform:
+                    translateY(0);
+            }
+        }
+
+
+        @keyframes hintAppear {
+
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+
+        /* =========================
+           手机端
+        ========================= */
+
+        @media (max-width: 700px) {
+
+            .navbar {
+                height: 75px;
+
+                padding:
+                    0 24px;
+            }
+
+            .brand img {
+                width: 120px;
+            }
+
+            .nav {
+                gap: 18px;
+            }
+
+            .nav a {
+                font-size: 12px;
+
+                letter-spacing: 1px;
+            }
+
+            .theme {
+                letter-spacing: 5px;
+            }
+
+            .description {
+                letter-spacing: 2px;
+
+                line-height: 2;
+            }
+        }
+
+
+        /* =========================
+           更小屏幕
+        ========================= */
+
+        @media (max-width: 480px) {
+
+            .nav a:nth-child(n+4) {
+                display: none;
+            }
+
+            .theme {
+                font-size: 30px;
+
+                letter-spacing: 4px;
+            }
+
+            .description {
+                font-size: 13px;
+            }
+        }
+
     </style>
 </head>
 
+
 <body>
 
-    <main class="content">
+    <div class="page">
 
-        <h1>HY∞L</h1>
+        <!-- 背景 -->
+        <div class="background-light"></div>
 
-        <p>幻想 × 无限 × 生命</p>
 
-    </main>
+        <!-- =====================
+             顶部导航
+        ====================== -->
+
+        <header class="navbar">
+
+            <!-- Logo -->
+
+            <a
+                href="home.html"
+                class="brand"
+            >
+
+                <img
+                    src="logo1.png"
+                    alt="HYOOL"
+                >
+
+            </a>
+
+
+            <!-- 导航 -->
+
+            <nav class="nav">
+
+                <a href="#">AI</a>
+
+                <a href="#">创作</a>
+
+                <a href="#">世界</a>
+
+                <a href="#">工具</a>
+
+                <a href="#">社区</a>
+
+            </nav>
+
+        </header>
+
+
+        <!-- =====================
+             主视觉
+        ====================== -->
+
+        <main class="hero">
+
+            <h1 class="theme">
+                幻想 × 无限 × 生命
+            </h1>
+
+
+            <p class="description">
+                Fantasy · Infinite · Life
+            </p>
+
+
+            <div class="scroll-hint">
+                EXPLORE HYOOL
+            </div>
+
+        </main>
+
+    </div>
+
 
 </body>
 </html>
