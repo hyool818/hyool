@@ -1,13 +1,12 @@
-```html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>HYOOL — 数字世界</title>
+    <title>HYOOL — 幻灵 · 数字世界</title>
 
-    <meta name="description" content="HYOOL — 数字世界">
+    <meta name="description" content="HYOOL — 幻灵 · 数字世界">
 
     <style>
         * {
@@ -25,19 +24,14 @@
         body {
             background: #050507;
             color: #ffffff;
-            font-family:
-                Arial,
-                "Microsoft YaHei",
-                sans-serif;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
         }
 
-        /* =========================
-           背景
-        ========================= */
-
+        /* 背景 */
         .background {
             position: fixed;
             inset: 0;
+
             background:
                 radial-gradient(
                     circle at center,
@@ -48,12 +42,10 @@
                 #050507;
         }
 
-        /* =========================
-           微光
-        ========================= */
-
+        /* 中央微光 */
         .light {
             position: fixed;
+
             left: 50%;
             top: 50%;
 
@@ -62,12 +54,13 @@
 
             transform: translate(-50%, -50%);
 
-            background: radial-gradient(
-                circle,
-                rgba(255, 255, 255, 0.12) 0%,
-                rgba(255, 255, 255, 0.035) 30%,
-                transparent 70%
-            );
+            background:
+                radial-gradient(
+                    circle,
+                    rgba(255, 255, 255, 0.12) 0%,
+                    rgba(255, 255, 255, 0.035) 30%,
+                    transparent 70%
+                );
 
             filter: blur(20px);
 
@@ -78,12 +71,10 @@
                 lightBreath 5s ease-in-out 2.2s infinite;
         }
 
-        /* =========================
-           主内容
-        ========================= */
-
+        /* 主内容 */
         .container {
             position: relative;
+
             z-index: 2;
 
             width: 100%;
@@ -100,10 +91,7 @@
             padding: 40px;
         }
 
-        /* =========================
-           Logo
-        ========================= */
-
+        /* Logo */
         .logo {
             width: 600px;
             max-width: 78vw;
@@ -133,10 +121,7 @@
                 infinite;
         }
 
-        /* =========================
-           副标题
-        ========================= */
-
+        /* 副标题 */
         .subtitle {
             margin-top: 28px;
 
@@ -157,64 +142,56 @@
                 forwards;
         }
 
-        /* =========================
-           底部细线
-        ========================= */
-
-        .line {
-            width: 0;
-            height: 1px;
+        /* 进入 HYOOL */
+        .enter {
+            display: inline-block;
 
             margin-top: 28px;
 
-            background: rgba(255, 255, 255, 0.35);
+            padding: 10px 22px;
+
+            color: rgba(255, 255, 255, 0.65);
+
+            font-size: 16px;
+
+            letter-spacing: 4px;
+
+            text-decoration: none;
+
+            border: 1px solid rgba(255, 255, 255, 0.15);
+
+            opacity: 0;
+
+            transform: translateY(12px);
 
             animation:
-                lineAppear 1.5s
+                enterAppear 1.5s
                 ease
                 1.8s
                 forwards;
+
+            transition:
+                color 0.3s ease,
+                border-color 0.3s ease,
+                background 0.3s ease,
+                transform 0.3s ease;
         }
 
-        /* =========================
-           动画
-        ========================= */
+        /* 鼠标经过 */
+        .enter:hover {
+            color: #ffffff;
 
-        @keyframes lightAppear {
+            border-color:
+                rgba(255, 255, 255, 0.5);
 
-            0% {
-                opacity: 0;
-                transform:
-                    translate(-50%, -50%)
-                    scale(0.6);
-            }
+            background:
+                rgba(255, 255, 255, 0.05);
 
-            100% {
-                opacity: 1;
-                transform:
-                    translate(-50%, -50%)
-                    scale(1);
-            }
+            transform:
+                translateY(-2px);
         }
 
-        @keyframes lightBreath {
-
-            0%,
-            100% {
-                opacity: 0.65;
-                transform:
-                    translate(-50%, -50%)
-                    scale(1);
-            }
-
-            50% {
-                opacity: 1;
-                transform:
-                    translate(-50%, -50%)
-                    scale(1.15);
-            }
-        }
-
+        /* Logo 出现 */
         @keyframes logoAppear {
 
             0% {
@@ -253,6 +230,7 @@
             }
         }
 
+        /* Logo 呼吸 */
         @keyframes logoBreath {
 
             0%,
@@ -279,36 +257,84 @@
             }
         }
 
+        /* 微光出现 */
+        @keyframes lightAppear {
+
+            0% {
+                opacity: 0;
+
+                transform:
+                    translate(-50%, -50%)
+                    scale(0.6);
+            }
+
+            100% {
+                opacity: 1;
+
+                transform:
+                    translate(-50%, -50%)
+                    scale(1);
+            }
+        }
+
+        /* 微光呼吸 */
+        @keyframes lightBreath {
+
+            0%,
+            100% {
+                opacity: 0.65;
+
+                transform:
+                    translate(-50%, -50%)
+                    scale(1);
+            }
+
+            50% {
+                opacity: 1;
+
+                transform:
+                    translate(-50%, -50%)
+                    scale(1.15);
+            }
+        }
+
+        /* 副标题出现 */
         @keyframes subtitleAppear {
 
             0% {
                 opacity: 0;
-                transform: translateY(12px);
+
+                transform:
+                    translateY(12px);
             }
 
             100% {
                 opacity: 1;
-                transform: translateY(0);
+
+                transform:
+                    translateY(0);
             }
         }
 
-        @keyframes lineAppear {
+        /* 进入按钮出现 */
+        @keyframes enterAppear {
 
             0% {
-                width: 0;
                 opacity: 0;
+
+                transform:
+                    translateY(12px);
             }
 
             100% {
-                width: 90px;
                 opacity: 1;
+
+                transform:
+                    translateY(0);
             }
         }
 
-        /* =========================
-           手机端
-        ========================= */
-
+        /* 手机端 */
         @media (max-width: 600px) {
 
             .logo {
@@ -321,16 +347,18 @@
                 letter-spacing: 5px;
             }
 
+            .enter {
+                font-size: 14px;
+                letter-spacing: 3px;
+            }
+
             .light {
                 width: 240px;
                 height: 240px;
             }
         }
 
-        /* =========================
-           减少动画模式
-        ========================= */
-
+        /* 减少动画 */
         @media (prefers-reduced-motion: reduce) {
 
             *,
@@ -357,46 +385,18 @@
             class="logo"
         >
 
-        <a href="home.html" class="enter">
-    进入 HYOOL
-</a>
-.enter {
-    display: inline-block;
+        <div class="subtitle">
+            幻灵 · 数字世界
+        </div>
 
-    margin-top: 28px;
-
-    color: rgba(255, 255, 255, 0.65);
-
-    font-size: 16px;
-
-    letter-spacing: 4px;
-
-    text-decoration: none;
-
-    padding: 10px 20px;
-
-    border: 1px solid rgba(255, 255, 255, 0.15);
-
-    transition:
-        color 0.3s ease,
-        border-color 0.3s ease,
-        background 0.3s ease;
-}
-
-.enter:hover {
-    color: #ffffff;
-
-    border-color:
-        rgba(255, 255, 255, 0.5);
-
-    background:
-        rgba(255, 255, 255, 0.05);
-}
-        <div class="line"></div>
+        <a
+            href="home.html"
+            class="enter"
+        >
+            进入 HYOOL
+        </a>
 
     </main>
 
 </body>
 </html>
-```
-
