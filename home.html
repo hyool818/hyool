@@ -10,13 +10,11 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>
-        HYOOL — Fantasy · Infinite · Life
-    </title>
+    <title>HYOOL — 幻想 × 无限 × 生命</title>
 
     <meta
         name="description"
-        content="HYOOL — 幻想 · 无限 · 生命"
+        content="HYOOL — 幻想 × 无限 × 生命"
     >
 
 
@@ -177,7 +175,7 @@
 
 
         /* ========================================
-           左侧品牌区域
+           左侧品牌
         ======================================== */
 
         .brand {
@@ -193,8 +191,6 @@
         }
 
 
-        /* Logo链接 */
-
         .brand-logo-link {
 
             display: flex;
@@ -205,8 +201,6 @@
 
         }
 
-
-        /* Logo */
 
         .brand-logo {
 
@@ -251,8 +245,6 @@
         }
 
 
-        /* 幻灵底部光线 */
-
         .spirit-link::after {
 
             content: "";
@@ -281,8 +273,6 @@
 
         }
 
-
-        /* 幻灵鼠标效果 */
 
         .spirit-link:hover {
 
@@ -321,7 +311,24 @@
         }
 
 
-        .nav a {
+        .nav-item {
+
+            position: relative;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            text-decoration: none;
+
+            cursor: pointer;
+
+        }
+
+
+        .nav-title {
 
             position: relative;
 
@@ -331,8 +338,6 @@
             font-size: 16px;
 
             letter-spacing: 2px;
-
-            text-decoration: none;
 
             white-space: nowrap;
 
@@ -345,9 +350,11 @@
         }
 
 
-        /* 导航底部光线 */
+        /* ========================================
+           导航标题底部光线
+        ======================================== */
 
-        .nav a::after {
+        .nav-title::after {
 
             content: "";
 
@@ -366,36 +373,94 @@
 
             background: #ffffff;
 
+            box-shadow:
+
+                0 0 10px
+                rgba(255,255,255,0.25);
+
             transition:
 
-                width 0.35s ease;
+                width 0.4s ease;
 
         }
 
 
-        /* 导航鼠标效果 */
+        /* ========================================
+           简介
+        ======================================== */
 
-        .nav a:hover {
+        .nav-description {
+
+            position: absolute;
+
+            top: 34px;
+
+            left: 50%;
+
+            transform:
+                translateX(-50%)
+                translateY(-5px);
+
+            width: max-content;
+
+            color:
+                rgba(255,255,255,0.38);
+
+            font-size: 11px;
+
+            letter-spacing: 2px;
+
+            white-space: nowrap;
+
+            opacity: 0;
+
+            pointer-events: none;
+
+            transition:
+
+                opacity 0.35s ease,
+
+                transform 0.35s ease;
+
+        }
+
+
+        /* ========================================
+           导航 Hover
+        ======================================== */
+
+        .nav-item:hover .nav-title {
 
             color: #ffffff;
 
             text-shadow:
 
                 0 0 12px
-                rgba(255,255,255,0.25);
+                rgba(255,255,255,0.35);
 
         }
 
 
-        .nav a:hover::after {
+        .nav-item:hover .nav-title::after {
 
             width: 100%;
 
         }
 
 
+        .nav-item:hover .nav-description {
+
+            opacity: 1;
+
+            transform:
+                translateX(-50%)
+                translateY(0);
+
+        }
+
+
         /* ========================================
-           主视觉
+           中央主视觉
         ======================================== */
 
         .hero {
@@ -424,7 +489,7 @@
 
 
         /* ========================================
-           Fantasy · Infinite · Life
+           核心理念
         ======================================== */
 
         .theme {
@@ -467,34 +532,6 @@
 
 
         /* ========================================
-           底部提示
-        ======================================== */
-
-        .hint {
-
-            margin-top: 28px;
-
-            color:
-                rgba(255,255,255,0.25);
-
-            font-size: 11px;
-
-            letter-spacing: 5px;
-
-            opacity: 0;
-
-            animation:
-
-                hintAppear
-                1.5s
-                ease
-                1s
-                forwards;
-
-        }
-
-
-        /* ========================================
            页脚
         ======================================== */
 
@@ -519,7 +556,7 @@
 
 
         /* ========================================
-           动画
+           背景呼吸
         ======================================== */
 
         @keyframes orbBreath {
@@ -536,7 +573,6 @@
 
             }
 
-
             50% {
 
                 opacity: 0.85;
@@ -551,6 +587,10 @@
         }
 
 
+        /* ========================================
+           主标题出现
+        ======================================== */
+
         @keyframes themeAppear {
 
             from {
@@ -562,31 +602,12 @@
 
             }
 
-
             to {
 
                 opacity: 1;
 
                 transform:
                     translateY(0);
-
-            }
-
-        }
-
-
-        @keyframes hintAppear {
-
-            from {
-
-                opacity: 0;
-
-            }
-
-
-            to {
-
-                opacity: 1;
 
             }
 
@@ -614,7 +635,7 @@
             }
 
 
-            .nav a {
+            .nav-title {
 
                 font-size: 14px;
 
@@ -662,9 +683,18 @@
             }
 
 
-            .nav a {
+            .nav-title {
 
                 font-size: 11px;
+
+                letter-spacing: 1px;
+
+            }
+
+
+            .nav-description {
+
+                font-size: 9px;
 
                 letter-spacing: 1px;
 
@@ -679,15 +709,6 @@
 
             }
 
-
-            .hint {
-
-                font-size: 9px;
-
-                letter-spacing: 3px;
-
-            }
-
         }
 
 
@@ -697,7 +718,7 @@
 
         @media (max-width: 520px) {
 
-            .nav a:nth-child(n+3) {
+            .nav-item:nth-child(n+3) {
 
                 display: none;
 
@@ -738,23 +759,21 @@
     <div class="page">
 
 
-        <!-- ==============================
-             背景
-        =============================== -->
+        <!-- 背景 -->
 
         <div class="background"></div>
 
         <div class="orb"></div>
 
 
-        <!-- ==============================
-             顶部导航
-        =============================== -->
+        <!-- ==================================
+             顶部
+        =================================== -->
 
         <header class="navbar">
 
 
-            <!-- 左侧：Logo + 幻灵 -->
+            <!-- Logo + 幻灵 -->
 
             <div class="brand">
 
@@ -786,35 +805,100 @@
             </div>
 
 
-            <!-- ==========================
-                 右侧导航
-            =========================== -->
+            <!-- ==================================
+                 导航
+            =================================== -->
 
             <nav class="nav">
 
 
-                <a href="#">
-                    AI
+                <!-- AI -->
+
+                <a
+                    href="#"
+                    class="nav-item"
+                >
+
+                    <span class="nav-title">
+                        AI
+                    </span>
+
+                    <span class="nav-description">
+                        Agent · AI能力
+                    </span>
+
                 </a>
 
 
-                <a href="#">
-                    创作
+                <!-- 创作 -->
+
+                <a
+                    href="#"
+                    class="nav-item"
+                >
+
+                    <span class="nav-title">
+                        创作
+                    </span>
+
+                    <span class="nav-description">
+                        图片 · 视频 · 音乐 · 小说
+                    </span>
+
                 </a>
 
 
-                <a href="#">
-                    世界
+                <!-- 世界 -->
+
+                <a
+                    href="#"
+                    class="nav-item"
+                >
+
+                    <span class="nav-title">
+                        世界
+                    </span>
+
+                    <span class="nav-description">
+                        游戏 · 虚拟世界
+                    </span>
+
                 </a>
 
 
-                <a href="#">
-                    工具
+                <!-- 工具 -->
+
+                <a
+                    href="#"
+                    class="nav-item"
+                >
+
+                    <span class="nav-title">
+                        工具
+                    </span>
+
+                    <span class="nav-description">
+                        实用工具 · 效率创造
+                    </span>
+
                 </a>
 
 
-                <a href="#">
-                    社区
+                <!-- 社区 -->
+
+                <a
+                    href="#"
+                    class="nav-item"
+                >
+
+                    <span class="nav-title">
+                        社区
+                    </span>
+
+                    <span class="nav-description">
+                        灵感 · 分享 · 交流
+                    </span>
+
                 </a>
 
 
@@ -824,33 +908,24 @@
         </header>
 
 
-        <!-- ==============================
+        <!-- ==================================
              主视觉
-        =============================== -->
+        =================================== -->
 
         <main class="hero">
 
 
             <h1 class="theme">
 
-                Fantasy · Infinite · Life
+                幻想 × 无限 × 生命
 
             </h1>
-
-
-            <div class="hint">
-
-                ENTER THE DIGITAL WORLD
-
-            </div>
 
 
         </main>
 
 
-        <!-- ==============================
-             页脚
-        =============================== -->
+        <!-- 页脚 -->
 
         <div class="footer">
 
