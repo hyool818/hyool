@@ -2,6 +2,9 @@ name = "hyool"
 
 compatibility_date = "2026-08-16"
 
+[assets]
+directory = "./"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "hyool-db"
