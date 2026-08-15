@@ -1,19 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
-
 <meta charset="UTF-8">
-
-<meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
->
-
-<meta name="theme-color" content="#000000">
-
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>HYOOL · 幻灵</title>
-
 
 <style>
 
@@ -21,24 +11,19 @@
    RESET
 ========================================================= */
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
 }
 
 html,
-body {
-
-    width: 100%;
-    height: 100%;
-
-    overflow: hidden;
-
-    background: #000;
-
-    color: #fff;
-
+body{
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#000;
+    color:#fff;
     font-family:
         -apple-system,
         BlinkMacSystemFont,
@@ -54,183 +39,89 @@ body {
    PAGE 1
 ========================================================= */
 
-#entrance {
+#entrance{
+    position:fixed;
+    inset:0;
+    z-index:10;
 
-    position: fixed;
+    width:100%;
+    height:100%;
 
-    inset: 0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
 
-    z-index: 10;
+    background:#000;
 
-    width: 100%;
-    height: 100%;
-
-    display: flex;
-
-    flex-direction: column;
-
-    align-items: center;
-
-    justify-content: center;
-
-    background: #000;
-
-    opacity: 1;
-
-    transform: scale(1);
+    opacity:1;
+    transform:scale(1);
 
     transition:
         opacity 1.25s cubic-bezier(.77,0,.18,1),
         transform 1.5s cubic-bezier(.2,.8,.2,1);
 }
 
-#entrance.exit {
-
-    opacity: 0;
-
-    transform: scale(1.035);
-
-    pointer-events: none;
+#entrance.exit{
+    opacity:0;
+    transform:scale(1.035);
+    pointer-events:none;
 }
 
 
 /* =========================================================
-   FIRST PAGE ATMOSPHERE
+   PAGE 1 LOGO
 ========================================================= */
 
-#entrance::before {
+.brand{
+    position:relative;
+    z-index:2;
 
-    content: "";
+    display:flex;
+    flex-direction:column;
+    align-items:center;
 
-    position: absolute;
-
-    width: 55vw;
-    height: 55vw;
-
-    max-width: 800px;
-    max-height: 800px;
-
-    border-radius: 50%;
-
-    background:
-        radial-gradient(
-            circle,
-            rgba(255,255,255,.035) 0%,
-            rgba(255,255,255,.012) 35%,
-            transparent 72%
-        );
-
-    opacity: 0;
-
-    transform: scale(.75);
-
-    pointer-events: none;
-
-    transition:
-        opacity 1.5s ease,
-        transform 2s cubic-bezier(.2,.8,.2,1);
+    text-align:center;
+    user-select:none;
 }
 
-#entrance.active::before {
+.logo{
+    display:flex;
+    align-items:center;
+    justify-content:center;
 
-    opacity: 1;
-
-    transform: scale(1);
-}
-
-
-/* =========================================================
-   BRAND
-========================================================= */
-
-.brand {
-
-    position: relative;
-
-    z-index: 2;
-
-    display: flex;
-
-    flex-direction: column;
-
-    align-items: center;
-
-    text-align: center;
-
-    user-select: none;
-}
-
-
-/* =========================================================
-   LOGO
-========================================================= */
-
-.logo {
-
-    display: flex;
-
-    align-items: center;
-
-    justify-content: center;
-
-    opacity: 0;
-
-    transform: translateY(24px);
+    opacity:0;
+    transform:translateY(24px);
 
     animation:
         logoIn 1.5s cubic-bezier(.2,.8,.2,1)
         .2s forwards;
 }
 
-.logo img {
-
-    display: block;
-
-    width:
-        clamp(
-            260px,
-            28vw,
-            520px
-        );
-
-    height: auto;
-
-    object-fit: contain;
+.logo img{
+    display:block;
+    width:clamp(260px,28vw,520px);
+    height:auto;
 }
 
 
 /* =========================================================
-   CHINESE NAME
+   幻灵
 ========================================================= */
 
-.chinese-name {
+.chinese-name{
+    margin-top:24px;
 
-    margin-top: 24px;
+    font-size:clamp(18px,2vw,28px);
+    font-weight:300;
 
-    font-size:
-        clamp(
-            18px,
-            2vw,
-            28px
-        );
+    letter-spacing:.55em;
+    margin-left:.55em;
 
-    font-weight: 300;
+    color:rgba(255,255,255,.72);
 
-    letter-spacing: .55em;
-
-    margin-left: .55em;
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .72
-        );
-
-    opacity: 0;
-
-    transform: translateY(16px);
+    opacity:0;
+    transform:translateY(16px);
 
     animation:
         logoIn 1.5s cubic-bezier(.2,.8,.2,1)
@@ -242,19 +133,16 @@ body {
    SLOGAN
 ========================================================= */
 
-.slogan {
+.slogan{
+    position:relative;
+    z-index:2;
 
-    position: relative;
+    margin-top:58px;
 
-    z-index: 2;
+    text-align:center;
 
-    margin-top: 58px;
-
-    text-align: center;
-
-    opacity: 0;
-
-    transform: translateY(18px);
+    opacity:0;
+    transform:translateY(18px);
 
     animation:
         logoIn 1.5s cubic-bezier(.2,.8,.2,1)
@@ -262,103 +150,60 @@ body {
 }
 
 .slogan .line-one,
-.slogan .line-two {
+.slogan .line-two{
+    font-size:clamp(17px,1.45vw,21px);
 
-    font-size:
-        clamp(
-            17px,
-            1.45vw,
-            21px
-        );
+    font-weight:300;
 
-    font-weight: 300;
+    letter-spacing:.14em;
+    margin-left:.14em;
 
-    letter-spacing: .14em;
-
-    margin-left: .14em;
-
-    line-height: 2;
+    line-height:2;
 }
 
-.slogan .line-one {
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .82
-        );
+.slogan .line-one{
+    color:rgba(255,255,255,.82);
 }
 
-.slogan .line-two {
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .45
-        );
+.slogan .line-two{
+    color:rgba(255,255,255,.45);
 }
 
 
 /* =========================================================
-   ENTER AREA
+   ENTER
 ========================================================= */
 
-.enter-area {
+.enter-area{
+    position:relative;
+    z-index:5;
 
-    position: relative;
+    margin-top:72px;
 
-    z-index: 5;
-
-    margin-top: 72px;
-
-    display: flex;
-
-    align-items: center;
-
-    justify-content: center;
+    display:flex;
+    align-items:center;
+    justify-content:center;
 }
 
+.enter-bg{
+    position:absolute;
 
-/* =========================================================
-   ENTER BACKGROUND TEXT
-========================================================= */
+    white-space:nowrap;
 
-.enter-bg {
+    pointer-events:none;
 
-    position: absolute;
+    font-size:clamp(48px,8vw,110px);
 
-    white-space: nowrap;
+    font-weight:200;
 
-    pointer-events: none;
+    letter-spacing:.18em;
+    margin-left:.18em;
 
-    font-size:
-        clamp(
-            48px,
-            8vw,
-            110px
-        );
+    color:rgba(255,255,255,0);
 
-    font-weight: 200;
+    filter:blur(9px);
 
-    letter-spacing: .18em;
-
-    margin-left: .18em;
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            0
-        );
-
-    filter: blur(9px);
-
-    transform: scale(.94);
+    transform:scale(.94);
 
     transition:
         color 1s ease,
@@ -366,58 +211,30 @@ body {
         transform 1.2s cubic-bezier(.2,.8,.2,1);
 }
 
-.enter-area:hover .enter-bg {
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .045
-        );
-
-    filter: blur(2px);
-
-    transform: scale(1);
+.enter-area:hover .enter-bg{
+    color:rgba(255,255,255,.045);
+    filter:blur(2px);
+    transform:scale(1);
 }
 
+.enter{
+    position:relative;
+    z-index:2;
 
-/* =========================================================
-   ENTER BUTTON
-========================================================= */
+    padding:18px 32px;
 
-.enter {
+    cursor:pointer;
+    user-select:none;
 
-    position: relative;
+    font-family:Arial,Helvetica,sans-serif;
 
-    z-index: 2;
+    font-size:14px;
+    font-weight:400;
 
-    padding: 18px 32px;
+    letter-spacing:.42em;
+    margin-left:.42em;
 
-    cursor: pointer;
-
-    user-select: none;
-
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
-
-    font-size: 14px;
-
-    font-weight: 400;
-
-    letter-spacing: .42em;
-
-    margin-left: .42em;
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .7
-        );
+    color:rgba(255,255,255,.7);
 
     transition:
         color .6s ease,
@@ -425,95 +242,31 @@ body {
         transform .8s cubic-bezier(.2,.8,.2,1);
 }
 
-.enter::before {
+.enter::before{
+    content:"";
 
-    content: "";
+    position:absolute;
+    inset:0;
 
-    position: absolute;
+    border:1px solid rgba(255,255,255,.08);
 
-    inset: 0;
+    opacity:0;
 
-    border:
-        1px solid
-        rgba(
-            255,
-            255,
-            255,
-            .08
-        );
-
-    opacity: 0;
-
-    transform: scale(.92);
+    transform:scale(.92);
 
     transition:
         opacity .6s ease,
         transform .8s cubic-bezier(.2,.8,.2,1);
 }
 
-.enter:hover {
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .95
-        );
-
-    letter-spacing: .55em;
+.enter:hover{
+    color:rgba(255,255,255,.95);
+    letter-spacing:.55em;
 }
 
-.enter:hover::before {
-
-    opacity: 1;
-
-    transform: scale(1);
-}
-
-.enter::after {
-
-    content: "";
-
-    position: absolute;
-
-    left: 50%;
-    top: 50%;
-
-    width: 180px;
-    height: 90px;
-
-    transform:
-        translate(-50%,-50%)
-        scale(.6);
-
-    background:
-        radial-gradient(
-            ellipse,
-            rgba(255,255,255,.08),
-            transparent 70%
-        );
-
-    opacity: 0;
-
-    filter: blur(18px);
-
-    transition:
-        opacity .8s ease,
-        transform 1s cubic-bezier(.2,.8,.2,1);
-
-    pointer-events: none;
-
-    z-index: -1;
-}
-
-.enter:hover::after {
-
-    opacity: 1;
-
-    transform:
-        translate(-50%,-50%)
-        scale(1);
+.enter:hover::before{
+    opacity:1;
+    transform:scale(1);
 }
 
 
@@ -521,28 +274,25 @@ body {
    PAGE 2
 ========================================================= */
 
-#world {
+#world{
+    position:fixed;
+    inset:0;
 
-    position: fixed;
+    z-index:20;
 
-    inset: 0;
+    width:100%;
+    height:100%;
 
-    z-index: 20;
+    background:#000;
 
-    width: 100%;
-    height: 100%;
+    opacity:0;
+    visibility:hidden;
 
-    background: #000;
+    transform:scale(1.04);
 
-    opacity: 0;
+    pointer-events:none;
 
-    visibility: hidden;
-
-    transform: scale(1.04);
-
-    pointer-events: none;
-
-    overflow: hidden;
+    overflow:hidden;
 
     transition:
         opacity 1.5s cubic-bezier(.77,0,.18,1),
@@ -550,15 +300,13 @@ body {
         visibility 0s linear 1.5s;
 }
 
-#world.show {
+#world.show{
+    opacity:1;
+    visibility:visible;
 
-    opacity: 1;
+    transform:scale(1);
 
-    visibility: visible;
-
-    transform: scale(1);
-
-    pointer-events: auto;
+    pointer-events:auto;
 
     transition:
         opacity 1.5s cubic-bezier(.77,0,.18,1),
@@ -568,55 +316,48 @@ body {
 
 
 /* =========================================================
-   LIFE VIDEO
+   VIDEO
 ========================================================= */
 
-.life-video {
+.life-video{
+    position:absolute;
 
-    position: absolute;
+    inset:-5%;
 
-    inset: -5%;
+    width:110%;
+    height:110%;
 
-    width: 110%;
-    height: 110%;
+    object-fit:cover;
+    object-position:center;
 
-    display: block;
+    display:block;
 
-    object-fit: cover;
+    border:0;
+    outline:0;
 
-    object-position: center;
+    background:#000;
 
-    border: none;
+    opacity:0;
 
-    outline: none;
-
-    background: #000;
-
-    opacity: 0;
-
-    transform: scale(1.08);
+    transform:scale(1.08);
 
     filter:
         brightness(.32)
         contrast(1.08)
         saturate(.65);
 
-    pointer-events: none;
+    pointer-events:none;
 
-    user-select: none;
-
-    -webkit-user-select: none;
+    user-select:none;
 
     transition:
         opacity 4s cubic-bezier(.2,.8,.2,1),
         transform 8s cubic-bezier(.2,.8,.2,1);
 }
 
-#world.show .life-video {
-
-    opacity: 1;
-
-    transform: scale(1);
+#world.show .life-video{
+    opacity:1;
+    transform:scale(1);
 }
 
 
@@ -624,15 +365,13 @@ body {
    VIDEO ATMOSPHERE
 ========================================================= */
 
-.life-overlay {
+.life-overlay{
+    position:absolute;
+    inset:0;
 
-    position: absolute;
+    z-index:2;
 
-    inset: 0;
-
-    z-index: 2;
-
-    pointer-events: none;
+    pointer-events:none;
 
     background:
         radial-gradient(
@@ -644,15 +383,13 @@ body {
         );
 }
 
-.life-vignette {
+.life-vignette{
+    position:absolute;
+    inset:0;
 
-    position: absolute;
+    z-index:3;
 
-    inset: 0;
-
-    z-index: 3;
-
-    pointer-events: none;
+    pointer-events:none;
 
     background:
         radial-gradient(
@@ -668,163 +405,120 @@ body {
    SMALL LOGO
 ========================================================= */
 
-.world-logo {
+.world-logo{
+    position:absolute;
 
-    position: absolute;
+    left:42px;
+    top:34px;
 
-    left: 42px;
+    z-index:10;
 
-    top: 34px;
+    opacity:0;
 
-    z-index: 10;
-
-    opacity: 0;
-
-    transform: translateY(-10px);
+    transform:translateY(-10px);
 
     transition:
         opacity 1.5s ease,
         transform 1.5s ease;
 
-    transition-delay: 5.8s;
+    transition-delay:5.8s;
 }
 
-#world.show .world-logo {
-
-    opacity: .7;
-
-    transform: translateY(0);
+#world.show .world-logo{
+    opacity:.7;
+    transform:translateY(0);
 }
 
-.world-logo img {
-
-    width: 90px;
-
-    height: auto;
-
-    display: block;
+.world-logo img{
+    width:90px;
+    height:auto;
+    display:block;
 }
 
 
 /* =========================================================
-   CENTRAL PHRASE
+   CENTER TEXT
 ========================================================= */
 
-.core {
+.core{
+    position:absolute;
 
-    position: absolute;
+    left:50%;
+    top:50%;
 
-    left: 50%;
-
-    top: 50%;
-
-    z-index: 7;
+    z-index:7;
 
     transform:
         translate(-50%,-50%)
         translateY(20px);
 
-    width: max-content;
+    width:max-content;
 
-    text-align: center;
+    text-align:center;
 
-    pointer-events: none;
+    pointer-events:none;
 
-    opacity: 0;
+    opacity:0;
 
     transition:
         opacity 2s ease,
         transform 2s cubic-bezier(.2,.8,.2,1);
 
-    transition-delay: 5.8s;
+    transition-delay:5.8s;
 }
 
-#world.show .core {
-
-    opacity: 1;
+#world.show .core{
+    opacity:1;
 
     transform:
         translate(-50%,-50%)
         translateY(0);
 }
 
-.core-cn {
+.core-cn{
+    font-size:clamp(18px,2vw,28px);
 
-    font-size:
-        clamp(
-            18px,
-            2vw,
-            28px
-        );
+    font-weight:300;
 
-    font-weight: 300;
+    letter-spacing:.28em;
+    margin-left:.28em;
 
-    letter-spacing: .28em;
-
-    margin-left: .28em;
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .9
-        );
+    color:rgba(255,255,255,.9);
 }
 
-.core-en {
+.core-en{
+    margin-top:20px;
 
-    margin-top: 20px;
+    font-family:Arial,Helvetica,sans-serif;
 
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
+    font-size:clamp(9px,.9vw,12px);
 
-    font-size:
-        clamp(
-            9px,
-            .9vw,
-            12px
-        );
+    font-weight:300;
 
-    font-weight: 300;
+    letter-spacing:.3em;
+    margin-left:.3em;
 
-    letter-spacing: .3em;
-
-    margin-left: .3em;
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .52
-        );
+    color:rgba(255,255,255,.52);
 }
 
 
 /* =========================================================
-   FOUR FLOATING LIGHTS
+   FLOATING STAR
 ========================================================= */
 
-.light {
+.light{
+    position:absolute;
 
-    position: absolute;
+    z-index:9;
 
-    z-index: 9;
+    width:32px;
+    height:32px;
 
-    width: 18px;
+    cursor:pointer;
 
-    height: 18px;
+    opacity:0;
 
-    border-radius: 50%;
-
-    cursor: pointer;
-
-    opacity: 0;
-
-    transform: scale(.55);
+    transform:scale(.55);
 
     transition:
         opacity 1.8s ease,
@@ -833,239 +527,357 @@ body {
 
 
 /* =========================================================
-   LIGHT POSITIONS
+   FOUR POSITIONS
 ========================================================= */
 
-.light.fantasy {
+.light.fantasy{
+    left:50%;
+    top:20%;
 
-    left: 50%;
-
-    top: 20%;
-
-    margin-left: -9px;
-
-    margin-top: -9px;
+    margin-left:-16px;
+    margin-top:-16px;
 
     animation:
-        floatFantasy 5.8s ease-in-out
-        infinite;
-
-    animation-delay: 3.3s;
+        floatFantasy 6s ease-in-out infinite;
 }
 
+.light.yonder{
+    left:24%;
+    top:50%;
 
-.light.yonder {
-
-    left: 24%;
-
-    top: 50%;
-
-    margin-left: -9px;
-
-    margin-top: -9px;
+    margin-left:-16px;
+    margin-top:-16px;
 
     animation:
-        floatYonder 7s ease-in-out
-        infinite;
-
-    animation-delay: 3.6s;
+        floatYonder 7s ease-in-out infinite;
 }
 
+.light.infinite{
+    right:24%;
+    top:48%;
 
-.light.infinite {
-
-    right: 24%;
-
-    top: 48%;
-
-    margin-right: -9px;
-
-    margin-top: -9px;
+    margin-right:-16px;
+    margin-top:-16px;
 
     animation:
-        floatInfinite 6.5s ease-in-out
-        infinite;
-
-    animation-delay: 3.9s;
+        floatInfinite 6.5s ease-in-out infinite;
 }
 
+.light.life{
+    left:50%;
+    bottom:19%;
 
-.light.life {
-
-    left: 50%;
-
-    bottom: 19%;
-
-    margin-left: -9px;
-
-    margin-bottom: -9px;
+    margin-left:-16px;
+    margin-bottom:-16px;
 
     animation:
-        floatLife 5.2s ease-in-out
-        infinite;
-
-    animation-delay: 4.2s;
+        floatLife 5.5s ease-in-out infinite;
 }
 
 
 /* =========================================================
-   LIGHT CORE
+   LIGHT APPEAR
 ========================================================= */
 
-.light::before {
+#world.lights-active .light{
+    opacity:1;
+    transform:scale(1);
+}
 
-    content: "";
 
-    position: absolute;
+/* =========================================================
+   STAR CORE
+========================================================= */
 
-    left: 50%;
+.light::before{
+    content:"";
 
-    top: 50%;
+    position:absolute;
 
-    width: 7px;
+    left:50%;
+    top:50%;
 
-    height: 7px;
-
-    border-radius: 50%;
+    width:5px;
+    height:5px;
 
     transform:
-        translate(-50%,-50%);
+        translate(-50%,-50%)
+        rotate(45deg);
 
-    background:
-        rgba(
-            255,
-            255,
-            255,
-            .82
-        );
+    background:rgba(255,255,255,.92);
+
+    border-radius:
+        45% 55% 48% 52%;
 
     box-shadow:
-        0 0 8px
-        rgba(255,255,255,.45),
+        0 0 7px rgba(255,255,255,.8),
+        0 0 18px rgba(255,255,255,.38),
+        0 0 45px rgba(255,255,255,.14);
 
-        0 0 24px
-        rgba(255,255,255,.16);
-
-    transition:
-        width .8s ease,
-        height .8s ease,
-        box-shadow 1s ease;
+    animation:
+        starPulse 4.8s ease-in-out infinite;
 }
 
 
 /* =========================================================
-   LIGHT HALO
+   STAR RAYS
 ========================================================= */
 
-.light::after {
+.light::after{
+    content:"";
 
-    content: "";
+    position:absolute;
 
-    position: absolute;
+    left:50%;
+    top:50%;
 
-    left: 50%;
-
-    top: 50%;
-
-    width: 70px;
-
-    height: 70px;
-
-    border-radius: 50%;
+    width:44px;
+    height:44px;
 
     transform:
         translate(-50%,-50%)
-        scale(.45);
+        rotate(45deg);
 
     background:
-        radial-gradient(
-            circle,
-            rgba(255,255,255,.09) 0%,
-            rgba(255,255,255,.025) 30%,
-            transparent 72%
+
+        linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255,255,255,.16) 42%,
+            rgba(255,255,255,.75) 50%,
+            rgba(255,255,255,.16) 58%,
+            transparent 100%
+        ),
+
+        linear-gradient(
+            0deg,
+            transparent 0%,
+            rgba(255,255,255,.12) 42%,
+            rgba(255,255,255,.65) 50%,
+            rgba(255,255,255,.12) 58%,
+            transparent 100%
         );
 
-    filter: blur(7px);
+    filter:blur(1px);
 
-    opacity: .45;
+    opacity:.55;
 
-    transition:
-        transform 1.2s cubic-bezier(.2,.8,.2,1),
-        opacity 1s ease;
+    animation:
+        starRay 5.5s ease-in-out infinite;
 }
 
 
 /* =========================================================
-   LIGHT REVEAL
+   DIFFERENT STAR RHYTHMS
 ========================================================= */
 
-#world.lights-active .light {
+.light.fantasy::before{
+    animation-delay:0s;
+}
 
-    opacity: 1;
+.light.yonder::before{
+    animation-delay:-1.7s;
+}
 
-    transform: scale(1);
+.light.infinite::before{
+    animation-delay:-3.1s;
+}
+
+.light.life::before{
+    animation-delay:-4.2s;
+}
+
+.light.fantasy::after{
+    animation-delay:0s;
+}
+
+.light.yonder::after{
+    animation-delay:-2.3s;
+}
+
+.light.infinite::after{
+    animation-delay:-3.8s;
+}
+
+.light.life::after{
+    animation-delay:-1.2s;
 }
 
 
 /* =========================================================
-   HOVER LIGHT
+   STAR PULSE
 ========================================================= */
 
-.light:hover {
+@keyframes starPulse{
 
-    z-index: 15;
+    0%{
+        opacity:.32;
 
-    transform: scale(1.2);
-}
+        transform:
+            translate(-50%,-50%)
+            rotate(45deg)
+            scale(.65);
 
-.light:hover::before {
+        box-shadow:
+            0 0 5px rgba(255,255,255,.4),
+            0 0 16px rgba(255,255,255,.16);
+    }
 
-    width: 11px;
+    35%{
+        opacity:.75;
 
-    height: 11px;
+        transform:
+            translate(-50%,-50%)
+            rotate(58deg)
+            scale(.85);
 
-    box-shadow:
-        0 0 12px
-        rgba(255,255,255,.65),
+        box-shadow:
+            0 0 9px rgba(255,255,255,.7),
+            0 0 28px rgba(255,255,255,.32);
+    }
 
-        0 0 40px
-        rgba(255,255,255,.28),
+    55%{
+        opacity:1;
 
-        0 0 80px
-        rgba(255,255,255,.08);
-}
+        transform:
+            translate(-50%,-50%)
+            rotate(38deg)
+            scale(1.15);
 
-.light:hover::after {
+        box-shadow:
+            0 0 12px rgba(255,255,255,.9),
+            0 0 42px rgba(255,255,255,.38),
+            0 0 75px rgba(255,255,255,.12);
+    }
 
-    transform:
-        translate(-50%,-50%)
-        scale(1.4);
+    75%{
+        opacity:.55;
 
-    opacity: 1;
+        transform:
+            translate(-50%,-50%)
+            rotate(51deg)
+            scale(.82);
+    }
+
+    100%{
+        opacity:.32;
+
+        transform:
+            translate(-50%,-50%)
+            rotate(45deg)
+            scale(.65);
+    }
 }
 
 
 /* =========================================================
-   LIGHT LABEL
+   STAR RAY
 ========================================================= */
 
-.light-label {
+@keyframes starRay{
 
-    position: absolute;
+    0%,100%{
+        opacity:.22;
 
-    left: 50%;
+        transform:
+            translate(-50%,-50%)
+            rotate(45deg)
+            scale(.65);
+    }
 
-    top: 50%;
+    45%{
+        opacity:.55;
 
-    transform:
-        translate(-50%,-50%)
-        translateY(20px);
+        transform:
+            translate(-50%,-50%)
+            rotate(42deg)
+            scale(1);
+    }
 
-    white-space: nowrap;
+    60%{
+        opacity:.8;
 
-    pointer-events: none;
+        transform:
+            translate(-50%,-50%)
+            rotate(48deg)
+            scale(1.25);
+    }
 
-    opacity: 0;
+    80%{
+        opacity:.3;
+
+        transform:
+            translate(-50%,-50%)
+            rotate(43deg)
+            scale(.8);
+    }
+}
+
+
+/* =========================================================
+   FLOATING MOVEMENT
+========================================================= */
+
+@keyframes floatFantasy{
+
+    0%,100%{
+        margin-top:-16px;
+    }
+
+    50%{
+        margin-top:-27px;
+    }
+}
+
+@keyframes floatYonder{
+
+    0%,100%{
+        margin-left:-16px;
+    }
+
+    50%{
+        margin-left:-4px;
+    }
+}
+
+@keyframes floatInfinite{
+
+    0%,100%{
+        margin-right:-16px;
+    }
+
+    50%{
+        margin-right:-4px;
+    }
+}
+
+@keyframes floatLife{
+
+    0%,100%{
+        margin-bottom:-16px;
+    }
+
+    50%{
+        margin-bottom:-5px;
+    }
+}
+
+
+/* =========================================================
+   LABEL
+========================================================= */
+
+.light-label{
+    position:absolute;
+
+    left:50%;
+    top:50%;
+
+    width:max-content;
+
+    pointer-events:none;
+
+    opacity:0;
 
     transition:
         opacity .8s ease,
@@ -1077,272 +889,158 @@ body {
    LABEL TITLE
 ========================================================= */
 
-.light-name {
+.light-name{
+    font-size:18px;
 
-    font-size: 18px;
+    font-weight:300;
 
-    font-weight: 300;
+    letter-spacing:.3em;
+    margin-left:.3em;
 
-    letter-spacing: .3em;
+    color:rgba(255,255,255,.92);
 
-    margin-left: .3em;
+    text-align:center;
+}
 
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .92
-        );
+.light-meaning{
+    margin-top:10px;
 
-    text-align: center;
+    font-size:11px;
+
+    font-weight:300;
+
+    letter-spacing:.1em;
+    margin-left:.1em;
+
+    color:rgba(255,255,255,.65);
+
+    text-align:center;
+}
+
+.light-tags{
+    margin-top:6px;
+
+    font-family:Arial,Helvetica,sans-serif;
+
+    font-size:8px;
+
+    letter-spacing:.1em;
+    margin-left:.1em;
+
+    color:rgba(255,255,255,.34);
+
+    text-align:center;
 }
 
 
 /* =========================================================
-   LABEL MEANING
+   UNIFIED LABEL DISTANCE
 ========================================================= */
 
-.light-meaning {
-
-    margin-top: 10px;
-
-    font-size: 11px;
-
-    font-weight: 300;
-
-    letter-spacing: .1em;
-
-    margin-left: .1em;
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .65
-        );
-
-    text-align: center;
+.light.fantasy .light-label{
+    transform:
+        translate(-50%,-50%)
+        translateY(-62px);
 }
 
-
-/* =========================================================
-   LABEL TAGS
-========================================================= */
-
-.light-tags {
-
-    margin-top: 6px;
-
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
-
-    font-size: 8px;
-
-    letter-spacing: .1em;
-
-    margin-left: .1em;
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .34
-        );
-
-    text-align: center;
-}
-
-
-/* =========================================================
-   HOVER LABEL
-========================================================= */
-
-.light:hover .light-label {
-
-    opacity: 1;
+.light.fantasy:hover .light-label{
+    opacity:1;
 
     transform:
         translate(-50%,-50%)
-        translateY(38px);
+        translateY(-68px);
 }
 
 
-/* =========================================================
-   FANTASY LABEL POSITION
-========================================================= */
-
-.light.fantasy .light-label {
-
-    top: -4px;
+.light.yonder .light-label{
+    transform:
+        translate(-100%,-50%)
+        translateX(-48px);
 }
 
-
-/* =========================================================
-   YONDER LABEL
-========================================================= */
-
-.light.yonder .light-label {
-
-    left: 0;
-
-    top: 50%;
+.light.yonder:hover .light-label{
+    opacity:1;
 
     transform:
         translate(-100%,-50%)
-        translateX(-18px);
+        translateX(-54px);
 }
 
-.light.yonder:hover .light-label {
+
+.light.infinite .light-label{
+    transform:
+        translate(0,-50%)
+        translateX(48px);
+}
+
+.light.infinite:hover .light-label{
+    opacity:1;
 
     transform:
-        translate(-100%,-50%)
-        translateX(-28px);
+        translate(0,-50%)
+        translateX(54px);
 }
 
 
-/* =========================================================
-   INFINITE LABEL
-========================================================= */
-
-.light.infinite .light-label {
-
-    left: 0;
-
-    top: 50%;
-
+.light.life .light-label{
     transform:
-        translate(100%,-50%)
-        translateX(18px);
+        translate(-50%,-50%)
+        translateY(62px);
 }
 
-.light.infinite:hover .light-label {
-
-    transform:
-        translate(100%,-50%)
-        translateX(28px);
-}
-
-
-/* =========================================================
-   LIFE LABEL
-========================================================= */
-
-.light.life .light-label {
-
-    top: 4px;
-}
-
-.light.life:hover .light-label {
+.light.life:hover .light-label{
+    opacity:1;
 
     transform:
         translate(-50%,-50%)
-        translateY(-78px);
+        translateY(68px);
 }
 
 
 /* =========================================================
-   LIFE LIGHT
+   HOVER STAR
 ========================================================= */
 
-.light.life::before {
+.light:hover{
+    z-index:15;
 
-    animation:
-        breathe 3.5s ease-in-out
-        infinite;
+    transform:scale(1.2);
+}
+
+.light:hover::before{
+
+    animation-play-state:paused;
+
+    opacity:1;
+
+    transform:
+        translate(-50%,-50%)
+        rotate(45deg)
+        scale(1.55);
+
+    box-shadow:
+        0 0 15px rgba(255,255,255,.95),
+        0 0 45px rgba(255,255,255,.55),
+        0 0 100px rgba(255,255,255,.2);
+}
+
+.light:hover::after{
+
+    opacity:1;
+
+    transform:
+        translate(-50%,-50%)
+        rotate(45deg)
+        scale(1.6);
 }
 
 
 /* =========================================================
-   FLOAT ANIMATIONS
+   CENTER DIM WHEN HOVER
 ========================================================= */
 
-@keyframes floatFantasy {
-
-    0%,100% {
-        margin-top: -9px;
-    }
-
-    50% {
-        margin-top: -20px;
-    }
-}
-
-
-@keyframes floatYonder {
-
-    0%,100% {
-        margin-left: -9px;
-    }
-
-    50% {
-        margin-left: 6px;
-    }
-}
-
-
-@keyframes floatInfinite {
-
-    0%,100% {
-        margin-right: -9px;
-    }
-
-    50% {
-        margin-right: 8px;
-    }
-}
-
-
-@keyframes floatLife {
-
-    0%,100% {
-        margin-bottom: -9px;
-    }
-
-    50% {
-        margin-bottom: 6px;
-    }
-}
-
-
-@keyframes breathe {
-
-    0%,100% {
-
-        width: 6px;
-        height: 6px;
-
-        box-shadow:
-            0 0 8px
-            rgba(255,255,255,.35);
-    }
-
-    50% {
-
-        width: 10px;
-        height: 10px;
-
-        box-shadow:
-            0 0 14px
-            rgba(255,255,255,.55),
-
-            0 0 38px
-            rgba(255,255,255,.18);
-    }
-}
-
-
-/* =========================================================
-   CORE DIM WHEN LIGHT HOVER
-========================================================= */
-
-#world:has(.light:hover) .core {
-
-    opacity: .35;
+#world:has(.light:hover) .core{
+    opacity:.35;
 }
 
 
@@ -1350,141 +1048,100 @@ body {
    REALM
 ========================================================= */
 
-.realm {
+.realm{
+    position:absolute;
 
-    position: absolute;
+    left:50%;
+    bottom:3.8%;
 
-    left: 50%;
-
-    bottom: 3.8%;
-
-    z-index: 9;
+    z-index:9;
 
     transform:
         translateX(-50%)
         translateY(10px);
 
-    text-align: center;
+    text-align:center;
 
-    pointer-events: none;
+    pointer-events:none;
 
-    opacity: 0;
+    opacity:0;
 
     transition:
         opacity 2s ease,
         transform 2s cubic-bezier(.2,.8,.2,1);
 
-    transition-delay: 5.9s;
+    transition-delay:5.9s;
 }
 
-#world.show .realm {
-
-    opacity: 1;
+#world.show .realm{
+    opacity:1;
 
     transform:
         translateX(-50%)
         translateY(0);
 }
 
+.realm::before{
+    content:"";
 
-/* =========================================================
-   REALM SEPARATOR
-========================================================= */
+    display:block;
 
-.realm::before {
+    width:18px;
+    height:1px;
 
-    content: "";
+    margin:0 auto 10px;
 
-    display: block;
+    background:rgba(255,255,255,.16);
+}
 
-    width: 18px;
+.realm-title{
+    font-family:Arial,Helvetica,sans-serif;
 
-    height: 1px;
+    font-size:clamp(8px,.8vw,11px);
 
-    margin: 0 auto 10px;
+    font-weight:300;
 
-    background:
-        rgba(
-            255,
-            255,
-            255,
-            .16
-        );
+    letter-spacing:.45em;
+    margin-left:.45em;
+
+    color:rgba(255,255,255,.3);
 }
 
 
 /* =========================================================
-   REALM TITLE
+   WORLD TRANSITION
 ========================================================= */
 
-.realm-title {
+#world.entering-world::after{
+    content:"";
 
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
+    position:absolute;
+    inset:0;
 
-    font-size:
-        clamp(
-            8px,
-            .8vw,
-            11px
-        );
+    z-index:100;
 
-    font-weight: 300;
+    background:#fff;
 
-    letter-spacing: .45em;
-
-    margin-left: .45em;
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .3
-        );
-}
-
-
-/* =========================================================
-   PAGE TRANSITION WHEN ENTERING WORLD
-========================================================= */
-
-#world.entering-world::after {
-
-    content: "";
-
-    position: absolute;
-
-    inset: 0;
-
-    z-index: 100;
-
-    background: #fff;
-
-    opacity: 0;
+    opacity:0;
 
     animation:
-        worldFlash .9s ease
-        forwards;
+        worldFlash .9s ease forwards;
 
-    pointer-events: none;
+    pointer-events:none;
 }
 
+@keyframes worldFlash{
 
-@keyframes worldFlash {
-
-    0% {
-        opacity: 0;
+    0%{
+        opacity:0;
     }
 
-    35% {
-        opacity: .16;
+    35%{
+        opacity:.16;
     }
 
-    100% {
-        opacity: 0;
+    100%{
+        opacity:0;
     }
 }
 
@@ -1493,22 +1150,16 @@ body {
    LOGO ANIMATION
 ========================================================= */
 
-@keyframes logoIn {
+@keyframes logoIn{
 
-    from {
-
-        opacity: 0;
-
-        transform:
-            translateY(24px);
+    from{
+        opacity:0;
+        transform:translateY(24px);
     }
 
-    to {
-
-        opacity: 1;
-
-        transform:
-            translateY(0);
+    to{
+        opacity:1;
+        transform:translateY(0);
     }
 }
 
@@ -1517,169 +1168,93 @@ body {
    MOBILE
 ========================================================= */
 
-@media (max-width: 700px) {
+@media(max-width:700px){
 
-
-    .logo img {
-
-        width: 220px;
+    .logo img{
+        width:220px;
     }
 
-
-    .chinese-name {
-
-        margin-top: 20px;
-
-        font-size: 18px;
-
-        letter-spacing: .45em;
-
-        margin-left: .45em;
+    .chinese-name{
+        margin-top:20px;
+        font-size:18px;
+        letter-spacing:.45em;
+        margin-left:.45em;
     }
 
-
-    .slogan {
-
-        margin-top: 46px;
+    .slogan{
+        margin-top:46px;
     }
-
 
     .slogan .line-one,
-    .slogan .line-two {
-
-        font-size: 14px;
-
-        letter-spacing: .1em;
-
-        margin-left: .1em;
+    .slogan .line-two{
+        font-size:14px;
+        letter-spacing:.1em;
+        margin-left:.1em;
     }
 
-
-    .enter-area {
-
-        margin-top: 60px;
+    .enter-area{
+        margin-top:60px;
     }
 
-
-    .enter-bg {
-
-        font-size: 54px;
+    .enter-bg{
+        font-size:54px;
     }
 
-
-    .world-logo {
-
-        left: 20px;
-
-        top: 22px;
+    .world-logo{
+        left:20px;
+        top:22px;
     }
 
-
-    .world-logo img {
-
-        width: 70px;
+    .world-logo img{
+        width:70px;
     }
 
-
-    .core {
-
-        width: 90vw;
+    .core{
+        width:90vw;
     }
 
-
-    .core-cn {
-
-        font-size: 15px;
-
-        letter-spacing: .12em;
-
-        margin-left: .12em;
+    .core-cn{
+        font-size:15px;
+        letter-spacing:.12em;
+        margin-left:.12em;
     }
 
-
-    .core-en {
-
-        font-size: 7px;
-
-        letter-spacing: .12em;
-
-        margin-left: .12em;
+    .core-en{
+        font-size:7px;
+        letter-spacing:.12em;
+        margin-left:.12em;
     }
 
-
-    .light.fantasy {
-
-        top: 19%;
+    .light.fantasy{
+        top:19%;
     }
 
-
-    .light.yonder {
-
-        left: 17%;
+    .light.yonder{
+        left:17%;
     }
 
-
-    .light.infinite {
-
-        right: 17%;
+    .light.infinite{
+        right:17%;
     }
 
-
-    .light.life {
-
-        bottom: 20%;
+    .light.life{
+        bottom:20%;
     }
 
-
-    .light-name {
-
-        font-size: 16px;
+    .light-name{
+        font-size:16px;
     }
 
-
-    .light-meaning {
-
-        font-size: 9px;
+    .light-meaning{
+        font-size:9px;
     }
 
-
-    .light-tags {
-
-        font-size: 6px;
-
-        max-width: 180px;
-
-        white-space: normal;
-
-        line-height: 1.7;
+    .light-tags{
+        font-size:6px;
+        max-width:180px;
+        white-space:normal;
+        line-height:1.7;
     }
-
-
-    .light.yonder .light-label {
-
-        left: 0;
-
-        transform:
-            translate(-100%,-50%)
-            translateX(-12px);
-    }
-
-
-    .light.infinite .light-label {
-
-        left: 0;
-
-        transform:
-            translate(100%,-50%)
-            translateX(12px);
-    }
-
-
-    .realm {
-
-        bottom: 4%;
-    }
-
 }
 
 
@@ -1687,21 +1262,18 @@ body {
    REDUCED MOTION
 ========================================================= */
 
-@media (prefers-reduced-motion: reduce) {
+@media(prefers-reduced-motion:reduce){
 
     *,
     *::before,
-    *::after {
-
-        animation-duration: .01ms !important;
-
-        transition-duration: .01ms !important;
+    *::after{
+        animation-duration:.01ms !important;
+        transition-duration:.01ms !important;
     }
 
 }
 
 </style>
-
 </head>
 
 
@@ -1714,9 +1286,7 @@ body {
 
 <section id="entrance">
 
-
     <div class="brand">
-
 
         <div class="logo">
 
@@ -1725,54 +1295,36 @@ body {
                 alt="HYOOL"
             >
 
-        </div>
-
-
     </div>
 
 
     <div class="slogan">
 
-
         <div class="line-one">
-
             自幻想，奔赴彼岸。
-
         </div>
-
 
         <div class="line-two">
-
             于无限，孕育生命。
-
         </div>
-
 
     </div>
 
 
     <div class="enter-area">
 
-
         <div class="enter-bg">
-
             进入幻灵
-
         </div>
-
 
         <div
             class="enter"
             id="enterButton"
         >
-
             ENTER HYOOL
-
         </div>
 
-
     </div>
-
 
 </section>
 
@@ -1785,7 +1337,7 @@ body {
 <section id="world">
 
 
-    <!-- LIFE VIDEO -->
+    <!-- VIDEO -->
 
     <video
         class="life-video"
@@ -1806,7 +1358,7 @@ body {
     <div class="life-vignette"></div>
 
 
-    <!-- SMALL LOGO -->
+    <!-- LOGO -->
 
     <div class="world-logo">
 
@@ -1819,7 +1371,7 @@ body {
 
 
     <!-- ===================================================
-         FLOATING LIGHT — FANTASY
+         FANTASY
     ==================================================== -->
 
     <div
@@ -1830,21 +1382,15 @@ body {
         <div class="light-label">
 
             <div class="light-name">
-
                 幻想
-
             </div>
 
             <div class="light-meaning">
-
                 让想象成为作品。
-
             </div>
 
             <div class="light-tags">
-
                 AI 图片 · 视频 · 音乐 · 故事 · 角色
-
             </div>
 
         </div>
@@ -1853,7 +1399,7 @@ body {
 
 
     <!-- ===================================================
-         FLOATING LIGHT — YONDER
+         YONDER
     ==================================================== -->
 
     <div
@@ -1864,21 +1410,15 @@ body {
         <div class="light-label">
 
             <div class="light-name">
-
                 彼岸
-
             </div>
 
             <div class="light-meaning">
-
                 让作品抵达彼岸。
-
             </div>
 
             <div class="light-tags">
-
                 展示 · 分享 · 发现 · 个人空间 · 社区
-
             </div>
 
         </div>
@@ -1887,7 +1427,7 @@ body {
 
 
     <!-- ===================================================
-         FLOATING LIGHT — INFINITE
+         INFINITE
     ==================================================== -->
 
     <div
@@ -1898,21 +1438,15 @@ body {
         <div class="light-label">
 
             <div class="light-name">
-
                 无限
-
             </div>
 
             <div class="light-meaning">
-
                 让创造拥有无限可能。
-
             </div>
 
             <div class="light-tags">
-
                 AI 模型 · 工具 · 素材 · 工作流 · 实验
-
             </div>
 
         </div>
@@ -1921,7 +1455,7 @@ body {
 
 
     <!-- ===================================================
-         FLOATING LIGHT — LIFE
+         LIFE
     ==================================================== -->
 
     <div
@@ -1932,21 +1466,15 @@ body {
         <div class="light-label">
 
             <div class="light-name">
-
                 生命
-
             </div>
 
             <div class="light-meaning">
-
                 让创造拥有真正的存在。
-
             </div>
 
             <div class="light-tags">
-
                 AI 角色 · 数字人格 · 智能体 · 虚拟生命
-
             </div>
 
         </div>
@@ -1955,22 +1483,17 @@ body {
 
 
     <!-- ===================================================
-         CORE
+         CENTER
     ==================================================== -->
 
     <div class="core">
 
         <div class="core-cn">
-
             幻想 × 彼岸 × 无限 × 生命
-
         </div>
 
-
         <div class="core-en">
-
             Fantasy · Yonder · Infinite · Life
-
         </div>
 
     </div>
@@ -1983,9 +1506,7 @@ body {
     <div class="realm">
 
         <div class="realm-title">
-
             HYOOL REALM
-
         </div>
 
     </div>
@@ -2042,79 +1563,55 @@ button.addEventListener(
     "click",
     () => {
 
-
         button.style.pointerEvents =
             "none";
 
 
-        /* PAGE 1 EXIT */
+        /* 第一页离开 */
 
         entrance.classList.add("exit");
 
 
-        /* PAGE 2 */
+        /* 第二页进入 */
 
         setTimeout(
             () => {
 
-
                 world.classList.add("show");
 
 
-                /*
-                 * Video always starts
-                 * from the beginning.
-                 */
+                /* 从第一帧开始 */
 
-                try {
-
+                try{
                     lifeVideo.currentTime = 0;
+                }catch(e){}
 
-                } catch (error) {
 
-                    console.log(error);
-
-                }
-
+                /* 保证静音 */
 
                 lifeVideo.muted = true;
 
 
-                /*
-                 * Start video
-                 */
+                /* 自动播放 */
 
                 const playPromise =
                     lifeVideo.play();
 
 
-                if (
+                if(
                     playPromise !== undefined
-                ) {
+                ){
 
                     playPromise.catch(
-                        error => {
-
-                            console.log(
-                                "Video playback blocked:",
-                                error
-                            );
-
-                        }
+                        () => {}
                     );
 
                 }
 
 
                 /*
-                 * IMPORTANT
-                 *
-                 * We do NOT wait for the
-                 * 10 second video.
-                 *
-                 * At around 3 seconds,
-                 * the four lights become
-                 * available.
+                 * 约 3 秒后
+                 * 四个星芒开始出现
                  */
 
                 setTimeout(
@@ -2145,30 +1642,24 @@ enterArea.addEventListener(
     "mousemove",
     event => {
 
-
         const rect =
             enterArea.getBoundingClientRect();
-
 
         const centerX =
             rect.left +
             rect.width / 2;
 
-
         const centerY =
             rect.top +
             rect.height / 2;
-
 
         const x =
             event.clientX -
             centerX;
 
-
         const y =
             event.clientY -
             centerY;
-
 
         const moveX =
             Math.max(
@@ -2179,7 +1670,6 @@ enterArea.addEventListener(
                 )
             );
 
-
         const moveY =
             Math.max(
                 -4,
@@ -2189,19 +1679,15 @@ enterArea.addEventListener(
                 )
             );
 
-
         button.style.transform =
-            `translate(
-                ${moveX}px,
-                ${moveY}px
-            )`;
+            `translate(${moveX}px,${moveY}px)`;
 
     }
 );
 
 
 /* =========================================================
-   RESET ENTER
+   ENTER RESET
 ========================================================= */
 
 enterArea.addEventListener(
@@ -2222,10 +1708,6 @@ lifeVideo.addEventListener(
     "ended",
     () => {
 
-        /*
-         * Stop at final frame.
-         */
-
         lifeVideo.pause();
 
     }
@@ -2233,48 +1715,18 @@ lifeVideo.addEventListener(
 
 
 /* =========================================================
-   LIGHT INTERACTION
+   FOUR WORLD ENTRANCES
 ========================================================= */
 
 lights.forEach(
     light => {
 
-
-        light.addEventListener(
-            "mouseenter",
-            () => {
-
-                const worldName =
-                    light.dataset.world;
-
-                console.log(
-                    "HYOOL WORLD:",
-                    worldName
-                );
-
-            }
-        );
-
-
         light.addEventListener(
             "click",
             () => {
 
-
                 const worldName =
                     light.dataset.world;
-
-
-                /*
-                 * Temporary transition.
-                 *
-                 * Later:
-                 *
-                 * fantasy  -> fantasy.html
-                 * yonder   -> yonder.html
-                 * infinite -> infinite.html
-                 * life     -> life.html
-                 */
 
 
                 world.classList.add(
@@ -2282,58 +1734,48 @@ lights.forEach(
                 );
 
 
-                /*
-                 * Give the flash
-                 * animation time.
-                 */
-
                 setTimeout(
                     () => {
 
-
-                        if (
+                        if(
                             worldName ===
                             "fantasy"
-                        ) {
+                        ){
 
                             window.location.href =
                                 "fantasy.html";
 
                         }
 
-
-                        else if (
+                        else if(
                             worldName ===
                             "yonder"
-                        ) {
+                        ){
 
                             window.location.href =
                                 "yonder.html";
 
                         }
 
-
-                        else if (
+                        else if(
                             worldName ===
                             "infinite"
-                        ) {
+                        ){
 
                             window.location.href =
                                 "infinite.html";
 
                         }
 
-
-                        else if (
+                        else if(
                             worldName ===
                             "life"
-                        ) {
+                        ){
 
                             window.location.href =
                                 "life.html";
 
                         }
-
 
                     },
                     650
@@ -2345,88 +1787,7 @@ lights.forEach(
     }
 );
 
-
-/* =========================================================
-   TOUCH SUPPORT
-========================================================= */
-
-lights.forEach(
-    light => {
-
-        light.addEventListener(
-            "touchstart",
-            () => {
-
-                light.classList.add(
-                    "touch-active"
-                );
-
-            },
-            {
-                passive: true
-            }
-        );
-
-    }
-);
-
-
-/* =========================================================
-   FUTURE AUDIO
-========================================================= */
-
-/*
- * Background music can be added later.
- *
- * DO NOT change the visual architecture.
- *
- * Example:
- *
- * const audio =
- *     new Audio("./ambient.mp3");
- *
- * audio.loop = true;
- * audio.volume = 0;
- *
- * audio.play();
- *
- * Then gradually increase:
- *
- * audio.volume += 0.01;
- *
- */
-
-
-/* =========================================================
-   FUTURE WORLD ROUTES
-========================================================= */
-
-/*
- *
- * fantasy.html
- * ----------------------------------
- * AI 图片 / 视频 / 音乐 / 故事 / 角色
- *
- *
- * yonder.html
- * ----------------------------------
- * 作品 / 分享 / 个人空间 / 社区
- *
- *
- * infinite.html
- * ----------------------------------
- * AI 模型 / 工具 / 素材 / 工作流 / 实验
- *
- *
- * life.html
- * ----------------------------------
- * AI 角色 / 数字人格 / 智能体 / 数字生命
- *
- */
-
 </script>
 
-
 </body>
-
 </html>
