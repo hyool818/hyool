@@ -13,7 +13,7 @@
 <title>彼岸 · HYOOL</title>
 
 <style>
-
+  
 :root {
     --accent: #8b8bff;
     --text: rgba(255,255,255,.94);
@@ -22,6 +22,14 @@
     --glass-border: rgba(255,255,255,.11);
 }
 
+.logo img {
+    display: block;
+    height: 32px;
+    width: auto;
+    object-fit: contain;
+}
+
+    
 * {
     box-sizing: border-box;
 }
@@ -847,12 +855,15 @@ body {
 
 <header class="header">
 
-    <a
-        href="/"
-        class="logo"
+   <a
+    href="/"
+    class="logo"
+>
+    <img
+        src="/logo1.png"
+        alt="HYOOL"
     >
-        HYOOL
-    </a>
+</a>
 
 
     <div class="header-right">
@@ -865,13 +876,6 @@ body {
             编辑彼岸
         </button>
 
-
-        <a
-            href="/yonder.html"
-            class="header-link"
-        >
-            返回
-        </a>
 
     </div>
 
