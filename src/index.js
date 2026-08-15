@@ -1,48 +1,9 @@
 ```javascript
-/* =========================================================
-   HYOOL WORKER
-   Cloudflare Workers + D1 + Assets
-
-   当前功能：
-
-   /api/register
-   /api/login
-   /api/me
-   /api/logout
-   /api/profile/:username
-
-   /@username
-   ========================================================= */
-
-
 export default {
-
     async fetch(request, env) {
 
-        const url =
-            new URL(request.url);
-
-        const pathname =
-            decodeURIComponent(
-                url.pathname
-            );
-
-
-        /* =====================================================
-           OPTIONS
-        ===================================================== */
-
-        if (
-            request.method === "OPTIONS"
-        ) {
-
-            return json({
-
-                success: true
-
-            });
-
-        }
+        const url = new URL(request.url);
+        const pathname = decodeURIComponent(url.pathname);
 
 
         /* =====================================================
@@ -56,75 +17,42 @@ export default {
 
             try {
 
-                const body =
-                    await request.json();
-
+                const body = await request.json();
 
                 const username =
-                    String(
-                        body.username || ""
-                    )
-                    .trim()
-                    .toLowerCase();
-
+                    String(body.username || "")
+                        .trim()
+                        .toLowerCase();
 
                 const password =
-                    String(
-                        body.password || ""
-                    );
-
+                    String(body.password || "");
 
                 const displayName =
-                    String(
-                        body.display_name || ""
-                    )
-                    .trim();
+                    String(body.display_name || "")
+                        .trim();
 
 
-                /* ---------------------------------------------
-                   USERNAME
-                --------------------------------------------- */
+                if (!/^[a-z0-9_-]{3,20}$/.test(username)) {
 
-                if (
-                    !/^[a-z0-9_-]{3,20}$/
-                        .test(username)
-                ) {
-
-                    return json(
-                        {
-                            success: false,
-                            error:
-                                "账号格式不正确。只能使用英文字母、数字、下划线和减号，长度 3-20 位。"
-                        },
-                        400
-                    );
+                    return json({
+                        success: false,
+                        error: "账号格式不正确。"
+                    }, 400);
 
                 }
 
 
-                /* ---------------------------------------------
-                   PASSWORD
-                --------------------------------------------- */
+                if (password.length < 8) {
 
-                if (
-                    password.length < 8
-                ) {
-
-                    return json(
-                        {
-                            success: false,
-                            error:
-                                "密码至少需要 8 位。"
-                        },
-                        400
-                    );
+                    return json({
+                        success: false,
+                        error: "密码至少需要 8 位。"
+                    }, 400);
 
                 }
 
 
-                /* ---------------------------------------------
-                   CHECK USER
-                --------------------------------------------- */
+                /* 检查账号 */
 
                 const existing =
                     await env.DB
@@ -141,24 +69,17 @@ export default {
                         .first();
 
 
+                /*
+                 * 如果账号存在但没有密码，
+                 * 允许重新配置密码。
+                 */
+
                 if (existing) {
 
-                    /*
-                     * 如果账号已经存在，
-                     * 但没有密码，
-                     * 说明是以前创建的测试账号。
-                     *
-                     * 允许重新配置密码。
-                     */
-
-                    if (
-                        !existing.password_hash
-                    ) {
+                    if (!existing.password_hash) {
 
                         const passwordHash =
-                            await hashPassword(
-                                password
-                            );
+                            await hashPassword(password);
 
 
                         await env.DB
@@ -167,16 +88,12 @@ export default {
                                 SET
                                     password_hash = ?,
                                     display_name = ?,
-                                    updated_at =
-                                        CURRENT_TIMESTAMP
+                                    updated_at = CURRENT_TIMESTAMP
                                 WHERE username = ?
                             `)
                             .bind(
                                 passwordHash,
-
-                                displayName ||
-                                    username,
-
+                                displayName || username,
                                 username
                             )
                             .run();
@@ -191,30 +108,21 @@ export default {
                     }
 
 
-                    return json(
-                        {
-                            success: false,
-                            error:
-                                "这个账号已经存在。"
-                        },
-                        409
-                    );
+                    return json({
+                        success: false,
+                        error: "这个账号已经存在。"
+                    }, 409);
 
                 }
 
 
-                /* ---------------------------------------------
-                   CREATE USER
-                --------------------------------------------- */
+                /* 创建新用户 */
 
                 const userId =
                     crypto.randomUUID();
 
-
                 const passwordHash =
-                    await hashPassword(
-                        password
-                    );
+                    await hashPassword(password);
 
 
                 await env.DB
@@ -241,27 +149,17 @@ export default {
                         )
                     `)
                     .bind(
-
                         userId,
-
                         username,
-
-                        displayName ||
-                            username,
-
+                        displayName || username,
                         "这是我的彼岸。",
-
                         "dark",
-
                         passwordHash
-
                     )
                     .run();
 
 
-                /*
-                 * 注册成功后直接登录
-                 */
+                /* 注册后自动登录 */
 
                 return createLoginResponse(
                     env,
@@ -274,21 +172,15 @@ export default {
             catch (error) {
 
                 console.error(
-                    "REGISTER ERROR",
+                    "REGISTER ERROR:",
                     error
                 );
 
-
-                return json(
-                    {
-                        success: false,
-                        error:
-                            "注册失败。",
-                        message:
-                            error.message
-                    },
-                    500
-                );
+                return json({
+                    success: false,
+                    error: "注册失败。",
+                    message: error.message
+                }, 500);
 
             }
 
@@ -309,41 +201,24 @@ export default {
                 const body =
                     await request.json();
 
-
                 const username =
-                    String(
-                        body.username || ""
-                    )
-                    .trim()
-                    .toLowerCase();
-
+                    String(body.username || "")
+                        .trim()
+                        .toLowerCase();
 
                 const password =
-                    String(
-                        body.password || ""
-                    );
+                    String(body.password || "");
 
 
-                if (
-                    !username ||
-                    !password
-                ) {
+                if (!username || !password) {
 
-                    return json(
-                        {
-                            success: false,
-                            error:
-                                "请输入账号和密码。"
-                        },
-                        400
-                    );
+                    return json({
+                        success: false,
+                        error: "请输入账号和密码。"
+                    }, 400);
 
                 }
 
-
-                /* ---------------------------------------------
-                   FIND USER
-                --------------------------------------------- */
 
                 const profile =
                     await env.DB
@@ -359,46 +234,26 @@ export default {
 
                 if (!profile) {
 
-                    return json(
-                        {
-                            success: false,
-                            error:
-                                "账号或密码错误。"
-                        },
-                        401
-                    );
+                    return json({
+                        success: false,
+                        error: "账号或密码错误。"
+                    }, 401);
 
                 }
 
 
-                /* ---------------------------------------------
-                   PASSWORD NOT CONFIGURED
-                --------------------------------------------- */
+                if (!profile.password_hash) {
 
-                if (
-                    !profile.password_hash
-                ) {
-
-                    return json(
-                        {
-                            success: false,
-                            error:
-                                "这个账号尚未完成密码配置，请重新注册。"
-                        },
-                        401
-                    );
+                    return json({
+                        success: false,
+                        error: "这个账号尚未完成密码配置。"
+                    }, 401);
 
                 }
 
-
-                /* ---------------------------------------------
-                   CHECK PASSWORD
-                --------------------------------------------- */
 
                 const passwordHash =
-                    await hashPassword(
-                        password
-                    );
+                    await hashPassword(password);
 
 
                 if (
@@ -406,21 +261,13 @@ export default {
                     profile.password_hash
                 ) {
 
-                    return json(
-                        {
-                            success: false,
-                            error:
-                                "账号或密码错误。"
-                        },
-                        401
-                    );
+                    return json({
+                        success: false,
+                        error: "账号或密码错误。"
+                    }, 401);
 
                 }
 
-
-                /* ---------------------------------------------
-                   LOGIN
-                --------------------------------------------- */
 
                 return createLoginResponse(
                     env,
@@ -433,21 +280,15 @@ export default {
             catch (error) {
 
                 console.error(
-                    "LOGIN ERROR",
+                    "LOGIN ERROR:",
                     error
                 );
 
-
-                return json(
-                    {
-                        success: false,
-                        error:
-                            "服务器登录异常。",
-                        message:
-                            error.message
-                    },
-                    500
-                );
+                return json({
+                    success: false,
+                    error: "服务器登录异常。",
+                    message: error.message
+                }, 500);
 
             }
 
@@ -467,26 +308,17 @@ export default {
             try {
 
                 const token =
-                    getSessionToken(
-                        request
-                    );
+                    getSessionToken(request);
 
 
                 if (!token) {
 
                     return json({
-
-                        authenticated:
-                            false
-
+                        authenticated: false
                     });
 
                 }
 
-
-                /* ---------------------------------------------
-                   FIND SESSION
-                --------------------------------------------- */
 
                 const session =
                     await env.DB
@@ -503,26 +335,17 @@ export default {
                 if (!session) {
 
                     return json({
-
-                        authenticated:
-                            false
-
+                        authenticated: false
                     });
 
                 }
 
 
-                /* ---------------------------------------------
-                   CHECK EXPIRATION
-                --------------------------------------------- */
-
                 if (
                     session.expires_at &&
                     new Date(
                         session.expires_at
-                    ).getTime()
-                    <=
-                    Date.now()
+                    ).getTime() <= Date.now()
                 ) {
 
                     await env.DB
@@ -535,18 +358,11 @@ export default {
 
 
                     return json({
-
-                        authenticated:
-                            false
-
+                        authenticated: false
                     });
 
                 }
 
-
-                /* ---------------------------------------------
-                   GET PROFILE
-                --------------------------------------------- */
 
                 const profile =
                     await env.DB
@@ -565,19 +381,14 @@ export default {
                             WHERE id = ?
                             LIMIT 1
                         `)
-                        .bind(
-                            session.user_id
-                        )
+                        .bind(session.user_id)
                         .first();
 
 
                 if (!profile) {
 
                     return json({
-
-                        authenticated:
-                            false
-
+                        authenticated: false
                     });
 
                 }
@@ -585,19 +396,16 @@ export default {
 
                 return json({
 
-                    authenticated:
-                        true,
+                    authenticated: true,
 
                     user: {
 
-                        id:
-                            profile.id,
+                        id: profile.id,
 
                         username:
                             profile.username,
 
-                        profile:
-                            profile
+                        profile: profile
 
                     }
 
@@ -608,21 +416,14 @@ export default {
             catch (error) {
 
                 console.error(
-                    "ME ERROR",
+                    "ME ERROR:",
                     error
                 );
 
-
-                return json(
-                    {
-                        authenticated:
-                            false,
-
-                        error:
-                            "服务器返回异常。"
-                    },
-                    500
-                );
+                return json({
+                    authenticated: false,
+                    error: "服务器返回异常。"
+                }, 500);
 
             }
 
@@ -631,7 +432,6 @@ export default {
 
         /* =====================================================
            LOGOUT
-           /api/logout
         ===================================================== */
 
         if (
@@ -642,9 +442,7 @@ export default {
             try {
 
                 const token =
-                    getSessionToken(
-                        request
-                    );
+                    getSessionToken(request);
 
 
                 if (token) {
@@ -662,8 +460,7 @@ export default {
 
                 return json(
                     {
-                        success:
-                            true
+                        success: true
                     },
                     200,
                     {
@@ -677,21 +474,14 @@ export default {
             catch (error) {
 
                 console.error(
-                    "LOGOUT ERROR",
+                    "LOGOUT ERROR:",
                     error
                 );
 
-
-                return json(
-                    {
-                        success:
-                            false,
-
-                        error:
-                            "退出登录失败。"
-                    },
-                    500
-                );
+                return json({
+                    success: false,
+                    error: "退出登录失败。"
+                }, 500);
 
             }
 
@@ -700,38 +490,26 @@ export default {
 
         /* =====================================================
            PUBLIC PROFILE API
-
            /api/profile/333123
         ===================================================== */
 
         if (
-            pathname.startsWith(
-                "/api/profile/"
-            )
+            pathname.startsWith("/api/profile/")
         ) {
 
             const username =
                 pathname
-                    .substring(
-                        "/api/profile/"
-                            .length
-                    )
+                    .substring("/api/profile/".length)
                     .trim()
                     .toLowerCase();
 
 
             if (!username) {
 
-                return json(
-                    {
-                        success:
-                            false,
-
-                        error:
-                            "缺少用户名。"
-                    },
-                    400
-                );
+                return json({
+                    success: false,
+                    error: "缺少用户名。"
+                }, 400);
 
             }
 
@@ -761,27 +539,19 @@ export default {
 
                 if (!profile) {
 
-                    return json(
-                        {
-                            success:
-                                false,
-
-                            error:
-                                "彼岸不存在。"
-                        },
-                        404
-                    );
+                    return json({
+                        success: false,
+                        error: "彼岸不存在。"
+                    }, 404);
 
                 }
 
 
                 return json({
 
-                    success:
-                        true,
+                    success: true,
 
-                    profile:
-                        profile
+                    profile: profile
 
                 });
 
@@ -790,21 +560,14 @@ export default {
             catch (error) {
 
                 console.error(
-                    "PROFILE ERROR",
+                    "PROFILE ERROR:",
                     error
                 );
 
-
-                return json(
-                    {
-                        success:
-                            false,
-
-                        error:
-                            "数据库异常。"
-                    },
-                    500
-                );
+                return json({
+                    success: false,
+                    error: "数据库异常。"
+                }, 500);
 
             }
 
@@ -813,7 +576,6 @@ export default {
 
         /* =====================================================
            PERSONAL YONDER
-
            /@333123
         ===================================================== */
 
@@ -850,14 +612,11 @@ export default {
                     return new Response(
                         "这个彼岸不存在",
                         {
-                            status:
-                                404,
+                            status: 404,
 
                             headers: {
-
                                 "Content-Type":
                                     "text/plain; charset=UTF-8"
-
                             }
                         }
                     );
@@ -866,11 +625,11 @@ export default {
 
 
                 /*
-                 * 地址栏保持：
+                 * 保持浏览器地址：
                  *
-                 * https://hyool.com/@333123
+                 * /@333123
                  *
-                 * 实际页面：
+                 * 实际返回：
                  *
                  * yonder-home.html
                  */
@@ -883,18 +642,13 @@ export default {
 
 
                 return env.ASSETS.fetch(
-
                     new Request(
                         assetUrl,
                         {
-                            method:
-                                "GET",
-
-                            headers:
-                                request.headers
+                            method: "GET",
+                            headers: request.headers
                         }
                     )
-
                 );
 
             }
@@ -902,21 +656,14 @@ export default {
             catch (error) {
 
                 console.error(
-                    "YONDER ERROR",
+                    "YONDER ERROR:",
                     error
                 );
 
-
-                return json(
-                    {
-                        success:
-                            false,
-
-                        error:
-                            "彼岸加载异常。"
-                    },
-                    500
-                );
+                return json({
+                    success: false,
+                    error: "彼岸加载异常。"
+                }, 500);
 
             }
 
@@ -924,12 +671,10 @@ export default {
 
 
         /* =====================================================
-           STATIC ASSETS
+           STATIC FILES
         ===================================================== */
 
-        return env.ASSETS.fetch(
-            request
-        );
+        return env.ASSETS.fetch(request);
 
     }
 
@@ -946,21 +691,11 @@ async function createLoginResponse(
     username
 ) {
 
-    /*
-     * 生成新的 Session Token
-     */
-
     const token =
         crypto.randomUUID()
-        +
-        "-"
-        +
-        crypto.randomUUID();
+        + "-"
+        + crypto.randomUUID();
 
-
-    /*
-     * 30 天
-     */
 
     const expiresAt =
         new Date(
@@ -974,10 +709,6 @@ async function createLoginResponse(
         )
         .toISOString();
 
-
-    /*
-     * 写入 sessions
-     */
 
     await env.DB
         .prepare(`
@@ -1003,10 +734,6 @@ async function createLoginResponse(
         .run();
 
 
-    /*
-     * 获取完整 Profile
-     */
-
     const profile =
         await env.DB
             .prepare(`
@@ -1030,17 +757,13 @@ async function createLoginResponse(
 
     return json(
         {
-
-            success:
-                true,
+            success: true,
 
             user: {
 
-                id:
-                    userId,
+                id: userId,
 
-                username:
-                    username,
+                username: username,
 
                 profile:
                     profile || {}
@@ -1048,18 +771,11 @@ async function createLoginResponse(
             }
 
         },
-
         200,
-
         {
-
             "Set-Cookie":
-                createSessionCookie(
-                    token
-                )
-
+                createSessionCookie(token)
         }
-
     );
 
 }
@@ -1067,9 +783,6 @@ async function createLoginResponse(
 
 /* =========================================================
    PASSWORD HASH
-
-   当前阶段使用 SHA-256。
-   先保证 HYOOL 账户系统稳定运行。
 ========================================================= */
 
 async function hashPassword(
@@ -1096,10 +809,7 @@ async function hashPassword(
             byte =>
                 byte
                     .toString(16)
-                    .padStart(
-                        2,
-                        "0"
-                    )
+                    .padStart(2, "0")
         )
         .join("");
 
@@ -1115,8 +825,7 @@ function getSessionToken(
 ) {
 
     const cookie =
-        request.headers
-            .get("Cookie")
+        request.headers.get("Cookie")
         || "";
 
 
@@ -1141,7 +850,7 @@ function getSessionToken(
 
 
 /* =========================================================
-   CREATE SESSION COOKIE
+   CREATE COOKIE
 ========================================================= */
 
 function createSessionCookie(
@@ -1151,9 +860,7 @@ function createSessionCookie(
     return [
 
         "hyool_session=" +
-            encodeURIComponent(
-                token
-            ),
+            encodeURIComponent(token),
 
         "Path=/",
 
@@ -1171,7 +878,7 @@ function createSessionCookie(
 
 
 /* =========================================================
-   CLEAR SESSION COOKIE
+   CLEAR COOKIE
 ========================================================= */
 
 function clearSessionCookie() {
@@ -1206,14 +913,9 @@ function json(
 ) {
 
     return new Response(
-
-        JSON.stringify(
-            data
-        ),
-
+        JSON.stringify(data),
         {
-
-            status,
+            status: status,
 
             headers: {
 
@@ -1226,9 +928,7 @@ function json(
                 ...extraHeaders
 
             }
-
         }
-
     );
 
 }
