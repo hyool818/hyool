@@ -10,10 +10,7 @@
     content="width=device-width, initial-scale=1.0"
 >
 
-<meta
-    name="theme-color"
-    content="#000000"
->
+<meta name="theme-color" content="#000000">
 
 <title>HYOOL · 幻灵</title>
 
@@ -32,10 +29,14 @@
 
 html,
 body {
+
     width: 100%;
     height: 100%;
+
     overflow: hidden;
+
     background: #000;
+
     color: #fff;
 
     font-family:
@@ -48,11 +49,6 @@ body {
         sans-serif;
 }
 
-button,
-a {
-    font: inherit;
-}
-
 
 /* =========================================================
    PAGE 1
@@ -61,6 +57,7 @@ a {
 #entrance {
 
     position: fixed;
+
     inset: 0;
 
     z-index: 10;
@@ -69,13 +66,17 @@ a {
     height: 100%;
 
     display: flex;
+
     flex-direction: column;
+
     align-items: center;
+
     justify-content: center;
 
     background: #000;
 
     opacity: 1;
+
     transform: scale(1);
 
     transition:
@@ -145,10 +146,13 @@ a {
 .brand {
 
     position: relative;
+
     z-index: 2;
 
     display: flex;
+
     flex-direction: column;
+
     align-items: center;
 
     text-align: center;
@@ -164,7 +168,9 @@ a {
 .logo {
 
     display: flex;
+
     align-items: center;
+
     justify-content: center;
 
     opacity: 0;
@@ -239,6 +245,7 @@ a {
 .slogan {
 
     position: relative;
+
     z-index: 2;
 
     margin-top: 58px;
@@ -303,18 +310,21 @@ a {
 .enter-area {
 
     position: relative;
+
     z-index: 5;
 
     margin-top: 72px;
 
     display: flex;
+
     align-items: center;
+
     justify-content: center;
 }
 
 
 /* =========================================================
-   BACKGROUND CHINESE
+   ENTER BACKGROUND TEXT
 ========================================================= */
 
 .enter-bg {
@@ -461,11 +471,6 @@ a {
     transform: scale(1);
 }
 
-
-/* =========================================================
-   ENTER GLOW
-========================================================= */
-
 .enter::after {
 
     content: "";
@@ -582,6 +587,7 @@ a {
     object-position: center;
 
     border: none;
+
     outline: none;
 
     background: #000;
@@ -615,7 +621,7 @@ a {
 
 
 /* =========================================================
-   LIFE OVERLAY
+   VIDEO ATMOSPHERE
 ========================================================= */
 
 .life-overlay {
@@ -638,11 +644,6 @@ a {
         );
 }
 
-
-/* =========================================================
-   VIGNETTE
-========================================================= */
-
 .life-vignette {
 
     position: absolute;
@@ -664,7 +665,7 @@ a {
 
 
 /* =========================================================
-   WORLD LOGO
+   SMALL LOGO
 ========================================================= */
 
 .world-logo {
@@ -672,6 +673,7 @@ a {
     position: absolute;
 
     left: 42px;
+
     top: 34px;
 
     z-index: 10;
@@ -705,7 +707,7 @@ a {
 
 
 /* =========================================================
-   CORE PHRASE
+   CENTRAL PHRASE
 ========================================================= */
 
 .core {
@@ -713,6 +715,7 @@ a {
     position: absolute;
 
     left: 50%;
+
     top: 50%;
 
     z-index: 7;
@@ -733,7 +736,7 @@ a {
         opacity 2s ease,
         transform 2s cubic-bezier(.2,.8,.2,1);
 
-    transition-delay: 8.1s;
+    transition-delay: 5.8s;
 }
 
 #world.show .core {
@@ -744,11 +747,6 @@ a {
         translate(-50%,-50%)
         translateY(0);
 }
-
-
-/* =========================================================
-   CORE CHINESE
-========================================================= */
 
 .core-cn {
 
@@ -773,11 +771,6 @@ a {
             .9
         );
 }
-
-
-/* =========================================================
-   CORE ENGLISH
-========================================================= */
 
 .core-en {
 
@@ -812,358 +805,544 @@ a {
 
 
 /* =========================================================
-   FOUR WORLDS
+   FOUR FLOATING LIGHTS
 ========================================================= */
 
-.world-entry {
+.light {
 
     position: absolute;
 
-    z-index: 8;
+    z-index: 9;
 
-    text-align: center;
+    width: 18px;
+
+    height: 18px;
+
+    border-radius: 50%;
 
     cursor: pointer;
 
-    user-select: none;
-
-    width: 280px;
-
     opacity: 0;
 
+    transform: scale(.55);
+
     transition:
-        opacity 1.5s ease,
-        transform 1.5s cubic-bezier(.2,.8,.2,1);
+        opacity 1.8s ease,
+        transform 1.2s cubic-bezier(.2,.8,.2,1);
 }
 
 
-/* ---------------------------------------------------------
-   TOP — FANTASY
---------------------------------------------------------- */
+/* =========================================================
+   LIGHT POSITIONS
+========================================================= */
 
-.world-entry.fantasy {
+.light.fantasy {
 
     left: 50%;
 
-    top: 12%;
+    top: 20%;
 
-    transform:
-        translateX(-50%)
-        translateY(-15px);
+    margin-left: -9px;
 
-    transition-delay: 8.45s;
+    margin-top: -9px;
+
+    animation:
+        floatFantasy 5.8s ease-in-out
+        infinite;
+
+    animation-delay: 3.3s;
 }
 
 
-/* ---------------------------------------------------------
-   LEFT — YONDER
---------------------------------------------------------- */
+.light.yonder {
 
-.world-entry.yonder {
-
-    left: 10%;
+    left: 24%;
 
     top: 50%;
 
-    transform:
-        translateY(-50%)
-        translateX(-15px);
+    margin-left: -9px;
 
-    transition-delay: 8.65s;
+    margin-top: -9px;
+
+    animation:
+        floatYonder 7s ease-in-out
+        infinite;
+
+    animation-delay: 3.6s;
 }
 
 
-/* ---------------------------------------------------------
-   RIGHT — INFINITE
---------------------------------------------------------- */
+.light.infinite {
 
-.world-entry.infinite {
+    right: 24%;
 
-    right: 10%;
+    top: 48%;
 
-    top: 50%;
+    margin-right: -9px;
 
-    transform:
-        translateY(-50%)
-        translateX(15px);
+    margin-top: -9px;
 
-    transition-delay: 8.8s;
+    animation:
+        floatInfinite 6.5s ease-in-out
+        infinite;
+
+    animation-delay: 3.9s;
 }
 
 
-/* ---------------------------------------------------------
-   BOTTOM — LIFE
---------------------------------------------------------- */
-
-.world-entry.life {
+.light.life {
 
     left: 50%;
 
-    bottom: 12%;
+    bottom: 19%;
 
-    transform:
-        translateX(-50%)
-        translateY(15px);
+    margin-left: -9px;
 
-    transition-delay: 8.95s;
+    margin-bottom: -9px;
+
+    animation:
+        floatLife 5.2s ease-in-out
+        infinite;
+
+    animation-delay: 4.2s;
 }
 
 
 /* =========================================================
-   SHOW FOUR WORLDS
+   LIGHT CORE
 ========================================================= */
 
-#world.show .world-entry {
-
-    opacity: 1;
-}
-
-#world.show .world-entry.fantasy {
-
-    transform:
-        translateX(-50%)
-        translateY(0);
-}
-
-#world.show .world-entry.yonder {
-
-    transform:
-        translateY(-50%)
-        translateX(0);
-}
-
-#world.show .world-entry.infinite {
-
-    transform:
-        translateY(-50%)
-        translateX(0);
-}
-
-#world.show .world-entry.life {
-
-    transform:
-        translateX(-50%)
-        translateY(0);
-}
-
-
-/* =========================================================
-   ENTRY TITLE
-========================================================= */
-
-.entry-title {
-
-    position: relative;
-
-    display: inline-block;
-
-    font-size:
-        clamp(
-            19px,
-            2vw,
-            27px
-        );
-
-    font-weight: 300;
-
-    letter-spacing: .32em;
-
-    margin-left: .32em;
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .68
-        );
-
-    transition:
-        color .7s ease,
-        letter-spacing .8s cubic-bezier(.2,.8,.2,1),
-        transform .8s cubic-bezier(.2,.8,.2,1);
-}
-
-
-/* =========================================================
-   ENTRY TITLE GLOW
-========================================================= */
-
-.entry-title::before {
+.light::before {
 
     content: "";
 
     position: absolute;
 
     left: 50%;
+
     top: 50%;
 
-    width: 160px;
+    width: 7px;
+
+    height: 7px;
+
+    border-radius: 50%;
+
+    transform:
+        translate(-50%,-50%);
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .82
+        );
+
+    box-shadow:
+        0 0 8px
+        rgba(255,255,255,.45),
+
+        0 0 24px
+        rgba(255,255,255,.16);
+
+    transition:
+        width .8s ease,
+        height .8s ease,
+        box-shadow 1s ease;
+}
+
+
+/* =========================================================
+   LIGHT HALO
+========================================================= */
+
+.light::after {
+
+    content: "";
+
+    position: absolute;
+
+    left: 50%;
+
+    top: 50%;
+
+    width: 70px;
+
     height: 70px;
+
+    border-radius: 50%;
 
     transform:
         translate(-50%,-50%)
-        scale(.7);
+        scale(.45);
 
     background:
         radial-gradient(
-            ellipse,
-            rgba(255,255,255,.07),
-            transparent 70%
+            circle,
+            rgba(255,255,255,.09) 0%,
+            rgba(255,255,255,.025) 30%,
+            transparent 72%
         );
 
-    filter: blur(20px);
+    filter: blur(7px);
+
+    opacity: .45;
+
+    transition:
+        transform 1.2s cubic-bezier(.2,.8,.2,1),
+        opacity 1s ease;
+}
+
+
+/* =========================================================
+   LIGHT REVEAL
+========================================================= */
+
+#world.lights-active .light {
+
+    opacity: 1;
+
+    transform: scale(1);
+}
+
+
+/* =========================================================
+   HOVER LIGHT
+========================================================= */
+
+.light:hover {
+
+    z-index: 15;
+
+    transform: scale(1.2);
+}
+
+.light:hover::before {
+
+    width: 11px;
+
+    height: 11px;
+
+    box-shadow:
+        0 0 12px
+        rgba(255,255,255,.65),
+
+        0 0 40px
+        rgba(255,255,255,.28),
+
+        0 0 80px
+        rgba(255,255,255,.08);
+}
+
+.light:hover::after {
+
+    transform:
+        translate(-50%,-50%)
+        scale(1.4);
+
+    opacity: 1;
+}
+
+
+/* =========================================================
+   LIGHT LABEL
+========================================================= */
+
+.light-label {
+
+    position: absolute;
+
+    left: 50%;
+
+    top: 50%;
+
+    transform:
+        translate(-50%,-50%)
+        translateY(20px);
+
+    white-space: nowrap;
+
+    pointer-events: none;
 
     opacity: 0;
 
     transition:
         opacity .8s ease,
-        transform 1s cubic-bezier(.2,.8,.2,1);
-
-    pointer-events: none;
-
-    z-index: -1;
+        transform .9s cubic-bezier(.2,.8,.2,1);
 }
 
 
 /* =========================================================
-   ENTRY DESCRIPTION
+   LABEL TITLE
 ========================================================= */
 
-.entry-description {
+.light-name {
 
-    margin-top: 12px;
-
-    opacity: 0;
-
-    transform: translateY(8px);
-
-    pointer-events: none;
-
-    transition:
-        opacity .8s ease,
-        transform .8s cubic-bezier(.2,.8,.2,1);
-}
-
-
-/* =========================================================
-   DESCRIPTION MAIN
-========================================================= */
-
-.entry-description .meaning {
-
-    font-size:
-        clamp(
-            12px,
-            1vw,
-            14px
-        );
+    font-size: 18px;
 
     font-weight: 300;
 
-    letter-spacing: .12em;
+    letter-spacing: .3em;
 
-    margin-left: .12em;
+    margin-left: .3em;
 
     color:
         rgba(
             255,
             255,
             255,
-            .72
+            .92
         );
 
-    line-height: 1.8;
+    text-align: center;
 }
 
 
 /* =========================================================
-   DESCRIPTION TAGS
+   LABEL MEANING
 ========================================================= */
 
-.entry-description .tags {
+.light-meaning {
 
-    margin-top: 7px;
+    margin-top: 10px;
+
+    font-size: 11px;
+
+    font-weight: 300;
+
+    letter-spacing: .1em;
+
+    margin-left: .1em;
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .65
+        );
+
+    text-align: center;
+}
+
+
+/* =========================================================
+   LABEL TAGS
+========================================================= */
+
+.light-tags {
+
+    margin-top: 6px;
 
     font-family:
         Arial,
         Helvetica,
         sans-serif;
 
-    font-size:
-        clamp(
-            7px,
-            .7vw,
-            9px
-        );
+    font-size: 8px;
 
-    font-weight: 300;
+    letter-spacing: .1em;
 
-    letter-spacing: .12em;
-
-    margin-left: .12em;
+    margin-left: .1em;
 
     color:
         rgba(
             255,
             255,
             255,
-            .38
+            .34
         );
 
-    white-space: nowrap;
+    text-align: center;
 }
 
 
 /* =========================================================
-   HOVER
+   HOVER LABEL
 ========================================================= */
 
-.world-entry:hover .entry-title {
-
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            1
-        );
-
-    letter-spacing: .4em;
-
-    transform: translateY(-2px);
-}
-
-.world-entry:hover .entry-title::before {
+.light:hover .light-label {
 
     opacity: 1;
 
     transform:
         translate(-50%,-50%)
-        scale(1);
-}
-
-.world-entry:hover .entry-description {
-
-    opacity: 1;
-
-    transform: translateY(0);
+        translateY(38px);
 }
 
 
 /* =========================================================
-   HOVER OTHER ITEMS
+   FANTASY LABEL POSITION
 ========================================================= */
 
-#world:has(.world-entry:hover)
-.world-entry:not(:hover) {
+.light.fantasy .light-label {
 
-    opacity: .32;
+    top: -4px;
 }
 
-#world:has(.world-entry:hover) .core {
 
-    opacity: .72;
+/* =========================================================
+   YONDER LABEL
+========================================================= */
+
+.light.yonder .light-label {
+
+    left: 0;
+
+    top: 50%;
+
+    transform:
+        translate(-100%,-50%)
+        translateX(-18px);
+}
+
+.light.yonder:hover .light-label {
+
+    transform:
+        translate(-100%,-50%)
+        translateX(-28px);
+}
+
+
+/* =========================================================
+   INFINITE LABEL
+========================================================= */
+
+.light.infinite .light-label {
+
+    left: 0;
+
+    top: 50%;
+
+    transform:
+        translate(100%,-50%)
+        translateX(18px);
+}
+
+.light.infinite:hover .light-label {
+
+    transform:
+        translate(100%,-50%)
+        translateX(28px);
+}
+
+
+/* =========================================================
+   LIFE LABEL
+========================================================= */
+
+.light.life .light-label {
+
+    top: 4px;
+}
+
+.light.life:hover .light-label {
+
+    transform:
+        translate(-50%,-50%)
+        translateY(-78px);
+}
+
+
+/* =========================================================
+   LIFE LIGHT
+========================================================= */
+
+.light.life::before {
+
+    animation:
+        breathe 3.5s ease-in-out
+        infinite;
+}
+
+
+/* =========================================================
+   FLOAT ANIMATIONS
+========================================================= */
+
+@keyframes floatFantasy {
+
+    0%,100% {
+        margin-top: -9px;
+    }
+
+    50% {
+        margin-top: -20px;
+    }
+}
+
+
+@keyframes floatYonder {
+
+    0%,100% {
+        margin-left: -9px;
+    }
+
+    50% {
+        margin-left: 6px;
+    }
+}
+
+
+@keyframes floatInfinite {
+
+    0%,100% {
+        margin-right: -9px;
+    }
+
+    50% {
+        margin-right: 8px;
+    }
+}
+
+
+@keyframes floatLife {
+
+    0%,100% {
+        margin-bottom: -9px;
+    }
+
+    50% {
+        margin-bottom: 6px;
+    }
+}
+
+
+@keyframes breathe {
+
+    0%,100% {
+
+        width: 6px;
+        height: 6px;
+
+        box-shadow:
+            0 0 8px
+            rgba(255,255,255,.35);
+    }
+
+    50% {
+
+        width: 10px;
+        height: 10px;
+
+        box-shadow:
+            0 0 14px
+            rgba(255,255,255,.55),
+
+            0 0 38px
+            rgba(255,255,255,.18);
+    }
+}
+
+
+/* =========================================================
+   CORE DIM WHEN LIGHT HOVER
+========================================================= */
+
+#world:has(.light:hover) .core {
+
+    opacity: .35;
 }
 
 
@@ -1195,7 +1374,7 @@ a {
         opacity 2s ease,
         transform 2s cubic-bezier(.2,.8,.2,1);
 
-    transition-delay: 9.1s;
+    transition-delay: 5.9s;
 }
 
 #world.show .realm {
@@ -1205,6 +1384,32 @@ a {
     transform:
         translateX(-50%)
         translateY(0);
+}
+
+
+/* =========================================================
+   REALM SEPARATOR
+========================================================= */
+
+.realm::before {
+
+    content: "";
+
+    display: block;
+
+    width: 18px;
+
+    height: 1px;
+
+    margin: 0 auto 10px;
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .16
+        );
 }
 
 
@@ -1243,28 +1448,44 @@ a {
 
 
 /* =========================================================
-   SUBTLE SEPARATOR
+   PAGE TRANSITION WHEN ENTERING WORLD
 ========================================================= */
 
-.realm::before {
+#world.entering-world::after {
 
     content: "";
 
-    display: block;
+    position: absolute;
 
-    width: 18px;
+    inset: 0;
 
-    height: 1px;
+    z-index: 100;
 
-    margin: 0 auto 10px;
+    background: #fff;
 
-    background:
-        rgba(
-            255,
-            255,
-            255,
-            .16
-        );
+    opacity: 0;
+
+    animation:
+        worldFlash .9s ease
+        forwards;
+
+    pointer-events: none;
+}
+
+
+@keyframes worldFlash {
+
+    0% {
+        opacity: 0;
+    }
+
+    35% {
+        opacity: .16;
+    }
+
+    100% {
+        opacity: 0;
+    }
 }
 
 
@@ -1368,11 +1589,11 @@ a {
 
     .core-cn {
 
-        font-size: 16px;
+        font-size: 15px;
 
-        letter-spacing: .15em;
+        letter-spacing: .12em;
 
-        margin-left: .15em;
+        margin-left: .12em;
     }
 
 
@@ -1380,73 +1601,77 @@ a {
 
         font-size: 7px;
 
-        letter-spacing: .16em;
+        letter-spacing: .12em;
 
-        margin-left: .16em;
+        margin-left: .12em;
     }
 
 
-    .world-entry {
+    .light.fantasy {
 
-        width: 190px;
+        top: 19%;
     }
 
 
-    .world-entry.fantasy {
+    .light.yonder {
 
-        top: 13%;
+        left: 17%;
     }
 
 
-    .world-entry.yonder {
+    .light.infinite {
 
-        left: 3%;
+        right: 17%;
     }
 
 
-    .world-entry.infinite {
+    .light.life {
 
-        right: 3%;
+        bottom: 20%;
     }
 
 
-    .world-entry.life {
+    .light-name {
 
-        bottom: 12%;
+        font-size: 16px;
     }
 
 
-    .entry-title {
+    .light-meaning {
 
-        font-size: 17px;
-
-        letter-spacing: .2em;
-
-        margin-left: .2em;
+        font-size: 9px;
     }
 
 
-    .entry-description .meaning {
-
-        font-size: 10px;
-
-        letter-spacing: .06em;
-
-        margin-left: .06em;
-    }
-
-
-    .entry-description .tags {
+    .light-tags {
 
         font-size: 6px;
 
-        letter-spacing: .05em;
-
-        margin-left: .05em;
+        max-width: 180px;
 
         white-space: normal;
 
         line-height: 1.7;
+    }
+
+
+    .light.yonder .light-label {
+
+        left: 0;
+
+        transform:
+            translate(-100%,-50%)
+            translateX(-12px);
+    }
+
+
+    .light.infinite .light-label {
+
+        left: 0;
+
+        transform:
+            translate(100%,-50%)
+            translateX(12px);
     }
 
 
@@ -1484,7 +1709,7 @@ a {
 
 
 <!-- =======================================================
-     PAGE 1 — HYOOL / 幻灵
+     PAGE 1
 ======================================================= -->
 
 <section id="entrance">
@@ -1554,18 +1779,13 @@ a {
 
 
 <!-- =======================================================
-     PAGE 2 — HYOOL REALM
+     PAGE 2
 ======================================================= -->
 
 <section id="world">
 
 
-    <!-- ===================================================
-         LIFE VIDEO
-
-         注意：
-         不要添加 controls
-    ==================================================== -->
+    <!-- LIFE VIDEO -->
 
     <video
         class="life-video"
@@ -1581,18 +1801,12 @@ a {
     ></video>
 
 
-    <!-- ===================================================
-         ATMOSPHERE
-    ==================================================== -->
-
     <div class="life-overlay"></div>
 
     <div class="life-vignette"></div>
 
 
-    <!-- ===================================================
-         SMALL HYOOL LOGO
-    ==================================================== -->
+    <!-- SMALL LOGO -->
 
     <div class="world-logo">
 
@@ -1605,34 +1819,29 @@ a {
 
 
     <!-- ===================================================
-         FOUR WORLD ENTRIES
+         FLOATING LIGHT — FANTASY
     ==================================================== -->
 
-
-    <!-- FANTASY -->
-
     <div
-        class="world-entry fantasy"
+        class="light fantasy"
         data-world="fantasy"
     >
 
-        <div class="entry-title">
+        <div class="light-label">
 
-            幻想
+            <div class="light-name">
 
-        </div>
+                幻想
 
+            </div>
 
-        <div class="entry-description">
-
-            <div class="meaning">
+            <div class="light-meaning">
 
                 让想象成为作品。
 
             </div>
 
-
-            <div class="tags">
+            <div class="light-tags">
 
                 AI 图片 · 视频 · 音乐 · 故事 · 角色
 
@@ -1643,31 +1852,30 @@ a {
     </div>
 
 
-
-    <!-- YONDER -->
+    <!-- ===================================================
+         FLOATING LIGHT — YONDER
+    ==================================================== -->
 
     <div
-        class="world-entry yonder"
+        class="light yonder"
         data-world="yonder"
     >
 
-        <div class="entry-title">
+        <div class="light-label">
 
-            彼岸
+            <div class="light-name">
 
-        </div>
+                彼岸
 
+            </div>
 
-        <div class="entry-description">
-
-            <div class="meaning">
+            <div class="light-meaning">
 
                 让作品抵达彼岸。
 
             </div>
 
-
-            <div class="tags">
+            <div class="light-tags">
 
                 展示 · 分享 · 发现 · 个人空间 · 社区
 
@@ -1678,31 +1886,30 @@ a {
     </div>
 
 
-
-    <!-- INFINITE -->
+    <!-- ===================================================
+         FLOATING LIGHT — INFINITE
+    ==================================================== -->
 
     <div
-        class="world-entry infinite"
+        class="light infinite"
         data-world="infinite"
     >
 
-        <div class="entry-title">
+        <div class="light-label">
 
-            无限
+            <div class="light-name">
 
-        </div>
+                无限
 
+            </div>
 
-        <div class="entry-description">
-
-            <div class="meaning">
+            <div class="light-meaning">
 
                 让创造拥有无限可能。
 
             </div>
 
-
-            <div class="tags">
+            <div class="light-tags">
 
                 AI 模型 · 工具 · 素材 · 工作流 · 实验
 
@@ -1713,31 +1920,30 @@ a {
     </div>
 
 
-
-    <!-- LIFE -->
+    <!-- ===================================================
+         FLOATING LIGHT — LIFE
+    ==================================================== -->
 
     <div
-        class="world-entry life"
+        class="light life"
         data-world="life"
     >
 
-        <div class="entry-title">
+        <div class="light-label">
 
-            生命
+            <div class="light-name">
 
-        </div>
+                生命
 
+            </div>
 
-        <div class="entry-description">
-
-            <div class="meaning">
+            <div class="light-meaning">
 
                 让创造拥有真正的存在。
 
             </div>
 
-
-            <div class="tags">
+            <div class="light-tags">
 
                 AI 角色 · 数字人格 · 智能体 · 虚拟生命
 
@@ -1748,13 +1954,11 @@ a {
     </div>
 
 
-
     <!-- ===================================================
-         CORE PHRASE
+         CORE
     ==================================================== -->
 
     <div class="core">
-
 
         <div class="core-cn">
 
@@ -1769,9 +1973,7 @@ a {
 
         </div>
 
-
     </div>
-
 
 
     <!-- ===================================================
@@ -1814,6 +2016,9 @@ const enterArea =
 const lifeVideo =
     document.getElementById("lifeVideo");
 
+const lights =
+    document.querySelectorAll(".light");
+
 
 /* =========================================================
    PAGE LOAD
@@ -1838,24 +2043,16 @@ button.addEventListener(
     () => {
 
 
-        /*
-         * 防止重复点击
-         */
-
         button.style.pointerEvents =
             "none";
 
 
-        /*
-         * 第一页离开
-         */
+        /* PAGE 1 EXIT */
 
         entrance.classList.add("exit");
 
 
-        /*
-         * 第二页进入
-         */
+        /* PAGE 2 */
 
         setTimeout(
             () => {
@@ -1865,7 +2062,8 @@ button.addEventListener(
 
 
                 /*
-                 * 从第一帧开始
+                 * Video always starts
+                 * from the beginning.
                  */
 
                 try {
@@ -1879,23 +2077,11 @@ button.addEventListener(
                 }
 
 
-                /*
-                 * 确保静音
-                 *
-                 * 静音状态下浏览器允许
-                 * 自动播放。
-                 */
-
                 lifeVideo.muted = true;
 
-                lifeVideo.setAttribute(
-                    "muted",
-                    ""
-                );
-
 
                 /*
-                 * 开始播放
+                 * Start video
                  */
 
                 const playPromise =
@@ -1907,10 +2093,10 @@ button.addEventListener(
                 ) {
 
                     playPromise.catch(
-                        (error) => {
+                        error => {
 
                             console.log(
-                                "Video autoplay blocked:",
+                                "Video playback blocked:",
                                 error
                             );
 
@@ -1918,6 +2104,30 @@ button.addEventListener(
                     );
 
                 }
+
+
+                /*
+                 * IMPORTANT
+                 *
+                 * We do NOT wait for the
+                 * 10 second video.
+                 *
+                 * At around 3 seconds,
+                 * the four lights become
+                 * available.
+                 */
+
+                setTimeout(
+                    () => {
+
+                        world.classList.add(
+                            "lights-active"
+                        );
+
+                    },
+                    3000
+                );
+
 
             },
             450
@@ -1933,7 +2143,7 @@ button.addEventListener(
 
 enterArea.addEventListener(
     "mousemove",
-    (event) => {
+    event => {
 
 
         const rect =
@@ -2008,15 +2218,13 @@ enterArea.addEventListener(
    VIDEO END
 ========================================================= */
 
-/*
- * 不循环。
- *
- * 视频结束后停在最后一帧。
- */
-
 lifeVideo.addEventListener(
     "ended",
     () => {
+
+        /*
+         * Stop at final frame.
+         */
 
         lifeVideo.pause();
 
@@ -2025,38 +2233,22 @@ lifeVideo.addEventListener(
 
 
 /* =========================================================
-   WORLD ENTRY INTERACTION
+   LIGHT INTERACTION
 ========================================================= */
 
-const worldEntries =
-    document.querySelectorAll(
-        ".world-entry"
-    );
+lights.forEach(
+    light => {
 
 
-worldEntries.forEach(
-    (entry) => {
-
-
-        entry.addEventListener(
+        light.addEventListener(
             "mouseenter",
             () => {
 
-                /*
-                 * 以后这里可以加入：
-                 *
-                 * - 页面切换
-                 * - 光线响应
-                 * - 粒子响应
-                 * - 声音
-                 * - 页面转场
-                 */
-
                 const worldName =
-                    entry.dataset.world;
+                    light.dataset.world;
 
                 console.log(
-                    "Enter:",
+                    "HYOOL WORLD:",
                     worldName
                 );
 
@@ -2064,22 +2256,88 @@ worldEntries.forEach(
         );
 
 
-        entry.addEventListener(
+        light.addEventListener(
             "click",
             () => {
 
-                const worldName =
-                    entry.dataset.world;
 
-                console.log(
-                    "HYOOL WORLD:",
-                    worldName
+                const worldName =
+                    light.dataset.world;
+
+
+                /*
+                 * Temporary transition.
+                 *
+                 * Later:
+                 *
+                 * fantasy  -> fantasy.html
+                 * yonder   -> yonder.html
+                 * infinite -> infinite.html
+                 * life     -> life.html
+                 */
+
+
+                world.classList.add(
+                    "entering-world"
                 );
 
 
                 /*
-                 * 后续真正接入四个世界。
+                 * Give the flash
+                 * animation time.
                  */
+
+                setTimeout(
+                    () => {
+
+
+                        if (
+                            worldName ===
+                            "fantasy"
+                        ) {
+
+                            window.location.href =
+                                "fantasy.html";
+
+                        }
+
+
+                        else if (
+                            worldName ===
+                            "yonder"
+                        ) {
+
+                            window.location.href =
+                                "yonder.html";
+
+                        }
+
+
+                        else if (
+                            worldName ===
+                            "infinite"
+                        ) {
+
+                            window.location.href =
+                                "infinite.html";
+
+                        }
+
+
+                        else if (
+                            worldName ===
+                            "life"
+                        ) {
+
+                            window.location.href =
+                                "life.html";
+
+                        }
+
+
+                    },
+                    650
+                );
 
             }
         );
@@ -2089,15 +2347,25 @@ worldEntries.forEach(
 
 
 /* =========================================================
-   MOBILE TOUCH
+   TOUCH SUPPORT
 ========================================================= */
 
-button.addEventListener(
-    "touchstart",
-    () => {
+lights.forEach(
+    light => {
 
-        button.style.color =
-            "rgba(255,255,255,.95)";
+        light.addEventListener(
+            "touchstart",
+            () => {
+
+                light.classList.add(
+                    "touch-active"
+                );
+
+            },
+            {
+                passive: true
+            }
+        );
 
     }
 );
@@ -2108,24 +2376,52 @@ button.addEventListener(
 ========================================================= */
 
 /*
- * 以后加入背景音乐时，
- * 可以直接在这里接入。
+ * Background music can be added later.
  *
- * 例如：
+ * DO NOT change the visual architecture.
  *
- * const ambientAudio =
+ * Example:
+ *
+ * const audio =
  *     new Audio("./ambient.mp3");
  *
- * ambientAudio.loop = true;
- * ambientAudio.volume = 0;
+ * audio.loop = true;
+ * audio.volume = 0;
  *
- * 然后在 ENTER HYOOL 点击后：
+ * audio.play();
  *
- * ambientAudio.play();
+ * Then gradually increase:
  *
- * 再通过渐变慢慢提高音量。
+ * audio.volume += 0.01;
  *
- * 现在暂时不启用。
+ */
+
+
+/* =========================================================
+   FUTURE WORLD ROUTES
+========================================================= */
+
+/*
+ *
+ * fantasy.html
+ * ----------------------------------
+ * AI 图片 / 视频 / 音乐 / 故事 / 角色
+ *
+ *
+ * yonder.html
+ * ----------------------------------
+ * 作品 / 分享 / 个人空间 / 社区
+ *
+ *
+ * infinite.html
+ * ----------------------------------
+ * AI 模型 / 工具 / 素材 / 工作流 / 实验
+ *
+ *
+ * life.html
+ * ----------------------------------
+ * AI 角色 / 数字人格 / 智能体 / 数字生命
+ *
  */
 
 </script>
