@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
 
     <meta charset="UTF-8">
@@ -9,7 +10,8 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>彼岸 · YONDER</title>
+    <title>彼岸 · HYOOL</title>
+
 
     <style>
 
@@ -17,14 +19,20 @@
             box-sizing: border-box;
         }
 
+
         html,
         body {
+
             margin: 0;
             padding: 0;
+
             width: 100%;
             min-height: 100%;
+
             background: #080808;
+
             color: #ffffff;
+
             font-family:
                 -apple-system,
                 BlinkMacSystemFont,
@@ -32,22 +40,30 @@
                 "PingFang SC",
                 "Microsoft YaHei",
                 sans-serif;
+
         }
 
 
         body {
+
             min-height: 100vh;
+
         }
 
 
         a {
+
             color: inherit;
+
             text-decoration: none;
+
         }
 
 
         button {
+
             font: inherit;
+
         }
 
 
@@ -66,7 +82,9 @@
             height: 72px;
 
             display: flex;
+
             align-items: center;
+
             justify-content: space-between;
 
             padding: 0 42px;
@@ -76,31 +94,48 @@
             background:
                 linear-gradient(
                     to bottom,
-                    rgba(8,8,8,.95),
-                    rgba(8,8,8,.65),
+                    rgba(8,8,8,.96),
+                    rgba(8,8,8,.72),
                     transparent
                 );
 
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(10px);
+
         }
 
+
+        /* =====================================================
+           HYOOL LOGO
+        ===================================================== */
 
         .brand {
 
             font-size: 18px;
+
             font-weight: 600;
 
             letter-spacing: 4px;
 
-            opacity: .9;
+            color:
+                rgba(255,255,255,.92);
+
+            user-select: none;
+
         }
 
+
+        /* =====================================================
+           HEADER NAV
+        ===================================================== */
 
         .header-right {
 
             display: flex;
+
             align-items: center;
+
             gap: 28px;
+
         }
 
 
@@ -108,16 +143,22 @@
 
             font-size: 14px;
 
-            color: rgba(255,255,255,.65);
+            color:
+                rgba(255,255,255,.62);
 
             transition:
-                color .2s ease;
+                color .2s ease,
+                opacity .2s ease;
+
+            cursor: pointer;
+
         }
 
 
         .header-link:hover {
 
-            color: #fff;
+            color: #ffffff;
+
         }
 
 
@@ -128,6 +169,7 @@
         .page {
 
             width: 100%;
+
             max-width: 1080px;
 
             margin: 0 auto;
@@ -135,6 +177,7 @@
             padding:
                 130px 28px
                 80px;
+
         }
 
 
@@ -145,17 +188,20 @@
         .profile {
 
             display: flex;
+
             align-items: center;
 
             gap: 24px;
 
             margin-bottom: 70px;
+
         }
 
 
         .avatar {
 
             width: 92px;
+
             height: 92px;
 
             border-radius: 50%;
@@ -167,8 +213,8 @@
             background:
                 linear-gradient(
                     135deg,
-                    #222,
-                    #111
+                    #252525,
+                    #111111
                 );
 
             border:
@@ -176,28 +222,34 @@
                 rgba(255,255,255,.12);
 
             display: flex;
+
             align-items: center;
+
             justify-content: center;
 
             font-size: 30px;
 
             color:
-                rgba(255,255,255,.7);
+                rgba(255,255,255,.72);
+
         }
 
 
         .avatar img {
 
             width: 100%;
+
             height: 100%;
 
             object-fit: cover;
+
         }
 
 
         .profile-info {
 
             min-width: 0;
+
         }
 
 
@@ -208,6 +260,7 @@
             font-weight: 600;
 
             margin-bottom: 6px;
+
         }
 
 
@@ -216,9 +269,10 @@
             font-size: 14px;
 
             color:
-                rgba(255,255,255,.45);
+                rgba(255,255,255,.42);
 
             margin-bottom: 14px;
+
         }
 
 
@@ -232,6 +286,7 @@
                 rgba(255,255,255,.72);
 
             max-width: 650px;
+
         }
 
 
@@ -244,9 +299,11 @@
             display: flex;
 
             align-items: center;
+
             justify-content: space-between;
 
             margin-bottom: 24px;
+
         }
 
 
@@ -259,6 +316,7 @@
             font-weight: 500;
 
             letter-spacing: 2px;
+
         }
 
 
@@ -268,6 +326,7 @@
 
             color:
                 rgba(255,255,255,.35);
+
         }
 
 
@@ -286,6 +345,7 @@
                 );
 
             gap: 18px;
+
         }
 
 
@@ -312,6 +372,7 @@
                 transform .25s ease,
                 background .25s ease,
                 border-color .25s ease;
+
         }
 
 
@@ -325,6 +386,7 @@
 
             border-color:
                 rgba(255,255,255,.15);
+
         }
 
 
@@ -340,6 +402,7 @@
                 rgba(255,255,255,.4);
 
             margin-bottom: 18px;
+
         }
 
 
@@ -350,6 +413,7 @@
             line-height: 1.5;
 
             margin-bottom: 12px;
+
         }
 
 
@@ -370,6 +434,7 @@
             -webkit-box-orient: vertical;
 
             overflow: hidden;
+
         }
 
 
@@ -378,12 +443,14 @@
             position: absolute;
 
             left: 24px;
+
             bottom: 20px;
 
             font-size: 11px;
 
             color:
                 rgba(255,255,255,.3);
+
         }
 
 
@@ -392,6 +459,8 @@
         ===================================================== */
 
         .empty {
+
+            grid-column: 1 / -1;
 
             padding: 90px 20px;
 
@@ -405,6 +474,7 @@
 
             color:
                 rgba(255,255,255,.35);
+
         }
 
 
@@ -416,6 +486,7 @@
 
             color:
                 rgba(255,255,255,.6);
+
         }
 
 
@@ -424,6 +495,7 @@
             font-size: 13px;
 
             line-height: 1.8;
+
         }
 
 
@@ -433,6 +505,8 @@
 
         .loading {
 
+            grid-column: 1 / -1;
+
             padding: 100px 20px;
 
             text-align: center;
@@ -441,6 +515,7 @@
                 rgba(255,255,255,.35);
 
             font-size: 14px;
+
         }
 
 
@@ -450,12 +525,15 @@
 
         .error {
 
+            grid-column: 1 / -1;
+
             padding: 100px 20px;
 
             text-align: center;
 
             color:
                 rgba(255,255,255,.5);
+
         }
 
 
@@ -465,22 +543,35 @@
 
         @media (max-width: 700px) {
 
+
             .header {
 
                 padding:
                     0 20px;
+
             }
 
 
             .header-right {
 
-                gap: 16px;
+                gap: 17px;
+
             }
 
 
             .header-link {
 
                 font-size: 13px;
+
+            }
+
+
+            .brand {
+
+                font-size: 16px;
+
+                letter-spacing: 3px;
+
             }
 
 
@@ -489,6 +580,7 @@
                 padding:
                     110px 18px
                     60px;
+
             }
 
 
@@ -497,21 +589,25 @@
                 align-items: flex-start;
 
                 margin-bottom: 50px;
+
             }
 
 
             .avatar {
 
                 width: 72px;
+
                 height: 72px;
 
                 font-size: 24px;
+
             }
 
 
             .display-name {
 
                 font-size: 24px;
+
             }
 
 
@@ -519,6 +615,7 @@
 
                 grid-template-columns:
                     1fr;
+
             }
 
         }
@@ -537,56 +634,83 @@
 
 <header class="header">
 
+
+    <!-- HYOOL LOGO
+         这里只是品牌标识，不跳转 -->
+
     <div class="brand">
-        YONDER
+
+        HYOOL
+
     </div>
 
 
-    <div class="header-right">
+    <!-- NAV -->
+
+    <nav class="header-right">
+
 
         <a
-            href="/yonder.html"
+            href="/infinite.html"
             class="header-link"
         >
-            彼岸
+            无限
         </a>
 
 
         <a
-            href="/"
+            href="/life.html"
             class="header-link"
+        >
+            生命
+        </a>
+
+
+        <a
+            href="javascript:void(0)"
+            class="header-link"
+            onclick="goBack()"
         >
             返回
         </a>
 
-    </div>
+
+    </nav>
+
 
 </header>
 
 
+
 <!-- =====================================================
-     PAGE
+     MAIN
 ===================================================== -->
 
 <main class="page">
 
 
-    <!-- PROFILE -->
+    <!-- =================================================
+         PROFILE
+    ================================================== -->
 
     <section
         class="profile"
         id="profile"
     >
 
+
         <div
             class="avatar"
             id="avatar"
         >
+
             Y
+
         </div>
 
 
         <div class="profile-info">
+
 
             <div
                 class="display-name"
@@ -611,24 +735,35 @@
                 正在进入彼岸……
             </div>
 
+
         </div>
+
 
     </section>
 
 
-    <!-- POSTS -->
+
+    <!-- =================================================
+         POSTS
+    ================================================== -->
 
     <section>
 
+
         <div class="section-title">
+
 
             <h2>
                 我的彼岸
             </h2>
 
-            <span id="postCount">
+
+            <span
+                id="postCount"
+            >
                 0
             </span>
+
 
         </div>
 
@@ -644,16 +779,46 @@
 
         </div>
 
+
     </section>
 
 
 </main>
 
 
+
 <script>
 
 /* =====================================================
-   GET USERNAME FROM /@username
+   RETURN
+===================================================== */
+
+function goBack() {
+
+    if (
+        window.history.length > 1
+    ) {
+
+        window.history.back();
+
+        return;
+
+    }
+
+
+    /*
+     * 如果没有历史记录，
+     * 默认返回彼岸入口。
+     */
+
+    window.location.href =
+        "/yonder.html";
+
+}
+
+
+/* =====================================================
+   GET USERNAME
 ===================================================== */
 
 function getUsername() {
@@ -670,8 +835,7 @@ function getUsername() {
 
         return pathname
             .substring(2)
-            .split("/")
-            [0]
+            .split("/")[0]
             .trim()
             .toLowerCase();
 
@@ -704,15 +868,32 @@ async function api(
         );
 
 
-    const data =
-        await response.json();
+    let data;
 
 
-    if (!response.ok) {
+    try {
+
+        data =
+            await response.json();
+
+    }
+
+    catch {
+
+        throw new Error(
+            "服务器返回异常。"
+        );
+
+    }
+
+
+    if (
+        !response.ok
+    ) {
 
         throw new Error(
             data.error ||
-            "请求失败"
+            "请求失败。"
         );
 
     }
@@ -775,10 +956,11 @@ function formatTime(
 
     const date =
         new Date(
-            value.replace(
-                " ",
-                "T"
-            )
+            String(value)
+                .replace(
+                    " ",
+                    "T"
+                )
         );
 
 
@@ -856,10 +1038,14 @@ function renderProfile(
     ) {
 
         avatar.innerHTML = `
+
             <img
-                src="${escapeHTML(profile.avatar_url)}"
+                src="${escapeHTML(
+                    profile.avatar_url
+                )}"
                 alt=""
             >
+
         `;
 
     }
@@ -867,11 +1053,9 @@ function renderProfile(
     else {
 
         avatar.textContent =
-            (
-                displayName
-                    .charAt(0)
-                    .toUpperCase()
-            );
+            displayName
+                .charAt(0)
+                .toUpperCase();
 
     }
 
@@ -911,13 +1095,20 @@ function renderPosts(
             <div class="empty">
 
                 <div class="empty-title">
+
                     这里还什么都没有
+
                 </div>
 
+
                 <div class="empty-text">
+
                     当你开始留下想法、作品和故事，
+
                     <br>
+
                     它们就会慢慢成为你的彼岸。
+
                 </div>
 
             </div>
@@ -933,6 +1124,7 @@ function renderPosts(
         posts
             .map(
                 post => {
+
 
                     const type =
                         post.type ||
@@ -961,28 +1153,46 @@ function renderPosts(
 
                         <article
                             class="post"
-                            data-id="${escapeHTML(post.id || "")}"
+                            data-id="${escapeHTML(
+                                post.id || ""
+                            )}"
                         >
 
                             <div class="post-type">
-                                ${escapeHTML(type)}
+
+                                ${escapeHTML(
+                                    type
+                                )}
+
                             </div>
 
 
                             <div class="post-title">
-                                ${escapeHTML(title)}
+
+                                ${escapeHTML(
+                                    title
+                                )}
+
                             </div>
 
 
                             <div class="post-content">
-                                ${escapeHTML(content)}
+
+                                ${escapeHTML(
+                                    content
+                                )}
+
                             </div>
 
 
                             <div class="post-time">
+
                                 ${escapeHTML(
-                                    formatTime(createdAt)
+                                    formatTime(
+                                        createdAt
+                                    )
                                 )}
+
                             </div>
 
                         </article>
@@ -1002,6 +1212,7 @@ function renderPosts(
 
 async function loadYonder() {
 
+
     const username =
         getUsername();
 
@@ -1015,7 +1226,9 @@ async function loadYonder() {
             .innerHTML = `
 
                 <div class="error">
+
                     无法识别彼岸。
+
                 </div>
 
             `;
@@ -1027,8 +1240,9 @@ async function loadYonder() {
 
     try {
 
+
         /*
-         * 读取彼岸主页数据
+         * 读取彼岸主页
          */
 
         const result =
@@ -1059,7 +1273,7 @@ async function loadYonder() {
 
 
         /*
-         * 优先使用主页接口里的 posts
+         * 读取内容
          */
 
         let posts =
@@ -1071,8 +1285,8 @@ async function loadYonder() {
 
 
         /*
-         * 如果主页没有提供内容，
-         * 再单独读取 posts 接口。
+         * 如果主页接口没有 posts，
+         * 再读取独立 posts API。
          */
 
         if (
@@ -1103,9 +1317,11 @@ async function loadYonder() {
             posts
         );
 
+
     }
 
     catch (error) {
+
 
         console.error(
             "YONDER LOAD ERROR:",
@@ -1145,11 +1361,16 @@ async function loadYonder() {
 
 window.addEventListener(
     "DOMContentLoaded",
-    loadYonder
+    () => {
+
+        loadYonder();
+
+    }
 );
 
 </script>
 
 
 </body>
+
 </html>
