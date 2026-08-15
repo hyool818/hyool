@@ -1,18 +1,14 @@
 export default {
     async fetch(request, env) {
-
         const url = new URL(request.url);
         const pathname = decodeURIComponent(url.pathname);
-
 
         /* =====================================================
            REGISTER
         ===================================================== */
 
         if (pathname === "/api/register" && request.method === "POST") {
-
             try {
-
                 const body = await request.json();
 
                 const username = String(body.username || "")
@@ -24,26 +20,19 @@ export default {
                 const displayName = String(body.display_name || "")
                     .trim();
 
-
                 if (!/^[a-z0-9_-]{3,20}$/.test(username)) {
-
                     return json({
                         success: false,
                         error: "账号格式不正确。"
                     }, 400);
-
                 }
 
-
                 if (password.length < 8) {
-
                     return json({
                         success: false,
                         error: "密码至少需要 8 位。"
                     }, 400);
-
                 }
-
 
                 const existing = await env.DB
                     .prepare(
@@ -52,14 +41,10 @@ export default {
                     .bind(username)
                     .first();
 
-
                 if (existing) {
-
                     if (!existing.password_hash) {
-
                         const passwordHash =
                             await hashPassword(password);
-
 
                         await env.DB
                             .prepare(
@@ -72,29 +57,28 @@ export default {
                             )
                             .run();
 
+                        await ensureYonderSettings(
+                            env,
+                            existing.id
+                        );
 
                         return createLoginResponse(
                             env,
                             existing.id,
                             username
                         );
-
                     }
-
 
                     return json({
                         success: false,
                         error: "这个账号已经存在。"
                     }, 409);
-
                 }
-
 
                 const userId = crypto.randomUUID();
 
                 const passwordHash =
                     await hashPassword(password);
-
 
                 await env.DB
                     .prepare(
@@ -110,6 +94,10 @@ export default {
                     )
                     .run();
 
+                await ensureYonderSettings(
+                    env,
+                    userId
+                );
 
                 return createLoginResponse(
                     env,
@@ -117,26 +105,15 @@ export default {
                     username
                 );
 
-            }
-
-            catch (error) {
-
-                console.error(
-                    "REGISTER ERROR:",
-                    error
-                );
-
+            } catch (error) {
+                console.error("REGISTER ERROR:", error);
 
                 return json({
                     success: false,
                     error: "注册失败。",
-                    message:
-                        error?.message ||
-                        String(error)
+                    message: error?.message || String(error)
                 }, 500);
-
             }
-
         }
 
 
@@ -145,9 +122,7 @@ export default {
         ===================================================== */
 
         if (pathname === "/api/login" && request.method === "POST") {
-
             try {
-
                 const body = await request.json();
 
                 const username = String(body.username || "")
@@ -156,16 +131,12 @@ export default {
 
                 const password = String(body.password || "");
 
-
                 if (!username || !password) {
-
                     return json({
                         success: false,
                         error: "请输入账号和密码。"
                     }, 400);
-
                 }
-
 
                 const profile = await env.DB
                     .prepare(
@@ -174,40 +145,34 @@ export default {
                     .bind(username)
                     .first();
 
-
                 if (!profile) {
-
                     return json({
                         success: false,
                         error: "账号或密码错误。"
                     }, 401);
-
                 }
 
-
                 if (!profile.password_hash) {
-
                     return json({
                         success: false,
                         error: "这个账号尚未完成密码配置。"
                     }, 401);
-
                 }
-
 
                 const passwordHash =
                     await hashPassword(password);
 
-
                 if (passwordHash !== profile.password_hash) {
-
                     return json({
                         success: false,
                         error: "账号或密码错误。"
                     }, 401);
-
                 }
 
+                await ensureYonderSettings(
+                    env,
+                    profile.id
+                );
 
                 return createLoginResponse(
                     env,
@@ -215,26 +180,15 @@ export default {
                     profile.username
                 );
 
-            }
-
-            catch (error) {
-
-                console.error(
-                    "LOGIN ERROR:",
-                    error
-                );
-
+            } catch (error) {
+                console.error("LOGIN ERROR:", error);
 
                 return json({
                     success: false,
                     error: "服务器登录异常。",
-                    message:
-                        error?.message ||
-                        String(error)
+                    message: error?.message || String(error)
                 }, 500);
-
             }
-
         }
 
 
@@ -244,21 +198,14 @@ export default {
         ===================================================== */
 
         if (pathname === "/api/me" && request.method === "GET") {
-
             try {
-
-                const token =
-                    getSessionToken(request);
-
+                const token = getSessionToken(request);
 
                 if (!token) {
-
                     return json({
                         authenticated: false
                     });
-
                 }
-
 
                 const session = await env.DB
                     .prepare(
@@ -267,21 +214,16 @@ export default {
                     .bind(token)
                     .first();
 
-
                 if (!session) {
-
                     return json({
                         authenticated: false
                     });
-
                 }
-
 
                 if (
                     session.expires_at &&
                     new Date(session.expires_at).getTime() <= Date.now()
                 ) {
-
                     await env.DB
                         .prepare(
                             "DELETE FROM sessions WHERE token = ?"
@@ -289,13 +231,10 @@ export default {
                         .bind(token)
                         .run();
 
-
                     return json({
                         authenticated: false
                     });
-
                 }
-
 
                 const profile = await env.DB
                     .prepare(
@@ -304,19 +243,14 @@ export default {
                     .bind(session.user_id)
                     .first();
 
-
                 if (!profile) {
-
                     return json({
                         authenticated: false
                     });
-
                 }
-
 
                 return json({
                     authenticated: true,
-
                     user: {
                         id: profile.id,
                         username: profile.username,
@@ -324,26 +258,15 @@ export default {
                     }
                 });
 
-            }
-
-            catch (error) {
-
-                console.error(
-                    "ME ERROR:",
-                    error
-                );
-
+            } catch (error) {
+                console.error("ME ERROR:", error);
 
                 return json({
                     authenticated: false,
                     error: "服务器返回异常。",
-                    message:
-                        error?.message ||
-                        String(error)
+                    message: error?.message || String(error)
                 }, 500);
-
             }
-
         }
 
 
@@ -352,24 +275,17 @@ export default {
         ===================================================== */
 
         if (pathname === "/api/logout" && request.method === "POST") {
-
             try {
-
-                const token =
-                    getSessionToken(request);
-
+                const token = getSessionToken(request);
 
                 if (token) {
-
                     await env.DB
                         .prepare(
                             "DELETE FROM sessions WHERE token = ?"
                         )
                         .bind(token)
                         .run();
-
                 }
-
 
                 return json(
                     {
@@ -382,55 +298,38 @@ export default {
                     }
                 );
 
-            }
-
-            catch (error) {
-
-                console.error(
-                    "LOGOUT ERROR:",
-                    error
-                );
-
+            } catch (error) {
+                console.error("LOGOUT ERROR:", error);
 
                 return json({
                     success: false,
                     error: "退出登录失败。",
-                    message:
-                        error?.message ||
-                        String(error)
+                    message: error?.message || String(error)
                 }, 500);
-
             }
-
         }
 
 
         /* =====================================================
            PUBLIC PROFILE
-           /api/profile/333123
+           /api/profile/:username
         ===================================================== */
 
         if (pathname.startsWith("/api/profile/")) {
-
             const username =
                 pathname
                     .substring("/api/profile/".length)
                     .trim()
                     .toLowerCase();
 
-
             if (!username) {
-
                 return json({
                     success: false,
                     error: "缺少用户名。"
                 }, 400);
-
             }
 
-
             try {
-
                 const profile = await env.DB
                     .prepare(
                         "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE username = ? LIMIT 1"
@@ -438,588 +337,351 @@ export default {
                     .bind(username)
                     .first();
 
-
                 if (!profile) {
-
                     return json({
                         success: false,
                         error: "彼岸不存在。"
                     }, 404);
-
                 }
-
 
                 return json({
                     success: true,
                     profile: profile
                 });
 
-            }
-
-            catch (error) {
-
-                console.error(
-                    "PROFILE ERROR:",
-                    error
-                );
-
+            } catch (error) {
+                console.error("PROFILE ERROR:", error);
 
                 return json({
                     success: false,
                     error: "数据库异常。",
-                    message:
-                        error?.message ||
-                        String(error)
+                    message: error?.message || String(error)
                 }, 500);
-
             }
-
         }
 
 
         /* =====================================================
-           YONDER DATA
-           GET /api/yonder/:username
-           
-           返回：
-           profile
-           posts
+           YONDER ALL DATA
+           /api/yonder/:username
         ===================================================== */
 
         if (
             pathname.startsWith("/api/yonder/") &&
-            pathname.split("/").length === 4 &&
-            request.method === "GET"
+            !pathname.endsWith("/posts") &&
+            !pathname.endsWith("/settings")
         ) {
-
             const username =
                 pathname
                     .substring("/api/yonder/".length)
                     .trim()
                     .toLowerCase();
 
-
             if (!username) {
-
                 return json({
                     success: false,
                     error: "缺少用户名。"
                 }, 400);
-
             }
 
-
             try {
-
-                const profile =
-                    await env.DB
-                        .prepare(
-                            "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE username = ? LIMIT 1"
-                        )
-                        .bind(username)
-                        .first();
-
+                const profile = await env.DB
+                    .prepare(
+                        "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE username = ? LIMIT 1"
+                    )
+                    .bind(username)
+                    .first();
 
                 if (!profile) {
-
                     return json({
                         success: false,
                         error: "彼岸不存在。"
                     }, 404);
-
                 }
 
+                const postsResult = await env.DB
+                    .prepare(
+                        "SELECT * FROM yonder_posts WHERE user_id = ? ORDER BY created_at DESC"
+                    )
+                    .bind(profile.id)
+                    .all();
 
-                const posts =
-                    await env.DB
-                        .prepare(
-                            "SELECT id, user_id, type, title, content, media_url, cover_url, visibility, created_at, updated_at FROM yonder_posts WHERE user_id = ? AND visibility = 'public' ORDER BY created_at DESC LIMIT 50"
-                        )
-                        .bind(profile.id)
-                        .all();
-
+                const settings =
+                    await getYonderSettings(
+                        env,
+                        profile.id
+                    );
 
                 return json({
-
                     success: true,
-
                     yonder: {
-
                         profile: profile,
-
-                        posts:
-                            posts.results || []
-
+                        settings: settings,
+                        posts: postsResult.results || []
                     }
-
                 });
 
-            }
-
-            catch (error) {
-
-                console.error(
-                    "YONDER DATA ERROR:",
-                    error
-                );
-
+            } catch (error) {
+                console.error("YONDER DATA ERROR:", error);
 
                 return json({
                     success: false,
-                    error: "彼岸数据加载失败。",
-                    message:
-                        error?.message ||
-                        String(error)
+                    error: "彼岸加载异常。",
+                    message: error?.message || String(error)
                 }, 500);
-
             }
-
         }
 
 
         /* =====================================================
            YONDER POSTS
-           GET /api/yonder/:username/posts
+           /api/yonder/:username/posts
         ===================================================== */
 
         if (
             pathname.startsWith("/api/yonder/") &&
-            pathname.endsWith("/posts") &&
-            request.method === "GET"
+            pathname.endsWith("/posts")
         ) {
-
-            const parts =
-                pathname.split("/");
-
-
             const username =
-                parts[3]
-                    ?.trim()
+                pathname
+                    .substring("/api/yonder/".length)
+                    .replace(/\/posts$/, "")
+                    .trim()
                     .toLowerCase();
 
-
-            if (!username) {
-
-                return json({
-                    success: false,
-                    error: "缺少用户名。"
-                }, 400);
-
-            }
-
-
             try {
-
-                const profile =
-                    await env.DB
-                        .prepare(
-                            "SELECT id, username FROM profiles WHERE username = ? LIMIT 1"
-                        )
-                        .bind(username)
-                        .first();
-
+                const profile = await env.DB
+                    .prepare(
+                        "SELECT id, username FROM profiles WHERE username = ? LIMIT 1"
+                    )
+                    .bind(username)
+                    .first();
 
                 if (!profile) {
-
                     return json({
                         success: false,
                         error: "彼岸不存在。"
                     }, 404);
-
                 }
 
-
-                const posts =
-                    await env.DB
-                        .prepare(
-                            "SELECT id, user_id, type, title, content, media_url, cover_url, visibility, created_at, updated_at FROM yonder_posts WHERE user_id = ? AND visibility = 'public' ORDER BY created_at DESC LIMIT 50"
-                        )
-                        .bind(profile.id)
-                        .all();
-
+                const result = await env.DB
+                    .prepare(
+                        "SELECT * FROM yonder_posts WHERE user_id = ? ORDER BY created_at DESC"
+                    )
+                    .bind(profile.id)
+                    .all();
 
                 return json({
-
                     success: true,
-
-                    username:
-                        profile.username,
-
-                    posts:
-                        posts.results || []
-
+                    username: username,
+                    posts: result.results || []
                 });
 
-            }
-
-            catch (error) {
-
-                console.error(
-                    "YONDER POSTS ERROR:",
-                    error
-                );
-
+            } catch (error) {
+                console.error("YONDER POSTS ERROR:", error);
 
                 return json({
                     success: false,
-                    error: "彼岸内容加载失败。",
-                    message:
-                        error?.message ||
-                        String(error)
+                    error: "内容加载失败。",
+                    message: error?.message || String(error)
                 }, 500);
-
             }
-
         }
 
 
         /* =====================================================
-           CREATE YONDER POST
-           POST /api/yonder/posts
+           GET YONDER SETTINGS
+           /api/yonder/:username/settings
         ===================================================== */
 
         if (
-            pathname === "/api/yonder/posts" &&
-            request.method === "POST"
+            pathname.startsWith("/api/yonder/") &&
+            pathname.endsWith("/settings") &&
+            request.method === "GET"
         ) {
+            const username =
+                pathname
+                    .substring("/api/yonder/".length)
+                    .replace(/\/settings$/, "")
+                    .trim()
+                    .toLowerCase();
 
             try {
+                const profile = await env.DB
+                    .prepare(
+                        "SELECT id, username FROM profiles WHERE username = ? LIMIT 1"
+                    )
+                    .bind(username)
+                    .first();
 
-                const auth =
+                if (!profile) {
+                    return json({
+                        success: false,
+                        error: "彼岸不存在。"
+                    }, 404);
+                }
+
+                const settings =
+                    await getYonderSettings(
+                        env,
+                        profile.id
+                    );
+
+                return json({
+                    success: true,
+                    username: username,
+                    settings: settings
+                });
+
+            } catch (error) {
+                console.error("YONDER SETTINGS GET ERROR:", error);
+
+                return json({
+                    success: false,
+                    error: "主页设置加载失败。",
+                    message: error?.message || String(error)
+                }, 500);
+            }
+        }
+
+
+        /* =====================================================
+           SAVE YONDER SETTINGS
+           POST /api/yonder/settings
+        ===================================================== */
+
+        if (
+            pathname === "/api/yonder/settings" &&
+            request.method === "POST"
+        ) {
+            try {
+                const user =
                     await getAuthenticatedUser(
                         request,
                         env
                     );
 
-
-                if (!auth) {
-
+                if (!user) {
                     return json({
                         success: false,
                         error: "请先登录。"
                     }, 401);
-
                 }
 
+                const body = await request.json();
 
-                const body =
-                    await request.json();
+                const backgroundType =
+                    cleanSettingValue(
+                        body.background_type,
+                        "gradient",
+                        30
+                    );
 
+                const backgroundValue =
+                    cleanSettingValue(
+                        body.background_value,
+                        "",
+                        2000
+                    );
 
-                const type =
-                    String(
-                        body.type ||
-                        "thought"
-                    ).trim();
+                const accentColor =
+                    cleanSettingValue(
+                        body.accent_color,
+                        "#8b8bff",
+                        30
+                    );
 
+                const layout =
+                    cleanSettingValue(
+                        body.layout,
+                        "default",
+                        30
+                    );
 
-                const allowedTypes = [
-                    "thought",
-                    "image",
-                    "video",
-                    "audio",
-                    "project"
-                ];
+                const showProfile =
+                    body.show_profile ? 1 : 0;
 
+                const showPosts =
+                    body.show_posts ? 1 : 0;
 
-                if (
-                    !allowedTypes.includes(type)
-                ) {
+                const showWorks =
+                    body.show_works ? 1 : 0;
 
-                    return json({
-                        success: false,
-                        error: "内容类型不正确。"
-                    }, 400);
+                const showInfinite =
+                    body.show_infinite ? 1 : 0;
 
-                }
-
-
-                const title =
-                    String(
-                        body.title ||
-                        ""
-                    ).trim();
-
-
-                const content =
-                    String(
-                        body.content ||
-                        ""
-                    ).trim();
-
-
-                const mediaUrl =
-                    String(
-                        body.media_url ||
-                        ""
-                    ).trim();
-
-
-                const coverUrl =
-                    String(
-                        body.cover_url ||
-                        ""
-                    ).trim();
-
-
-                const visibility =
-                    String(
-                        body.visibility ||
-                        "public"
-                    ).trim();
-
-
-                if (
-                    ![
-                        "public",
-                        "private"
-                    ].includes(visibility)
-                ) {
-
-                    return json({
-                        success: false,
-                        error: "可见范围不正确。"
-                    }, 400);
-
-                }
-
-
-                if (
-                    !title &&
-                    !content &&
-                    !mediaUrl
-                ) {
-
-                    return json({
-                        success: false,
-                        error: "内容不能为空。"
-                    }, 400);
-
-                }
-
-
-                const postId =
-                    crypto.randomUUID();
-
+                const customCss =
+                    cleanSettingValue(
+                        body.custom_css,
+                        "",
+                        20000
+                    );
 
                 await env.DB
                     .prepare(
-                        `INSERT INTO yonder_posts
+                        `INSERT INTO yonder_settings
                         (
-                            id,
                             user_id,
-                            type,
-                            title,
-                            content,
-                            media_url,
-                            cover_url,
-                            visibility,
+                            background_type,
+                            background_value,
+                            accent_color,
+                            layout,
+                            show_profile,
+                            show_posts,
+                            show_works,
+                            show_infinite,
+                            custom_css,
                             created_at,
                             updated_at
                         )
-                        VALUES
-                        (
-                            ?,
-                            ?,
-                            ?,
-                            ?,
-                            ?,
-                            ?,
-                            ?,
-                            ?,
-                            CURRENT_TIMESTAMP,
-                            CURRENT_TIMESTAMP
-                        )`
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT(user_id)
+                        DO UPDATE SET
+                            background_type = excluded.background_type,
+                            background_value = excluded.background_value,
+                            accent_color = excluded.accent_color,
+                            layout = excluded.layout,
+                            show_profile = excluded.show_profile,
+                            show_posts = excluded.show_posts,
+                            show_works = excluded.show_works,
+                            show_infinite = excluded.show_infinite,
+                            custom_css = excluded.custom_css,
+                            updated_at = CURRENT_TIMESTAMP`
                     )
                     .bind(
-                        postId,
-                        auth.user.id,
-                        type,
-                        title || null,
-                        content || null,
-                        mediaUrl || null,
-                        coverUrl || null,
-                        visibility
+                        user.id,
+                        backgroundType,
+                        backgroundValue,
+                        accentColor,
+                        layout,
+                        showProfile,
+                        showPosts,
+                        showWorks,
+                        showInfinite,
+                        customCss
                     )
                     .run();
 
-
-                const post =
-                    await env.DB
-                        .prepare(
-                            "SELECT id, user_id, type, title, content, media_url, cover_url, visibility, created_at, updated_at FROM yonder_posts WHERE id = ? LIMIT 1"
-                        )
-                        .bind(postId)
-                        .first();
-
-
-                return json({
-
-                    success: true,
-
-                    post: post
-
-                }, 201);
-
-            }
-
-            catch (error) {
-
-                console.error(
-                    "CREATE POST ERROR:",
-                    error
-                );
-
-
-                return json({
-                    success: false,
-                    error: "发布失败。",
-                    message:
-                        error?.message ||
-                        String(error)
-                }, 500);
-
-            }
-
-        }
-
-
-        /* =====================================================
-           DELETE YONDER POST
-           DELETE /api/yonder/posts/:id
-        ===================================================== */
-
-        if (
-            pathname.startsWith("/api/yonder/posts/") &&
-            request.method === "DELETE"
-        ) {
-
-            const postId =
-                pathname
-                    .substring(
-                        "/api/yonder/posts/".length
-                    )
-                    .trim();
-
-
-            if (!postId) {
-
-                return json({
-                    success: false,
-                    error: "缺少内容 ID。"
-                }, 400);
-
-            }
-
-
-            try {
-
-                const auth =
-                    await getAuthenticatedUser(
-                        request,
-                        env
+                const settings =
+                    await getYonderSettings(
+                        env,
+                        user.id
                     );
 
-
-                if (!auth) {
-
-                    return json({
-                        success: false,
-                        error: "请先登录。"
-                    }, 401);
-
-                }
-
-
-                const post =
-                    await env.DB
-                        .prepare(
-                            "SELECT id, user_id FROM yonder_posts WHERE id = ? LIMIT 1"
-                        )
-                        .bind(postId)
-                        .first();
-
-
-                if (!post) {
-
-                    return json({
-                        success: false,
-                        error: "内容不存在。"
-                    }, 404);
-
-                }
-
-
-                if (
-                    post.user_id !==
-                    auth.user.id
-                ) {
-
-                    return json({
-                        success: false,
-                        error: "你没有权限删除这条内容。"
-                    }, 403);
-
-                }
-
-
-                await env.DB
-                    .prepare(
-                        "DELETE FROM yonder_posts WHERE id = ?"
-                    )
-                    .bind(postId)
-                    .run();
-
-
-                /*
-                 * 同步清理相关数据
-                 */
-
-                await env.DB
-                    .prepare(
-                        "DELETE FROM yonder_feed WHERE post_id = ?"
-                    )
-                    .bind(postId)
-                    .run();
-
-
-                await env.DB
-                    .prepare(
-                        "DELETE FROM yonder_collections WHERE post_id = ?"
-                    )
-                    .bind(postId)
-                    .run();
-
-
                 return json({
-
                     success: true,
-
-                    deleted:
-                        postId
-
+                    settings: settings
                 });
 
-            }
-
-            catch (error) {
-
-                console.error(
-                    "DELETE POST ERROR:",
-                    error
-                );
-
+            } catch (error) {
+                console.error("YONDER SETTINGS SAVE ERROR:", error);
 
                 return json({
                     success: false,
-                    error: "删除失败。",
-                    message:
-                        error?.message ||
-                        String(error)
+                    error: "主页设置保存失败。",
+                    message: error?.message || String(error)
                 }, 500);
-
             }
-
         }
 
 
@@ -1032,16 +694,13 @@ export default {
             pathname.startsWith("/@") &&
             pathname.length > 2
         ) {
-
             const username =
                 pathname
                     .substring(2)
                     .trim()
                     .toLowerCase();
 
-
             try {
-
                 const profile =
                     await env.DB
                         .prepare(
@@ -1050,23 +709,18 @@ export default {
                         .bind(username)
                         .first();
 
-
                 if (!profile) {
-
                     return new Response(
                         "这个彼岸不存在",
                         {
                             status: 404,
-
                             headers: {
                                 "Content-Type":
                                     "text/plain; charset=UTF-8"
                             }
                         }
                     );
-
                 }
-
 
                 const homeUrl =
                     new URL(
@@ -1074,43 +728,30 @@ export default {
                         request.url
                     );
 
-
                 const assetRequest =
                     new Request(
                         homeUrl,
                         {
-                            method: "GET"
+                            method: "GET",
+                            headers: request.headers
                         }
                     );
-
 
                 return await env.ASSETS.fetch(
                     assetRequest
                 );
 
+            } catch (error) {
+                console.error("YONDER ERROR:", error);
+
+                return json({
+                    success: false,
+                    error: "彼岸加载异常。",
+                    message:
+                        error?.message ||
+                        String(error)
+                }, 500);
             }
-
-            catch (error) {
-
-                console.error(
-                    "YONDER ERROR:",
-                    error
-                );
-
-
-                return json(
-                    {
-                        success: false,
-                        error: "彼岸加载异常。",
-                        message:
-                            error?.message ||
-                            String(error)
-                    },
-                    500
-                );
-
-            }
-
         }
 
 
@@ -1119,7 +760,6 @@ export default {
         ===================================================== */
 
         return env.ASSETS.fetch(request);
-
     }
 };
 
@@ -1132,17 +772,12 @@ async function getAuthenticatedUser(
     request,
     env
 ) {
-
     const token =
         getSessionToken(request);
 
-
     if (!token) {
-
         return null;
-
     }
-
 
     const session =
         await env.DB
@@ -1152,19 +787,14 @@ async function getAuthenticatedUser(
             .bind(token)
             .first();
 
-
     if (!session) {
-
         return null;
-
     }
-
 
     if (
         session.expires_at &&
         new Date(session.expires_at).getTime() <= Date.now()
     ) {
-
         await env.DB
             .prepare(
                 "DELETE FROM sessions WHERE token = ?"
@@ -1172,33 +802,67 @@ async function getAuthenticatedUser(
             .bind(token)
             .run();
 
-
         return null;
-
     }
-
-
-    const profile =
-        await env.DB
-            .prepare(
-                "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE id = ? LIMIT 1"
-            )
-            .bind(session.user_id)
-            .first();
-
-
-    if (!profile) {
-
-        return null;
-
-    }
-
 
     return {
-        session,
-        user: profile
+        id: session.user_id,
+        username: session.username
     };
+}
 
+
+/* =========================================================
+   ENSURE YONDER SETTINGS
+========================================================= */
+
+async function ensureYonderSettings(
+    env,
+    userId
+) {
+    await env.DB
+        .prepare(
+            `INSERT OR IGNORE INTO yonder_settings
+            (
+                user_id,
+                background_type,
+                background_value,
+                accent_color,
+                layout,
+                show_profile,
+                show_posts,
+                show_works,
+                show_infinite,
+                custom_css,
+                created_at,
+                updated_at
+            )
+            VALUES (?, 'gradient', '', '#8b8bff', 'default', 1, 1, 1, 1, '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        )
+        .bind(userId)
+        .run();
+}
+
+
+/* =========================================================
+   GET YONDER SETTINGS
+========================================================= */
+
+async function getYonderSettings(
+    env,
+    userId
+) {
+    await ensureYonderSettings(
+        env,
+        userId
+    );
+
+    return await env.DB
+        .prepare(
+            "SELECT * FROM yonder_settings WHERE user_id = ? LIMIT 1"
+        )
+        .bind(userId)
+        .first();
 }
 
 
@@ -1211,19 +875,16 @@ async function createLoginResponse(
     userId,
     username
 ) {
-
     const token =
         crypto.randomUUID() +
         "-" +
         crypto.randomUUID();
-
 
     const expiresAt =
         new Date(
             Date.now() +
             30 * 24 * 60 * 60 * 1000
         ).toISOString();
-
 
     await env.DB
         .prepare(
@@ -1237,7 +898,6 @@ async function createLoginResponse(
         )
         .run();
 
-
     const profile =
         await env.DB
             .prepare(
@@ -1246,26 +906,21 @@ async function createLoginResponse(
             .bind(userId)
             .first();
 
-
     return json(
         {
             success: true,
-
             user: {
                 id: userId,
                 username: username,
                 profile: profile || {}
             }
         },
-
         200,
-
         {
             "Set-Cookie":
                 createSessionCookie(token)
         }
     );
-
 }
 
 
@@ -1274,18 +929,15 @@ async function createLoginResponse(
 ========================================================= */
 
 async function hashPassword(password) {
-
     const data =
         new TextEncoder()
             .encode(password);
-
 
     const hash =
         await crypto.subtle.digest(
             "SHA-256",
             data
         );
-
 
     return Array
         .from(new Uint8Array(hash))
@@ -1296,7 +948,6 @@ async function hashPassword(password) {
                     .padStart(2, "0")
         )
         .join("");
-
 }
 
 
@@ -1305,28 +956,21 @@ async function hashPassword(password) {
 ========================================================= */
 
 function getSessionToken(request) {
-
     const cookie =
         request.headers.get("Cookie") || "";
-
 
     const match =
         cookie.match(
             /(?:^|;\s*)hyool_session=([^;]+)/
         );
 
-
     if (!match) {
-
         return null;
-
     }
-
 
     return decodeURIComponent(
         match[1]
     );
-
 }
 
 
@@ -1335,23 +979,16 @@ function getSessionToken(request) {
 ========================================================= */
 
 function createSessionCookie(token) {
-
     return [
         "hyool_session=" +
             encodeURIComponent(token),
 
         "Path=/",
-
         "HttpOnly",
-
         "Secure",
-
         "SameSite=Lax",
-
         "Max-Age=2592000"
-
     ].join("; ");
-
 }
 
 
@@ -1360,22 +997,38 @@ function createSessionCookie(token) {
 ========================================================= */
 
 function clearSessionCookie() {
-
     return [
         "hyool_session=",
-
         "Path=/",
-
         "HttpOnly",
-
         "Secure",
-
         "SameSite=Lax",
-
         "Max-Age=0"
-
     ].join("; ");
+}
 
+
+/* =========================================================
+   CLEAN SETTINGS
+========================================================= */
+
+function cleanSettingValue(
+    value,
+    fallback,
+    maxLength
+) {
+    if (typeof value !== "string") {
+        return fallback;
+    }
+
+    const result =
+        value.trim();
+
+    if (result.length > maxLength) {
+        return fallback;
+    }
+
+    return result;
 }
 
 
@@ -1388,12 +1041,10 @@ function json(
     status = 200,
     extraHeaders = {}
 ) {
-
     return new Response(
         JSON.stringify(data),
         {
             status: status,
-
             headers: {
                 "Content-Type":
                     "application/json; charset=UTF-8",
@@ -1405,5 +1056,4 @@ function json(
             }
         }
     );
-
 }
