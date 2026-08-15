@@ -53,11 +53,6 @@ export default {
                     .first();
 
 
-                /*
-                 * 已经存在但没有密码的旧测试账号
-                 * 允许重新配置密码
-                 */
-
                 if (existing) {
 
                     if (!existing.password_hash) {
@@ -94,10 +89,6 @@ export default {
 
                 }
 
-
-                /*
-                 * 创建新用户
-                 */
 
                 const userId = crypto.randomUUID();
 
@@ -139,7 +130,7 @@ export default {
                 return json({
                     success: false,
                     error: "注册失败。",
-                    message: error.message
+                    message: error?.message || String(error)
                 }, 500);
 
             }
@@ -235,7 +226,7 @@ export default {
                 return json({
                     success: false,
                     error: "服务器登录异常。",
-                    message: error.message
+                    message: error?.message || String(error)
                 }, 500);
 
             }
@@ -341,7 +332,8 @@ export default {
 
                 return json({
                     authenticated: false,
-                    error: "服务器返回异常。"
+                    error: "服务器返回异常。",
+                    message: error?.message || String(error)
                 }, 500);
 
             }
@@ -396,7 +388,8 @@ export default {
 
                 return json({
                     success: false,
-                    error: "退出登录失败。"
+                    error: "退出登录失败。",
+                    message: error?.message || String(error)
                 }, 500);
 
             }
@@ -465,7 +458,8 @@ export default {
 
                 return json({
                     success: false,
-                    error: "数据库异常。"
+                    error: "数据库异常。",
+                    message: error?.message || String(error)
                 }, 500);
 
             }
@@ -473,101 +467,97 @@ export default {
         }
 
 
-       ```javascript
-/* =====================================================
-   PERSONAL YONDER
-   /@333123
-===================================================== */
+        /* =====================================================
+           PERSONAL YONDER
+           /@333123
+        ===================================================== */
 
-if (pathname.startsWith("/@") && pathname.length > 2) {
+        if (pathname.startsWith("/@") && pathname.length > 2) {
 
-    const username =
-        pathname
-            .substring(2)
-            .trim()
-            .toLowerCase();
-
-
-    try {
-
-        /* ---------------------------------------------
-           检查用户是否存在
-        --------------------------------------------- */
-
-        const profile =
-            await env.DB
-                .prepare(
-                    "SELECT id, username FROM profiles WHERE username = ? LIMIT 1"
-                )
-                .bind(username)
-                .first();
+            const username =
+                pathname
+                    .substring(2)
+                    .trim()
+                    .toLowerCase();
 
 
-        if (!profile) {
+            try {
 
-            return new Response(
-                "这个彼岸不存在",
-                {
-                    status: 404,
+                const profile =
+                    await env.DB
+                        .prepare(
+                            "SELECT id, username FROM profiles WHERE username = ? LIMIT 1"
+                        )
+                        .bind(username)
+                        .first();
 
-                    headers: {
-                        "Content-Type":
-                            "text/plain; charset=UTF-8"
-                    }
+
+                if (!profile) {
+
+                    return new Response(
+                        "这个彼岸不存在",
+                        {
+                            status: 404,
+
+                            headers: {
+                                "Content-Type":
+                                    "text/plain; charset=UTF-8"
+                            }
+                        }
+                    );
+
                 }
-            );
+
+
+                /*
+                 * 直接从 Worker Assets 加载
+                 * yonder-home.html
+                 */
+
+                const homeUrl =
+                    new URL(
+                        "/yonder-home.html",
+                        request.url
+                    );
+
+
+                const assetRequest =
+                    new Request(
+                        homeUrl,
+                        {
+                            method: "GET"
+                        }
+                    );
+
+
+                return await env.ASSETS.fetch(
+                    assetRequest
+                );
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    "YONDER ERROR:",
+                    error
+                );
+
+
+                return json(
+                    {
+                        success: false,
+                        error: "彼岸加载异常。",
+                        message:
+                            error?.message ||
+                            String(error)
+                    },
+                    500
+                );
+
+            }
 
         }
-
-
-        /* ---------------------------------------------
-           加载彼岸主页
-        --------------------------------------------- */
-
-        const homeUrl =
-            new URL(
-                "/yonder-home.html",
-                request.url
-            );
-
-
-        const assetRequest =
-            new Request(
-                homeUrl.toString(),
-                {
-                    method: "GET"
-                }
-            );
-
-
-        return await env.ASSETS.fetch(
-            assetRequest
-        );
-
-    }
-
-    catch (error) {
-
-        console.error(
-            "YONDER ERROR:",
-            error
-        );
-
-
-        return json(
-            {
-                success: false,
-                error: "彼岸加载异常。",
-                message:
-                    error?.message ||
-                    String(error)
-            },
-            500
-        );
-
-    }
-
-}
 
 
         /* =====================================================
@@ -757,7 +747,7 @@ function clearSessionCookie() {
 
 
 /* =========================================================
-   JSON
+   JSON RESPONSE
 ========================================================= */
 
 function json(
