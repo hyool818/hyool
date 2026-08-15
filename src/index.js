@@ -10,26 +10,20 @@ export default {
            REGISTER
         ===================================================== */
 
-        if (
-            pathname === "/api/register" &&
-            request.method === "POST"
-        ) {
+        if (pathname === "/api/register" && request.method === "POST") {
 
             try {
 
                 const body = await request.json();
 
-                const username =
-                    String(body.username || "")
-                        .trim()
-                        .toLowerCase();
+                const username = String(body.username || "")
+                    .trim()
+                    .toLowerCase();
 
-                const password =
-                    String(body.password || "");
+                const password = String(body.password || "");
 
-                const displayName =
-                    String(body.display_name || "")
-                        .trim();
+                const displayName = String(body.display_name || "")
+                    .trim();
 
 
                 if (!/^[a-z0-9_-]{3,20}$/.test(username)) {
@@ -52,26 +46,17 @@ export default {
                 }
 
 
-                /* 检查账号 */
-
-                const existing =
-                    await env.DB
-                        .prepare(`
-                            SELECT
-                                id,
-                                username,
-                                password_hash
-                            FROM profiles
-                            WHERE username = ?
-                            LIMIT 1
-                        `)
-                        .bind(username)
-                        .first();
+                const existing = await env.DB
+                    .prepare(
+                        "SELECT id, username, password_hash FROM profiles WHERE username = ? LIMIT 1"
+                    )
+                    .bind(username)
+                    .first();
 
 
                 /*
-                 * 如果账号存在但没有密码，
-                 * 允许重新配置密码。
+                 * 已经存在但没有密码的旧测试账号
+                 * 允许重新配置密码
                  */
 
                 if (existing) {
@@ -83,14 +68,9 @@ export default {
 
 
                         await env.DB
-                            .prepare(`
-                                UPDATE profiles
-                                SET
-                                    password_hash = ?,
-                                    display_name = ?,
-                                    updated_at = CURRENT_TIMESTAMP
-                                WHERE username = ?
-                            `)
+                            .prepare(
+                                "UPDATE profiles SET password_hash = ?, display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?"
+                            )
                             .bind(
                                 passwordHash,
                                 displayName || username,
@@ -116,38 +96,20 @@ export default {
                 }
 
 
-                /* 创建新用户 */
+                /*
+                 * 创建新用户
+                 */
 
-                const userId =
-                    crypto.randomUUID();
+                const userId = crypto.randomUUID();
 
                 const passwordHash =
                     await hashPassword(password);
 
 
                 await env.DB
-                    .prepare(`
-                        INSERT INTO profiles (
-                            id,
-                            username,
-                            display_name,
-                            bio,
-                            theme,
-                            password_hash,
-                            created_at,
-                            updated_at
-                        )
-                        VALUES (
-                            ?,
-                            ?,
-                            ?,
-                            ?,
-                            ?,
-                            ?,
-                            CURRENT_TIMESTAMP,
-                            CURRENT_TIMESTAMP
-                        )
-                    `)
+                    .prepare(
+                        "INSERT INTO profiles (id, username, display_name, bio, theme, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    )
                     .bind(
                         userId,
                         username,
@@ -158,8 +120,6 @@ export default {
                     )
                     .run();
 
-
-                /* 注册后自动登录 */
 
                 return createLoginResponse(
                     env,
@@ -176,6 +136,7 @@ export default {
                     error
                 );
 
+
                 return json({
                     success: false,
                     error: "注册失败。",
@@ -191,23 +152,17 @@ export default {
            LOGIN
         ===================================================== */
 
-        if (
-            pathname === "/api/login" &&
-            request.method === "POST"
-        ) {
+        if (pathname === "/api/login" && request.method === "POST") {
 
             try {
 
-                const body =
-                    await request.json();
+                const body = await request.json();
 
-                const username =
-                    String(body.username || "")
-                        .trim()
-                        .toLowerCase();
+                const username = String(body.username || "")
+                    .trim()
+                    .toLowerCase();
 
-                const password =
-                    String(body.password || "");
+                const password = String(body.password || "");
 
 
                 if (!username || !password) {
@@ -220,16 +175,12 @@ export default {
                 }
 
 
-                const profile =
-                    await env.DB
-                        .prepare(`
-                            SELECT *
-                            FROM profiles
-                            WHERE username = ?
-                            LIMIT 1
-                        `)
-                        .bind(username)
-                        .first();
+                const profile = await env.DB
+                    .prepare(
+                        "SELECT * FROM profiles WHERE username = ? LIMIT 1"
+                    )
+                    .bind(username)
+                    .first();
 
 
                 if (!profile) {
@@ -256,10 +207,7 @@ export default {
                     await hashPassword(password);
 
 
-                if (
-                    passwordHash !==
-                    profile.password_hash
-                ) {
+                if (passwordHash !== profile.password_hash) {
 
                     return json({
                         success: false,
@@ -284,6 +232,7 @@ export default {
                     error
                 );
 
+
                 return json({
                     success: false,
                     error: "服务器登录异常。",
@@ -300,10 +249,7 @@ export default {
            /api/me
         ===================================================== */
 
-        if (
-            pathname === "/api/me" &&
-            request.method === "GET"
-        ) {
+        if (pathname === "/api/me" && request.method === "GET") {
 
             try {
 
@@ -320,16 +266,12 @@ export default {
                 }
 
 
-                const session =
-                    await env.DB
-                        .prepare(`
-                            SELECT *
-                            FROM sessions
-                            WHERE token = ?
-                            LIMIT 1
-                        `)
-                        .bind(token)
-                        .first();
+                const session = await env.DB
+                    .prepare(
+                        "SELECT * FROM sessions WHERE token = ? LIMIT 1"
+                    )
+                    .bind(token)
+                    .first();
 
 
                 if (!session) {
@@ -343,16 +285,13 @@ export default {
 
                 if (
                     session.expires_at &&
-                    new Date(
-                        session.expires_at
-                    ).getTime() <= Date.now()
+                    new Date(session.expires_at).getTime() <= Date.now()
                 ) {
 
                     await env.DB
-                        .prepare(`
-                            DELETE FROM sessions
-                            WHERE token = ?
-                        `)
+                        .prepare(
+                            "DELETE FROM sessions WHERE token = ?"
+                        )
                         .bind(token)
                         .run();
 
@@ -364,25 +303,12 @@ export default {
                 }
 
 
-                const profile =
-                    await env.DB
-                        .prepare(`
-                            SELECT
-                                id,
-                                username,
-                                display_name,
-                                avatar_url,
-                                bio,
-                                background_url,
-                                theme,
-                                created_at,
-                                updated_at
-                            FROM profiles
-                            WHERE id = ?
-                            LIMIT 1
-                        `)
-                        .bind(session.user_id)
-                        .first();
+                const profile = await env.DB
+                    .prepare(
+                        "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE id = ? LIMIT 1"
+                    )
+                    .bind(session.user_id)
+                    .first();
 
 
                 if (!profile) {
@@ -395,20 +321,13 @@ export default {
 
 
                 return json({
-
                     authenticated: true,
 
                     user: {
-
                         id: profile.id,
-
-                        username:
-                            profile.username,
-
+                        username: profile.username,
                         profile: profile
-
                     }
-
                 });
 
             }
@@ -419,6 +338,7 @@ export default {
                     "ME ERROR:",
                     error
                 );
+
 
                 return json({
                     authenticated: false,
@@ -434,10 +354,7 @@ export default {
            LOGOUT
         ===================================================== */
 
-        if (
-            pathname === "/api/logout" &&
-            request.method === "POST"
-        ) {
+        if (pathname === "/api/logout" && request.method === "POST") {
 
             try {
 
@@ -448,10 +365,9 @@ export default {
                 if (token) {
 
                     await env.DB
-                        .prepare(`
-                            DELETE FROM sessions
-                            WHERE token = ?
-                        `)
+                        .prepare(
+                            "DELETE FROM sessions WHERE token = ?"
+                        )
                         .bind(token)
                         .run();
 
@@ -478,6 +394,7 @@ export default {
                     error
                 );
 
+
                 return json({
                     success: false,
                     error: "退出登录失败。"
@@ -489,13 +406,11 @@ export default {
 
 
         /* =====================================================
-           PUBLIC PROFILE API
+           PUBLIC PROFILE
            /api/profile/333123
         ===================================================== */
 
-        if (
-            pathname.startsWith("/api/profile/")
-        ) {
+        if (pathname.startsWith("/api/profile/")) {
 
             const username =
                 pathname
@@ -516,25 +431,12 @@ export default {
 
             try {
 
-                const profile =
-                    await env.DB
-                        .prepare(`
-                            SELECT
-                                id,
-                                username,
-                                display_name,
-                                avatar_url,
-                                bio,
-                                background_url,
-                                theme,
-                                created_at,
-                                updated_at
-                            FROM profiles
-                            WHERE username = ?
-                            LIMIT 1
-                        `)
-                        .bind(username)
-                        .first();
+                const profile = await env.DB
+                    .prepare(
+                        "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE username = ? LIMIT 1"
+                    )
+                    .bind(username)
+                    .first();
 
 
                 if (!profile) {
@@ -548,11 +450,8 @@ export default {
 
 
                 return json({
-
                     success: true,
-
                     profile: profile
-
                 });
 
             }
@@ -563,6 +462,7 @@ export default {
                     "PROFILE ERROR:",
                     error
                 );
+
 
                 return json({
                     success: false,
@@ -579,10 +479,7 @@ export default {
            /@333123
         ===================================================== */
 
-        if (
-            pathname.startsWith("/@") &&
-            pathname.length > 2
-        ) {
+        if (pathname.startsWith("/@") && pathname.length > 2) {
 
             const username =
                 pathname
@@ -593,18 +490,12 @@ export default {
 
             try {
 
-                const profile =
-                    await env.DB
-                        .prepare(`
-                            SELECT
-                                id,
-                                username
-                            FROM profiles
-                            WHERE username = ?
-                            LIMIT 1
-                        `)
-                        .bind(username)
-                        .first();
+                const profile = await env.DB
+                    .prepare(
+                        "SELECT id, username FROM profiles WHERE username = ? LIMIT 1"
+                    )
+                    .bind(username)
+                    .first();
 
 
                 if (!profile) {
@@ -623,16 +514,6 @@ export default {
 
                 }
 
-
-                /*
-                 * 保持浏览器地址：
-                 *
-                 * /@333123
-                 *
-                 * 实际返回：
-                 *
-                 * yonder-home.html
-                 */
 
                 const assetUrl =
                     new URL(
@@ -660,6 +541,7 @@ export default {
                     error
                 );
 
+
                 return json({
                     success: false,
                     error: "彼岸加载异常。"
@@ -677,7 +559,6 @@ export default {
         return env.ASSETS.fetch(request);
 
     }
-
 };
 
 
@@ -692,39 +573,22 @@ async function createLoginResponse(
 ) {
 
     const token =
-        crypto.randomUUID()
-        + "-"
-        + crypto.randomUUID();
+        crypto.randomUUID() +
+        "-" +
+        crypto.randomUUID();
 
 
     const expiresAt =
         new Date(
-            Date.now()
-            +
-            30 *
-            24 *
-            60 *
-            60 *
-            1000
-        )
-        .toISOString();
+            Date.now() +
+            30 * 24 * 60 * 60 * 1000
+        ).toISOString();
 
 
     await env.DB
-        .prepare(`
-            INSERT INTO sessions (
-                token,
-                user_id,
-                username,
-                expires_at
-            )
-            VALUES (
-                ?,
-                ?,
-                ?,
-                ?
-            )
-        `)
+        .prepare(
+            "INSERT INTO sessions (token, user_id, username, expires_at) VALUES (?, ?, ?, ?)"
+        )
         .bind(
             token,
             userId,
@@ -734,25 +598,12 @@ async function createLoginResponse(
         .run();
 
 
-    const profile =
-        await env.DB
-            .prepare(`
-                SELECT
-                    id,
-                    username,
-                    display_name,
-                    avatar_url,
-                    bio,
-                    background_url,
-                    theme,
-                    created_at,
-                    updated_at
-                FROM profiles
-                WHERE id = ?
-                LIMIT 1
-            `)
-            .bind(userId)
-            .first();
+    const profile = await env.DB
+        .prepare(
+            "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE id = ? LIMIT 1"
+        )
+        .bind(userId)
+        .first();
 
 
     return json(
@@ -760,18 +611,14 @@ async function createLoginResponse(
             success: true,
 
             user: {
-
                 id: userId,
-
                 username: username,
-
-                profile:
-                    profile || {}
-
+                profile: profile || {}
             }
-
         },
+
         200,
+
         {
             "Set-Cookie":
                 createSessionCookie(token)
@@ -785,9 +632,7 @@ async function createLoginResponse(
    PASSWORD HASH
 ========================================================= */
 
-async function hashPassword(
-    password
-) {
+async function hashPassword(password) {
 
     const data =
         new TextEncoder()
@@ -802,9 +647,7 @@ async function hashPassword(
 
 
     return Array
-        .from(
-            new Uint8Array(hash)
-        )
+        .from(new Uint8Array(hash))
         .map(
             byte =>
                 byte
@@ -820,13 +663,10 @@ async function hashPassword(
    GET SESSION TOKEN
 ========================================================= */
 
-function getSessionToken(
-    request
-) {
+function getSessionToken(request) {
 
     const cookie =
-        request.headers.get("Cookie")
-        || "";
+        request.headers.get("Cookie") || "";
 
 
     const match =
@@ -853,12 +693,9 @@ function getSessionToken(
    CREATE COOKIE
 ========================================================= */
 
-function createSessionCookie(
-    token
-) {
+function createSessionCookie(token) {
 
     return [
-
         "hyool_session=" +
             encodeURIComponent(token),
 
@@ -884,7 +721,6 @@ function createSessionCookie(
 function clearSessionCookie() {
 
     return [
-
         "hyool_session=",
 
         "Path=/",
@@ -903,7 +739,7 @@ function clearSessionCookie() {
 
 
 /* =========================================================
-   JSON RESPONSE
+   JSON
 ========================================================= */
 
 function json(
@@ -918,7 +754,6 @@ function json(
             status: status,
 
             headers: {
-
                 "Content-Type":
                     "application/json; charset=UTF-8",
 
@@ -926,7 +761,6 @@ function json(
                     "no-store",
 
                 ...extraHeaders
-
             }
         }
     );
