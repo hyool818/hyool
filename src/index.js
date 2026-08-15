@@ -2,122 +2,77 @@ export default {
     async fetch(request, env) {
 
         const url = new URL(request.url);
-        const pathname = url.pathname;
-
-
-        /* =====================================================
-           1. API：健康检查
-        ===================================================== */
-
-        if (pathname === "/api/health") {
-
-            let database = false;
-
-            try {
-
-                await env.DB
-                    .prepare("SELECT 1")
-                    .first();
-
-                database = true;
-
-            } catch (error) {
-
-                database = false;
-
-            }
-
-            return json({
-                success: true,
-                hyool: "alive",
-                database
-            });
-
-        }
-
+        const pathname = decodeURIComponent(url.pathname);
 
         /* =====================================================
-           2. API：获取用户资料
-           
-           /api/profile/333123
+           API：获取个人资料
         ===================================================== */
 
         if (pathname.startsWith("/api/profile/")) {
 
             const username =
-                decodeURIComponent(
-                    pathname
-                        .replace("/api/profile/", "")
-                );
-
+                pathname
+                    .substring("/api/profile/".length)
+                    .trim();
 
             if (!username) {
 
-                return json(
-                    {
-                        success:false,
-                        error:"USERNAME_REQUIRED"
-                    },
-                    400
-                );
+                return json({
+                    success: false,
+                    error: "missing_username"
+                }, 400);
 
             }
 
-
             try {
 
-                const profile =
-                    await env.DB
-                        .prepare(`
-                            SELECT
-                                id,
-                                username,
-                                display_name,
-                                avatar_url,
-                                bio,
-                                background_url,
-                                theme,
-                                created_at,
-                                updated_at
-                            FROM profiles
-                            WHERE username = ?
-                            LIMIT 1
-                        `)
-                        .bind(username)
-                        .first();
+                const result = await env.DB
+                    .prepare(`
+                        SELECT
+                            id,
+                            username,
+                            display_name,
+                            avatar_url,
+                            bio,
+                            background_url,
+                            theme,
+                            created_at,
+                            updated_at
+                        FROM profiles
+                        WHERE username = ?
+                        LIMIT 1
+                    `)
+                    .bind(username)
+                    .first();
 
 
-                if (!profile) {
+                if (!result) {
 
-                    return json(
-                        {
-                            success:false,
-                            error:"USER_NOT_FOUND"
-                        },
-                        404
-                    );
+                    return json({
+                        success: false,
+                        error: "profile_not_found"
+                    }, 404);
 
                 }
 
 
                 return json({
-
-                    success:true,
-
-                    profile
-
+                    success: true,
+                    profile: result
                 });
 
+            }
+            catch (error) {
 
-            } catch(error) {
-
-                return json(
-                    {
-                        success:false,
-                        error:"DATABASE_ERROR"
-                    },
-                    500
+                console.error(
+                    "D1 profile error:",
+                    error
                 );
+
+                return json({
+                    success: false,
+                    error: "database_error"
+                }, 500);
 
             }
 
@@ -125,190 +80,49 @@ export default {
 
 
         /* =====================================================
-           3. @用户名 路由
-           
-           例如：
+           个人彼岸
            
            /@333123
-           
-           /@hyool818
-           
-           /@小明
+           /@Alice
+           /@张三
         ===================================================== */
 
-        if (pathname.startsWith("/@")) {
+        if (
+            pathname.startsWith("/@") &&
+            pathname.length > 2
+        ) {
 
             /*
-             * 不在 Worker 这里直接查询页面内容。
+             * 不让 Assets 去寻找：
              *
-             * 我们先确认用户名存在，
-             * 然后把页面交给 yonder-home.html。
+             * /@333123
+             *
+             * 而是统一返回：
+             *
+             * /yonder-home.html
              */
 
-            const username =
-                decodeURIComponent(
-                    pathname.substring(2)
-                );
-
-
-            if (!username) {
-
-                return new Response(
-                    "User not found",
-                    {
-                        status:404,
-                        headers:{
-                            "content-type":
-                                "text/plain;charset=UTF-8"
-                        }
-                    }
-                );
-
-            }
-
-
-            /*
-             * 查询 D1
-             */
-
-            try {
-
-                const profile =
-                    await env.DB
-                        .prepare(`
-                            SELECT
-                                username
-                            FROM profiles
-                            WHERE username = ?
-                            LIMIT 1
-                        `)
-                        .bind(username)
-                        .first();
-
-
-                /*
-                 * 用户不存在
-                 */
-
-                if (!profile) {
-
-                    return new Response(
-                        "彼岸不存在",
-                        {
-                            status:404,
-                            headers:{
-                                "content-type":
-                                    "text/plain;charset=UTF-8"
-                            }
-                        }
-                    );
-
-                }
-
-
-                /*
-                 * 用户存在。
-                 *
-                 * 加载 yonder-home.html
-                 */
-
-                const assetRequest =
-                    new Request(
-                        new URL(
-                            "/yonder-home.html",
-                            request.url
-                        ),
-                        request
-                    );
-
-
-                const response =
-                    await env.ASSETS.fetch(
-                        assetRequest
-                    );
-
-
-                /*
-                 * 找不到页面
-                 */
-
-                if (!response.ok) {
-
-                    return new Response(
-                        "yonder-home.html not found",
-                        {
-                            status:500
-                        }
-                    );
-
-                }
-
-
-                /*
-                 * 把用户名写进响应 Header。
-                 *
-                 * 前端可以读取：
-                 *
-                 * X-Hyool-Username
-                 */
-
-                const headers =
-                    new Headers(
-                        response.headers
-                    );
-
-                headers.set(
-                    "X-Hyool-Username",
-                    username
-                );
-
-
-                return new Response(
-                    response.body,
-                    {
-                        status:response.status,
-                        headers
-                    }
-                );
-
-
-            } catch(error) {
-
-                return new Response(
-                    "Server Error",
-                    {
-                        status:500,
-                        headers:{
-                            "content-type":
-                                "text/plain;charset=UTF-8"
-                        }
-                    }
-                );
-
-            }
+            return env.ASSETS.fetch(
+                new Request(
+                    new URL(
+                        "/yonder-home.html",
+                        request.url
+                    ),
+                    request
+                )
+            );
 
         }
 
 
         /* =====================================================
-           4. 其他请求
-           
-           交给 Cloudflare Assets
-           
-           index.html
-           yonder.html
-           yonder-home.html
-           logo
-           mp4
-           等等
+           首页 / 普通静态文件
         ===================================================== */
 
         return env.ASSETS.fetch(request);
 
     }
-
 };
-
 
 
 /* =========================================================
@@ -318,15 +132,15 @@ export default {
 function json(data, status = 200) {
 
     return new Response(
-        JSON.stringify(data, null, 2),
+        JSON.stringify(data),
         {
             status,
 
-            headers:{
-                "content-type":
-                    "application/json;charset=UTF-8",
+            headers: {
+                "Content-Type":
+                    "application/json; charset=UTF-8",
 
-                "cache-control":
+                "Cache-Control":
                     "no-store"
             }
         }
