@@ -1,1 +1,11 @@
-name = "hyool" main = "src/index.js" compatibility_date = "2026-08-15" [assets] directory = "." [[d1_databases]] binding = "DB" database_name = "hyool-db" database_id = "86e8193a-c300-4d58-9fed-c3d7b9e98af2"
+name = "hyool"
+main = "src/index.js"
+compatibility_date = "2026-08-15"
+
+[assets]
+directory = "."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hyool-db"
+database_id = "86e8193a-c300-4d58-9fed-c3d7b9e98af2"
