@@ -7,6 +7,11 @@
 <title>HYOOL · 幻灵</title>
 
 <style>
+
+/* =========================================================
+   基础
+========================================================= */
+
 * {
     margin: 0;
     padding: 0;
@@ -18,25 +23,34 @@ body {
     width: 100%;
     height: 100%;
     overflow: hidden;
+
     background: #000;
     color: #fff;
+
     font-family:
         -apple-system,
         BlinkMacSystemFont,
         "Helvetica Neue",
         "PingFang SC",
         "Microsoft YaHei",
+        Arial,
         sans-serif;
 }
 
-/* =========================
-   第一页：黑色入口
-========================= */
+
+/* =========================================================
+   第一页
+========================================================= */
 
 #entrance {
+
     position: fixed;
     inset: 0;
+
     z-index: 10;
+
+    width: 100%;
+    height: 100%;
 
     display: flex;
     flex-direction: column;
@@ -45,88 +59,159 @@ body {
 
     background: #000;
 
+    opacity: 1;
+
+    transform: scale(1);
+
     transition:
-        opacity 1.2s cubic-bezier(.77, 0, .18, 1),
-        transform 1.2s cubic-bezier(.77, 0, .18, 1);
+        opacity 1.2s cubic-bezier(.77,0,.18,1),
+        transform 1.4s cubic-bezier(.2,.8,.2,1);
+
 }
 
-/* 极淡的环境光 */
+
+/* 第一页退出 */
+
+#entrance.exit {
+
+    opacity: 0;
+
+    transform: scale(1.035);
+
+    pointer-events: none;
+
+}
+
+
+/* =========================================================
+   非常微弱的中心环境光
+========================================================= */
 
 #entrance::before {
+
     content: "";
+
     position: absolute;
+
     width: 55vw;
     height: 55vw;
-    max-width: 700px;
-    max-height: 700px;
+
+    max-width: 750px;
+    max-height: 750px;
 
     border-radius: 50%;
 
-    background: radial-gradient(
-        circle,
-        rgba(255,255,255,0.035) 0%,
-        rgba(255,255,255,0.012) 35%,
-        transparent 70%
-    );
+    background:
+        radial-gradient(
+            circle,
+            rgba(255,255,255,.035) 0%,
+            rgba(255,255,255,.012) 35%,
+            transparent 70%
+        );
 
     opacity: 0;
-    transform: scale(.7);
 
-    transition:
-        opacity 1.2s ease,
-        transform 1.5s cubic-bezier(.2,.8,.2,1);
+    transform: scale(.75);
 
     pointer-events: none;
+
+    transition:
+        opacity 1.5s ease,
+        transform 2s cubic-bezier(.2,.8,.2,1);
+
 }
+
+
+/* 页面加载之后 */
 
 #entrance.active::before {
+
     opacity: 1;
+
     transform: scale(1);
+
 }
 
-/* =========================
+
+/* =========================================================
    Logo
-========================= */
+========================================================= */
 
 .brand {
+
     position: relative;
+
     z-index: 2;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
 
     text-align: center;
 
     user-select: none;
+
 }
 
+
+/* 真正的 PNG Logo */
+
 .logo {
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
 
-    font-size: clamp(52px, 8vw, 110px);
+    display: flex;
 
-    font-weight: 300;
-
-    letter-spacing:
-        clamp(10px, 1.4vw, 22px);
-
-    margin-left:
-        clamp(10px, 1.4vw, 22px);
-
-    line-height: 1;
+    align-items: center;
+    justify-content: center;
 
     opacity: 0;
 
-    transform: translateY(20px);
+    transform: translateY(24px);
 
     animation:
-        logoIn 1.5s cubic-bezier(.2,.8,.2,1) .25s forwards;
+        logoIn 1.5s cubic-bezier(.2,.8,.2,1)
+        .2s
+        forwards;
+
 }
 
+
+/* Logo 图片 */
+
+.logo img {
+
+    display: block;
+
+    width: clamp(
+        180px,
+        20vw,
+        330px
+    );
+
+    height: auto;
+
+    max-height: 140px;
+
+    object-fit: contain;
+
+}
+
+
+/* =========================================================
+   中文名
+========================================================= */
+
 .chinese-name {
+
     margin-top: 24px;
 
-    font-size: clamp(18px, 2vw, 28px);
+    font-size:
+        clamp(
+            18px,
+            2vw,
+            28px
+        );
 
     font-weight: 300;
 
@@ -134,22 +219,34 @@ body {
 
     margin-left: .55em;
 
-    color: rgba(255,255,255,.72);
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .72
+        );
 
     opacity: 0;
 
-    transform: translateY(15px);
+    transform: translateY(16px);
 
     animation:
-        logoIn 1.5s cubic-bezier(.2,.8,.2,1) .55s forwards;
+        logoIn 1.5s cubic-bezier(.2,.8,.2,1)
+        .45s
+        forwards;
+
 }
 
-/* =========================
-   文案
-========================= */
+
+/* =========================================================
+   品牌文案
+========================================================= */
 
 .slogan {
+
     position: relative;
+
     z-index: 2;
 
     margin-top: 58px;
@@ -161,11 +258,23 @@ body {
     transform: translateY(18px);
 
     animation:
-        logoIn 1.5s cubic-bezier(.2,.8,.2,1) .85s forwards;
+        logoIn 1.5s cubic-bezier(.2,.8,.2,1)
+        .75s
+        forwards;
+
 }
 
-.slogan .cn {
-    font-size: clamp(15px, 1.45vw, 20px);
+
+/* 第一行 */
+
+.slogan .line-one {
+
+    font-size:
+        clamp(
+            15px,
+            1.45vw,
+            20px
+        );
 
     font-weight: 300;
 
@@ -173,71 +282,142 @@ body {
 
     margin-left: .18em;
 
-    color: rgba(255,255,255,.78);
+    line-height: 2;
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .82
+        );
+
+}
+
+
+/* 第二行 */
+
+.slogan .line-two {
+
+    font-size:
+        clamp(
+            15px,
+            1.45vw,
+            20px
+        );
+
+    font-weight: 300;
+
+    letter-spacing: .18em;
+
+    margin-left: .18em;
 
     line-height: 2;
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .45
+        );
+
 }
 
-.slogan .cn + .cn {
-    color: rgba(255,255,255,.45);
-}
 
-/* =========================
-   进入按钮区域
-========================= */
+/* =========================================================
+   ENTER 区域
+========================================================= */
 
 .enter-area {
+
     position: relative;
+
     z-index: 5;
 
     margin-top: 72px;
 
     display: flex;
+
     align-items: center;
     justify-content: center;
+
 }
 
-/* 汉字背景 */
+
+/* =========================================================
+   背景汉字
+========================================================= */
 
 .enter-bg {
+
     position: absolute;
 
     white-space: nowrap;
 
-    font-size: clamp(46px, 8vw, 110px);
+    pointer-events: none;
+
+    font-size:
+        clamp(
+            48px,
+            8vw,
+            110px
+        );
 
     font-weight: 200;
 
     letter-spacing: .18em;
 
-    color: rgba(255,255,255,0);
+    margin-left: .18em;
 
-    filter: blur(8px);
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            0
+        );
 
-    transform: scale(.95);
+    filter: blur(9px);
 
-    pointer-events: none;
+    transform: scale(.94);
 
     transition:
         color 1s ease,
         filter 1.2s ease,
         transform 1.2s cubic-bezier(.2,.8,.2,1);
+
 }
 
+
+/* 鼠标靠近 */
+
 .enter-area:hover .enter-bg {
-    color: rgba(255,255,255,.045);
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .045
+        );
 
     filter: blur(2px);
 
     transform: scale(1);
+
 }
 
-/* =========================
+
+/* =========================================================
    ENTER HYOOL
-========================= */
+========================================================= */
 
 .enter {
+
     position: relative;
+
+    z-index: 2;
 
     padding: 18px 32px;
 
@@ -258,23 +438,42 @@ body {
 
     margin-left: .35em;
 
-    color: rgba(255,255,255,.7);
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .7
+        );
 
     transition:
         color .6s ease,
         letter-spacing .8s cubic-bezier(.2,.8,.2,1),
         transform .8s cubic-bezier(.2,.8,.2,1);
+
 }
 
-/* 按钮微弱边界 */
+
+/* =========================================================
+   按钮边框
+========================================================= */
 
 .enter::before {
+
     content: "";
 
     position: absolute;
+
     inset: 0;
 
-    border: 1px solid rgba(255,255,255,.08);
+    border:
+        1px solid
+        rgba(
+            255,
+            255,
+            255,
+            .08
+        );
 
     opacity: 0;
 
@@ -283,25 +482,40 @@ body {
     transition:
         opacity .6s ease,
         transform .8s cubic-bezier(.2,.8,.2,1);
+
 }
 
+
 .enter:hover {
-    color: rgba(255,255,255,.95);
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .95
+        );
 
     letter-spacing: .48em;
 
-    transform: translateY(-2px);
 }
 
+
 .enter:hover::before {
+
     opacity: 1;
 
     transform: scale(1);
+
 }
 
-/* 微弱光晕 */
+
+/* =========================================================
+   鼠标光晕
+========================================================= */
 
 .enter::after {
+
     content: "";
 
     position: absolute;
@@ -309,11 +523,11 @@ body {
     left: 50%;
     top: 50%;
 
-    width: 160px;
-    height: 80px;
+    width: 180px;
+    height: 90px;
 
     transform:
-        translate(-50%, -50%)
+        translate(-50%,-50%)
         scale(.6);
 
     background:
@@ -325,7 +539,7 @@ body {
 
     opacity: 0;
 
-    filter: blur(15px);
+    filter: blur(18px);
 
     transition:
         opacity .8s ease,
@@ -334,109 +548,148 @@ body {
     pointer-events: none;
 
     z-index: -1;
+
 }
 
+
 .enter:hover::after {
+
     opacity: 1;
 
     transform:
-        translate(-50%, -50%)
+        translate(-50%,-50%)
         scale(1);
+
 }
 
-/* =========================
-   点击进入
-========================= */
 
-#entrance.exit {
-    opacity: 0;
-
-    transform: scale(1.04);
-
-    pointer-events: none;
-}
-
-/* =========================
+/* =========================================================
    第二页
-========================= */
+========================================================= */
 
 #world {
+
     position: fixed;
+
     inset: 0;
 
-    z-index: 1;
+    z-index: 20;
+
+    width: 100%;
+    height: 100%;
 
     background: #000;
 
     opacity: 0;
+
+    visibility: hidden;
 
     transform: scale(1.04);
 
     pointer-events: none;
 
     transition:
-        opacity 1.4s cubic-bezier(.77,0,.18,1),
-        transform 1.5s cubic-bezier(.2,.8,.2,1);
+        opacity 1.3s cubic-bezier(.77,0,.18,1),
+        transform 1.5s cubic-bezier(.2,.8,.2,1),
+        visibility 0s linear 1.3s;
+
 }
 
-#world.active {
+
+/* 第二页显示 */
+
+#world.show {
+
     opacity: 1;
+
+    visibility: visible;
 
     transform: scale(1);
 
     pointer-events: auto;
+
+    transition:
+        opacity 1.3s cubic-bezier(.77,0,.18,1),
+        transform 1.5s cubic-bezier(.2,.8,.2,1),
+        visibility 0s;
+
 }
 
-/* 第二页占位 */
+
+/* =========================================================
+   第二页暂时占位
+========================================================= */
 
 .world-content {
+
     width: 100%;
     height: 100%;
 
     display: flex;
+
     align-items: center;
     justify-content: center;
-
-    color: rgba(255,255,255,.5);
 
     font-size: 14px;
 
     letter-spacing: .3em;
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .35
+        );
+
 }
 
-/* =========================
-   动画
-========================= */
+
+/* =========================================================
+   入场动画
+========================================================= */
 
 @keyframes logoIn {
 
     from {
+
         opacity: 0;
-        transform: translateY(20px);
+
+        transform:
+            translateY(24px);
+
     }
 
     to {
+
         opacity: 1;
-        transform: translateY(0);
+
+        transform:
+            translateY(0);
+
     }
 
 }
 
-/* =========================
+
+/* =========================================================
    手机端
-========================= */
+========================================================= */
 
 @media (max-width: 600px) {
 
-    .logo {
-        font-size: 54px;
 
-        letter-spacing: 9px;
+    .logo img {
 
-        margin-left: 9px;
+        width: 210px;
+
+        max-height: 100px;
+
     }
 
+
     .chinese-name {
+
         margin-top: 20px;
 
         font-size: 18px;
@@ -444,119 +697,208 @@ body {
         letter-spacing: .45em;
 
         margin-left: .45em;
+
     }
+
 
     .slogan {
-        margin-top: 48px;
+
+        margin-top: 46px;
+
     }
 
-    .slogan .cn {
+
+    .slogan .line-one,
+    .slogan .line-two {
+
         font-size: 14px;
 
         letter-spacing: .12em;
 
         margin-left: .12em;
+
     }
+
 
     .enter-area {
-        margin-top: 62px;
+
+        margin-top: 60px;
+
     }
 
+
     .enter-bg {
+
         font-size: 54px;
+
+    }
+
+
+}
+
+
+/* =========================================================
+   减少动态效果
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+
+        animation-duration: .01ms !important;
+
+        animation-iteration-count: 1 !important;
+
+        transition-duration: .01ms !important;
+
     }
 
 }
+
 </style>
 </head>
 
+
 <body>
 
-<!-- =========================
-     第一页
-========================= -->
+
+<!-- =======================================================
+     第一页：HYOOL / 幻灵
+======================================================= -->
 
 <section id="entrance">
 
+
+    <!-- 品牌 -->
+
     <div class="brand">
 
+
+        <!--
+            你的 PNG Logo
+
+            当前默认文件：
+            hyool-logo.png
+
+            如果你的文件叫 logo.png，
+            改成：
+            ./logo.png
+        -->
+
         <div class="logo">
-            HYOOL
+
+            <img
+                src="./logo1.png"
+                alt="HYOOL"
+            >
+
         </div>
 
+
+        <!-- 中文品牌名 -->
+
         <div class="chinese-name">
+
             幻灵
+
         </div>
+
 
     </div>
 
+
+
+    <!-- ===================================================
+         品牌宣言
+    =================================================== -->
 
     <div class="slogan">
 
-        <div class="cn">
+
+        <div class="line-one">
+
             自幻想，奔赴彼岸。
+
         </div>
 
-        <div class="cn">
+
+        <div class="line-two">
+
             于无限之中，孕育数字生命。
+
         </div>
+
 
     </div>
 
 
+
+    <!-- ===================================================
+         进入按钮
+    =================================================== -->
+
     <div class="enter-area">
 
-        <!-- 鼠标靠近时出现 -->
+
+        <!-- 鼠标靠近后出现 -->
 
         <div class="enter-bg">
+
             进入幻灵
+
         </div>
 
+
+        <!-- 真正按钮 -->
 
         <div
             class="enter"
             id="enterButton"
         >
+
             ENTER HYOOL
+
         </div>
 
+
     </div>
+
 
 </section>
 
 
-<!-- =========================
+
+<!-- =======================================================
      第二页
-========================= -->
+======================================================= -->
 
 <section id="world">
 
+
+    <!--
+        这里以后放真正的“生命视觉”。
+
+        目前只是测试第二页是否正常进入。
+    -->
+
     <div class="world-content">
+
         LIFE IS BEGINNING
+
     </div>
 
+
 </section>
+
 
 
 <script>
 
-/* =========================
-   第一页启动
-========================= */
-
-window.addEventListener("load", () => {
-
-    document
-        .getElementById("entrance")
-        .classList
-        .add("active");
-
-});
-
-
-/* =========================
-   ENTER HYOOL
-========================= */
+/* =========================================================
+   获取元素
+========================================================= */
 
 const entrance =
     document.getElementById("entrance");
@@ -567,84 +909,131 @@ const world =
 const button =
     document.getElementById("enterButton");
 
+const enterArea =
+    document.querySelector(".enter-area");
+
+
+/* =========================================================
+   页面载入
+========================================================= */
+
+window.addEventListener("load", () => {
+
+    entrance.classList.add("active");
+
+});
+
+
+/* =========================================================
+   ENTER HYOOL
+========================================================= */
 
 button.addEventListener("click", () => {
 
-    /*
-       第一页开始退出
-    */
+
+    console.log("HYOOL ENTER");
+
+
+    /* 第一页开始消失 */
 
     entrance.classList.add("exit");
 
 
     /*
-       稍微延迟，让黑场完成
+       350ms 后让第二页出现
+
+       第一页还没有完全消失，
+       所以两个页面会产生黑场过渡。
     */
 
     setTimeout(() => {
 
-        world.classList.add("active");
+        world.classList.add("show");
 
-    }, 500);
+    }, 350);
+
 
 });
 
 
-/* =========================
-   鼠标磁吸
-========================= */
-
-const enterArea =
-    document.querySelector(".enter-area");
+/* =========================================================
+   鼠标磁吸效果
+========================================================= */
 
 enterArea.addEventListener(
     "mousemove",
     (event) => {
 
+
         const rect =
             enterArea.getBoundingClientRect();
 
+
+        const centerX =
+            rect.left +
+            rect.width / 2;
+
+
+        const centerY =
+            rect.top +
+            rect.height / 2;
+
+
         const x =
             event.clientX -
-            (rect.left + rect.width / 2);
+            centerX;
+
 
         const y =
             event.clientY -
-            (rect.top + rect.height / 2);
+            centerY;
+
 
         const moveX =
             Math.max(
                 -6,
-                Math.min(6, x * 0.08)
+                Math.min(
+                    6,
+                    x * 0.08
+                )
             );
+
 
         const moveY =
             Math.max(
                 -4,
-                Math.min(4, y * 0.08)
+                Math.min(
+                    4,
+                    y * 0.08
+                )
             );
+
 
         button.style.transform =
             `translate(${moveX}px, ${moveY}px)`;
 
+
     }
 );
 
+
+/* =========================================================
+   鼠标离开
+========================================================= */
 
 enterArea.addEventListener(
     "mouseleave",
     () => {
 
-        button.style.transform =
-            "";
+        button.style.transform = "";
 
     }
 );
 
 
-/* =========================
-   手机端点击
-========================= */
+/* =========================================================
+   手机触摸反馈
+========================================================= */
 
 button.addEventListener(
     "touchstart",
