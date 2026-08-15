@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+<title>彼岸 · HYOOL</title>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+html,
+body{
+    width:100%;
+    min-height:100%;
+    background:#050505;
+    color:#fff;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Helvetica Neue",
+        "PingFang SC",
+        "Microsoft YaHei",
+        Arial,
+        sans-serif;
+}
+
+body{
+    overflow-x:hidden;
+}
+
+
+/* =========================
+   BACKGROUND
+========================= */
+
+.background{
+    position:fixed;
+    inset:0;
+
+    z-index:0;
+
+    background:
+        radial-gradient(
+            circle at 50% 20%,
+            rgba(255,255,255,.045),
+            transparent 35%
+        ),
+        radial-gradient(
+            circle at 80% 80%,
+            rgba(255,255,255,.025),
+            transparent 30%
+        );
+
+    pointer-events:none;
+}
+
+
+/* =========================
+   HEADER
+========================= */
+
+.header{
+    position:fixed;
+
+    top:0;
+    left:0;
+    right:0;
+
+    height:76px;
+
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+
+    padding:0 42px;
+
+    z-index:20;
+
+    background:
+        linear-gradient(
+            to bottom,
+            rgba(0,0,0,.72),
+            transparent
+        );
+}
+
+.logo{
+    display:flex;
+    align-items:center;
+}
+
+.logo img{
+    width:82px;
+    height:auto;
+    display:block;
+}
+
+.header-right{
+    display:flex;
+    align-items:center;
+    gap:26px;
+}
+
+.header-link{
+    color:rgba(255,255,255,.5);
+
+    font-size:12px;
+
+    letter-spacing:.16em;
+
+    text-decoration:none;
+
+    cursor:pointer;
+
+    transition:
+        color .4s ease;
+}
+
+.header-link:hover{
+    color:#fff;
+}
+
+
+/* =========================
+   MAIN
+========================= */
+
+.main{
+    position:relative;
+
+    z-index:5;
+
+    width:100%;
+    max-width:1100px;
+
+    margin:0 auto;
+
+    padding:
+        150px 30px
+        100px;
+}
+
+
+/* =========================
+   PROFILE
+========================= */
+
+.profile{
+    text-align:center;
+
+    opacity:0;
+
+    transform:translateY(25px);
+
+    animation:
+        profileIn 1.2s
+        cubic-bezier(.2,.8,.2,1)
+        forwards;
+}
+
+@keyframes profileIn{
+
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+
+}
+
+
+/* =========================
+   AVATAR
+========================= */
+
+.avatar{
+    width:118px;
+    height:118px;
+
+    margin:0 auto 28px;
+
+    border-radius:50%;
+
+    overflow:hidden;
+
+    border:
+        1px solid
+        rgba(255,255,255,.14);
+
+    background:
+        radial-gradient(
+            circle,
+            rgba(255,255,255,.15),
+            rgba(255,255,255,.025)
+        );
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    font-size:36px;
+
+    color:
+        rgba(255,255,255,.8);
+
+    box-shadow:
+        0 0 80px
+        rgba(255,255,255,.035);
+}
+
+.avatar img{
+    width:100%;
+    height:100%;
+
+    object-fit:cover;
+
+    display:block;
+}
+
+
+/* =========================
+   NAME
+========================= */
+
+.display-name{
+
+    font-size:
+        clamp(26px,4vw,42px);
+
+    font-weight:300;
+
+    letter-spacing:.08em;
+
+    color:
+        rgba(255,255,255,.94);
+}
+
+.username{
+
+    margin-top:12px;
+
+    font-family:
+        Arial,
+        sans-serif;
+
+    font-size:13px;
+
+    letter-spacing:.12em;
+
+    color:
+        rgba(255,255,255,.38);
+}
+
+.bio{
+
+    max-width:560px;
+
+    margin:
+        24px auto 0;
+
+    font-size:14px;
+
+    line-height:2;
+
+    font-weight:300;
+
+    color:
+        rgba(255,255,255,.55);
+}
+
+
+/* =========================
+   DIVIDER
+========================= */
+
+.divider{
+
+    width:40px;
+    height:1px;
+
+    margin:
+        55px auto 48px;
+
+    background:
+        rgba(255,255,255,.15);
+}
+
+
+/* =========================
+   WORKS
+========================= */
+
+.works-title{
+
+    text-align:center;
+
+    font-family:
+        Arial,
+        sans-serif;
+
+    font-size:10px;
+
+    letter-spacing:.38em;
+
+    color:
+        rgba(255,255,255,.3);
+
+    margin-bottom:32px;
+}
+
+.works{
+
+    display:grid;
+
+    grid-template-columns:
+        repeat(3,1fr);
+
+    gap:18px;
+}
+
+.work{
+
+    position:relative;
+
+    aspect-ratio:1/1;
+
+    border:
+        1px solid
+        rgba(255,255,255,.06);
+
+    background:
+        rgba(255,255,255,.025);
+
+    overflow:hidden;
+
+    cursor:pointer;
+
+    transition:
+        transform .6s
+        cubic-bezier(.2,.8,.2,1),
+        border-color .5s ease,
+        background .5s ease;
+}
+
+.work:hover{
+
+    transform:
+        translateY(-5px);
+
+    border-color:
+        rgba(255,255,255,.18);
+
+    background:
+        rgba(255,255,255,.045);
+}
+
+.work-empty{
+
+    position:absolute;
+
+    inset:0;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    text-align:center;
+
+    color:
+        rgba(255,255,255,.18);
+
+    font-size:12px;
+
+    letter-spacing:.15em;
+}
+
+
+/* =========================
+   FOOTER
+========================= */
+
+.footer{
+
+    margin-top:100px;
+
+    text-align:center;
+
+    font-family:Arial,sans-serif;
+
+    font-size:9px;
+
+    letter-spacing:.3em;
+
+    color:
+        rgba(255,255,255,.18);
+}
+
+
+/* =========================
+   MOBILE
+========================= */
+
+@media(max-width:700px){
+
+    .header{
+
+        height:65px;
+
+        padding:
+            0 20px;
+    }
+
+    .logo img{
+        width:68px;
+    }
+
+    .header-right{
+        gap:15px;
+    }
+
+    .header-link{
+        font-size:10px;
+    }
+
+    .main{
+
+        padding:
+            120px 18px
+            70px;
+    }
+
+    .avatar{
+
+        width:96px;
+        height:96px;
+
+        font-size:30px;
+    }
+
+    .works{
+
+        grid-template-columns:
+            repeat(2,1fr);
+
+        gap:10px;
+    }
+
+}
+
+</style>
+</head>
+
+
+<body>
+
+<div class="background"></div>
+
+
+<header class="header">
+
+    <a
+        href="index.html"
+        class="logo"
+    >
+        <img
+            src="./logo1.png"
+            alt="HYOOL"
+        >
+    </a>
+
+
+    <div class="header-right">
+
+        <a
+            href="yonder.html"
+            class="header-link"
+        >
+            彼岸
+        </a>
+
+        <a
+            href="index.html"
+            class="header-link"
+        >
+            返回幻灵
+        </a>
+
+    </div>
+
+</header>
+
+
+
+<main class="main">
+
+
+    <section class="profile">
+
+
+        <div
+            class="avatar"
+            id="avatar"
+        >
+            H
+        </div>
+
+
+        <div
+            class="display-name"
+            id="displayName"
+        >
+            HYOOL
+        </div>
+
+
+        <div
+            class="username"
+            id="username"
+        >
+            @loading
+        </div>
+
+
+        <div
+            class="bio"
+            id="bio"
+        >
+            这是我的彼岸。
+        </div>
+
+
+    </section>
+
+
+
+    <div class="divider"></div>
+
+
+
+    <section>
+
+        <div class="works-title">
+            WORKS
+        </div>
+
+
+        <div class="works">
+
+
+            <div class="work">
+
+                <div class="work-empty">
+                    暂无作品
+                </div>
+
+            </div>
+
+
+            <div class="work">
+
+                <div class="work-empty">
+                    暂无作品
+                </div>
+
+            </div>
+
+
+            <div class="work">
+
+                <div class="work-empty">
+                    暂无作品
+                </div>
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+
+    <footer class="footer">
+
+        HYOOL · YONDER
+
+    </footer>
+
+
+</main>
+
+
+
+<script>
+
+const params =
+    new URLSearchParams(
+        window.location.search
+    );
+
+const username =
+    params.get("u");
+
+
+/*
+ * 如果暂时没有 Worker 提供数据，
+ * 先显示当前测试用户。
+ */
+
+if(username){
+
+    document.getElementById(
+        "username"
+    ).textContent =
+        "@" + username;
+
+}
+
+
+/*
+ * 后面这里会接 D1 API。
+ *
+ * 例如：
+ *
+ * /api/profile/333123
+ *
+ * Worker 返回：
+ *
+ * {
+ *   username:"333123",
+ *   display_name:"HYOOL",
+ *   bio:"这是我的彼岸。",
+ *   avatar_url:"..."
+ * }
+ */
+
+</script>
+
+</body>
+</html>
