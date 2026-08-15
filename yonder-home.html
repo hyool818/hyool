@@ -3,782 +3,1004 @@
 
 <head>
 
-    <meta charset="UTF-8">
+<meta charset="UTF-8">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
 
-    <title>彼岸 · HYOOL</title>
+<title>彼岸 · HYOOL</title>
 
+<style>
 
-    <style>
+:root {
+    --accent: #8b8bff;
+    --text: rgba(255,255,255,.94);
+    --muted: rgba(255,255,255,.55);
+    --glass: rgba(255,255,255,.07);
+    --glass-border: rgba(255,255,255,.11);
+}
 
-        * {
-            box-sizing: border-box;
-        }
+* {
+    box-sizing: border-box;
+}
 
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100%;
+}
 
-        html,
-        body {
+body {
 
-            margin: 0;
-            padding: 0;
+    font-family:
+        Inter,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        "Microsoft YaHei",
+        sans-serif;
 
-            width: 100%;
-            min-height: 100%;
+    color: var(--text);
 
-            background: #080808;
+    background:
+        radial-gradient(
+            circle at 50% 0%,
+            rgba(100,100,180,.20),
+            transparent 42%
+        ),
+        linear-gradient(
+            135deg,
+            #11121a,
+            #090a10 55%,
+            #050507
+        );
 
-            color: #ffffff;
+    background-attachment: fixed;
 
-            font-family:
-                -apple-system,
-                BlinkMacSystemFont,
-                "Segoe UI",
-                "PingFang SC",
-                "Microsoft YaHei",
-                sans-serif;
+    overflow-x: hidden;
+}
 
-        }
 
+/* =====================================================
+   BACKGROUND
+===================================================== */
 
-        body {
+#background-layer {
 
-            min-height: 100vh;
+    position: fixed;
 
-        }
+    inset: 0;
 
+    z-index: -10;
 
-        a {
+    pointer-events: none;
 
-            color: inherit;
+    background:
+        radial-gradient(
+            circle at 50% 0%,
+            rgba(120,120,220,.18),
+            transparent 45%
+        );
 
-            text-decoration: none;
+    transition:
+        background .4s ease;
+}
 
-        }
+#background-image {
 
+    position: absolute;
 
-        button {
+    inset: 0;
 
-            font: inherit;
+    width: 100%;
+    height: 100%;
 
-        }
+    object-fit: cover;
 
+    opacity: 0;
 
-        /* =====================================================
-           HEADER
-        ===================================================== */
+    display: none;
 
-        .header {
+    transition:
+        opacity .4s ease;
+}
 
-            position: fixed;
+#background-overlay {
 
-            top: 0;
-            left: 0;
-            right: 0;
+    position: absolute;
 
-            height: 72px;
+    inset: 0;
 
-            display: flex;
+    background:
+        linear-gradient(
+            to bottom,
+            rgba(0,0,0,.10),
+            rgba(0,0,0,.48)
+        );
+}
 
-            align-items: center;
 
-            justify-content: space-between;
+/* =====================================================
+   HEADER
+===================================================== */
 
-            padding: 0 42px;
+.header {
 
-            z-index: 100;
+    position: fixed;
 
-            background:
-                linear-gradient(
-                    to bottom,
-                    rgba(8,8,8,.96),
-                    rgba(8,8,8,.72),
-                    transparent
-                );
+    top: 0;
+    left: 0;
+    right: 0;
 
-            backdrop-filter: blur(10px);
+    height: 72px;
 
-        }
+    display: flex;
 
+    align-items: center;
 
-        /* =====================================================
-           HYOOL LOGO
-        ===================================================== */
+    justify-content: space-between;
 
-        .brand {
+    padding:
+        0 28px;
 
-            font-size: 18px;
+    z-index: 100;
 
-            font-weight: 600;
+    background:
+        linear-gradient(
+            to bottom,
+            rgba(5,5,8,.52),
+            rgba(5,5,8,0)
+        );
 
-            letter-spacing: 4px;
+    backdrop-filter:
+        blur(10px);
+}
 
-            color:
-                rgba(255,255,255,.92);
+.logo {
 
-            user-select: none;
+    text-decoration: none;
 
-        }
+    color: white;
 
+    font-size: 18px;
 
-        /* =====================================================
-           HEADER NAV
-        ===================================================== */
+    font-weight: 700;
 
-        .header-right {
+    letter-spacing: .22em;
 
-            display: flex;
+    opacity: .95;
+}
 
-            align-items: center;
+.header-right {
 
-            gap: 28px;
+    display: flex;
 
-        }
+    align-items: center;
 
+    gap: 10px;
+}
 
-        .header-link {
+.header-link,
+.edit-button {
 
-            font-size: 14px;
+    border: 0;
 
-            color:
-                rgba(255,255,255,.62);
+    background:
+        rgba(255,255,255,.06);
 
-            transition:
-                color .2s ease,
-                opacity .2s ease;
+    color:
+        rgba(255,255,255,.76);
 
-            cursor: pointer;
+    text-decoration: none;
 
-        }
+    padding:
+        9px 14px;
 
+    border-radius: 999px;
 
-        .header-link:hover {
+    font-size: 13px;
 
-            color: #ffffff;
+    cursor: pointer;
 
-        }
+    transition:
+        background .2s ease,
+        color .2s ease,
+        transform .2s ease;
+}
 
+.header-link:hover,
+.edit-button:hover {
 
-        /* =====================================================
-           MAIN
-        ===================================================== */
+    color: white;
 
-        .page {
+    background:
+        rgba(255,255,255,.12);
 
-            width: 100%;
+    transform:
+        translateY(-1px);
+}
 
-            max-width: 1080px;
+.edit-button {
 
-            margin: 0 auto;
+    border:
+        1px solid var(--accent);
+}
 
-            padding:
-                130px 28px
-                80px;
 
-        }
+/* =====================================================
+   PAGE
+===================================================== */
 
+.page {
 
-        /* =====================================================
-           PROFILE
-        ===================================================== */
+    width: 100%;
 
-        .profile {
+    max-width: 1100px;
 
-            display: flex;
+    margin: 0 auto;
 
-            align-items: center;
+    padding:
+        130px 24px 100px;
+}
 
-            gap: 24px;
 
-            margin-bottom: 70px;
+/* =====================================================
+   PROFILE
+===================================================== */
 
-        }
+.profile-section {
 
+    text-align: center;
 
-        .avatar {
+    margin-bottom: 90px;
+}
 
-            width: 92px;
+.avatar {
 
-            height: 92px;
+    width: 112px;
+    height: 112px;
 
-            border-radius: 50%;
+    border-radius: 50%;
 
-            overflow: hidden;
+    object-fit: cover;
 
-            flex-shrink: 0;
+    display: block;
 
-            background:
-                linear-gradient(
-                    135deg,
-                    #252525,
-                    #111111
-                );
+    margin:
+        0 auto 24px;
 
-            border:
-                1px solid
-                rgba(255,255,255,.12);
+    background:
+        linear-gradient(
+            135deg,
+            rgba(255,255,255,.16),
+            rgba(255,255,255,.04)
+        );
 
-            display: flex;
+    border:
+        1px solid rgba(255,255,255,.14);
 
-            align-items: center;
+    box-shadow:
+        0 20px 70px rgba(0,0,0,.35);
+}
 
-            justify-content: center;
+.avatar-placeholder {
 
-            font-size: 30px;
+    display: flex;
 
-            color:
-                rgba(255,255,255,.72);
+    align-items: center;
 
-        }
+    justify-content: center;
 
+    color:
+        rgba(255,255,255,.75);
 
-        .avatar img {
+    font-size: 38px;
 
-            width: 100%;
+    font-weight: 500;
+}
 
-            height: 100%;
+.display-name {
 
-            object-fit: cover;
+    margin: 0;
 
-        }
+    font-size: 32px;
 
+    font-weight: 600;
 
-        .profile-info {
+    letter-spacing: -.02em;
+}
 
-            min-width: 0;
+.username {
 
-        }
+    margin-top: 8px;
 
+    color:
+        rgba(255,255,255,.42);
 
-        .display-name {
+    font-size: 13px;
+}
 
-            font-size: 30px;
+.bio {
 
-            font-weight: 600;
+    max-width: 600px;
 
-            margin-bottom: 6px;
+    margin:
+        20px auto 0;
 
-        }
+    line-height: 1.8;
 
+    color:
+        rgba(255,255,255,.65);
 
-        .username {
+    font-size: 15px;
+}
 
-            font-size: 14px;
 
-            color:
-                rgba(255,255,255,.42);
+/* =====================================================
+   CONTENT
+===================================================== */
 
-            margin-bottom: 14px;
+.section {
 
-        }
+    margin-top: 60px;
+}
 
+.section-title {
 
-        .bio {
+    display: flex;
 
-            font-size: 15px;
+    align-items: center;
 
-            line-height: 1.7;
+    justify-content: space-between;
 
-            color:
-                rgba(255,255,255,.72);
+    margin-bottom: 20px;
+}
 
-            max-width: 650px;
+.section-title h2 {
 
-        }
+    margin: 0;
 
+    font-size: 17px;
 
-        /* =====================================================
-           SECTION
-        ===================================================== */
+    font-weight: 500;
 
-        .section-title {
+    letter-spacing: .05em;
+}
 
-            display: flex;
+.section-title span {
 
-            align-items: center;
+    color:
+        rgba(255,255,255,.32);
 
-            justify-content: space-between;
+    font-size: 12px;
+}
 
-            margin-bottom: 24px;
 
-        }
+/* =====================================================
+   POSTS
+===================================================== */
 
+.posts {
 
-        .section-title h2 {
+    display: grid;
 
-            margin: 0;
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(280px, 1fr)
+        );
 
-            font-size: 20px;
+    gap: 18px;
+}
 
-            font-weight: 500;
+.post {
 
-            letter-spacing: 2px;
+    padding: 24px;
 
-        }
+    min-height: 150px;
 
+    border:
+        1px solid var(--glass-border);
 
-        .section-title span {
+    background:
+        rgba(255,255,255,.055);
 
-            font-size: 12px;
+    border-radius: 20px;
 
-            color:
-                rgba(255,255,255,.35);
+    backdrop-filter:
+        blur(18px);
 
-        }
+    box-shadow:
+        0 18px 50px rgba(0,0,0,.16);
 
+    transition:
+        transform .25s ease,
+        background .25s ease;
+}
 
-        /* =====================================================
-           POSTS
-        ===================================================== */
+.post:hover {
 
-        .posts {
+    transform:
+        translateY(-3px);
 
-            display: grid;
+    background:
+        rgba(255,255,255,.08);
+}
 
-            grid-template-columns:
-                repeat(
-                    3,
-                    minmax(0, 1fr)
-                );
+.post-content {
 
-            gap: 18px;
+    line-height: 1.8;
 
-        }
+    color:
+        rgba(255,255,255,.83);
 
+    white-space: pre-wrap;
 
-        .post {
+    word-break: break-word;
+}
 
-            position: relative;
+.post-meta {
 
-            min-height: 220px;
+    margin-top: 20px;
 
-            padding: 24px;
+    color:
+        rgba(255,255,255,.30);
 
-            border-radius: 14px;
+    font-size: 11px;
+}
 
-            background:
-                rgba(255,255,255,.035);
 
-            border:
-                1px solid
-                rgba(255,255,255,.07);
+/* =====================================================
+   EMPTY
+===================================================== */
 
-            cursor: pointer;
+.empty {
 
-            transition:
-                transform .25s ease,
-                background .25s ease,
-                border-color .25s ease;
+    padding:
+        60px 20px;
 
-        }
+    text-align: center;
 
+    border:
+        1px dashed rgba(255,255,255,.10);
 
-        .post:hover {
+    border-radius: 20px;
 
-            transform:
-                translateY(-4px);
+    color:
+        rgba(255,255,255,.32);
 
-            background:
-                rgba(255,255,255,.06);
+    font-size: 13px;
+}
 
-            border-color:
-                rgba(255,255,255,.15);
 
-        }
+/* =====================================================
+   EDIT PANEL
+===================================================== */
 
+.editor-backdrop {
 
-        .post-type {
+    position: fixed;
 
-            display: inline-block;
+    inset: 0;
 
-            font-size: 11px;
+    z-index: 500;
 
-            letter-spacing: 1px;
+    background:
+        rgba(0,0,0,.55);
 
-            color:
-                rgba(255,255,255,.4);
+    backdrop-filter:
+        blur(8px);
 
-            margin-bottom: 18px;
+    display: none;
 
-        }
+    align-items: center;
 
+    justify-content: center;
 
-        .post-title {
+    padding: 20px;
+}
 
-            font-size: 19px;
+.editor-backdrop.active {
 
-            line-height: 1.5;
+    display: flex;
+}
 
-            margin-bottom: 12px;
+.editor {
 
-        }
+    width: 100%;
 
+    max-width: 560px;
 
-        .post-content {
+    max-height:
+        calc(100vh - 40px);
 
-            font-size: 14px;
+    overflow-y: auto;
 
-            line-height: 1.7;
+    padding: 28px;
 
-            color:
-                rgba(255,255,255,.55);
+    border:
+        1px solid rgba(255,255,255,.12);
 
-            display:
-                -webkit-box;
+    border-radius: 24px;
 
-            -webkit-line-clamp: 5;
+    background:
+        rgba(18,18,24,.94);
 
-            -webkit-box-orient: vertical;
+    box-shadow:
+        0 40px 100px rgba(0,0,0,.55);
+}
 
-            overflow: hidden;
+.editor-header {
 
-        }
+    display: flex;
 
+    align-items: center;
 
-        .post-time {
+    justify-content: space-between;
 
-            position: absolute;
+    margin-bottom: 28px;
+}
 
-            left: 24px;
+.editor-header h2 {
 
-            bottom: 20px;
+    margin: 0;
 
-            font-size: 11px;
+    font-size: 20px;
 
-            color:
-                rgba(255,255,255,.3);
+    font-weight: 600;
+}
 
-        }
+.close-button {
 
+    border: 0;
 
-        /* =====================================================
-           EMPTY
-        ===================================================== */
+    background: transparent;
 
-        .empty {
+    color:
+        rgba(255,255,255,.55);
 
-            grid-column: 1 / -1;
+    font-size: 24px;
 
-            padding: 90px 20px;
+    cursor: pointer;
+}
 
-            text-align: center;
+.form-group {
 
-            border-radius: 16px;
+    margin-bottom: 22px;
+}
 
-            border:
-                1px dashed
-                rgba(255,255,255,.1);
+.form-group label {
 
-            color:
-                rgba(255,255,255,.35);
+    display: block;
 
-        }
+    margin-bottom: 9px;
 
+    color:
+        rgba(255,255,255,.65);
 
-        .empty-title {
+    font-size: 13px;
+}
 
-            font-size: 18px;
+.form-group input,
+.form-group select,
+.form-group textarea {
 
-            margin-bottom: 12px;
+    width: 100%;
 
-            color:
-                rgba(255,255,255,.6);
+    border:
+        1px solid rgba(255,255,255,.10);
 
-        }
+    border-radius: 12px;
 
+    padding:
+        12px 14px;
 
-        .empty-text {
+    background:
+        rgba(255,255,255,.06);
 
-            font-size: 13px;
+    color: white;
 
-            line-height: 1.8;
+    outline: none;
 
-        }
+    font:
+        inherit;
+}
 
+.form-group textarea {
 
-        /* =====================================================
-           LOADING
-        ===================================================== */
+    min-height: 90px;
 
-        .loading {
+    resize: vertical;
+}
 
-            grid-column: 1 / -1;
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
 
-            padding: 100px 20px;
+    border-color:
+        var(--accent);
+}
 
-            text-align: center;
+.color-row {
 
-            color:
-                rgba(255,255,255,.35);
+    display: flex;
 
-            font-size: 14px;
+    gap: 10px;
+}
 
-        }
+.color-row input[type="color"] {
 
+    width: 54px;
 
-        /* =====================================================
-           ERROR
-        ===================================================== */
+    height: 42px;
 
-        .error {
+    padding: 3px;
 
-            grid-column: 1 / -1;
+    cursor: pointer;
+}
 
-            padding: 100px 20px;
 
-            text-align: center;
+/* =====================================================
+   CHECKBOXES
+===================================================== */
 
-            color:
-                rgba(255,255,255,.5);
+.checkbox-group {
 
-        }
+    display: grid;
 
+    grid-template-columns:
+        repeat(2, 1fr);
 
-        /* =====================================================
-           MOBILE
-        ===================================================== */
+    gap: 10px;
+}
 
-        @media (max-width: 700px) {
+.checkbox-item {
 
+    display: flex;
 
-            .header {
+    align-items: center;
 
-                padding:
-                    0 20px;
+    gap: 9px;
 
-            }
+    padding: 12px;
 
+    border-radius: 12px;
 
-            .header-right {
+    background:
+        rgba(255,255,255,.045);
 
-                gap: 17px;
+    color:
+        rgba(255,255,255,.70);
 
-            }
+    font-size: 13px;
 
+    cursor: pointer;
+}
 
-            .header-link {
+.checkbox-item input {
 
-                font-size: 13px;
+    accent-color:
+        var(--accent);
+}
 
-            }
 
+/* =====================================================
+   SAVE
+===================================================== */
 
-            .brand {
+.save-button {
 
-                font-size: 16px;
+    width: 100%;
 
-                letter-spacing: 3px;
+    border: 0;
 
-            }
+    border-radius: 13px;
 
+    padding:
+        13px;
 
-            .page {
+    background:
+        var(--accent);
 
-                padding:
-                    110px 18px
-                    60px;
+    color: white;
 
-            }
+    font-size: 14px;
 
+    cursor: pointer;
 
-            .profile {
+    transition:
+        opacity .2s ease,
+        transform .2s ease;
+}
 
-                align-items: flex-start;
+.save-button:hover {
 
-                margin-bottom: 50px;
+    opacity: .88;
 
-            }
+    transform:
+        translateY(-1px);
+}
 
+.save-button:disabled {
 
-            .avatar {
+    opacity: .45;
 
-                width: 72px;
+    cursor: wait;
+}
 
-                height: 72px;
 
-                font-size: 24px;
+/* =====================================================
+   LOADING
+===================================================== */
 
-            }
+.loading {
 
+    min-height: 100vh;
 
-            .display-name {
+    display: flex;
 
-                font-size: 24px;
+    align-items: center;
 
-            }
+    justify-content: center;
 
+    color:
+        rgba(255,255,255,.45);
 
-            .posts {
+    font-size: 13px;
+}
 
-                grid-template-columns:
-                    1fr;
 
-            }
+/* =====================================================
+   MOBILE
+===================================================== */
 
-        }
+@media (max-width: 650px) {
 
-    </style>
+    .header {
+
+        padding:
+            0 16px;
+
+    }
+
+    .logo {
+
+        font-size: 15px;
+
+    }
+
+    .header-link,
+    .edit-button {
+
+        padding:
+            8px 11px;
+
+        font-size: 12px;
+
+    }
+
+    .page {
+
+        padding:
+            110px 16px 70px;
+
+    }
+
+    .display-name {
+
+        font-size: 27px;
+
+    }
+
+    .avatar {
+
+        width: 94px;
+        height: 94px;
+
+    }
+
+    .checkbox-group {
+
+        grid-template-columns:
+            1fr;
+
+    }
+
+}
+
+</style>
 
 </head>
 
 
 <body>
 
+<div id="background-layer">
 
-<!-- =====================================================
-     HEADER
-===================================================== -->
+    <img
+        id="background-image"
+        alt=""
+    >
+
+    <div id="background-overlay"></div>
+
+</div>
+
+
+<div
+    id="loading"
+    class="loading"
+>
+    正在进入彼岸……
+</div>
+
+
+<div
+    id="app"
+    style="display:none;"
+>
+
 
 <header class="header">
 
-
-    <!-- HYOOL LOGO
-         这里只是品牌标识，不跳转 -->
-
-    <div class="brand">
-
+    <a
+        href="/"
+        class="logo"
+    >
         HYOOL
-
-    </div>
-
-
-    <!-- NAV -->
-
-    <nav class="header-right">
+    </a>
 
 
-        <a
-            href="/infinite.html"
-            class="header-link"
+    <div class="header-right">
+
+        <button
+            id="editButton"
+            class="edit-button"
+            style="display:none;"
         >
-            无限
-        </a>
+            编辑彼岸
+        </button>
 
 
         <a
-            href="/life.html"
+            href="/yonder.html"
             class="header-link"
-        >
-            生命
-        </a>
-
-
-        <a
-            href="javascript:void(0)"
-            class="header-link"
-            onclick="goBack()"
         >
             返回
         </a>
 
-
-    </nav>
-
+    </div>
 
 </header>
 
 
-
-<!-- =====================================================
-     MAIN
-===================================================== -->
-
 <main class="page">
 
 
-    <!-- =================================================
-         PROFILE
-    ================================================== -->
+    <!-- PROFILE -->
 
     <section
-        class="profile"
-        id="profile"
+        id="profileSection"
+        class="profile-section"
     >
+
+        <div
+            id="avatarContainer"
+        ></div>
+
+
+        <h1
+            id="displayName"
+            class="display-name"
+        >
+            —
+        </h1>
 
 
         <div
-            class="avatar"
-            id="avatar"
+            id="username"
+            class="username"
         >
-
-            Y
-
+            —
         </div>
 
 
-        <div class="profile-info">
-
-
-            <div
-                class="display-name"
-                id="displayName"
-            >
-                加载中…
-            </div>
-
-
-            <div
-                class="username"
-                id="username"
-            >
-                @
-            </div>
-
-
-            <div
-                class="bio"
-                id="bio"
-            >
-                正在进入彼岸……
-            </div>
-
-
-        </div>
-
+        <div
+            id="bio"
+            class="bio"
+        ></div>
 
     </section>
 
 
+    <!-- POSTS -->
 
-    <!-- =================================================
-         POSTS
-    ================================================== -->
-
-    <section>
-
+    <section
+        id="postsSection"
+        class="section"
+    >
 
         <div class="section-title">
 
-
             <h2>
-                我的彼岸
+                记录
             </h2>
 
-
-            <span
-                id="postCount"
-            >
-                0
+            <span>
+                YONDER
             </span>
-
 
         </div>
 
 
         <div
-            class="posts"
             id="posts"
-        >
+            class="posts"
+        ></div>
 
-            <div class="loading">
-                正在读取彼岸……
-            </div>
+    </section>
+
+
+    <!-- WORKS -->
+
+    <section
+        id="worksSection"
+        class="section"
+    >
+
+        <div class="section-title">
+
+            <h2>
+                作品
+            </h2>
+
+            <span>
+                LIFE
+            </span>
 
         </div>
 
+
+        <div class="empty">
+            这里以后会成为你的作品空间。
+        </div>
+
+    </section>
+
+
+    <!-- INFINITE -->
+
+    <section
+        id="infiniteSection"
+        class="section"
+    >
+
+        <div class="section-title">
+
+            <h2>
+                无限
+            </h2>
+
+            <span>
+                EXPLORE
+            </span>
+
+        </div>
+
+
+        <div class="empty">
+
+            发现别人留下的想法与作品。
+
+            <br><br>
+
+            无限正在生长。
+
+        </div>
 
     </section>
 
@@ -786,35 +1008,206 @@
 </main>
 
 
+</div>
+
+
+<!-- =====================================================
+     EDITOR
+===================================================== -->
+
+<div
+    id="editorBackdrop"
+    class="editor-backdrop"
+>
+
+    <div class="editor">
+
+        <div class="editor-header">
+
+            <h2>
+                编辑彼岸
+            </h2>
+
+            <button
+                id="closeEditor"
+                class="close-button"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <!-- BACKGROUND -->
+
+        <div class="form-group">
+
+            <label>
+                背景类型
+            </label>
+
+            <select
+                id="backgroundType"
+            >
+
+                <option value="gradient">
+                    渐变
+                </option>
+
+                <option value="color">
+                    纯色
+                </option>
+
+                <option value="image">
+                    图片
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label>
+                背景内容
+            </label>
+
+            <input
+                id="backgroundValue"
+                type="text"
+                placeholder="颜色 / 图片 URL"
+            >
+
+        </div>
+
+
+        <!-- ACCENT -->
+
+        <div class="form-group">
+
+            <label>
+                强调色
+            </label>
+
+            <div class="color-row">
+
+                <input
+                    id="accentColor"
+                    type="color"
+                    value="#8b8bff"
+                >
+
+                <input
+                    id="accentColorText"
+                    type="text"
+                    value="#8b8bff"
+                >
+
+            </div>
+
+        </div>
+
+
+        <!-- MODULES -->
+
+        <div class="form-group">
+
+            <label>
+                页面模块
+            </label>
+
+            <div class="checkbox-group">
+
+                <label class="checkbox-item">
+
+                    <input
+                        id="showProfile"
+                        type="checkbox"
+                        checked
+                    >
+
+                    个人信息
+
+                </label>
+
+
+                <label class="checkbox-item">
+
+                    <input
+                        id="showPosts"
+                        type="checkbox"
+                        checked
+                    >
+
+                    动态
+
+                </label>
+
+
+                <label class="checkbox-item">
+
+                    <input
+                        id="showWorks"
+                        type="checkbox"
+                        checked
+                    >
+
+                    作品
+
+                </label>
+
+
+                <label class="checkbox-item">
+
+                    <input
+                        id="showInfinite"
+                        type="checkbox"
+                        checked
+                    >
+
+                    无限
+
+                </label>
+
+            </div>
+
+        </div>
+
+
+        <!-- SAVE -->
+
+        <button
+            id="saveButton"
+            class="save-button"
+        >
+            保存彼岸
+        </button>
+
+    </div>
+
+</div>
+
 
 <script>
 
 /* =====================================================
-   RETURN
+   GLOBAL
 ===================================================== */
 
-function goBack() {
+const state = {
 
-    if (
-        window.history.length > 1
-    ) {
+    username: "",
 
-        window.history.back();
+    profile: null,
 
-        return;
+    settings: null,
 
-    }
+    posts: [],
 
+    isOwner: false
 
-    /*
-     * 如果没有历史记录，
-     * 默认返回彼岸入口。
-     */
-
-    window.location.href =
-        "/yonder.html";
-
-}
+};
 
 
 /* =====================================================
@@ -823,17 +1216,17 @@ function goBack() {
 
 function getUsername() {
 
-    const pathname =
+    const path =
         decodeURIComponent(
             window.location.pathname
         );
 
-
     if (
-        pathname.startsWith("/@")
+        path.startsWith("/@") &&
+        path.length > 2
     ) {
 
-        return pathname
+        return path
             .substring(2)
             .split("/")[0]
             .trim()
@@ -841,9 +1234,7 @@ function getUsername() {
 
     }
 
-
     return null;
-
 }
 
 
@@ -851,154 +1242,219 @@ function getUsername() {
    API
 ===================================================== */
 
-async function api(
-    url
-) {
+async function loadYonder() {
 
-    const response =
-        await fetch(
-            url,
-            {
-                method: "GET",
+    const username =
+        getUsername();
 
-                credentials: "include",
+    if (!username) {
 
-                cache: "no-store"
-            }
+        showError(
+            "无法识别彼岸。"
         );
 
+        return;
 
-    let data;
+    }
+
+    state.username =
+        username;
 
 
     try {
 
-        data =
+        const response =
+            await fetch(
+                "/api/yonder/" +
+                encodeURIComponent(username),
+                {
+                    method: "GET",
+                    credentials: "include",
+                    cache: "no-store"
+                }
+            );
+
+
+        const data =
             await response.json();
+
+
+        if (!data.success) {
+
+            throw new Error(
+                data.error ||
+                "彼岸加载失败"
+            );
+
+        }
+
+
+        state.profile =
+            data.yonder.profile;
+
+        state.settings =
+            data.yonder.settings || {};
+
+        state.posts =
+            data.yonder.posts || [];
+
+
+        await checkOwner();
+
+
+        render();
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "YONDER LOAD ERROR:",
+            error
+        );
+
+        showError(
+            error.message ||
+            "彼岸加载失败。"
+        );
+
+    }
+
+}
+
+
+/* =====================================================
+   CHECK OWNER
+===================================================== */
+
+async function checkOwner() {
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/me",
+                {
+                    credentials: "include",
+                    cache: "no-store"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        state.isOwner =
+            Boolean(
+                data.authenticated &&
+                data.user &&
+                data.user.username &&
+                data.user.username.toLowerCase() ===
+                    state.username
+            );
 
     }
 
     catch {
 
-        throw new Error(
-            "服务器返回异常。"
-        );
+        state.isOwner =
+            false;
 
     }
-
-
-    if (
-        !response.ok
-    ) {
-
-        throw new Error(
-            data.error ||
-            "请求失败。"
-        );
-
-    }
-
-
-    return data;
 
 }
 
 
 /* =====================================================
-   ESCAPE HTML
+   RENDER
 ===================================================== */
 
-function escapeHTML(
-    value
-) {
+function render() {
 
-    return String(
-        value ?? ""
-    )
-    .replace(
-        /&/g,
-        "&amp;"
-    )
-    .replace(
-        /</g,
-        "&lt;"
-    )
-    .replace(
-        />/g,
-        "&gt;"
-    )
-    .replace(
-        /"/g,
-        "&quot;"
-    )
-    .replace(
-        /'/g,
-        "&#039;"
+    const settings =
+        state.settings || {};
+
+    applySettings(
+        settings
     );
 
-}
+    renderProfile();
 
+    renderPosts();
 
-/* =====================================================
-   FORMAT TIME
-===================================================== */
-
-function formatTime(
-    value
-) {
-
-    if (!value) {
-
-        return "";
-
-    }
-
-
-    const date =
-        new Date(
-            String(value)
-                .replace(
-                    " ",
-                    "T"
-                )
-        );
-
-
-    if (
-        Number.isNaN(
-            date.getTime()
+    document
+        .getElementById(
+            "editButton"
         )
-    ) {
+        .style.display =
+            state.isOwner
+                ? "block"
+                : "none";
 
-        return value;
 
-    }
+    document
+        .getElementById(
+            "loading"
+        )
+        .style.display =
+            "none";
 
 
-    return date.toLocaleString(
-        "zh-CN",
-        {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit"
-        }
-    );
+    document
+        .getElementById(
+            "app"
+        )
+        .style.display =
+            "block";
 
 }
 
 
 /* =====================================================
-   RENDER PROFILE
+   PROFILE
 ===================================================== */
 
-function renderProfile(
-    profile
-) {
+function renderProfile() {
 
-    const displayName =
-        profile.display_name ||
-        profile.username ||
-        "彼岸";
+    const profile =
+        state.profile || {};
+
+    const avatar =
+        document.getElementById(
+            "avatarContainer"
+        );
+
+    if (profile.avatar_url) {
+
+        avatar.innerHTML = `
+            <img
+                class="avatar"
+                src="${escapeHtml(profile.avatar_url)}"
+                alt=""
+            >
+        `;
+
+    }
+
+    else {
+
+        const letter =
+            String(
+                profile.display_name ||
+                profile.username ||
+                "H"
+            )
+            .charAt(0)
+            .toUpperCase();
+
+        avatar.innerHTML = `
+            <div class="avatar avatar-placeholder">
+                ${escapeHtml(letter)}
+            </div>
+        `;
+
+    }
 
 
     document
@@ -1006,7 +1462,9 @@ function renderProfile(
             "displayName"
         )
         .textContent =
-            displayName;
+            profile.display_name ||
+            profile.username ||
+            "未命名";
 
 
     document
@@ -1015,7 +1473,10 @@ function renderProfile(
         )
         .textContent =
             "@" +
-            profile.username;
+            (
+                profile.username ||
+                state.username
+            );
 
 
     document
@@ -1024,95 +1485,28 @@ function renderProfile(
         )
         .textContent =
             profile.bio ||
-            "这是我的彼岸。";
-
-
-    const avatar =
-        document.getElementById(
-            "avatar"
-        );
-
-
-    if (
-        profile.avatar_url
-    ) {
-
-        avatar.innerHTML = `
-
-            <img
-                src="${escapeHTML(
-                    profile.avatar_url
-                )}"
-                alt=""
-            >
-
-        `;
-
-    }
-
-    else {
-
-        avatar.textContent =
-            displayName
-                .charAt(0)
-                .toUpperCase();
-
-    }
+            "";
 
 }
 
 
 /* =====================================================
-   RENDER POSTS
+   POSTS
 ===================================================== */
 
-function renderPosts(
-    posts
-) {
+function renderPosts() {
 
     const container =
         document.getElementById(
             "posts"
         );
 
-
-    const count =
-        document.getElementById(
-            "postCount"
-        );
-
-
-    count.textContent =
-        posts.length;
-
-
-    if (
-        !posts.length
-    ) {
+    if (!state.posts.length) {
 
         container.innerHTML = `
-
-            <div class="empty">
-
-                <div class="empty-title">
-
-                    这里还什么都没有
-
-                </div>
-
-
-                <div class="empty-text">
-
-                    当你开始留下想法、作品和故事，
-
-                    <br>
-
-                    它们就会慢慢成为你的彼岸。
-
-                </div>
-
+            <div class="empty" style="grid-column:1/-1;">
+                这里还没有留下内容。
             </div>
-
         `;
 
         return;
@@ -1121,85 +1515,10 @@ function renderPosts(
 
 
     container.innerHTML =
-        posts
+        state.posts
             .map(
-                post => {
-
-
-                    const type =
-                        post.type ||
-                        post.post_type ||
-                        "CONTENT";
-
-
-                    const title =
-                        post.title ||
-                        "未命名内容";
-
-
-                    const content =
-                        post.content ||
-                        post.description ||
-                        "";
-
-
-                    const createdAt =
-                        post.created_at ||
-                        post.published_at ||
-                        "";
-
-
-                    return `
-
-                        <article
-                            class="post"
-                            data-id="${escapeHTML(
-                                post.id || ""
-                            )}"
-                        >
-
-                            <div class="post-type">
-
-                                ${escapeHTML(
-                                    type
-                                )}
-
-                            </div>
-
-
-                            <div class="post-title">
-
-                                ${escapeHTML(
-                                    title
-                                )}
-
-                            </div>
-
-
-                            <div class="post-content">
-
-                                ${escapeHTML(
-                                    content
-                                )}
-
-                            </div>
-
-
-                            <div class="post-time">
-
-                                ${escapeHTML(
-                                    formatTime(
-                                        createdAt
-                                    )
-                                )}
-
-                            </div>
-
-                        </article>
-
-                    `;
-
-                }
+                post =>
+                    renderPost(post)
             )
             .join("");
 
@@ -1207,148 +1526,203 @@ function renderPosts(
 
 
 /* =====================================================
-   LOAD YONDER
+   POST
 ===================================================== */
 
-async function loadYonder() {
+function renderPost(post) {
+
+    const content =
+        post.content ||
+        post.text ||
+        post.body ||
+        "";
+
+    const createdAt =
+        post.created_at ||
+        "";
 
 
-    const username =
-        getUsername();
+    return `
+        <article class="post">
+
+            <div class="post-content">
+                ${escapeHtml(content)}
+            </div>
+
+            ${
+                createdAt
+                    ? `
+                        <div class="post-meta">
+                            ${escapeHtml(
+                                formatDate(createdAt)
+                            )}
+                        </div>
+                    `
+                    : ""
+            }
+
+        </article>
+    `;
+
+}
 
 
-    if (!username) {
+/* =====================================================
+   SETTINGS
+===================================================== */
 
-        document
-            .getElementById(
-                "posts"
-            )
-            .innerHTML = `
+function applySettings(
+    settings
+) {
 
-                <div class="error">
+    const accent =
+        settings.accent_color ||
+        "#8b8bff";
 
-                    无法识别彼岸。
+    document
+        .documentElement
+        .style
+        .setProperty(
+            "--accent",
+            accent
+        );
 
-                </div>
 
-            `;
+    const backgroundType =
+        settings.background_type ||
+        "gradient";
 
-        return;
+    const backgroundValue =
+        settings.background_value ||
+        "";
+
+    const layer =
+        document.getElementById(
+            "background-layer"
+        );
+
+    const image =
+        document.getElementById(
+            "background-image"
+        );
+
+
+    image.style.display =
+        "none";
+
+    image.style.opacity =
+        "0";
+
+
+    if (
+        backgroundType ===
+        "color"
+    ) {
+
+        layer.style.background =
+            backgroundValue ||
+            "#090a10";
 
     }
 
+    else if (
+        backgroundType ===
+        "image"
+    ) {
 
-    try {
+        if (backgroundValue) {
 
+            image.src =
+                backgroundValue;
 
-        /*
-         * 读取彼岸主页
-         */
+            image.style.display =
+                "block";
 
-        const result =
-            await api(
-                "/api/yonder/" +
-                encodeURIComponent(
-                    username
-                )
-            );
-
-
-        if (
-            !result.success ||
-            !result.yonder ||
-            !result.yonder.profile
-        ) {
-
-            throw new Error(
-                "彼岸不存在。"
+            requestAnimationFrame(
+                () => {
+                    image.style.opacity =
+                        "1";
+                }
             );
 
         }
 
+        layer.style.background =
+            "rgba(0,0,0,.25)";
 
-        renderProfile(
-            result.yonder.profile
-        );
+    }
 
+    else {
 
-        /*
-         * 读取内容
-         */
-
-        let posts =
-            Array.isArray(
-                result.yonder.posts
+        layer.style.background =
+            `
+            radial-gradient(
+                circle at 50% 0%,
+                ${hexToRgba(
+                    accent,
+                    .25
+                )},
+                transparent 45%
+            ),
+            linear-gradient(
+                135deg,
+                #11121a,
+                #090a10 55%,
+                #050507
             )
-                ? result.yonder.posts
-                : null;
+            `;
+
+    }
 
 
-        /*
-         * 如果主页接口没有 posts，
-         * 再读取独立 posts API。
-         */
+    setVisible(
+        "profileSection",
+        settings.show_profile !== 0
+    );
 
-        if (
-            !posts
-        ) {
+    setVisible(
+        "postsSection",
+        settings.show_posts !== 0
+    );
 
-            const postResult =
-                await api(
-                    "/api/yonder/" +
-                    encodeURIComponent(
-                        username
-                    ) +
-                    "/posts"
+    setVisible(
+        "worksSection",
+        settings.show_works !== 0
+    );
+
+    setVisible(
+        "infiniteSection",
+        settings.show_infinite !== 0
+    );
+
+
+    if (
+        settings.custom_css
+    ) {
+
+        let customStyle =
+            document.getElementById(
+                "custom-user-style"
+            );
+
+        if (!customStyle) {
+
+            customStyle =
+                document.createElement(
+                    "style"
                 );
 
+            customStyle.id =
+                "custom-user-style";
 
-            posts =
-                Array.isArray(
-                    postResult.posts
-                )
-                    ? postResult.posts
-                    : [];
+            document.head.appendChild(
+                customStyle
+            );
 
         }
 
-
-        renderPosts(
-            posts
-        );
-
-
-    }
-
-    catch (error) {
-
-
-        console.error(
-            "YONDER LOAD ERROR:",
-            error
-        );
-
-
-        document
-            .getElementById(
-                "posts"
-            )
-            .innerHTML = `
-
-                <div class="error">
-
-                    彼岸暂时无法加载。
-
-                    <br><br>
-
-                    ${escapeHTML(
-                        error.message ||
-                        "服务器异常"
-                    )}
-
-                </div>
-
-            `;
+        customStyle.textContent =
+            settings.custom_css;
 
     }
 
@@ -1356,20 +1730,548 @@ async function loadYonder() {
 
 
 /* =====================================================
+   OPEN EDITOR
+===================================================== */
+
+function openEditor() {
+
+    const settings =
+        state.settings || {};
+
+
+    document
+        .getElementById(
+            "backgroundType"
+        )
+        .value =
+            settings.background_type ||
+            "gradient";
+
+
+    document
+        .getElementById(
+            "backgroundValue"
+        )
+        .value =
+            settings.background_value ||
+            "";
+
+
+    const accent =
+        settings.accent_color ||
+        "#8b8bff";
+
+
+    document
+        .getElementById(
+            "accentColor"
+        )
+        .value =
+            validColor(accent)
+                ? accent
+                : "#8b8bff";
+
+
+    document
+        .getElementById(
+            "accentColorText"
+        )
+        .value =
+            accent;
+
+
+    document
+        .getElementById(
+            "showProfile"
+        )
+        .checked =
+            settings.show_profile !== 0;
+
+
+    document
+        .getElementById(
+            "showPosts"
+        )
+        .checked =
+            settings.show_posts !== 0;
+
+
+    document
+        .getElementById(
+            "showWorks"
+        )
+        .checked =
+            settings.show_works !== 0;
+
+
+    document
+        .getElementById(
+            "showInfinite"
+        )
+        .checked =
+            settings.show_infinite !== 0;
+
+
+    document
+        .getElementById(
+            "editorBackdrop"
+        )
+        .classList
+        .add("active");
+
+}
+
+
+/* =====================================================
+   CLOSE EDITOR
+===================================================== */
+
+function closeEditor() {
+
+    document
+        .getElementById(
+            "editorBackdrop"
+        )
+        .classList
+        .remove("active");
+
+}
+
+
+/* =====================================================
+   SAVE SETTINGS
+===================================================== */
+
+async function saveSettings() {
+
+    const button =
+        document.getElementById(
+            "saveButton"
+        );
+
+    button.disabled =
+        true;
+
+    button.textContent =
+        "保存中……";
+
+
+    try {
+
+        const backgroundType =
+            document
+                .getElementById(
+                    "backgroundType"
+                )
+                .value;
+
+
+        const backgroundValue =
+            document
+                .getElementById(
+                    "backgroundValue"
+                )
+                .value
+                .trim();
+
+
+        const accent =
+            document
+                .getElementById(
+                    "accentColorText"
+                )
+                .value
+                .trim();
+
+
+        const payload = {
+
+            background_type:
+                backgroundType,
+
+            background_value:
+                backgroundValue,
+
+            accent_color:
+                validColor(accent)
+                    ? accent
+                    : "#8b8bff",
+
+            layout:
+                "default",
+
+            show_profile:
+                document
+                    .getElementById(
+                        "showProfile"
+                    )
+                    .checked,
+
+            show_posts:
+                document
+                    .getElementById(
+                        "showPosts"
+                    )
+                    .checked,
+
+            show_works:
+                document
+                    .getElementById(
+                        "showWorks"
+                    )
+                    .checked,
+
+            show_infinite:
+                document
+                    .getElementById(
+                        "showInfinite"
+                    )
+                    .checked,
+
+            custom_css:
+                ""
+
+        };
+
+
+        const response =
+            await fetch(
+                "/api/yonder/settings",
+                {
+                    method: "POST",
+
+                    credentials:
+                        "include",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(
+                            payload
+                        )
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!data.success) {
+
+            throw new Error(
+                data.error ||
+                "保存失败"
+            );
+
+        }
+
+
+        state.settings =
+            data.settings;
+
+
+        applySettings(
+            state.settings
+        );
+
+
+        closeEditor();
+
+    }
+
+    catch (error) {
+
+        alert(
+            error.message ||
+            "保存失败。"
+        );
+
+    }
+
+    finally {
+
+        button.disabled =
+            false;
+
+        button.textContent =
+            "保存彼岸";
+
+    }
+
+}
+
+
+/* =====================================================
+   HELPERS
+===================================================== */
+
+function setVisible(
+    id,
+    visible
+) {
+
+    const element =
+        document.getElementById(
+            id
+        );
+
+    if (!element) {
+        return;
+    }
+
+    element.style.display =
+        visible
+            ? ""
+            : "none";
+
+}
+
+
+function validColor(
+    value
+) {
+
+    return /^#[0-9a-fA-F]{6}$/
+        .test(value);
+
+}
+
+
+function hexToRgba(
+    hex,
+    alpha
+) {
+
+    if (
+        !validColor(hex)
+    ) {
+
+        return `rgba(139,139,255,${alpha})`;
+
+    }
+
+    const r =
+        parseInt(
+            hex.substring(1,3),
+            16
+        );
+
+    const g =
+        parseInt(
+            hex.substring(3,5),
+            16
+        );
+
+    const b =
+        parseInt(
+            hex.substring(5,7),
+            16
+        );
+
+    return `rgba(${r},${g},${b},${alpha})`;
+
+}
+
+
+function escapeHtml(
+    value
+) {
+
+    return String(value || "")
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+
+}
+
+
+function formatDate(
+    value
+) {
+
+    try {
+
+        const date =
+            new Date(
+                value
+            );
+
+        if (
+            Number.isNaN(
+                date.getTime()
+            )
+        ) {
+
+            return value;
+
+        }
+
+        return date
+            .toLocaleString(
+                "zh-CN",
+                {
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit"
+                }
+            );
+
+    }
+
+    catch {
+
+        return value;
+
+    }
+
+}
+
+
+function showError(
+    message
+) {
+
+    document
+        .getElementById(
+            "loading"
+        )
+        .textContent =
+            message;
+
+}
+
+
+/* =====================================================
+   EVENTS
+===================================================== */
+
+document
+    .getElementById(
+        "editButton"
+    )
+    .addEventListener(
+        "click",
+        openEditor
+    );
+
+
+document
+    .getElementById(
+        "closeEditor"
+    )
+    .addEventListener(
+        "click",
+        closeEditor
+    );
+
+
+document
+    .getElementById(
+        "saveButton"
+    )
+    .addEventListener(
+        "click",
+        saveSettings
+    );
+
+
+document
+    .getElementById(
+        "editorBackdrop"
+    )
+    .addEventListener(
+        "click",
+        event => {
+
+            if (
+                event.target.id ===
+                "editorBackdrop"
+            ) {
+
+                closeEditor();
+
+            }
+
+        }
+    );
+
+
+document
+    .getElementById(
+        "accentColor"
+    )
+    .addEventListener(
+        "input",
+        event => {
+
+            document
+                .getElementById(
+                    "accentColorText"
+                )
+                .value =
+                    event.target.value;
+
+        }
+    );
+
+
+document
+    .getElementById(
+        "accentColorText"
+    )
+    .addEventListener(
+        "input",
+        event => {
+
+            if (
+                validColor(
+                    event.target.value
+                )
+            ) {
+
+                document
+                    .getElementById(
+                        "accentColor"
+                    )
+                    .value =
+                        event.target.value;
+
+            }
+
+        }
+    );
+
+
+/* =====================================================
    START
 ===================================================== */
 
-window.addEventListener(
-    "DOMContentLoaded",
-    () => {
-
-        loadYonder();
-
-    }
-);
+loadYonder();
 
 </script>
-
 
 </body>
 
