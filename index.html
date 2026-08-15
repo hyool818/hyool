@@ -1109,6 +1109,185 @@ body{
 
 
 /* =========================================================
+   COMING SOON MODAL
+========================================================= */
+
+.coming-soon{
+    position:fixed;
+    inset:0;
+
+    z-index:200;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    background:rgba(0,0,0,.58);
+
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+
+    opacity:0;
+    visibility:hidden;
+
+    pointer-events:none;
+
+    transition:
+        opacity .8s ease,
+        visibility 0s linear .8s;
+}
+
+.coming-soon.show{
+    opacity:1;
+    visibility:visible;
+
+    pointer-events:auto;
+
+    transition:
+        opacity .8s ease,
+        visibility 0s;
+}
+
+
+.coming-panel{
+    position:relative;
+
+    width:min(420px,82vw);
+
+    padding:52px 36px 48px;
+
+    text-align:center;
+
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255,255,255,.035),
+            rgba(255,255,255,.015)
+        );
+
+    border:1px solid rgba(255,255,255,.09);
+
+    box-shadow:
+        0 30px 100px rgba(0,0,0,.55);
+
+    transform:
+        translateY(18px)
+        scale(.97);
+
+    opacity:0;
+
+    transition:
+        opacity .8s ease,
+        transform 1s cubic-bezier(.2,.8,.2,1);
+}
+
+.coming-soon.show .coming-panel{
+    opacity:1;
+
+    transform:
+        translateY(0)
+        scale(1);
+}
+
+
+.coming-panel::before{
+    content:"";
+
+    position:absolute;
+
+    left:50%;
+    top:-1px;
+
+    width:40px;
+    height:1px;
+
+    transform:translateX(-50%);
+
+    background:rgba(255,255,255,.4);
+}
+
+
+.coming-world{
+    font-size:clamp(22px,2.4vw,30px);
+
+    font-weight:300;
+
+    letter-spacing:.38em;
+    margin-left:.38em;
+
+    color:rgba(255,255,255,.92);
+}
+
+
+.coming-meaning{
+    margin-top:16px;
+
+    font-size:12px;
+
+    font-weight:300;
+
+    letter-spacing:.16em;
+    margin-left:.16em;
+
+    color:rgba(255,255,255,.48);
+}
+
+
+.coming-en{
+    margin-top:32px;
+
+    font-family:Arial,Helvetica,sans-serif;
+
+    font-size:9px;
+
+    font-weight:300;
+
+    letter-spacing:.38em;
+    margin-left:.38em;
+
+    color:rgba(255,255,255,.3);
+}
+
+
+.coming-line{
+    width:22px;
+    height:1px;
+
+    margin:26px auto 20px;
+
+    background:rgba(255,255,255,.12);
+}
+
+
+.coming-close{
+    display:inline-block;
+
+    padding:8px 18px;
+
+    cursor:pointer;
+
+    font-family:Arial,Helvetica,sans-serif;
+
+    font-size:9px;
+
+    letter-spacing:.3em;
+    margin-left:.3em;
+
+    color:rgba(255,255,255,.38);
+
+    transition:
+        color .5s ease,
+        letter-spacing .6s ease;
+}
+
+.coming-close:hover{
+    color:rgba(255,255,255,.85);
+
+    letter-spacing:.42em;
+}
+
+
+/* =========================================================
    WORLD TRANSITION
 ========================================================= */
 
@@ -1255,6 +1434,23 @@ body{
         white-space:normal;
         line-height:1.7;
     }
+
+    .coming-panel{
+        width:82vw;
+
+        padding:
+            46px
+            24px
+            42px;
+    }
+
+    .coming-world{
+        font-size:21px;
+    }
+
+    .coming-meaning{
+        font-size:10px;
+    }
 }
 
 
@@ -1294,6 +1490,8 @@ body{
                 src="./logo1.png"
                 alt="HYOOL"
             >
+
+        </div>
 
     </div>
 
@@ -1516,6 +1714,53 @@ body{
 
 
 
+<!-- =======================================================
+     COMING SOON MODAL
+======================================================= -->
+
+<div
+    class="coming-soon"
+    id="comingSoon"
+>
+
+    <div
+        class="coming-panel"
+        id="comingPanel"
+    >
+
+        <div
+            class="coming-world"
+            id="comingWorld"
+        >
+            幻想
+        </div>
+
+        <div
+            class="coming-meaning"
+            id="comingMeaning"
+        >
+            让想象成为作品。
+        </div>
+
+        <div class="coming-en">
+            THE WORLD IS COMING
+        </div>
+
+        <div class="coming-line"></div>
+
+        <div
+            class="coming-close"
+            id="comingClose"
+        >
+            CLOSE
+        </div>
+
+    </div>
+
+</div>
+
+
+
 <script>
 
 /* =========================================================
@@ -1539,6 +1784,47 @@ const lifeVideo =
 
 const lights =
     document.querySelectorAll(".light");
+
+
+/* =========================================================
+   COMING SOON ELEMENTS
+========================================================= */
+
+const comingSoon =
+    document.getElementById("comingSoon");
+
+const comingWorld =
+    document.getElementById("comingWorld");
+
+const comingMeaning =
+    document.getElementById("comingMeaning");
+
+const comingClose =
+    document.getElementById("comingClose");
+
+
+/* =========================================================
+   WORLD INFORMATION
+========================================================= */
+
+const worldInfo = {
+
+    fantasy:{
+        name:"幻想",
+        meaning:"让想象成为作品。"
+    },
+
+    infinite:{
+        name:"无限",
+        meaning:"让创造拥有无限可能。"
+    },
+
+    life:{
+        name:"生命",
+        meaning:"让创造拥有真正的存在。"
+    }
+
+};
 
 
 /* =========================================================
@@ -1583,7 +1869,9 @@ button.addEventListener(
                 /* 从第一帧开始 */
 
                 try{
+
                     lifeVideo.currentTime = 0;
+
                 }catch(e){}
 
 
@@ -1715,6 +2003,100 @@ lifeVideo.addEventListener(
 
 
 /* =========================================================
+   OPEN COMING SOON
+========================================================= */
+
+function openComingSoon(worldName){
+
+    const info =
+        worldInfo[worldName];
+
+    if(!info){
+        return;
+    }
+
+
+    comingWorld.textContent =
+        info.name;
+
+    comingMeaning.textContent =
+        info.meaning;
+
+
+    comingSoon.classList.add("show");
+
+}
+
+
+/* =========================================================
+   CLOSE COMING SOON
+========================================================= */
+
+function closeComingSoon(){
+
+    comingSoon.classList.remove("show");
+
+}
+
+
+/* =========================================================
+   CLOSE BUTTON
+========================================================= */
+
+comingClose.addEventListener(
+    "click",
+    event => {
+
+        event.stopPropagation();
+
+        closeComingSoon();
+
+    }
+);
+
+
+/* =========================================================
+   CLICK BACKGROUND TO CLOSE
+========================================================= */
+
+comingSoon.addEventListener(
+    "click",
+    event => {
+
+        if(
+            event.target ===
+            comingSoon
+        ){
+
+            closeComingSoon();
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   ESC TO CLOSE
+========================================================= */
+
+document.addEventListener(
+    "keydown",
+    event => {
+
+        if(
+            event.key === "Escape"
+        ){
+
+            closeComingSoon();
+
+        }
+
+    }
+);
+
+
+/* =========================================================
    FOUR WORLD ENTRANCES
 ========================================================= */
 
@@ -1723,63 +2105,60 @@ lights.forEach(
 
         light.addEventListener(
             "click",
-            () => {
+            event => {
+
+                event.stopPropagation();
+
 
                 const worldName =
                     light.dataset.world;
 
 
-                world.classList.add(
-                    "entering-world"
-                );
+                /* =========================================
+                   彼岸：正式进入
+                ========================================= */
+
+                if(
+                    worldName === "yonder"
+                ){
+
+                    world.classList.add(
+                        "entering-world"
+                    );
 
 
-                setTimeout(
-                    () => {
-
-                        if(
-                            worldName ===
-                            "fantasy"
-                        ){
-
-                            window.location.href =
-                                "fantasy.html";
-
-                        }
-
-                        else if(
-                            worldName ===
-                            "yonder"
-                        ){
+                    setTimeout(
+                        () => {
 
                             window.location.href =
                                 "yonder.html";
 
-                        }
+                        },
+                        650
+                    );
 
-                        else if(
-                            worldName ===
-                            "infinite"
-                        ){
 
-                            window.location.href =
-                                "infinite.html";
+                    return;
 
-                        }
+                }
 
-                        else if(
-                            worldName ===
-                            "life"
-                        ){
 
-                            window.location.href =
-                                "life.html";
+                /* =========================================
+                   幻想 / 无限 / 生命
+                   暂未开放
+                ========================================= */
 
-                        }
+                if(
+                    worldName === "fantasy" ||
+                    worldName === "infinite" ||
+                    worldName === "life"
+                ){
 
-                    },
-                    650
-                );
+                    openComingSoon(
+                        worldName
+                    );
+
+                }
 
             }
         );
