@@ -7,10 +7,10 @@
 
 <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0"
+    content="width=device-width,initial-scale=1.0"
 >
 
-<title>彼岸 · YONDER — HYOOL</title>
+<title>HYOOL · 彼岸</title>
 
 
 <style>
@@ -29,15 +29,9 @@ html,
 body{
 
     width:100%;
-    height:100%;
+    min-height:100%;
 
-}
-
-body{
-
-    overflow:hidden;
-
-    background:#030303;
+    background:#000;
 
     color:#fff;
 
@@ -49,6 +43,11 @@ body{
         "Microsoft YaHei",
         Arial,
         sans-serif;
+}
+
+body{
+
+    overflow-x:hidden;
 
 }
 
@@ -57,102 +56,29 @@ body{
    BACKGROUND
 ========================================================= */
 
-.background{
+body::before{
+
+    content:"";
 
     position:fixed;
 
     inset:0;
 
-    z-index:0;
+    pointer-events:none;
 
     background:
 
         radial-gradient(
             circle at 50% 45%,
-            rgba(255,255,255,.055),
-            transparent 28%
+            rgba(255,255,255,.035),
+            transparent 35%
         ),
 
         radial-gradient(
             circle at 20% 20%,
-            rgba(255,255,255,.025),
+            rgba(255,255,255,.018),
             transparent 25%
-        ),
-
-        radial-gradient(
-            circle at 80% 80%,
-            rgba(255,255,255,.02),
-            transparent 30%
         );
-
-}
-
-
-/* =========================================================
-   BREATHING LIGHT
-========================================================= */
-
-.light{
-
-    position:absolute;
-
-    width:45vw;
-    height:45vw;
-
-    left:50%;
-    top:50%;
-
-    transform:
-        translate(-50%,-50%);
-
-    border-radius:50%;
-
-    background:
-        radial-gradient(
-            circle,
-            rgba(255,255,255,.035),
-            transparent 68%
-        );
-
-    filter:blur(30px);
-
-    animation:
-        breathing 8s ease-in-out infinite;
-
-}
-
-
-@keyframes breathing{
-
-    0%{
-
-        transform:
-            translate(-50%,-50%)
-            scale(.9);
-
-        opacity:.45;
-
-    }
-
-    50%{
-
-        transform:
-            translate(-50%,-50%)
-            scale(1.08);
-
-        opacity:.8;
-
-    }
-
-    100%{
-
-        transform:
-            translate(-50%,-50%)
-            scale(.9);
-
-        opacity:.45;
-
-    }
 
 }
 
@@ -171,8 +97,7 @@ body{
 
     height:80px;
 
-    padding:
-        0 40px;
+    z-index:50;
 
     display:flex;
 
@@ -180,13 +105,20 @@ body{
 
     justify-content:space-between;
 
-    z-index:20;
+    padding:0 42px;
+
+    background:
+        linear-gradient(
+            to bottom,
+            rgba(0,0,0,.75),
+            transparent
+        );
 
 }
 
 
 /* =========================================================
-   HYOOL LOGO
+   LOGO
 ========================================================= */
 
 .logo{
@@ -195,131 +127,83 @@ body{
 
     align-items:center;
 
+    cursor:pointer;
+
 }
 
-
 .logo img{
-
-    display:block;
 
     width:90px;
 
     height:auto;
 
-    opacity:.72;
+    display:block;
 
-    transition:
-
-        opacity .4s ease,
-
-        transform .4s ease;
-
-}
-
-
-.logo img:hover{
-
-    opacity:1;
-
-    transform:scale(1.04);
+    opacity:.82;
 
 }
 
 
 /* =========================================================
-   BACK BUTTON
+   BACK
 ========================================================= */
 
 .back{
 
-    border:none;
+    position:relative;
 
-    background:none;
+    padding:10px 4px;
 
     color:
-        rgba(255,255,255,.4);
+        rgba(255,255,255,.55);
 
-    font-size:10px;
+    font-size:12px;
 
-    letter-spacing:.18em;
+    font-weight:300;
+
+    letter-spacing:.22em;
 
     cursor:pointer;
 
     transition:
 
-        color .3s ease;
+        color .5s ease,
+
+        letter-spacing .6s ease;
 
 }
-
 
 .back:hover{
 
     color:#fff;
 
+    letter-spacing:.32em;
+
 }
 
 
 /* =========================================================
-   MAIN
+   HERO
 ========================================================= */
 
-.main{
+.hero{
 
-    position:relative;
-
-    z-index:5;
-
-    width:100%;
-    height:100%;
+    min-height:100vh;
 
     display:flex;
+
+    flex-direction:column;
 
     align-items:center;
 
     justify-content:center;
 
-}
-
-
-/* =========================================================
-   CONTENT
-========================================================= */
-
-.content{
-
-    width:
-        min(600px,88vw);
-
     text-align:center;
 
-    animation:
-
-        appear 1.2s
-        cubic-bezier(.2,.8,.2,1)
-        both;
-
-}
-
-
-@keyframes appear{
-
-    from{
-
-        opacity:0;
-
-        transform:
-            translateY(25px);
-
-    }
-
-    to{
-
-        opacity:1;
-
-        transform:
-            translateY(0);
-
-    }
+    padding:
+        120px
+        24px
+        80px;
 
 }
 
@@ -331,196 +215,77 @@ body{
 .title{
 
     font-size:
-        clamp(40px,6vw,72px);
+        clamp(
+            36px,
+            5vw,
+            72px
+        );
 
     font-weight:200;
 
-    letter-spacing:.3em;
+    letter-spacing:
+        .38em;
 
-    margin-left:.3em;
+    margin-left:
+        .38em;
 
     color:
-        rgba(255,255,255,.93);
+        rgba(255,255,255,.92);
+
+    opacity:0;
+
+    transform:
+        translateY(25px);
+
+    animation:
+        titleIn
+        1.4s
+        cubic-bezier(.2,.8,.2,1)
+        .15s
+        forwards;
 
 }
 
+
+/* =========================================================
+   ENGLISH
+========================================================= */
 
 .subtitle{
 
-    margin-top:14px;
+    margin-top:22px;
 
     font-family:
         Arial,
         Helvetica,
         sans-serif;
 
-    font-size:9px;
-
-    letter-spacing:.65em;
-
-    margin-left:.65em;
-
-    color:
-        rgba(255,255,255,.28);
-
-}
-
-
-/* =========================================================
-   SLOGAN
-========================================================= */
-
-.slogan{
-
-    margin-top:38px;
-
-    font-size:13px;
+    font-size:
+        clamp(
+            10px,
+            1vw,
+            13px
+        );
 
     font-weight:300;
 
-    letter-spacing:.16em;
+    letter-spacing:
+        .42em;
 
-    margin-left:.16em;
-
-    color:
-        rgba(255,255,255,.48);
-
-    line-height:2;
-
-}
-
-
-/* =========================================================
-   OPTIONS
-========================================================= */
-
-.options{
-
-    width:
-        min(330px,100%);
-
-    margin:
-        55px auto 0;
-
-    display:flex;
-
-    flex-direction:column;
-
-    gap:11px;
-
-}
-
-
-.option{
-
-    position:relative;
-
-    width:100%;
-
-    height:58px;
-
-    border:
-        1px solid
-        rgba(255,255,255,.1);
-
-    background:
-        rgba(255,255,255,.025);
+    margin-left:
+        .42em;
 
     color:
-        rgba(255,255,255,.72);
+        rgba(255,255,255,.35);
 
-    cursor:pointer;
+    opacity:0;
 
-    font-size:11px;
-
-    letter-spacing:.2em;
-
-    transition:
-
-        background .4s ease,
-
-        border-color .4s ease,
-
-        color .4s ease,
-
-        transform .4s
-        cubic-bezier(.2,.8,.2,1);
-
-}
-
-
-.option:hover{
-
-    background:
-        rgba(255,255,255,.075);
-
-    border-color:
-        rgba(255,255,255,.3);
-
-    color:#fff;
-
-    transform:
-        translateY(-2px);
-
-}
-
-
-/* =========================================================
-   PRIMARY BUTTON
-========================================================= */
-
-.option.primary{
-
-    background:
-        rgba(255,255,255,.92);
-
-    border-color:
-        transparent;
-
-    color:#000;
-
-}
-
-
-.option.primary:hover{
-
-    background:#fff;
-
-    color:#000;
-
-}
-
-
-/* =========================================================
-   BUTTON ENGLISH
-========================================================= */
-
-.option-en{
-
-    display:block;
-
-    margin-top:6px;
-
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
-
-    font-size:7px;
-
-    letter-spacing:.32em;
-
-    color:
-        rgba(255,255,255,.25);
-
-}
-
-
-.option.primary
-.option-en{
-
-    color:
-        rgba(0,0,0,.42);
+    animation:
+        fadeIn
+        1.5s
+        ease
+        .5s
+        forwards;
 
 }
 
@@ -531,16 +296,142 @@ body{
 
 .description{
 
-    margin-top:32px;
+    margin-top:50px;
 
-    font-size:9px;
+    max-width:620px;
 
-    line-height:2;
+    line-height:2.1;
 
-    letter-spacing:.1em;
+    font-size:14px;
+
+    font-weight:300;
+
+    letter-spacing:.12em;
 
     color:
-        rgba(255,255,255,.22);
+        rgba(255,255,255,.48);
+
+    opacity:0;
+
+    animation:
+        fadeIn
+        1.5s
+        ease
+        .8s
+        forwards;
+
+}
+
+
+/* =========================================================
+   ENTER BUTTON AREA
+========================================================= */
+
+.actions{
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    gap:26px;
+
+    margin-top:58px;
+
+    opacity:0;
+
+    animation:
+        fadeIn
+        1.5s
+        ease
+        1.1s
+        forwards;
+
+}
+
+
+/* =========================================================
+   BUTTON
+========================================================= */
+
+.action{
+
+    min-width:130px;
+
+    padding:15px 24px;
+
+    border:
+        1px solid
+        rgba(255,255,255,.12);
+
+    background:
+        rgba(255,255,255,.015);
+
+    color:
+        rgba(255,255,255,.68);
+
+    font-size:11px;
+
+    font-weight:300;
+
+    letter-spacing:.25em;
+
+    cursor:pointer;
+
+    transition:
+
+        border .5s ease,
+
+        color .5s ease,
+
+        background .5s ease,
+
+        transform .6s
+        cubic-bezier(.2,.8,.2,1);
+
+}
+
+.action:hover{
+
+    border-color:
+        rgba(255,255,255,.42);
+
+    background:
+        rgba(255,255,255,.05);
+
+    color:#fff;
+
+    transform:
+        translateY(-3px);
+
+}
+
+
+/* =========================================================
+   GUEST
+========================================================= */
+
+.action.guest{
+
+    border-color:
+        transparent;
+
+    background:
+        transparent;
+
+    color:
+        rgba(255,255,255,.35);
+
+}
+
+.action.guest:hover{
+
+    border-color:
+        rgba(255,255,255,.12);
+
+    color:
+        rgba(255,255,255,.75);
 
 }
 
@@ -553,28 +444,26 @@ body{
 
     position:fixed;
 
-    left:0;
-    right:0;
+    left:50%;
 
     bottom:28px;
 
-    z-index:10;
+    transform:
+        translateX(-50%);
 
-    text-align:center;
+    color:
+        rgba(255,255,255,.18);
 
     font-family:
         Arial,
         Helvetica,
         sans-serif;
 
-    font-size:7px;
+    font-size:9px;
 
-    letter-spacing:.45em;
+    letter-spacing:.4em;
 
-    margin-left:.45em;
-
-    color:
-        rgba(255,255,255,.16);
+    margin-left:.4em;
 
 }
 
@@ -597,10 +486,10 @@ body{
 
     justify-content:center;
 
-    padding:20px;
+    padding:24px;
 
     background:
-        rgba(0,0,0,.72);
+        rgba(0,0,0,.78);
 
     backdrop-filter:
         blur(18px);
@@ -612,31 +501,19 @@ body{
 
     visibility:hidden;
 
-    pointer-events:none;
-
     transition:
 
-        opacity .45s ease,
+        opacity .5s ease,
 
-        visibility 0s
-        linear .45s;
+        visibility .5s ease;
 
 }
 
-
-.modal.active{
+.modal.show{
 
     opacity:1;
 
     visibility:visible;
-
-    pointer-events:auto;
-
-    transition:
-
-        opacity .45s ease,
-
-        visibility 0s;
 
 }
 
@@ -650,36 +527,38 @@ body{
     position:relative;
 
     width:
-        min(430px,92vw);
+        min(
+            430px,
+            100%
+        );
 
     padding:
-        48px 38px 40px;
-
-    background:
-        rgba(9,9,9,.95);
+        48px
+        42px
+        42px;
 
     border:
         1px solid
         rgba(255,255,255,.1);
 
-    box-shadow:
+    background:
+        rgba(8,8,8,.92);
 
-        0 40px 120px
-        rgba(0,0,0,.75);
+    box-shadow:
+        0 30px 100px
+        rgba(0,0,0,.7);
 
     transform:
         translateY(20px)
         scale(.97);
 
     transition:
-
-        transform .55s
+        transform .6s
         cubic-bezier(.2,.8,.2,1);
 
 }
 
-
-.modal.active
+.modal.show
 .modal-box{
 
     transform:
@@ -697,42 +576,37 @@ body{
 
     position:absolute;
 
-    top:16px;
-    right:16px;
+    top:20px;
+
+    right:22px;
 
     width:30px;
+
     height:30px;
 
-    border:
-        1px solid
-        rgba(255,255,255,.1);
+    display:flex;
 
-    background:none;
+    align-items:center;
+
+    justify-content:center;
 
     color:
-        rgba(255,255,255,.4);
+        rgba(255,255,255,.35);
 
-    cursor:pointer;
-
-    font-size:17px;
+    font-size:20px;
 
     font-weight:200;
 
+    cursor:pointer;
+
     transition:
-
-        color .3s ease,
-
-        border-color .3s ease;
+        color .4s ease;
 
 }
-
 
 .close:hover{
 
     color:#fff;
-
-    border-color:
-        rgba(255,255,255,.3);
 
 }
 
@@ -743,22 +617,21 @@ body{
 
 .modal-title{
 
-    text-align:center;
-
     font-size:25px;
 
-    font-weight:200;
+    font-weight:300;
 
-    letter-spacing:.28em;
+    letter-spacing:.3em;
 
-    margin-left:.28em;
+    margin-left:.3em;
+
+    text-align:center;
 
 }
 
+.modal-subtitle{
 
-.modal-en{
-
-    margin-top:10px;
+    margin-top:14px;
 
     text-align:center;
 
@@ -767,30 +640,14 @@ body{
         Helvetica,
         sans-serif;
 
-    font-size:8px;
+    font-size:9px;
 
-    letter-spacing:.55em;
+    letter-spacing:.35em;
 
-    margin-left:.55em;
-
-    color:
-        rgba(255,255,255,.28);
-
-}
-
-
-.modal-description{
-
-    margin-top:25px;
-
-    text-align:center;
-
-    font-size:11px;
-
-    line-height:2;
+    margin-left:.35em;
 
     color:
-        rgba(255,255,255,.42);
+        rgba(255,255,255,.3);
 
 }
 
@@ -801,47 +658,39 @@ body{
 
 .form{
 
-    margin-top:30px;
+    margin-top:38px;
 
 }
-
 
 .field{
 
-    margin-bottom:15px;
+    margin-bottom:18px;
 
 }
-
 
 .field label{
 
     display:block;
 
-    margin-bottom:8px;
+    margin-bottom:9px;
 
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
+    font-size:10px;
 
-    font-size:8px;
-
-    letter-spacing:.25em;
+    letter-spacing:.18em;
 
     color:
-        rgba(255,255,255,.28);
+        rgba(255,255,255,.38);
 
 }
-
 
 .field input{
 
     width:100%;
 
-    height:45px;
+    height:48px;
 
     padding:
-        0 13px;
+        0 15px;
 
     border:
         1px solid
@@ -849,94 +698,308 @@ body{
 
     outline:none;
 
-    background:#030303;
+    background:
+        rgba(255,255,255,.025);
 
     color:#fff;
 
     font-family:inherit;
 
-    font-size:12px;
+    font-size:13px;
+
+    transition:
+        border .4s ease,
+        background .4s ease;
 
 }
-
 
 .field input:focus{
 
     border-color:
-        rgba(255,255,255,.3);
+        rgba(255,255,255,.35);
+
+    background:
+        rgba(255,255,255,.045);
 
 }
 
 
 /* =========================================================
-   SUBMIT
+   FORM BUTTON
 ========================================================= */
 
 .submit{
 
     width:100%;
 
-    height:46px;
+    height:50px;
 
-    margin-top:8px;
+    margin-top:10px;
 
-    border:none;
+    border:
+        1px solid
+        rgba(255,255,255,.22);
 
-    background:#fff;
+    background:
+        rgba(255,255,255,.06);
 
-    color:#000;
+    color:#fff;
+
+    font-size:11px;
+
+    letter-spacing:.28em;
 
     cursor:pointer;
 
-    font-size:10px;
-
-    letter-spacing:.25em;
-
     transition:
 
-        opacity .3s ease;
+        background .4s ease,
+
+        border .4s ease;
 
 }
 
-
 .submit:hover{
 
-    opacity:.82;
+    background:
+        rgba(255,255,255,.12);
+
+    border-color:
+        rgba(255,255,255,.45);
 
 }
 
 
 /* =========================================================
-   MODAL BACK
+   SWITCH
 ========================================================= */
 
-.modal-back{
+.switch{
 
-    display:block;
+    margin-top:24px;
 
-    width:100%;
+    text-align:center;
 
-    margin-top:17px;
+    font-size:10px;
 
-    border:none;
-
-    background:none;
+    letter-spacing:.1em;
 
     color:
-        rgba(255,255,255,.28);
+        rgba(255,255,255,.3);
+
+}
+
+.switch span{
+
+    color:
+        rgba(255,255,255,.75);
 
     cursor:pointer;
 
-    font-size:9px;
+    margin-left:6px;
+
+}
+
+.switch span:hover{
+
+    color:#fff;
+
+}
+
+
+/* =========================================================
+   ERROR
+========================================================= */
+
+.error{
+
+    min-height:18px;
+
+    margin-top:16px;
+
+    text-align:center;
+
+    font-size:10px;
+
+    line-height:1.7;
+
+    color:
+        rgba(255,130,130,.8);
+
+}
+
+
+/* =========================================================
+   USER PANEL
+========================================================= */
+
+.user-panel{
+
+    position:fixed;
+
+    inset:0;
+
+    z-index:90;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    padding:30px;
+
+    background:#000;
+
+    opacity:0;
+
+    visibility:hidden;
+
+    transition:
+        opacity .8s ease,
+        visibility .8s ease;
+
+}
+
+.user-panel.show{
+
+    opacity:1;
+
+    visibility:visible;
+
+}
+
+.user-inner{
+
+    text-align:center;
+
+}
+
+.user-avatar{
+
+    width:90px;
+
+    height:90px;
+
+    margin:0 auto 28px;
+
+    border-radius:50%;
+
+    border:
+        1px solid
+        rgba(255,255,255,.16);
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    color:
+        rgba(255,255,255,.55);
+
+    font-size:25px;
+
+    font-weight:200;
+
+}
+
+.user-name{
+
+    font-size:28px;
+
+    font-weight:300;
 
     letter-spacing:.15em;
 
 }
 
+.user-handle{
 
-.modal-back:hover{
+    margin-top:12px;
 
-    color:#fff;
+    font-family:Arial,Helvetica,sans-serif;
+
+    font-size:11px;
+
+    letter-spacing:.15em;
+
+    color:
+        rgba(255,255,255,.3);
+
+}
+
+.user-bio{
+
+    margin-top:28px;
+
+    color:
+        rgba(255,255,255,.45);
+
+    font-size:12px;
+
+    letter-spacing:.08em;
+
+}
+
+.user-actions{
+
+    margin-top:42px;
+
+    display:flex;
+
+    gap:18px;
+
+    justify-content:center;
+
+}
+
+
+/* =========================================================
+   ANIMATION
+========================================================= */
+
+@keyframes titleIn{
+
+    from{
+
+        opacity:0;
+
+        transform:
+            translateY(25px);
+
+    }
+
+    to{
+
+        opacity:1;
+
+        transform:
+            translateY(0);
+
+    }
+
+}
+
+@keyframes fadeIn{
+
+    from{
+
+        opacity:0;
+
+        transform:
+            translateY(15px);
+
+    }
+
+    to{
+
+        opacity:1;
+
+        transform:
+            translateY(0);
+
+    }
 
 }
 
@@ -949,11 +1012,12 @@ body{
 
     .header{
 
+        height:68px;
+
         padding:
             0 20px;
 
     }
-
 
     .logo img{
 
@@ -961,25 +1025,82 @@ body{
 
     }
 
+    .hero{
+
+        padding:
+            100px
+            20px
+            70px;
+
+    }
 
     .title{
 
-        font-size:42px;
+        font-size:34px;
+
+        letter-spacing:.28em;
+
+        margin-left:.28em;
 
     }
 
+    .description{
 
-    .slogan{
+        font-size:12px;
 
-        font-size:11px;
+        line-height:2;
+
+        max-width:330px;
 
     }
 
+    .actions{
+
+        flex-direction:column;
+
+        width:100%;
+
+        gap:12px;
+
+    }
+
+    .action{
+
+        width:
+            min(
+                280px,
+                100%
+            );
+
+    }
 
     .modal-box{
 
         padding:
-            45px 24px 30px;
+            42px
+            24px
+            32px;
+
+    }
+
+}
+
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media(
+    prefers-reduced-motion:reduce
+){
+
+    *{
+
+        animation-duration:
+            .01ms !important;
+
+        transition-duration:
+            .01ms !important;
 
     }
 
@@ -994,27 +1115,15 @@ body{
 
 
 <!-- =======================================================
-     BACKGROUND
-======================================================= -->
-
-<div class="background">
-
-    <div class="light"></div>
-
-</div>
-
-
-
-<!-- =======================================================
      HEADER
 ======================================================= -->
 
 <header class="header">
 
-
-    <!-- HYOOL LOGO -->
-
-    <div class="logo">
+    <div
+        class="logo"
+        id="logoButton"
+    >
 
         <img
             src="./logo1.png"
@@ -1024,17 +1133,12 @@ body{
     </div>
 
 
-    <!-- BACK TO REALM -->
-
-    <button
+    <div
         class="back"
         id="backButton"
     >
-
-        ← HYOOL REALM
-
-    </button>
-
+        返回幻灵
+    </div>
 
 </header>
 
@@ -1044,93 +1148,53 @@ body{
      MAIN
 ======================================================= -->
 
-<main class="main">
+<main class="hero">
+
+    <div class="title">
+        彼岸
+    </div>
 
 
-    <section class="content">
+    <div class="subtitle">
+        YONDER
+    </div>
 
 
-        <div class="title">
-            彼岸
-        </div>
+    <div class="description">
+
+        每个人都可以拥有属于自己的空间。
+        <br>
+        创作、展示、分享，让作品抵达彼岸。
+
+    </div>
 
 
-        <div class="subtitle">
-            Y O N D E R
-        </div>
+    <div class="actions">
+
+        <button
+            class="action"
+            id="loginButton"
+        >
+            登录
+        </button>
 
 
-        <div class="slogan">
-
-            每个人，都可以拥有<br>
-            一个属于自己的世界。
-
-        </div>
-
-
-        <div class="options">
+        <button
+            class="action"
+            id="registerButton"
+        >
+            注册
+        </button>
 
 
-            <!-- LOGIN -->
+        <button
+            class="action guest"
+            id="guestButton"
+        >
+            游客进入
+        </button>
 
-            <button
-                class="option primary"
-                id="loginButton"
-            >
-
-                登录 HYOOL
-
-                <span class="option-en">
-                    ENTER YOUR WORLD
-                </span>
-
-            </button>
-
-
-            <!-- REGISTER -->
-
-            <button
-                class="option"
-                id="registerButton"
-            >
-
-                创建 HYOOL 账户
-
-                <span class="option-en">
-                    CREATE YOUR WORLD
-                </span>
-
-            </button>
-
-
-            <!-- GUEST -->
-
-            <button
-                class="option"
-                id="guestButton"
-            >
-
-                游客探索
-
-                <span class="option-en">
-                    EXPLORE AS GUEST
-                </span>
-
-            </button>
-
-
-        </div>
-
-
-        <div class="description">
-
-            浏览无需身份。<br>
-            创造，需要属于自己的彼岸。
-
-        </div>
-
-
-    </section>
+    </div>
 
 </main>
 
@@ -1142,97 +1206,166 @@ body{
 
 <footer class="footer">
 
-    HYOOL REALM · YONDER
+    HYOOL · YONDER
 
 </footer>
 
 
 
 <!-- =======================================================
-     LOGIN MODAL
+     AUTH MODAL
 ======================================================= -->
 
 <div
     class="modal"
-    id="loginModal"
+    id="authModal"
 >
 
     <div class="modal-box">
 
-
-        <button
+        <div
             class="close"
-            data-close
+            id="closeModal"
         >
             ×
-        </button>
+        </div>
 
 
-        <div class="modal-title">
+        <div
+            class="modal-title"
+            id="modalTitle"
+        >
             登录
         </div>
 
 
-        <div class="modal-en">
-            ENTER HYOOL
+        <div
+            class="modal-subtitle"
+            id="modalSubtitle"
+        >
+            ENTER YOUR YONDER
         </div>
 
 
-        <div class="modal-description">
+        <form
+            class="form"
+            id="authForm"
+        >
 
-            回到你的彼岸。
 
-        </div>
-
-
-        <div class="form">
-
+            <!-- USERNAME -->
 
             <div class="field">
 
                 <label>
-                    EMAIL
+                    账号
                 </label>
 
                 <input
-                    type="email"
-                    placeholder="邮箱"
+                    id="username"
+                    type="text"
+                    autocomplete="username"
+                    maxlength="20"
+                    placeholder="3–20 位英文 / 数字"
+                    required
                 >
 
             </div>
 
 
-            <div class="field">
+            <!-- DISPLAY NAME -->
+
+            <div
+                class="field"
+                id="displayNameField"
+                style="display:none;"
+            >
 
                 <label>
-                    PASSWORD
+                    显示名称
                 </label>
 
                 <input
+                    id="displayName"
+                    type="text"
+                    maxlength="30"
+                    placeholder="你的名字"
+                >
+
+            </div>
+
+
+            <!-- PASSWORD -->
+
+            <div class="field">
+
+                <label>
+                    密码
+                </label>
+
+                <input
+                    id="password"
                     type="password"
-                    placeholder="密码"
+                    autocomplete="current-password"
+                    maxlength="128"
+                    placeholder="至少 8 位"
+                    required
                 >
 
             </div>
+
+
+            <!-- CONFIRM -->
+
+            <div
+                class="field"
+                id="confirmField"
+                style="display:none;"
+            >
+
+                <label>
+                    确认密码
+                </label>
+
+                <input
+                    id="confirmPassword"
+                    type="password"
+                    autocomplete="new-password"
+                    maxlength="128"
+                    placeholder="再次输入密码"
+                >
+
+            </div>
+
+
+            <div
+                class="error"
+                id="formError"
+            ></div>
 
 
             <button
                 class="submit"
-                id="loginSubmit"
+                id="submitButton"
+                type="submit"
             >
                 登录
             </button>
 
 
-            <button
-                class="modal-back"
-                data-back
-            >
+        </form>
 
-                ← 返回
 
-            </button>
+        <div
+            class="switch"
+            id="switchArea"
+        >
 
+            还没有账号？
+
+            <span id="switchButton">
+                创建账号
+            </span>
 
         </div>
 
@@ -1243,112 +1376,61 @@ body{
 
 
 <!-- =======================================================
-     REGISTER MODAL
+     USER PANEL
 ======================================================= -->
 
-<div
-    class="modal"
-    id="registerModal"
+<section
+    class="user-panel"
+    id="userPanel"
 >
 
-    <div class="modal-box">
+    <div class="user-inner">
 
 
-        <button
-            class="close"
-            data-close
+        <div class="user-avatar">
+            H
+        </div>
+
+
+        <div
+            class="user-name"
+            id="userName"
         >
-            ×
-        </button>
-
-
-        <div class="modal-title">
-            创建
+            HYOOL
         </div>
 
 
-        <div class="modal-en">
-            CREATE HYOOL
+        <div
+            class="user-handle"
+            id="userHandle"
+        >
+            @hyool
         </div>
 
 
-        <div class="modal-description">
-
-            创建属于你的 HYOOL ID。
+        <div
+            class="user-bio"
+            id="userBio"
+        >
+            这是我的彼岸。
 
         </div>
 
 
-        <div class="form">
-
-
-            <div class="field">
-
-                <label>
-                    EMAIL
-                </label>
-
-                <input
-                    type="email"
-                    placeholder="邮箱"
-                >
-
-            </div>
-
-
-            <div class="field">
-
-                <label>
-                    HYOOL ID
-                </label>
-
-                <input
-                    type="text"
-                    placeholder="你的名字"
-                >
-
-            </div>
-
-
-            <div class="field">
-
-                <label>
-                    PASSWORD
-                </label>
-
-                <input
-                    type="password"
-                    placeholder="创建密码"
-                >
-
-            </div>
-
+        <div class="user-actions">
 
             <button
-                class="submit"
-                id="registerSubmit"
+                class="action"
+                id="logoutButton"
             >
-
-                创建账户
-
+                退出登录
             </button>
-
-
-            <button
-                class="modal-back"
-                data-back
-            >
-
-                ← 返回
-
-            </button>
-
 
         </div>
 
     </div>
 
-</div>
+</section>
 
 
 
@@ -1358,173 +1440,503 @@ body{
    ELEMENTS
 ========================================================= */
 
-const loginButton =
+const authModal =
     document.getElementById(
-        "loginButton"
+        "authModal"
     );
 
-const registerButton =
+const modalTitle =
     document.getElementById(
-        "registerButton"
+        "modalTitle"
     );
 
-const guestButton =
+const modalSubtitle =
     document.getElementById(
-        "guestButton"
+        "modalSubtitle"
     );
 
-const loginModal =
+const authForm =
     document.getElementById(
-        "loginModal"
+        "authForm"
     );
 
-const registerModal =
+const usernameInput =
     document.getElementById(
-        "registerModal"
+        "username"
+    );
+
+const displayNameInput =
+    document.getElementById(
+        "displayName"
+    );
+
+const passwordInput =
+    document.getElementById(
+        "password"
+    );
+
+const confirmPasswordInput =
+    document.getElementById(
+        "confirmPassword"
+    );
+
+const displayNameField =
+    document.getElementById(
+        "displayNameField"
+    );
+
+const confirmField =
+    document.getElementById(
+        "confirmField"
+    );
+
+const formError =
+    document.getElementById(
+        "formError"
+    );
+
+const submitButton =
+    document.getElementById(
+        "submitButton"
+    );
+
+const switchArea =
+    document.getElementById(
+        "switchArea"
+    );
+
+const switchButton =
+    document.getElementById(
+        "switchButton"
+    );
+
+const userPanel =
+    document.getElementById(
+        "userPanel"
+    );
+
+const userName =
+    document.getElementById(
+        "userName"
+    );
+
+const userHandle =
+    document.getElementById(
+        "userHandle"
+    );
+
+const userBio =
+    document.getElementById(
+        "userBio"
     );
 
 
 /* =========================================================
-   LOGIN
+   MODE
 ========================================================= */
 
-loginButton.addEventListener(
-    "click",
-    () => {
-
-        loginModal.classList.add(
-            "active"
-        );
-
-    }
-);
+let mode = "login";
 
 
 /* =========================================================
-   REGISTER
+   OPEN MODAL
 ========================================================= */
 
-registerButton.addEventListener(
-    "click",
-    () => {
+function openAuth(
+    selectedMode = "login"
+){
 
-        registerModal.classList.add(
-            "active"
-        );
-
-    }
-);
+    mode =
+        selectedMode;
 
 
-/* =========================================================
-   GUEST
-========================================================= */
-
-guestButton.addEventListener(
-    "click",
-    () => {
-
-        window.location.href =
-            "guest.html";
-
-    }
-);
+    updateModal();
 
 
-/* =========================================================
-   CLOSE MODALS
-========================================================= */
+    formError.textContent =
+        "";
 
-document
-    .querySelectorAll(
-        "[data-close]"
-    )
-    .forEach(
-        button => {
 
-            button.addEventListener(
-                "click",
-                closeModals
-            );
+    authForm.reset();
 
-        }
+
+    authModal.classList.add(
+        "show"
     );
 
 
-document
-    .querySelectorAll(
-        "[data-back]"
-    )
-    .forEach(
-        button => {
+    setTimeout(
+        () => {
 
-            button.addEventListener(
-                "click",
-                closeModals
-            );
+            usernameInput.focus();
 
-        }
-    );
-
-
-function closeModals(){
-
-    loginModal.classList.remove(
-        "active"
-    );
-
-    registerModal.classList.remove(
-        "active"
+        },
+        300
     );
 
 }
 
 
 /* =========================================================
-   CLICK OUTSIDE
+   CLOSE MODAL
 ========================================================= */
 
-document
-    .querySelectorAll(
-        ".modal"
-    )
-    .forEach(
-        modal => {
+function closeAuth(){
 
-            modal.addEventListener(
-                "click",
-                event => {
-
-                    if(
-                        event.target === modal
-                    ){
-
-                        modal.classList.remove(
-                            "active"
-                        );
-
-                    }
-
-                }
-            );
-
-        }
+    authModal.classList.remove(
+        "show"
     );
+
+}
 
 
 /* =========================================================
-   ESC
+   UPDATE MODAL
 ========================================================= */
 
-document.addEventListener(
-    "keydown",
-    event => {
+function updateModal(){
+
+    if(
+        mode === "register"
+    ){
+
+        modalTitle.textContent =
+            "注册";
+
+        modalSubtitle.textContent =
+            "CREATE YOUR YONDER";
+
+        displayNameField.style.display =
+            "block";
+
+        confirmField.style.display =
+            "block";
+
+        submitButton.textContent =
+            "创建彼岸";
+
+        switchArea.innerHTML =
+            '已经拥有账号？ <span id="switchButton">登录</span>';
+
+    }
+
+    else{
+
+        modalTitle.textContent =
+            "登录";
+
+        modalSubtitle.textContent =
+            "ENTER YOUR YONDER";
+
+        displayNameField.style.display =
+            "none";
+
+        confirmField.style.display =
+            "none";
+
+        submitButton.textContent =
+            "登录";
+
+        switchArea.innerHTML =
+            '还没有账号？ <span id="switchButton">创建账号</span>';
+
+    }
+
+
+    document
+        .getElementById(
+            "switchButton"
+        )
+        .addEventListener(
+            "click",
+            () => {
+
+                mode =
+                    mode === "login"
+                        ? "register"
+                        : "login";
+
+                updateModal();
+
+                formError.textContent =
+                    "";
+
+            }
+        );
+
+}
+
+
+/* =========================================================
+   API
+========================================================= */
+
+async function api(
+    path,
+    options = {}
+){
+
+    const response =
+        await fetch(
+            path,
+            {
+                credentials:
+                    "include",
+
+                ...options,
+
+                headers:{
+                    "Content-Type":
+                        "application/json",
+
+                    ...(options.headers || {})
+                }
+            }
+        );
+
+
+    let data;
+
+    try{
+
+        data =
+            await response.json();
+
+    }
+
+    catch{
+
+        data = {
+            success:false,
+            error:"服务器返回异常。"
+        };
+
+    }
+
+
+    if(
+        !response.ok
+    ){
+
+        throw new Error(
+            data.error ||
+            "请求失败。"
+        );
+
+    }
+
+
+    return data;
+
+}
+
+
+/* =========================================================
+   REGISTER / LOGIN
+========================================================= */
+
+authForm.addEventListener(
+    "submit",
+    async event => {
+
+        event.preventDefault();
+
+
+        formError.textContent =
+            "";
+
+
+        const username =
+            usernameInput.value
+                .trim()
+                .toLowerCase();
+
+
+        const password =
+            passwordInput.value;
+
+
+        /*
+        ---------------------------------------------
+        REGISTER CHECK
+        ---------------------------------------------
+        */
 
         if(
-            event.key === "Escape"
+            mode === "register"
         ){
 
-            closeModals();
+            const displayName =
+                displayNameInput.value
+                    .trim();
+
+
+            const confirmPassword =
+                confirmPasswordInput.value;
+
+
+            if(
+                !/^[a-z0-9_-]{3,20}$/
+                    .test(username)
+            ){
+
+                formError.textContent =
+                    "账号格式不正确。";
+
+                return;
+
+            }
+
+
+            if(
+                password.length < 8
+            ){
+
+                formError.textContent =
+                    "密码至少需要 8 位。";
+
+                return;
+
+            }
+
+
+            if(
+                password !==
+                confirmPassword
+            ){
+
+                formError.textContent =
+                    "两次密码不一致。";
+
+                return;
+
+            }
+
+
+            try{
+
+                submitButton.disabled =
+                    true;
+
+                submitButton.textContent =
+                    "创建中…";
+
+
+                const result =
+                    await api(
+                        "/api/register",
+                        {
+
+                            method:"POST",
+
+                            body:
+                                JSON.stringify({
+
+                                    username,
+
+                                    password,
+
+                                    display_name:
+                                        displayName
+
+                                })
+
+                        }
+                    );
+
+
+                if(
+                    result.success
+                ){
+
+                    await loadCurrentUser();
+
+                }
+
+            }
+
+            catch(error){
+
+                formError.textContent =
+                    error.message;
+
+            }
+
+            finally{
+
+                submitButton.disabled =
+                    false;
+
+                submitButton.textContent =
+                    "创建彼岸";
+
+            }
+
+
+            return;
+
+        }
+
+
+        /*
+        ---------------------------------------------
+        LOGIN
+        ---------------------------------------------
+        */
+
+        try{
+
+            submitButton.disabled =
+                true;
+
+            submitButton.textContent =
+                "进入中…";
+
+
+            const result =
+                await api(
+                    "/api/login",
+                    {
+
+                        method:"POST",
+
+                        body:
+                            JSON.stringify({
+
+                                username,
+
+                                password
+
+                            })
+
+                    }
+                );
+
+
+            if(
+                result.success
+            ){
+
+                await loadCurrentUser();
+
+            }
+
+        }
+
+        catch(error){
+
+            formError.textContent =
+                error.message;
+
+        }
+
+        finally{
+
+            submitButton.disabled =
+                false;
+
+            submitButton.textContent =
+                "登录";
 
         }
 
@@ -1533,19 +1945,117 @@ document.addEventListener(
 
 
 /* =========================================================
-   LOGIN DEMO
+   LOAD CURRENT USER
+========================================================= */
+
+async function loadCurrentUser(){
+
+    try{
+
+        const result =
+            await api(
+                "/api/me",
+                {
+                    method:"GET"
+                }
+            );
+
+
+        if(
+            result.authenticated &&
+            result.user
+        ){
+
+            showUser(
+                result.user
+            );
+
+        }
+
+    }
+
+    catch(error){
+
+        console.error(
+            error
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   SHOW USER
+========================================================= */
+
+function showUser(
+    user
+){
+
+    const profile =
+        user.profile || {};
+
+
+    userName.textContent =
+        profile.display_name ||
+        user.username;
+
+
+    userHandle.textContent =
+        "@" +
+        user.username;
+
+
+    userBio.textContent =
+        profile.bio ||
+        "这是我的彼岸。";
+
+
+    closeAuth();
+
+
+    userPanel.classList.add(
+        "show"
+    );
+
+}
+
+
+/* =========================================================
+   LOGOUT
 ========================================================= */
 
 document
     .getElementById(
-        "loginSubmit"
+        "logoutButton"
     )
     .addEventListener(
         "click",
-        () => {
+        async () => {
 
-            alert(
-                "账号系统将在下一阶段接入。"
+            try{
+
+                await api(
+                    "/api/logout",
+                    {
+                        method:"POST"
+                    }
+                );
+
+            }
+
+            catch(error){
+
+                console.error(
+                    error
+                );
+
+            }
+
+
+            userPanel.classList.remove(
+                "show"
             );
 
         }
@@ -1553,19 +2063,35 @@ document
 
 
 /* =========================================================
-   REGISTER DEMO
+   BUTTONS
 ========================================================= */
 
 document
     .getElementById(
-        "registerSubmit"
+        "loginButton"
     )
     .addEventListener(
         "click",
         () => {
 
-            alert(
-                "注册系统将在下一阶段接入。"
+            openAuth(
+                "login"
+            );
+
+        }
+    );
+
+
+document
+    .getElementById(
+        "registerButton"
+    )
+    .addEventListener(
+        "click",
+        () => {
+
+            openAuth(
+                "register"
             );
 
         }
@@ -1573,7 +2099,108 @@ document
 
 
 /* =========================================================
-   BACK TO REALM
+   GUEST
+========================================================= */
+
+document
+    .getElementById(
+        "guestButton"
+    )
+    .addEventListener(
+        "click",
+        () => {
+
+            enterGuest();
+
+        }
+    );
+
+
+function enterGuest(){
+
+    /*
+    -----------------------------------------------------
+    第一版游客直接进入探索状态。
+
+    后面可以替换成真正的：
+    /explore
+    -----------------------------------------------------
+    */
+
+    document
+        .querySelector(
+            ".hero"
+        )
+        .innerHTML = `
+
+            <div class="title">
+                彼岸
+            </div>
+
+            <div class="subtitle">
+                YONDER
+            </div>
+
+            <div class="description">
+
+                你正在以游客身份进入彼岸。
+
+                <br><br>
+
+                这里将成为 HYOOL 的作品、
+                创作者与世界相遇的地方。
+
+            </div>
+
+            <div class="actions">
+
+                <button
+                    class="action"
+                    onclick="location.reload()"
+                >
+                    返回
+                </button>
+
+            </div>
+
+        `;
+
+}
+
+
+/* =========================================================
+   CLOSE MODAL
+========================================================= */
+
+document
+    .getElementById(
+        "closeModal"
+    )
+    .addEventListener(
+        "click",
+        closeAuth
+    );
+
+
+authModal.addEventListener(
+    "click",
+    event => {
+
+        if(
+            event.target ===
+            authModal
+        ){
+
+            closeAuth();
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   BACK
 ========================================================= */
 
 document
@@ -1584,13 +2211,50 @@ document
         "click",
         () => {
 
-            window.history.back();
+            /*
+            返回真正的第二页
+            */
+
+            window.location.href =
+                "./index.html";
 
         }
     );
 
-</script>
 
+/* =========================================================
+   LOGO
+========================================================= */
+
+document
+    .getElementById(
+        "logoButton"
+    )
+    .addEventListener(
+        "click",
+        () => {
+
+            window.location.href =
+                "./index.html";
+
+        }
+    );
+
+
+/* =========================================================
+   PAGE LOAD
+========================================================= */
+
+window.addEventListener(
+    "load",
+    () => {
+
+        loadCurrentUser();
+
+    }
+);
+
+</script>
 
 </body>
 
