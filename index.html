@@ -1,30 +1,49 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<meta
+    name="theme-color"
+    content="#000000"
+>
 
 <title>HYOOL · 幻灵</title>
+
 
 <style>
 
 /* =========================================================
-   基础
+   RESET
 ========================================================= */
 
 * {
+
     margin: 0;
     padding: 0;
+
     box-sizing: border-box;
+
 }
+
 
 html,
 body {
+
     width: 100%;
     height: 100%;
+
     overflow: hidden;
 
     background: #000;
+
     color: #fff;
 
     font-family:
@@ -35,16 +54,18 @@ body {
         "Microsoft YaHei",
         Arial,
         sans-serif;
+
 }
 
 
 /* =========================================================
-   第一页
+   PAGE 1
 ========================================================= */
 
 #entrance {
 
     position: fixed;
+
     inset: 0;
 
     z-index: 10;
@@ -53,8 +74,11 @@ body {
     height: 100%;
 
     display: flex;
+
     flex-direction: column;
+
     align-items: center;
+
     justify-content: center;
 
     background: #000;
@@ -64,13 +88,15 @@ body {
     transform: scale(1);
 
     transition:
-        opacity 1.2s cubic-bezier(.77,0,.18,1),
-        transform 1.4s cubic-bezier(.2,.8,.2,1);
+
+        opacity 1.25s
+        cubic-bezier(.77,0,.18,1),
+
+        transform 1.5s
+        cubic-bezier(.2,.8,.2,1);
 
 }
 
-
-/* 第一页退出 */
 
 #entrance.exit {
 
@@ -84,7 +110,7 @@ body {
 
 
 /* =========================================================
-   非常微弱的中心环境光
+   FIRST PAGE ATMOSPHERE
 ========================================================= */
 
 #entrance::before {
@@ -96,17 +122,23 @@ body {
     width: 55vw;
     height: 55vw;
 
-    max-width: 750px;
-    max-height: 750px;
+    max-width: 800px;
+    max-height: 800px;
 
     border-radius: 50%;
 
     background:
+
         radial-gradient(
+
             circle,
+
             rgba(255,255,255,.035) 0%,
+
             rgba(255,255,255,.012) 35%,
-            transparent 70%
+
+            transparent 72%
+
         );
 
     opacity: 0;
@@ -116,13 +148,14 @@ body {
     pointer-events: none;
 
     transition:
+
         opacity 1.5s ease,
-        transform 2s cubic-bezier(.2,.8,.2,1);
+
+        transform 2s
+        cubic-bezier(.2,.8,.2,1);
 
 }
 
-
-/* 页面加载之后 */
 
 #entrance.active::before {
 
@@ -134,7 +167,7 @@ body {
 
 
 /* =========================================================
-   Logo
+   BRAND
 ========================================================= */
 
 .brand {
@@ -156,13 +189,16 @@ body {
 }
 
 
-/* 真正的 PNG Logo */
+/* =========================================================
+   LOGO
+========================================================= */
 
 .logo {
 
     display: flex;
 
     align-items: center;
+
     justify-content: center;
 
     opacity: 0;
@@ -170,28 +206,32 @@ body {
     transform: translateY(24px);
 
     animation:
-        logoIn 1.5s cubic-bezier(.2,.8,.2,1)
+
+        logoIn 1.5s
+        cubic-bezier(.2,.8,.2,1)
         .2s
         forwards;
 
 }
 
 
-/* Logo 图片 */
-
 .logo img {
 
     display: block;
 
-    width: clamp(
-        260px,
-        28vw,
-        520px
-    );
+    width:
+
+        clamp(
+
+            260px,
+
+            28vw,
+
+            520px
+
+        );
 
     height: auto;
-
-    max-height: 140px;
 
     object-fit: contain;
 
@@ -199,7 +239,7 @@ body {
 
 
 /* =========================================================
-   中文名
+   CHINESE NAME
 ========================================================= */
 
 .chinese-name {
@@ -207,10 +247,15 @@ body {
     margin-top: 24px;
 
     font-size:
+
         clamp(
+
             18px,
+
             2vw,
+
             28px
+
         );
 
     font-weight: 300;
@@ -220,11 +265,14 @@ body {
     margin-left: .55em;
 
     color:
+
         rgba(
+
             255,
             255,
             255,
             .72
+
         );
 
     opacity: 0;
@@ -232,7 +280,9 @@ body {
     transform: translateY(16px);
 
     animation:
-        logoIn 1.5s cubic-bezier(.2,.8,.2,1)
+
+        logoIn 1.5s
+        cubic-bezier(.2,.8,.2,1)
         .45s
         forwards;
 
@@ -240,7 +290,7 @@ body {
 
 
 /* =========================================================
-   品牌文案
+   SLOGAN
 ========================================================= */
 
 .slogan {
@@ -258,22 +308,26 @@ body {
     transform: translateY(18px);
 
     animation:
-        logoIn 1.5s cubic-bezier(.2,.8,.2,1)
+
+        logoIn 1.5s
+        cubic-bezier(.2,.8,.2,1)
         .75s
         forwards;
 
 }
 
 
-/* 第一行 */
-
-.slogan .line-one {
+.slogan .line-one,
+.slogan .line-two {
 
     font-size:
+
         clamp(
+
             15px,
             1.45vw,
             20px
+
         );
 
     font-weight: 300;
@@ -284,49 +338,43 @@ body {
 
     line-height: 2;
 
+}
+
+
+.slogan .line-one {
+
     color:
+
         rgba(
+
             255,
             255,
             255,
             .82
+
         );
 
 }
 
 
-/* 第二行 */
-
 .slogan .line-two {
 
-    font-size:
-        clamp(
-            15px,
-            1.45vw,
-            20px
-        );
-
-    font-weight: 300;
-
-    letter-spacing: .18em;
-
-    margin-left: .18em;
-
-    line-height: 2;
-
     color:
+
         rgba(
+
             255,
             255,
             255,
             .45
+
         );
 
 }
 
 
 /* =========================================================
-   ENTER 区域
+   ENTER AREA
 ========================================================= */
 
 .enter-area {
@@ -340,13 +388,14 @@ body {
     display: flex;
 
     align-items: center;
+
     justify-content: center;
 
 }
 
 
 /* =========================================================
-   背景汉字
+   BACKGROUND CHINESE
 ========================================================= */
 
 .enter-bg {
@@ -358,10 +407,13 @@ body {
     pointer-events: none;
 
     font-size:
+
         clamp(
+
             48px,
             8vw,
             110px
+
         );
 
     font-weight: 200;
@@ -371,11 +423,14 @@ body {
     margin-left: .18em;
 
     color:
+
         rgba(
+
             255,
             255,
             255,
             0
+
         );
 
     filter: blur(9px);
@@ -383,23 +438,28 @@ body {
     transform: scale(.94);
 
     transition:
+
         color 1s ease,
+
         filter 1.2s ease,
-        transform 1.2s cubic-bezier(.2,.8,.2,1);
+
+        transform 1.2s
+        cubic-bezier(.2,.8,.2,1);
 
 }
 
 
-/* 鼠标靠近 */
-
 .enter-area:hover .enter-bg {
 
     color:
+
         rgba(
+
             255,
             255,
             255,
             .045
+
         );
 
     filter: blur(2px);
@@ -410,7 +470,7 @@ body {
 
 
 /* =========================================================
-   ENTER HYOOL
+   ENTER BUTTON
 ========================================================= */
 
 .enter {
@@ -426,6 +486,7 @@ body {
     user-select: none;
 
     font-family:
+
         Arial,
         Helvetica,
         sans-serif;
@@ -439,24 +500,28 @@ body {
     margin-left: .35em;
 
     color:
+
         rgba(
+
             255,
             255,
             255,
             .7
+
         );
 
     transition:
+
         color .6s ease,
-        letter-spacing .8s cubic-bezier(.2,.8,.2,1),
-        transform .8s cubic-bezier(.2,.8,.2,1);
+
+        letter-spacing .8s
+        cubic-bezier(.2,.8,.2,1),
+
+        transform .8s
+        cubic-bezier(.2,.8,.2,1);
 
 }
 
-
-/* =========================================================
-   按钮边框
-========================================================= */
 
 .enter::before {
 
@@ -467,6 +532,7 @@ body {
     inset: 0;
 
     border:
+
         1px solid
         rgba(
             255,
@@ -480,8 +546,11 @@ body {
     transform: scale(.92);
 
     transition:
+
         opacity .6s ease,
-        transform .8s cubic-bezier(.2,.8,.2,1);
+
+        transform .8s
+        cubic-bezier(.2,.8,.2,1);
 
 }
 
@@ -489,11 +558,14 @@ body {
 .enter:hover {
 
     color:
+
         rgba(
+
             255,
             255,
             255,
             .95
+
         );
 
     letter-spacing: .48em;
@@ -511,7 +583,7 @@ body {
 
 
 /* =========================================================
-   鼠标光晕
+   ENTER GLOW
 ========================================================= */
 
 .enter::after {
@@ -527,14 +599,20 @@ body {
     height: 90px;
 
     transform:
+
         translate(-50%,-50%)
         scale(.6);
 
     background:
+
         radial-gradient(
+
             ellipse,
+
             rgba(255,255,255,.08),
+
             transparent 70%
+
         );
 
     opacity: 0;
@@ -542,8 +620,11 @@ body {
     filter: blur(18px);
 
     transition:
+
         opacity .8s ease,
-        transform 1s cubic-bezier(.2,.8,.2,1);
+
+        transform 1s
+        cubic-bezier(.2,.8,.2,1);
 
     pointer-events: none;
 
@@ -557,6 +638,7 @@ body {
     opacity: 1;
 
     transform:
+
         translate(-50%,-50%)
         scale(1);
 
@@ -564,7 +646,7 @@ body {
 
 
 /* =========================================================
-   第二页
+   PAGE 2
 ========================================================= */
 
 #world {
@@ -588,15 +670,20 @@ body {
 
     pointer-events: none;
 
+    overflow: hidden;
+
     transition:
-        opacity 1.3s cubic-bezier(.77,0,.18,1),
-        transform 1.5s cubic-bezier(.2,.8,.2,1),
-        visibility 0s linear 1.3s;
+
+        opacity 1.5s
+        cubic-bezier(.77,0,.18,1),
+
+        transform 2s
+        cubic-bezier(.2,.8,.2,1),
+
+        visibility 0s linear 1.5s;
 
 }
 
-
-/* 第二页显示 */
 
 #world.show {
 
@@ -609,44 +696,493 @@ body {
     pointer-events: auto;
 
     transition:
-        opacity 1.3s cubic-bezier(.77,0,.18,1),
-        transform 1.5s cubic-bezier(.2,.8,.2,1),
+
+        opacity 1.5s
+        cubic-bezier(.77,0,.18,1),
+
+        transform 2s
+        cubic-bezier(.2,.8,.2,1),
+
         visibility 0s;
 
 }
 
 
 /* =========================================================
-   第二页暂时占位
+   LIFE VIDEO
+   视频是“空间”，不是播放器
 ========================================================= */
 
-.world-content {
+.life-video {
 
-    width: 100%;
-    height: 100%;
+    position: absolute;
 
-    display: flex;
+    inset: -5%;
 
-    align-items: center;
-    justify-content: center;
+    width: 110%;
+    height: 110%;
 
-    font-size: 14px;
+    display: block;
 
-    letter-spacing: .3em;
+    object-fit: cover;
 
-    color:
-        rgba(
-            255,
-            255,
-            255,
-            .35
+    object-position: center;
+
+    border: none;
+
+    outline: none;
+
+    background: #000;
+
+    opacity: 0;
+
+    transform: scale(1.08);
+
+    filter:
+
+        brightness(.32)
+
+        contrast(1.08)
+
+        saturate(.65);
+
+    pointer-events: none;
+
+    user-select: none;
+
+    -webkit-user-select: none;
+
+    transition:
+
+        opacity 4s
+        cubic-bezier(.2,.8,.2,1),
+
+        transform 8s
+        cubic-bezier(.2,.8,.2,1);
+
+}
+
+
+/* 视频出现 */
+
+#world.show .life-video {
+
+    opacity: 1;
+
+    transform: scale(1);
+
+}
+
+
+/* =========================================================
+   LIFE OVERLAY
+========================================================= */
+
+.life-overlay {
+
+    position: absolute;
+
+    inset: 0;
+
+    z-index: 2;
+
+    pointer-events: none;
+
+    background:
+
+        radial-gradient(
+
+            ellipse at center,
+
+            rgba(0,0,0,0) 0%,
+
+            rgba(0,0,0,.12) 35%,
+
+            rgba(0,0,0,.48) 72%,
+
+            rgba(0,0,0,.82) 100%
+
         );
 
 }
 
 
 /* =========================================================
-   入场动画
+   VIGNETTE
+========================================================= */
+
+.life-vignette {
+
+    position: absolute;
+
+    inset: 0;
+
+    z-index: 3;
+
+    pointer-events: none;
+
+    background:
+
+        radial-gradient(
+
+            ellipse at center,
+
+            transparent 20%,
+
+            rgba(0,0,0,.25) 55%,
+
+            rgba(0,0,0,.72) 100%
+
+        );
+
+}
+
+
+/* =========================================================
+   WORLD LOGO
+========================================================= */
+
+.world-logo {
+
+    position: absolute;
+
+    left: 42px;
+
+    top: 34px;
+
+    z-index: 7;
+
+    opacity: 0;
+
+    transform: translateY(-10px);
+
+    transition:
+
+        opacity 1.5s ease,
+
+        transform 1.5s ease;
+
+    transition-delay: 5.8s;
+
+}
+
+
+#world.show .world-logo {
+
+    opacity: .7;
+
+    transform: translateY(0);
+
+}
+
+
+.world-logo img {
+
+    width: 90px;
+
+    height: auto;
+
+    display: block;
+
+}
+
+
+/* =========================================================
+   LIFE COPY
+========================================================= */
+
+.life-copy {
+
+    position: absolute;
+
+    left: 50%;
+
+    top: 50%;
+
+    z-index: 5;
+
+    transform:
+
+        translate(-50%,-50%)
+        translateY(25px);
+
+    text-align: center;
+
+    white-space: nowrap;
+
+    opacity: 0;
+
+    transition:
+
+        opacity 2s ease,
+
+        transform 2s
+        cubic-bezier(.2,.8,.2,1);
+
+    transition-delay: 8.3s;
+
+}
+
+
+#world.show .life-copy {
+
+    opacity: 1;
+
+    transform:
+
+        translate(-50%,-50%)
+        translateY(0);
+
+}
+
+
+/* =========================================================
+   CHINESE LIFE TEXT
+========================================================= */
+
+.life-copy .cn {
+
+    font-size:
+
+        clamp(
+
+            18px,
+            2vw,
+            28px
+
+        );
+
+    font-weight: 300;
+
+    letter-spacing: .28em;
+
+    margin-left: .28em;
+
+    color:
+
+        rgba(
+
+            255,
+            255,
+            255,
+            .9
+
+        );
+
+}
+
+
+/* =========================================================
+   ENGLISH LIFE TEXT
+========================================================= */
+
+.life-copy .en {
+
+    margin-top: 20px;
+
+    font-family:
+
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size:
+
+        clamp(
+
+            9px,
+            .9vw,
+            12px
+
+        );
+
+    font-weight: 300;
+
+    letter-spacing: .3em;
+
+    margin-left: .3em;
+
+    color:
+
+        rgba(
+
+            255,
+            255,
+            255,
+            .52
+
+        );
+
+}
+
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
+.main-nav {
+
+    position: absolute;
+
+    left: 50%;
+
+    bottom: 7%;
+
+    z-index: 6;
+
+    transform:
+
+        translateX(-50%)
+        translateY(15px);
+
+    display: flex;
+
+    align-items: center;
+
+    gap:
+
+        clamp(
+
+            28px,
+            5vw,
+            80px
+
+        );
+
+    opacity: 0;
+
+    transition:
+
+        opacity 1.5s ease,
+
+        transform 1.5s
+        cubic-bezier(.2,.8,.2,1);
+
+    transition-delay: 9s;
+
+}
+
+
+#world.show .main-nav {
+
+    opacity: 1;
+
+    transform:
+
+        translateX(-50%)
+        translateY(0);
+
+}
+
+
+/* =========================================================
+   NAV ITEM
+========================================================= */
+
+.nav-item {
+
+    position: relative;
+
+    color:
+
+        rgba(
+
+            255,
+            255,
+            255,
+            .6
+
+        );
+
+    text-decoration: none;
+
+    font-family:
+
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size: 11px;
+
+    font-weight: 400;
+
+    letter-spacing: .28em;
+
+    margin-left: .28em;
+
+    cursor: pointer;
+
+    transition:
+
+        color .5s ease,
+
+        letter-spacing .6s ease;
+
+}
+
+
+.nav-item::after {
+
+    content: "";
+
+    position: absolute;
+
+    left: 50%;
+
+    bottom: -8px;
+
+    width: 0;
+
+    height: 1px;
+
+    background:
+
+        rgba(
+
+            255,
+            255,
+            255,
+            .7
+
+        );
+
+    transform: translateX(-50%);
+
+    transition:
+
+        width .6s
+        cubic-bezier(.2,.8,.2,1);
+
+}
+
+
+.nav-item:hover {
+
+    color:
+
+        rgba(
+
+            255,
+            255,
+            255,
+            1
+
+        );
+
+    letter-spacing: .38em;
+
+}
+
+
+.nav-item:hover::after {
+
+    width: 100%;
+
+}
+
+
+/* =========================================================
+   ANIMATION
 ========================================================= */
 
 @keyframes logoIn {
@@ -673,7 +1209,7 @@ body {
 
 
 /* =========================================================
-   手机端
+   MOBILE
 ========================================================= */
 
 @media (max-width: 600px) {
@@ -681,9 +1217,7 @@ body {
 
     .logo img {
 
-        width: 210px;
-
-        max-height: 100px;
+        width: 220px;
 
     }
 
@@ -734,22 +1268,75 @@ body {
     }
 
 
+    .life-copy .cn {
+
+        font-size: 17px;
+
+        letter-spacing: .18em;
+
+        margin-left: .18em;
+
+    }
+
+
+    .life-copy .en {
+
+        font-size: 8px;
+
+        letter-spacing: .2em;
+
+        margin-left: .2em;
+
+    }
+
+
+    .main-nav {
+
+        bottom: 6%;
+
+        gap: 24px;
+
+    }
+
+
+    .nav-item {
+
+        font-size: 9px;
+
+        letter-spacing: .18em;
+
+        margin-left: .18em;
+
+    }
+
+
+    .world-logo {
+
+        left: 20px;
+
+        top: 22px;
+
+    }
+
+
+    .world-logo img {
+
+        width: 70px;
+
+    }
+
 }
 
 
 /* =========================================================
-   减少动态效果
+   REDUCED MOTION
 ========================================================= */
 
 @media (prefers-reduced-motion: reduce) {
 
-    *,
-    *::before,
-    *::after {
+    * {
 
         animation-duration: .01ms !important;
-
-        animation-iteration-count: 1 !important;
 
         transition-duration: .01ms !important;
 
@@ -758,6 +1345,7 @@ body {
 }
 
 </style>
+
 </head>
 
 
@@ -765,27 +1353,14 @@ body {
 
 
 <!-- =======================================================
-     第一页：HYOOL / 幻灵
+     PAGE 1
 ======================================================= -->
 
 <section id="entrance">
 
 
-    <!-- 品牌 -->
-
     <div class="brand">
 
-
-        <!--
-            你的 PNG Logo
-
-            当前默认文件：
-            hyool-logo.png
-
-            如果你的文件叫 logo.png，
-            改成：
-            ./logo.png
-        -->
 
         <div class="logo">
 
@@ -800,13 +1375,7 @@ body {
     </div>
 
 
-
-    <!-- ===================================================
-         品牌宣言
-    =================================================== -->
-
     <div class="slogan">
-
 
         <div class="line-one">
 
@@ -821,19 +1390,11 @@ body {
 
         </div>
 
-
     </div>
 
 
-
-    <!-- ===================================================
-         进入按钮
-    =================================================== -->
-
     <div class="enter-area">
 
-
-        <!-- 鼠标靠近后出现 -->
 
         <div class="enter-bg">
 
@@ -841,8 +1402,6 @@ body {
 
         </div>
 
-
-        <!-- 真正按钮 -->
 
         <div
             class="enter"
@@ -862,17 +1421,116 @@ body {
 
 
 <!-- =======================================================
-     第二页
+     PAGE 2
 ======================================================= -->
 
 <section id="world">
 
 
-    <!--
-        这里以后放真正的“生命视觉”。
+    <!-- ===================================================
+         LIFE VIDEO
+         注意：这里绝对不要加入 controls
+    ==================================================== -->
 
-        目前只是测试第二页是否正常进入。
-    -->
+    <video
+        class="life-video"
+        id="lifeVideo"
+        src="./life.mp4"
+        muted
+        playsinline
+        webkit-playsinline
+        autoplay
+        preload="auto"
+        disablepictureinpicture
+        disableremoteplayback
+    ></video>
+
+
+    <!-- ===================================================
+         ATMOSPHERE
+    ==================================================== -->
+
+    <div class="life-overlay"></div>
+
+    <div class="life-vignette"></div>
+
+
+    <!-- ===================================================
+         WORLD LOGO
+    ==================================================== -->
+
+    <div class="world-logo">
+
+        <img
+            src="./hyool-logo.png"
+            alt="HYOOL"
+        >
+
+    </div>
+
+
+    <!-- ===================================================
+         CORE MESSAGE
+    ==================================================== -->
+
+    <div class="life-copy">
+
+
+        <div class="cn">
+
+            幻想 × 彼岸 × 无限 × 生命
+
+        </div>
+
+
+        <div class="en">
+
+            Fantasy · Yonder · Infinite · Life
+
+        </div>
+
+
+    </div>
+
+
+    <!-- ===================================================
+         NAVIGATION
+    ==================================================== -->
+
+    <nav class="main-nav">
+
+
+        <div
+            class="nav-item"
+            data-page="create"
+        >
+
+            CREATE
+
+        </div>
+
+
+        <div
+            class="nav-item"
+            data-page="explore"
+        >
+
+            EXPLORE
+
+        </div>
+
+
+        <div
+            class="nav-item"
+            data-page="life"
+        >
+
+            LIFE
+
+        </div>
+
+
+    </nav>
 
 
 </section>
@@ -882,7 +1540,7 @@ body {
 <script>
 
 /* =========================================================
-   获取元素
+   ELEMENTS
 ========================================================= */
 
 const entrance =
@@ -897,52 +1555,125 @@ const button =
 const enterArea =
     document.querySelector(".enter-area");
 
+const lifeVideo =
+    document.getElementById("lifeVideo");
+
 
 /* =========================================================
-   页面载入
+   PAGE LOAD
 ========================================================= */
 
-window.addEventListener("load", () => {
+window.addEventListener(
+    "load",
+    () => {
 
-    entrance.classList.add("active");
+        entrance.classList.add("active");
 
-});
+    }
+);
 
 
 /* =========================================================
    ENTER HYOOL
 ========================================================= */
 
-button.addEventListener("click", () => {
+button.addEventListener(
+    "click",
+    () => {
 
 
-    console.log("HYOOL ENTER");
+        /*
+           防止重复点击
+        */
+
+        button.style.pointerEvents =
+            "none";
 
 
-    /* 第一页开始消失 */
+        /*
+           第一页退出
+        */
 
-    entrance.classList.add("exit");
-
-
-    /*
-       350ms 后让第二页出现
-
-       第一页还没有完全消失，
-       所以两个页面会产生黑场过渡。
-    */
-
-    setTimeout(() => {
-
-        world.classList.add("show");
-
-    }, 350);
+        entrance.classList.add("exit");
 
 
-});
+        /*
+           第二页进入
+        */
+
+        setTimeout(
+            () => {
+
+
+                world.classList.add("show");
+
+
+                /*
+                   从第一帧开始
+                */
+
+                try {
+
+                    lifeVideo.currentTime = 0;
+
+                }
+
+                catch (error) {
+
+                    console.log(error);
+
+                }
+
+
+                /*
+                   确保视频处于静音状态
+
+                   浏览器允许静音自动播放。
+                */
+
+                lifeVideo.muted = true;
+
+                lifeVideo.setAttribute(
+                    "muted",
+                    ""
+                );
+
+
+                /*
+                   开始播放
+                */
+
+                const playPromise =
+                    lifeVideo.play();
+
+
+                if (
+                    playPromise !== undefined
+                ) {
+
+                    playPromise.catch(
+                        (error) => {
+
+                            console.log(
+                                "Video autoplay blocked:",
+                                error
+                            );
+
+                        }
+                    );
+
+                }
+
+            },
+            450
+        );
+
+    }
+);
 
 
 /* =========================================================
-   鼠标磁吸效果
+   ENTER MAGNETIC EFFECT
 ========================================================= */
 
 enterArea.addEventListener(
@@ -979,7 +1710,7 @@ enterArea.addEventListener(
                 -6,
                 Math.min(
                     6,
-                    x * 0.08
+                    x * .08
                 )
             );
 
@@ -989,21 +1720,24 @@ enterArea.addEventListener(
                 -4,
                 Math.min(
                     4,
-                    y * 0.08
+                    y * .08
                 )
             );
 
 
         button.style.transform =
-            `translate(${moveX}px, ${moveY}px)`;
 
+            `translate(
+                ${moveX}px,
+                ${moveY}px
+            )`;
 
     }
 );
 
 
 /* =========================================================
-   鼠标离开
+   RESET ENTER BUTTON
 ========================================================= */
 
 enterArea.addEventListener(
@@ -1017,7 +1751,68 @@ enterArea.addEventListener(
 
 
 /* =========================================================
-   手机触摸反馈
+   VIDEO END
+========================================================= */
+
+/*
+   不循环。
+
+   视频播放结束后停在最后一帧，
+   让用户看到已经“苏醒”的生命世界。
+*/
+
+lifeVideo.addEventListener(
+    "ended",
+    () => {
+
+        lifeVideo.pause();
+
+    }
+);
+
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
+document
+    .querySelectorAll(".nav-item")
+    .forEach(
+        (item) => {
+
+
+            item.addEventListener(
+                "click",
+                () => {
+
+
+                    const page =
+                        item.dataset.page;
+
+
+                    console.log(
+                        "HYOOL:",
+                        page
+                    );
+
+
+                    /*
+                       后续接入真正页面：
+
+                       CREATE
+                       EXPLORE
+                       LIFE
+                    */
+
+                }
+            );
+
+        }
+    );
+
+
+/* =========================================================
+   MOBILE TOUCH
 ========================================================= */
 
 button.addEventListener(
@@ -1032,5 +1827,7 @@ button.addEventListener(
 
 </script>
 
+
 </body>
+
 </html>
