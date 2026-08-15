@@ -1,33 +1,52 @@
+```javascript
+/* =========================================================
+   HYOOL WORKER
+   Cloudflare Workers + D1 + Assets
+
+   当前功能：
+
+   /api/register
+   /api/login
+   /api/me
+   /api/logout
+   /api/profile/:username
+
+   /@username
+   ========================================================= */
+
+
 export default {
 
     async fetch(request, env) {
 
-        const url = new URL(request.url);
-        const pathname = decodeURIComponent(url.pathname);
+        const url =
+            new URL(request.url);
+
+        const pathname =
+            decodeURIComponent(
+                url.pathname
+            );
 
 
         /* =====================================================
-           CORS / OPTIONS
+           OPTIONS
         ===================================================== */
 
-        if (request.method === "OPTIONS") {
+        if (
+            request.method === "OPTIONS"
+        ) {
 
-            return new Response(null, {
-                status: 204,
-                headers: {
-                    "Access-Control-Allow-Origin": url.origin,
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Allow-Headers": "Content-Type",
-                    "Access-Control-Allow-Methods":
-                        "GET,POST,PUT,OPTIONS"
-                }
+            return json({
+
+                success: true
+
             });
 
         }
 
 
         /* =====================================================
-           API：REGISTER
+           REGISTER
         ===================================================== */
 
         if (
@@ -40,62 +59,80 @@ export default {
                 const body =
                     await request.json();
 
+
                 const username =
-                    String(body.username || "")
-                        .trim()
-                        .toLowerCase();
+                    String(
+                        body.username || ""
+                    )
+                    .trim()
+                    .toLowerCase();
+
 
                 const password =
-                    String(body.password || "");
+                    String(
+                        body.password || ""
+                    );
+
 
                 const displayName =
-                    String(body.display_name || "")
-                        .trim();
+                    String(
+                        body.display_name || ""
+                    )
+                    .trim();
 
 
-                /* -------------------------
-                   检查账号
-                ------------------------- */
+                /* ---------------------------------------------
+                   USERNAME
+                --------------------------------------------- */
 
                 if (
                     !/^[a-z0-9_-]{3,20}$/
                         .test(username)
                 ) {
 
-                    return json({
-                        success: false,
-                        error:
-                            "账号格式不正确。"
-                    }, 400);
+                    return json(
+                        {
+                            success: false,
+                            error:
+                                "账号格式不正确。只能使用英文字母、数字、下划线和减号，长度 3-20 位。"
+                        },
+                        400
+                    );
 
                 }
 
 
-                /* -------------------------
-                   检查密码
-                ------------------------- */
+                /* ---------------------------------------------
+                   PASSWORD
+                --------------------------------------------- */
 
                 if (
                     password.length < 8
                 ) {
 
-                    return json({
-                        success: false,
-                        error:
-                            "密码至少需要 8 位。"
-                    }, 400);
+                    return json(
+                        {
+                            success: false,
+                            error:
+                                "密码至少需要 8 位。"
+                        },
+                        400
+                    );
 
                 }
 
 
-                /* -------------------------
-                   检查是否已经存在
-                ------------------------- */
+                /* ---------------------------------------------
+                   CHECK USER
+                --------------------------------------------- */
 
-                const exists =
+                const existing =
                     await env.DB
                         .prepare(`
-                            SELECT id
+                            SELECT
+                                id,
+                                username,
+                                password_hash
                             FROM profiles
                             WHERE username = ?
                             LIMIT 1
@@ -104,38 +141,81 @@ export default {
                         .first();
 
 
-                if (exists) {
+                if (existing) {
 
-                    return json({
-                        success: false,
-                        error:
-                            "这个账号已经存在。"
-                    }, 409);
+                    /*
+                     * 如果账号已经存在，
+                     * 但没有密码，
+                     * 说明是以前创建的测试账号。
+                     *
+                     * 允许重新配置密码。
+                     */
+
+                    if (
+                        !existing.password_hash
+                    ) {
+
+                        const passwordHash =
+                            await hashPassword(
+                                password
+                            );
+
+
+                        await env.DB
+                            .prepare(`
+                                UPDATE profiles
+                                SET
+                                    password_hash = ?,
+                                    display_name = ?,
+                                    updated_at =
+                                        CURRENT_TIMESTAMP
+                                WHERE username = ?
+                            `)
+                            .bind(
+                                passwordHash,
+
+                                displayName ||
+                                    username,
+
+                                username
+                            )
+                            .run();
+
+
+                        return createLoginResponse(
+                            env,
+                            existing.id,
+                            username
+                        );
+
+                    }
+
+
+                    return json(
+                        {
+                            success: false,
+                            error:
+                                "这个账号已经存在。"
+                        },
+                        409
+                    );
 
                 }
 
 
-                /* -------------------------
-                   密码哈希
-                ------------------------- */
+                /* ---------------------------------------------
+                   CREATE USER
+                --------------------------------------------- */
+
+                const userId =
+                    crypto.randomUUID();
+
 
                 const passwordHash =
                     await hashPassword(
                         password
                     );
 
-
-                /* -------------------------
-                   创建用户 ID
-                ------------------------- */
-
-                const id =
-                    crypto.randomUUID();
-
-
-                /* -------------------------
-                   写入 D1
-                ------------------------- */
 
                 await env.DB
                     .prepare(`
@@ -145,10 +225,12 @@ export default {
                             display_name,
                             bio,
                             theme,
+                            password_hash,
                             created_at,
                             updated_at
                         )
                         VALUES (
+                            ?,
                             ?,
                             ?,
                             ?,
@@ -159,56 +241,54 @@ export default {
                         )
                     `)
                     .bind(
-                        id,
+
+                        userId,
+
                         username,
+
                         displayName ||
                             username,
+
                         "这是我的彼岸。",
-                        "dark"
+
+                        "dark",
+
+                        passwordHash
+
                     )
                     .run();
 
 
                 /*
-                 * 目前 passwordHash 还没有字段保存。
-                 *
-                 * 下一步我们会给 profiles 增加：
-                 *
-                 * password_hash
-                 *
-                 * 现在先返回成功。
+                 * 注册成功后直接登录
                  */
 
-
-                return json({
-                    success: true,
-                    message:
-                        "彼岸创建成功。",
-                    user: {
-                        id,
-                        username,
-                        display_name:
-                            displayName ||
-                            username
-                    }
-                });
+                return createLoginResponse(
+                    env,
+                    userId,
+                    username
+                );
 
             }
 
             catch (error) {
 
                 console.error(
-                    "REGISTER ERROR:",
+                    "REGISTER ERROR",
                     error
                 );
 
-                return json({
-                    success: false,
-                    error:
-                        "注册失败。",
-                    message:
-                        error.message
-                }, 500);
+
+                return json(
+                    {
+                        success: false,
+                        error:
+                            "注册失败。",
+                        message:
+                            error.message
+                    },
+                    500
+                );
 
             }
 
@@ -216,7 +296,7 @@ export default {
 
 
         /* =====================================================
-           API：LOGIN
+           LOGIN
         ===================================================== */
 
         if (
@@ -229,13 +309,19 @@ export default {
                 const body =
                     await request.json();
 
+
                 const username =
-                    String(body.username || "")
-                        .trim()
-                        .toLowerCase();
+                    String(
+                        body.username || ""
+                    )
+                    .trim()
+                    .toLowerCase();
+
 
                 const password =
-                    String(body.password || "");
+                    String(
+                        body.password || ""
+                    );
 
 
                 if (
@@ -243,14 +329,21 @@ export default {
                     !password
                 ) {
 
-                    return json({
-                        success: false,
-                        error:
-                            "请输入账号和密码。"
-                    }, 400);
+                    return json(
+                        {
+                            success: false,
+                            error:
+                                "请输入账号和密码。"
+                        },
+                        400
+                    );
 
                 }
 
+
+                /* ---------------------------------------------
+                   FIND USER
+                --------------------------------------------- */
 
                 const profile =
                     await env.DB
@@ -266,31 +359,41 @@ export default {
 
                 if (!profile) {
 
-                    return json({
-                        success: false,
-                        error:
-                            "账号或密码错误。"
-                    }, 401);
+                    return json(
+                        {
+                            success: false,
+                            error:
+                                "账号或密码错误。"
+                        },
+                        401
+                    );
 
                 }
 
 
-                /*
-                 * 当前数据库如果还没有
-                 * password_hash 字段，
-                 * 暂时无法验证密码。
-                 */
+                /* ---------------------------------------------
+                   PASSWORD NOT CONFIGURED
+                --------------------------------------------- */
 
-                if (!profile.password_hash) {
+                if (
+                    !profile.password_hash
+                ) {
 
-                    return json({
-                        success: false,
-                        error:
-                            "账号尚未完成密码配置，请重新注册。"
-                    }, 401);
+                    return json(
+                        {
+                            success: false,
+                            error:
+                                "这个账号尚未完成密码配置，请重新注册。"
+                        },
+                        401
+                    );
 
                 }
 
+
+                /* ---------------------------------------------
+                   CHECK PASSWORD
+                --------------------------------------------- */
 
                 const passwordHash =
                     await hashPassword(
@@ -303,47 +406,26 @@ export default {
                     profile.password_hash
                 ) {
 
-                    return json({
-                        success: false,
-                        error:
-                            "账号或密码错误。"
-                    }, 401);
+                    return json(
+                        {
+                            success: false,
+                            error:
+                                "账号或密码错误。"
+                        },
+                        401
+                    );
 
                 }
 
 
-                /*
-                 * 登录成功
-                 *
-                 * 这里先使用 Cookie 保存
-                 * 用户 ID。
-                 */
+                /* ---------------------------------------------
+                   LOGIN
+                --------------------------------------------- */
 
-                const cookie =
-                    createSessionCookie(
-                        profile.id
-                    );
-
-
-                return json(
-                    {
-                        success: true,
-
-                        user: {
-                            id:
-                                profile.id,
-
-                            username:
-                                profile.username,
-
-                            profile
-                        }
-                    },
-                    200,
-                    {
-                        "Set-Cookie":
-                            cookie
-                    }
+                return createLoginResponse(
+                    env,
+                    profile.id,
+                    profile.username
                 );
 
             }
@@ -351,17 +433,21 @@ export default {
             catch (error) {
 
                 console.error(
-                    "LOGIN ERROR:",
+                    "LOGIN ERROR",
                     error
                 );
 
-                return json({
-                    success: false,
-                    error:
-                        "登录失败。",
-                    message:
-                        error.message
-                }, 500);
+
+                return json(
+                    {
+                        success: false,
+                        error:
+                            "服务器登录异常。",
+                        message:
+                            error.message
+                    },
+                    500
+                );
 
             }
 
@@ -369,7 +455,8 @@ export default {
 
 
         /* =====================================================
-           API：ME
+           CURRENT USER
+           /api/me
         ===================================================== */
 
         if (
@@ -379,61 +466,141 @@ export default {
 
             try {
 
-                const cookies =
-                    parseCookies(
-                        request.headers
-                            .get("Cookie") || ""
+                const token =
+                    getSessionToken(
+                        request
                     );
 
-                const userId =
-                    cookies.hyool_session;
 
-
-                if (!userId) {
+                if (!token) {
 
                     return json({
+
                         authenticated:
                             false
+
                     });
 
                 }
 
 
-                const profile =
+                /* ---------------------------------------------
+                   FIND SESSION
+                --------------------------------------------- */
+
+                const session =
                     await env.DB
                         .prepare(`
                             SELECT *
+                            FROM sessions
+                            WHERE token = ?
+                            LIMIT 1
+                        `)
+                        .bind(token)
+                        .first();
+
+
+                if (!session) {
+
+                    return json({
+
+                        authenticated:
+                            false
+
+                    });
+
+                }
+
+
+                /* ---------------------------------------------
+                   CHECK EXPIRATION
+                --------------------------------------------- */
+
+                if (
+                    session.expires_at &&
+                    new Date(
+                        session.expires_at
+                    ).getTime()
+                    <=
+                    Date.now()
+                ) {
+
+                    await env.DB
+                        .prepare(`
+                            DELETE FROM sessions
+                            WHERE token = ?
+                        `)
+                        .bind(token)
+                        .run();
+
+
+                    return json({
+
+                        authenticated:
+                            false
+
+                    });
+
+                }
+
+
+                /* ---------------------------------------------
+                   GET PROFILE
+                --------------------------------------------- */
+
+                const profile =
+                    await env.DB
+                        .prepare(`
+                            SELECT
+                                id,
+                                username,
+                                display_name,
+                                avatar_url,
+                                bio,
+                                background_url,
+                                theme,
+                                created_at,
+                                updated_at
                             FROM profiles
                             WHERE id = ?
                             LIMIT 1
                         `)
-                        .bind(userId)
+                        .bind(
+                            session.user_id
+                        )
                         .first();
 
 
                 if (!profile) {
 
                     return json({
+
                         authenticated:
                             false
+
                     });
 
                 }
 
 
                 return json({
+
                     authenticated:
                         true,
 
                     user: {
+
                         id:
                             profile.id,
 
                         username:
                             profile.username,
 
-                        profile
+                        profile:
+                            profile
+
                     }
+
                 });
 
             }
@@ -441,14 +608,21 @@ export default {
             catch (error) {
 
                 console.error(
-                    "ME ERROR:",
+                    "ME ERROR",
                     error
                 );
 
-                return json({
-                    authenticated:
-                        false
-                });
+
+                return json(
+                    {
+                        authenticated:
+                            false,
+
+                        error:
+                            "服务器返回异常。"
+                    },
+                    500
+                );
 
             }
 
@@ -456,7 +630,8 @@ export default {
 
 
         /* =====================================================
-           API：LOGOUT
+           LOGOUT
+           /api/logout
         ===================================================== */
 
         if (
@@ -464,22 +639,69 @@ export default {
             request.method === "POST"
         ) {
 
-            return json(
-                {
-                    success: true
-                },
-                200,
-                {
-                    "Set-Cookie":
-                        "hyool_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
+            try {
+
+                const token =
+                    getSessionToken(
+                        request
+                    );
+
+
+                if (token) {
+
+                    await env.DB
+                        .prepare(`
+                            DELETE FROM sessions
+                            WHERE token = ?
+                        `)
+                        .bind(token)
+                        .run();
+
                 }
-            );
+
+
+                return json(
+                    {
+                        success:
+                            true
+                    },
+                    200,
+                    {
+                        "Set-Cookie":
+                            clearSessionCookie()
+                    }
+                );
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    "LOGOUT ERROR",
+                    error
+                );
+
+
+                return json(
+                    {
+                        success:
+                            false,
+
+                        error:
+                            "退出登录失败。"
+                    },
+                    500
+                );
+
+            }
 
         }
 
 
         /* =====================================================
-           API：PROFILE
+           PUBLIC PROFILE API
+
+           /api/profile/333123
         ===================================================== */
 
         if (
@@ -494,16 +716,22 @@ export default {
                         "/api/profile/"
                             .length
                     )
-                    .trim();
+                    .trim()
+                    .toLowerCase();
 
 
             if (!username) {
 
-                return json({
-                    success: false,
-                    error:
-                        "missing_username"
-                }, 400);
+                return json(
+                    {
+                        success:
+                            false,
+
+                        error:
+                            "缺少用户名。"
+                    },
+                    400
+                );
 
             }
 
@@ -533,18 +761,28 @@ export default {
 
                 if (!profile) {
 
-                    return json({
-                        success: false,
-                        error:
-                            "profile_not_found"
-                    }, 404);
+                    return json(
+                        {
+                            success:
+                                false,
+
+                            error:
+                                "彼岸不存在。"
+                        },
+                        404
+                    );
 
                 }
 
 
                 return json({
-                    success: true,
-                    profile
+
+                    success:
+                        true,
+
+                    profile:
+                        profile
+
                 });
 
             }
@@ -552,15 +790,21 @@ export default {
             catch (error) {
 
                 console.error(
-                    "PROFILE ERROR:",
+                    "PROFILE ERROR",
                     error
                 );
 
-                return json({
-                    success: false,
-                    error:
-                        "database_error"
-                }, 500);
+
+                return json(
+                    {
+                        success:
+                            false,
+
+                        error:
+                            "数据库异常。"
+                    },
+                    500
+                );
 
             }
 
@@ -569,7 +813,7 @@ export default {
 
         /* =====================================================
            PERSONAL YONDER
-           
+
            /@333123
         ===================================================== */
 
@@ -581,7 +825,8 @@ export default {
             const username =
                 pathname
                     .substring(2)
-                    .trim();
+                    .trim()
+                    .toLowerCase();
 
 
             try {
@@ -589,7 +834,9 @@ export default {
                 const profile =
                     await env.DB
                         .prepare(`
-                            SELECT id, username
+                            SELECT
+                                id,
+                                username
                             FROM profiles
                             WHERE username = ?
                             LIMIT 1
@@ -603,11 +850,14 @@ export default {
                     return new Response(
                         "这个彼岸不存在",
                         {
-                            status: 404,
+                            status:
+                                404,
 
                             headers: {
+
                                 "Content-Type":
                                     "text/plain; charset=UTF-8"
+
                             }
                         }
                     );
@@ -615,41 +865,60 @@ export default {
                 }
 
 
+                /*
+                 * 地址栏保持：
+                 *
+                 * https://hyool.com/@333123
+                 *
+                 * 实际页面：
+                 *
+                 * yonder-home.html
+                 */
+
+                const assetUrl =
+                    new URL(
+                        "/yonder-home.html",
+                        request.url
+                    );
+
+
+                return env.ASSETS.fetch(
+
+                    new Request(
+                        assetUrl,
+                        {
+                            method:
+                                "GET",
+
+                            headers:
+                                request.headers
+                        }
+                    )
+
+                );
+
             }
 
             catch (error) {
 
                 console.error(
-                    "YONDER ERROR:",
+                    "YONDER ERROR",
                     error
                 );
 
-                return json({
-                    success: false,
-                    error:
-                        "database_error"
-                }, 500);
 
-            }
+                return json(
+                    {
+                        success:
+                            false,
 
-
-            const assetUrl =
-                new URL(
-                    "/yonder-home.html",
-                    request.url
+                        error:
+                            "彼岸加载异常。"
+                    },
+                    500
                 );
 
-
-            return env.ASSETS.fetch(
-                new Request(
-                    assetUrl.toString(),
-                    {
-                        method: "GET",
-                        headers:
-                            request.headers
-                    }
-                )
-            );
+            }
 
         }
 
@@ -668,7 +937,139 @@ export default {
 
 
 /* =========================================================
+   CREATE LOGIN SESSION
+========================================================= */
+
+async function createLoginResponse(
+    env,
+    userId,
+    username
+) {
+
+    /*
+     * 生成新的 Session Token
+     */
+
+    const token =
+        crypto.randomUUID()
+        +
+        "-"
+        +
+        crypto.randomUUID();
+
+
+    /*
+     * 30 天
+     */
+
+    const expiresAt =
+        new Date(
+            Date.now()
+            +
+            30 *
+            24 *
+            60 *
+            60 *
+            1000
+        )
+        .toISOString();
+
+
+    /*
+     * 写入 sessions
+     */
+
+    await env.DB
+        .prepare(`
+            INSERT INTO sessions (
+                token,
+                user_id,
+                username,
+                expires_at
+            )
+            VALUES (
+                ?,
+                ?,
+                ?,
+                ?
+            )
+        `)
+        .bind(
+            token,
+            userId,
+            username,
+            expiresAt
+        )
+        .run();
+
+
+    /*
+     * 获取完整 Profile
+     */
+
+    const profile =
+        await env.DB
+            .prepare(`
+                SELECT
+                    id,
+                    username,
+                    display_name,
+                    avatar_url,
+                    bio,
+                    background_url,
+                    theme,
+                    created_at,
+                    updated_at
+                FROM profiles
+                WHERE id = ?
+                LIMIT 1
+            `)
+            .bind(userId)
+            .first();
+
+
+    return json(
+        {
+
+            success:
+                true,
+
+            user: {
+
+                id:
+                    userId,
+
+                username:
+                    username,
+
+                profile:
+                    profile || {}
+
+            }
+
+        },
+
+        200,
+
+        {
+
+            "Set-Cookie":
+                createSessionCookie(
+                    token
+                )
+
+        }
+
+    );
+
+}
+
+
+/* =========================================================
    PASSWORD HASH
+
+   当前阶段使用 SHA-256。
+   先保证 HYOOL 账户系统稳定运行。
 ========================================================= */
 
 async function hashPassword(
@@ -679,11 +1080,13 @@ async function hashPassword(
         new TextEncoder()
             .encode(password);
 
+
     const hash =
         await crypto.subtle.digest(
             "SHA-256",
             data
         );
+
 
     return Array
         .from(
@@ -693,7 +1096,10 @@ async function hashPassword(
             byte =>
                 byte
                     .toString(16)
-                    .padStart(2, "0")
+                    .padStart(
+                        2,
+                        "0"
+                    )
         )
         .join("");
 
@@ -701,17 +1107,52 @@ async function hashPassword(
 
 
 /* =========================================================
-   SESSION COOKIE
+   GET SESSION TOKEN
+========================================================= */
+
+function getSessionToken(
+    request
+) {
+
+    const cookie =
+        request.headers
+            .get("Cookie")
+        || "";
+
+
+    const match =
+        cookie.match(
+            /(?:^|;\s*)hyool_session=([^;]+)/
+        );
+
+
+    if (!match) {
+
+        return null;
+
+    }
+
+
+    return decodeURIComponent(
+        match[1]
+    );
+
+}
+
+
+/* =========================================================
+   CREATE SESSION COOKIE
 ========================================================= */
 
 function createSessionCookie(
-    userId
+    token
 ) {
 
     return [
+
         "hyool_session=" +
             encodeURIComponent(
-                userId
+                token
             ),
 
         "Path=/",
@@ -723,52 +1164,33 @@ function createSessionCookie(
         "SameSite=Lax",
 
         "Max-Age=2592000"
+
     ].join("; ");
 
 }
 
 
 /* =========================================================
-   COOKIE PARSER
+   CLEAR SESSION COOKIE
 ========================================================= */
 
-function parseCookies(
-    cookieString
-) {
+function clearSessionCookie() {
 
-    const cookies = {};
+    return [
 
-    cookieString
-        .split(";")
-        .forEach(
-            part => {
+        "hyool_session=",
 
-                const index =
-                    part.indexOf("=");
+        "Path=/",
 
-                if (
-                    index === -1
-                ) return;
+        "HttpOnly",
 
-                const key =
-                    part
-                        .slice(0,index)
-                        .trim();
+        "Secure",
 
-                const value =
-                    part
-                        .slice(index + 1)
-                        .trim();
+        "SameSite=Lax",
 
-                cookies[key] =
-                    decodeURIComponent(
-                        value
-                    );
+        "Max-Age=0"
 
-            }
-        );
-
-    return cookies;
+    ].join("; ");
 
 }
 
@@ -784,11 +1206,17 @@ function json(
 ) {
 
     return new Response(
-        JSON.stringify(data),
+
+        JSON.stringify(
+            data
+        ),
+
         {
+
             status,
 
             headers: {
+
                 "Content-Type":
                     "application/json; charset=UTF-8",
 
@@ -796,8 +1224,12 @@ function json(
                     "no-store",
 
                 ...extraHeaders
+
             }
+
         }
+
     );
 
 }
+```
