@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<title>彼岸 · YONDER — HYOOL</title>
+
+
+<style>
+
+/* =========================================================
+   RESET
+========================================================= */
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+html,
+body{
+
+    width:100%;
+    height:100%;
+
+}
+
+body{
+
+    background:#030303;
+
+    color:#fff;
+
+    overflow:hidden;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Helvetica Neue",
+        "PingFang SC",
+        "Microsoft YaHei",
+        Arial,
+        sans-serif;
+
+}
+
+
+/* =========================================================
+   BACKGROUND
+========================================================= */
+
+.background{
+
+    position:fixed;
+
+    inset:0;
+
+    z-index:0;
+
+    background:
+
+        radial-gradient(
+            circle at 50% 45%,
+            rgba(255,255,255,.055),
+            transparent 28%
+        ),
+
+        radial-gradient(
+            circle at 20% 20%,
+            rgba(255,255,255,.025),
+            transparent 25%
+        ),
+
+        radial-gradient(
+            circle at 80% 80%,
+            rgba(255,255,255,.02),
+            transparent 30%
+        );
+
+}
+
+
+/* =========================================================
+   VERY SUBTLE LIGHT
+========================================================= */
+
+.light{
+
+    position:absolute;
+
+    width:45vw;
+    height:45vw;
+
+    left:50%;
+    top:50%;
+
+    transform:
+        translate(-50%,-50%);
+
+    border-radius:50%;
+
+    background:
+        radial-gradient(
+            circle,
+            rgba(255,255,255,.035),
+            transparent 68%
+        );
+
+    filter:blur(30px);
+
+    animation:
+
+        breathing
+        8s ease-in-out
+        infinite;
+
+}
+
+
+@keyframes breathing{
+
+    0%{
+
+        transform:
+            translate(-50%,-50%)
+            scale(.9);
+
+        opacity:.45;
+
+    }
+
+    50%{
+
+        transform:
+            translate(-50%,-50%)
+            scale(1.08);
+
+        opacity:.8;
+
+    }
+
+    100%{
+
+        transform:
+            translate(-50%,-50%)
+            scale(.9);
+
+        opacity:.45;
+
+    }
+
+}
+
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.header{
+
+    position:fixed;
+
+    top:0;
+    left:0;
+    right:0;
+
+    height:80px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    padding:
+        0 40px;
+
+    z-index:20;
+
+}
+
+
+.logo{
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size:14px;
+
+    font-weight:600;
+
+    letter-spacing:.12em;
+
+}
+
+
+.back{
+
+    border:none;
+
+    background:none;
+
+    color:
+        rgba(255,255,255,.4);
+
+    font-size:10px;
+
+    letter-spacing:.18em;
+
+    cursor:pointer;
+
+    transition:
+        color .3s ease;
+
+}
+
+
+.back:hover{
+
+    color:#fff;
+
+}
+
+
+/* =========================================================
+   MAIN
+========================================================= */
+
+.main{
+
+    position:relative;
+
+    z-index:5;
+
+    width:100%;
+    height:100%;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+}
+
+
+/* =========================================================
+   CONTENT
+========================================================= */
+
+.content{
+
+    width:
+        min(600px,88vw);
+
+    text-align:center;
+
+    animation:
+
+        appear
+        1.2s
+        cubic-bezier(.2,.8,.2,1)
+        both;
+
+}
+
+
+@keyframes appear{
+
+    from{
+
+        opacity:0;
+
+        transform:
+            translateY(25px);
+
+    }
+
+    to{
+
+        opacity:1;
+
+        transform:
+            translateY(0);
+
+    }
+
+}
+
+
+/* =========================================================
+   TITLE
+========================================================= */
+
+.title{
+
+    font-size:
+        clamp(40px,6vw,72px);
+
+    font-weight:200;
+
+    letter-spacing:.3em;
+
+    margin-left:.3em;
+
+    color:
+        rgba(255,255,255,.93);
+
+}
+
+
+.subtitle{
+
+    margin-top:14px;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size:9px;
+
+    letter-spacing:.65em;
+
+    margin-left:.65em;
+
+    color:
+        rgba(255,255,255,.28);
+
+}
+
+
+/* =========================================================
+   SLOGAN
+========================================================= */
+
+.slogan{
+
+    margin-top:38px;
+
+    font-size:13px;
+
+    font-weight:300;
+
+    letter-spacing:.16em;
+
+    margin-left:.16em;
+
+    color:
+        rgba(255,255,255,.48);
+
+    line-height:2;
+
+}
+
+
+/* =========================================================
+   OPTIONS
+========================================================= */
+
+.options{
+
+    width:
+        min(330px,100%);
+
+    margin:
+        55px auto 0;
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:11px;
+
+}
+
+
+/* =========================================================
+   OPTION
+========================================================= */
+
+.option{
+
+    position:relative;
+
+    width:100%;
+
+    height:58px;
+
+    border:
+        1px solid
+        rgba(255,255,255,.1);
+
+    background:
+        rgba(255,255,255,.025);
+
+    color:
+        rgba(255,255,255,.72);
+
+    cursor:pointer;
+
+    font-size:11px;
+
+    letter-spacing:.2em;
+
+    transition:
+
+        background .4s ease,
+
+        border-color .4s ease,
+
+        color .4s ease,
+
+        transform .4s
+        cubic-bezier(.2,.8,.2,1);
+
+}
+
+
+.option:hover{
+
+    background:
+        rgba(255,255,255,.075);
+
+    border-color:
+        rgba(255,255,255,.3);
+
+    color:#fff;
+
+    transform:
+        translateY(-2px);
+
+}
+
+
+/* PRIMARY */
+
+.option.primary{
+
+    background:
+        rgba(255,255,255,.92);
+
+    border-color:
+        transparent;
+
+    color:#000;
+
+}
+
+
+.option.primary:hover{
+
+    background:#fff;
+
+    color:#000;
+
+}
+
+
+/* =========================================================
+   OPTION ENGLISH
+========================================================= */
+
+.option-en{
+
+    display:block;
+
+    margin-top:6px;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size:7px;
+
+    letter-spacing:.32em;
+
+    color:
+        rgba(255,255,255,.25);
+
+}
+
+
+.option.primary
+.option-en{
+
+    color:
+        rgba(0,0,0,.42);
+
+}
+
+
+/* =========================================================
+   DESCRIPTION
+========================================================= */
+
+.description{
+
+    margin-top:32px;
+
+    font-size:9px;
+
+    line-height:2;
+
+    letter-spacing:.1em;
+
+    color:
+        rgba(255,255,255,.22);
+
+}
+
+
+/* =========================================================
+   FOOTER
+========================================================= */
+
+.footer{
+
+    position:fixed;
+
+    left:0;
+    right:0;
+
+    bottom:28px;
+
+    z-index:10;
+
+    text-align:center;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size:7px;
+
+    letter-spacing:.45em;
+
+    margin-left:.45em;
+
+    color:
+        rgba(255,255,255,.16);
+
+}
+
+
+/* =========================================================
+   MODAL
+========================================================= */
+
+.modal{
+
+    position:fixed;
+
+    inset:0;
+
+    z-index:100;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    padding:20px;
+
+    background:
+        rgba(0,0,0,.72);
+
+    backdrop-filter:
+        blur(18px);
+
+    -webkit-backdrop-filter:
+        blur(18px);
+
+    opacity:0;
+
+    visibility:hidden;
+
+    pointer-events:none;
+
+    transition:
+
+        opacity .45s ease,
+
+        visibility 0s
+        linear .45s;
+
+}
+
+
+.modal.active{
+
+    opacity:1;
+
+    visibility:visible;
+
+    pointer-events:auto;
+
+    transition:
+
+        opacity .45s ease,
+
+        visibility 0s;
+
+}
+
+
+/* =========================================================
+   MODAL BOX
+========================================================= */
+
+.modal-box{
+
+    position:relative;
+
+    width:
+        min(430px,92vw);
+
+    padding:
+        48px 38px 40px;
+
+    background:
+        rgba(9,9,9,.95);
+
+    border:
+        1px solid
+        rgba(255,255,255,.1);
+
+    box-shadow:
+
+        0 40px 120px
+        rgba(0,0,0,.75);
+
+    transform:
+        translateY(20px)
+        scale(.97);
+
+    transition:
+
+        transform .55s
+        cubic-bezier(.2,.8,.2,1);
+
+}
+
+
+.modal.active
+.modal-box{
+
+    transform:
+        translateY(0)
+        scale(1);
+
+}
+
+
+/* =========================================================
+   CLOSE
+========================================================= */
+
+.close{
+
+    position:absolute;
+
+    top:16px;
+    right:16px;
+
+    width:30px;
+    height:30px;
+
+    border:
+        1px solid
+        rgba(255,255,255,.1);
+
+    background:none;
+
+    color:
+        rgba(255,255,255,.4);
+
+    cursor:pointer;
+
+    font-size:17px;
+
+    font-weight:200;
+
+    transition:
+
+        color .3s ease,
+
+        border-color .3s ease;
+
+}
+
+
+.close:hover{
+
+    color:#fff;
+
+    border-color:
+        rgba(255,255,255,.3);
+
+}
+
+
+/* =========================================================
+   MODAL TITLE
+========================================================= */
+
+.modal-title{
+
+    text-align:center;
+
+    font-size:25px;
+
+    font-weight:200;
+
+    letter-spacing:.28em;
+
+    margin-left:.28em;
+
+}
+
+
+.modal-en{
+
+    margin-top:10px;
+
+    text-align:center;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size:8px;
+
+    letter-spacing:.55em;
+
+    margin-left:.55em;
+
+    color:
+        rgba(255,255,255,.28);
+
+}
+
+
+.modal-description{
+
+    margin-top:25px;
+
+    text-align:center;
+
+    font-size:11px;
+
+    line-height:2;
+
+    color:
+        rgba(255,255,255,.42);
+
+}
+
+
+/* =========================================================
+   FORM
+========================================================= */
+
+.form{
+
+    margin-top:30px;
+
+}
+
+
+.field{
+
+    margin-bottom:15px;
+
+}
+
+
+.field label{
+
+    display:block;
+
+    margin-bottom:8px;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size:8px;
+
+    letter-spacing:.25em;
+
+    color:
+        rgba(255,255,255,.28);
+
+}
+
+
+.field input{
+
+    width:100%;
+
+    height:45px;
+
+    padding:
+        0 13px;
+
+    border:
+        1px solid
+        rgba(255,255,255,.1);
+
+    outline:none;
+
+    background:#030303;
+
+    color:#fff;
+
+    font-family:inherit;
+
+    font-size:12px;
+
+}
+
+
+.field input:focus{
+
+    border-color:
+        rgba(255,255,255,.3);
+
+}
+
+
+/* =========================================================
+   SUBMIT
+========================================================= */
+
+.submit{
+
+    width:100%;
+
+    height:46px;
+
+    margin-top:8px;
+
+    border:none;
+
+    background:#fff;
+
+    color:#000;
+
+    cursor:pointer;
+
+    font-size:10px;
+
+    letter-spacing:.25em;
+
+    transition:
+
+        opacity .3s ease;
+
+}
+
+
+.submit:hover{
+
+    opacity:.82;
+
+}
+
+
+/* =========================================================
+   BACK
+========================================================= */
+
+.modal-back{
+
+    display:block;
+
+    width:100%;
+
+    margin-top:17px;
+
+    border:none;
+
+    background:none;
+
+    color:
+        rgba(255,255,255,.28);
+
+    cursor:pointer;
+
+    font-size:9px;
+
+    letter-spacing:.15em;
+
+}
+
+
+.modal-back:hover{
+
+    color:#fff;
+
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media(max-width:600px){
+
+    .header{
+
+        padding:
+            0 20px;
+
+    }
+
+
+    .title{
+
+        font-size:42px;
+
+    }
+
+
+    .slogan{
+
+        font-size:11px;
+
+    }
+
+
+    .modal-box{
+
+        padding:
+            45px 24px 30px;
+
+    }
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<!-- =======================================================
+     BACKGROUND
+======================================================= -->
+
+<div class="background">
+
+    <div class="light"></div>
+
+</div>
+
+
+
+<!-- =======================================================
+     HEADER
+======================================================= -->
+
+<header class="header">
+
+    <div class="logo">
+        HYOOL
+    </div>
+
+
+    <button
+        class="back"
+        id="backButton"
+    >
+        ← HYOOL REALM
+    </button>
+
+</header>
+
+
+
+<!-- =======================================================
+     MAIN
+======================================================= -->
+
+<main class="main">
+
+
+    <section class="content">
+
+
+        <div class="title">
+            彼岸
+        </div>
+
+
+        <div class="subtitle">
+            Y O N D E R
+        </div>
+
+
+        <div class="slogan">
+
+            每个人，都可以拥有<br>
+            一个属于自己的世界。
+
+        </div>
+
+
+        <div class="options">
+
+
+            <!-- LOGIN -->
+
+            <button
+                class="option primary"
+                id="loginButton"
+            >
+
+                登录 HYOOL
+
+                <span class="option-en">
+                    ENTER YOUR WORLD
+                </span>
+
+            </button>
+
+
+            <!-- REGISTER -->
+
+            <button
+                class="option"
+                id="registerButton"
+            >
+
+                创建 HYOOL 账户
+
+                <span class="option-en">
+                    CREATE YOUR WORLD
+                </span>
+
+            </button>
+
+
+            <!-- GUEST -->
+
+            <button
+                class="option"
+                id="guestButton"
+            >
+
+                游客探索
+
+                <span class="option-en">
+                    EXPLORE AS GUEST
+                </span>
+
+            </button>
+
+
+        </div>
+
+
+        <div class="description">
+
+            浏览无需身份。<br>
+            创造，需要属于自己的彼岸。
+
+        </div>
+
+
+    </section>
+
+</main>
+
+
+
+<!-- =======================================================
+     FOOTER
+======================================================= -->
+
+<footer class="footer">
+
+    HYOOL REALM · YONDER
+
+</footer>
+
+
+
+<!-- =======================================================
+     LOGIN MODAL
+======================================================= -->
+
+<div
+    class="modal"
+    id="loginModal"
+>
+
+    <div class="modal-box">
+
+
+        <button
+            class="close"
+            data-close
+        >
+            ×
+        </button>
+
+
+        <div class="modal-title">
+            登录
+        </div>
+
+
+        <div class="modal-en">
+            ENTER HYOOL
+        </div>
+
+
+        <div class="modal-description">
+
+            回到你的彼岸。
+
+        </div>
+
+
+        <div class="form">
+
+
+            <div class="field">
+
+                <label>
+                    EMAIL
+                </label>
+
+                <input
+                    type="email"
+                    placeholder="邮箱"
+                >
+
+            </div>
+
+
+            <div class="field">
+
+                <label>
+                    PASSWORD
+                </label>
+
+                <input
+                    type="password"
+                    placeholder="密码"
+                >
+
+            </div>
+
+
+            <button
+                class="submit"
+                id="loginSubmit"
+            >
+                登录
+            </button>
+
+
+            <button
+                class="modal-back"
+                data-back
+            >
+                ← 返回
+
+            </button>
+
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<!-- =======================================================
+     REGISTER MODAL
+======================================================= -->
+
+<div
+    class="modal"
+    id="registerModal"
+>
+
+    <div class="modal-box">
+
+
+        <button
+            class="close"
+            data-close
+        >
+            ×
+        </button>
+
+
+        <div class="modal-title">
+            创建
+        </div>
+
+
+        <div class="modal-en">
+            CREATE HYOOL
+        </div>
+
+
+        <div class="modal-description">
+
+            创建属于你的 HYOOL ID。
+
+        </div>
+
+
+        <div class="form">
+
+
+            <div class="field">
+
+                <label>
+                    EMAIL
+                </label>
+
+                <input
+                    type="email"
+                    placeholder="邮箱"
+                >
+
+            </div>
+
+
+            <div class="field">
+
+                <label>
+                    HYOOL ID
+                </label>
+
+                <input
+                    type="text"
+                    placeholder="你的名字"
+                >
+
+            </div>
+
+
+            <div class="field">
+
+                <label>
+                    PASSWORD
+                </label>
+
+                <input
+                    type="password"
+                    placeholder="创建密码"
+                >
+
+            </div>
+
+
+            <button
+                class="submit"
+                id="registerSubmit"
+            >
+                创建账户
+            </button>
+
+
+            <button
+                class="modal-back"
+                data-back
+            >
+                ← 返回
+
+            </button>
+
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+/* =========================================================
+   ELEMENTS
+========================================================= */
+
+const loginButton =
+    document.getElementById(
+        "loginButton"
+    );
+
+const registerButton =
+    document.getElementById(
+        "registerButton"
+    );
+
+const guestButton =
+    document.getElementById(
+        "guestButton"
+    );
+
+const loginModal =
+    document.getElementById(
+        "loginModal"
+    );
+
+const registerModal =
+    document.getElementById(
+        "registerModal"
+    );
+
+
+
+/* =========================================================
+   OPEN LOGIN
+========================================================= */
+
+loginButton.addEventListener(
+    "click",
+    () => {
+
+        loginModal.classList.add(
+            "active"
+        );
+
+    }
+);
+
+
+/* =========================================================
+   OPEN REGISTER
+========================================================= */
+
+registerButton.addEventListener(
+    "click",
+    () => {
+
+        registerModal.classList.add(
+            "active"
+        );
+
+    }
+);
+
+
+/* =========================================================
+   GUEST
+========================================================= */
+
+guestButton.addEventListener(
+    "click",
+    () => {
+
+        /*
+            当前阶段：
+
+            游客直接进入
+            游客版彼岸。
+
+            后续这里可以进入
+            guest.html
+            或公开社区。
+        */
+
+        window.location.href =
+            "guest.html";
+
+    }
+);
+
+
+/* =========================================================
+   CLOSE
+========================================================= */
+
+document
+    .querySelectorAll(
+        "[data-close]"
+    )
+    .forEach(
+        button => {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    loginModal.classList.remove(
+                        "active"
+                    );
+
+                    registerModal.classList.remove(
+                        "active"
+                    );
+
+                }
+            );
+
+        }
+    );
+
+
+/* =========================================================
+   BACK
+========================================================= */
+
+document
+    .querySelectorAll(
+        "[data-back]"
+    )
+    .forEach(
+        button => {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    loginModal.classList.remove(
+                        "active"
+                    );
+
+                    registerModal.classList.remove(
+                        "active"
+                    );
+
+                }
+            );
+
+        }
+    );
+
+
+/* =========================================================
+   CLICK OUTSIDE
+========================================================= */
+
+document
+    .querySelectorAll(
+        ".modal"
+    )
+    .forEach(
+        modal => {
+
+            modal.addEventListener(
+                "click",
+                event => {
+
+                    if(
+                        event.target === modal
+                    ){
+
+                        modal.classList.remove(
+                            "active"
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+    );
+
+
+/* =========================================================
+   ESC
+========================================================= */
+
+document.addEventListener(
+    "keydown",
+    event => {
+
+        if(
+            event.key === "Escape"
+        ){
+
+            loginModal.classList.remove(
+                "active"
+            );
+
+            registerModal.classList.remove(
+                "active"
+            );
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   DEMO LOGIN
+========================================================= */
+
+document
+    .getElementById(
+        "loginSubmit"
+    )
+    .addEventListener(
+        "click",
+        () => {
+
+            alert(
+                "账号系统将在下一阶段接入。"
+            );
+
+        }
+    );
+
+
+/* =========================================================
+   DEMO REGISTER
+========================================================= */
+
+document
+    .getElementById(
+        "registerSubmit"
+    )
+    .addEventListener(
+        "click",
+        () => {
+
+            alert(
+                "注册系统将在下一阶段接入。"
+            );
+
+        }
+    );
+
+
+/* =========================================================
+   BACK TO REALM
+========================================================= */
+
+document
+    .getElementById(
+        "backButton"
+    )
+    .addEventListener(
+        "click",
+        () => {
+
+            window.location.href =
+                "index.html";
+
+        }
+    );
+
+</script>
+
+
+</body>
+</html>
