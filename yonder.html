@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
 
 <meta charset="UTF-8">
@@ -34,11 +35,11 @@ body{
 
 body{
 
+    overflow:hidden;
+
     background:#030303;
 
     color:#fff;
-
-    overflow:hidden;
 
     font-family:
         -apple-system,
@@ -88,7 +89,7 @@ body{
 
 
 /* =========================================================
-   VERY SUBTLE LIGHT
+   BREATHING LIGHT
 ========================================================= */
 
 .light{
@@ -116,10 +117,7 @@ body{
     filter:blur(30px);
 
     animation:
-
-        breathing
-        8s ease-in-out
-        infinite;
+        breathing 8s ease-in-out infinite;
 
 }
 
@@ -173,35 +171,64 @@ body{
 
     height:80px;
 
+    padding:
+        0 40px;
+
     display:flex;
 
     align-items:center;
 
     justify-content:space-between;
 
-    padding:
-        0 40px;
-
     z-index:20;
 
 }
 
 
+/* =========================================================
+   HYOOL LOGO
+========================================================= */
+
 .logo{
 
-    font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
+    display:flex;
 
-    font-size:14px;
-
-    font-weight:600;
-
-    letter-spacing:.12em;
+    align-items:center;
 
 }
 
+
+.logo img{
+
+    display:block;
+
+    width:90px;
+
+    height:auto;
+
+    opacity:.72;
+
+    transition:
+
+        opacity .4s ease,
+
+        transform .4s ease;
+
+}
+
+
+.logo img:hover{
+
+    opacity:1;
+
+    transform:scale(1.04);
+
+}
+
+
+/* =========================================================
+   BACK BUTTON
+========================================================= */
 
 .back{
 
@@ -219,6 +246,7 @@ body{
     cursor:pointer;
 
     transition:
+
         color .3s ease;
 
 }
@@ -266,8 +294,7 @@ body{
 
     animation:
 
-        appear
-        1.2s
+        appear 1.2s
         cubic-bezier(.2,.8,.2,1)
         both;
 
@@ -384,10 +411,6 @@ body{
 }
 
 
-/* =========================================================
-   OPTION
-========================================================= */
-
 .option{
 
     position:relative;
@@ -442,7 +465,9 @@ body{
 }
 
 
-/* PRIMARY */
+/* =========================================================
+   PRIMARY BUTTON
+========================================================= */
 
 .option.primary{
 
@@ -467,7 +492,7 @@ body{
 
 
 /* =========================================================
-   OPTION ENGLISH
+   BUTTON ENGLISH
 ========================================================= */
 
 .option-en{
@@ -882,7 +907,7 @@ body{
 
 
 /* =========================================================
-   BACK
+   MODAL BACK
 ========================================================= */
 
 .modal-back{
@@ -926,6 +951,13 @@ body{
 
         padding:
             0 20px;
+
+    }
+
+
+    .logo img{
+
+        width:70px;
 
     }
 
@@ -979,20 +1011,30 @@ body{
 
 <header class="header">
 
+
+    <!-- HYOOL LOGO -->
+
     <div class="logo">
+
         <img
-        src="./logo1.png"
-        alt="HYOOL"
-    >
+            src="./logo1.png"
+            alt="HYOOL"
+        >
+
     </div>
 
+
+    <!-- BACK TO REALM -->
 
     <button
         class="back"
         id="backButton"
     >
+
         ← HYOOL REALM
+
     </button>
+
 
 </header>
 
@@ -1186,6 +1228,7 @@ body{
                 class="modal-back"
                 data-back
             >
+
                 ← 返回
 
             </button>
@@ -1285,7 +1328,9 @@ body{
                 class="submit"
                 id="registerSubmit"
             >
+
                 创建账户
+
             </button>
 
 
@@ -1293,6 +1338,7 @@ body{
                 class="modal-back"
                 data-back
             >
+
                 ← 返回
 
             </button>
@@ -1338,9 +1384,8 @@ const registerModal =
     );
 
 
-
 /* =========================================================
-   OPEN LOGIN
+   LOGIN
 ========================================================= */
 
 loginButton.addEventListener(
@@ -1356,7 +1401,7 @@ loginButton.addEventListener(
 
 
 /* =========================================================
-   OPEN REGISTER
+   REGISTER
 ========================================================= */
 
 registerButton.addEventListener(
@@ -1379,17 +1424,6 @@ guestButton.addEventListener(
     "click",
     () => {
 
-        /*
-            当前阶段：
-
-            游客直接进入
-            游客版彼岸。
-
-            后续这里可以进入
-            guest.html
-            或公开社区。
-        */
-
         window.location.href =
             "guest.html";
 
@@ -1398,7 +1432,7 @@ guestButton.addEventListener(
 
 
 /* =========================================================
-   CLOSE
+   CLOSE MODALS
 ========================================================= */
 
 document
@@ -1410,26 +1444,12 @@ document
 
             button.addEventListener(
                 "click",
-                () => {
-
-                    loginModal.classList.remove(
-                        "active"
-                    );
-
-                    registerModal.classList.remove(
-                        "active"
-                    );
-
-                }
+                closeModals
             );
 
         }
     );
 
-
-/* =========================================================
-   BACK
-========================================================= */
 
 document
     .querySelectorAll(
@@ -1440,21 +1460,24 @@ document
 
             button.addEventListener(
                 "click",
-                () => {
-
-                    loginModal.classList.remove(
-                        "active"
-                    );
-
-                    registerModal.classList.remove(
-                        "active"
-                    );
-
-                }
+                closeModals
             );
 
         }
     );
+
+
+function closeModals(){
+
+    loginModal.classList.remove(
+        "active"
+    );
+
+    registerModal.classList.remove(
+        "active"
+    );
+
+}
 
 
 /* =========================================================
@@ -1501,13 +1524,7 @@ document.addEventListener(
             event.key === "Escape"
         ){
 
-            loginModal.classList.remove(
-                "active"
-            );
-
-            registerModal.classList.remove(
-                "active"
-            );
+            closeModals();
 
         }
 
@@ -1516,7 +1533,7 @@ document.addEventListener(
 
 
 /* =========================================================
-   DEMO LOGIN
+   LOGIN DEMO
 ========================================================= */
 
 document
@@ -1536,7 +1553,7 @@ document
 
 
 /* =========================================================
-   DEMO REGISTER
+   REGISTER DEMO
 ========================================================= */
 
 document
@@ -1576,4 +1593,5 @@ document
 
 
 </body>
+
 </html>
