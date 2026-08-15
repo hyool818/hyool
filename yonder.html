@@ -1671,52 +1671,40 @@ function updateModal(){
    API
 ========================================================= */
 
-async function api(
-    path,
-    options = {}
-){
+async function api(path, options = {}) {
 
-    const response =
-        await fetch(
-            path,
-            {
-                credentials:
-                    "include",
+    const response = await fetch(
+        path,
+        {
+            credentials: "include",
 
-                ...options,
+            ...options,
 
-                headers:{
-                    "Content-Type":
-                        "application/json",
-
-                    ...(options.headers || {})
-                }
+            headers: {
+                "Content-Type": "application/json",
+                ...(options.headers || {})
             }
-        );
+        }
+    );
 
 
     let data;
 
-    try{
+    try {
 
-        data =
-            await response.json();
+        data = await response.json();
 
-    }
-
-    catch{
+    } catch {
 
         data = {
-            success:false,
-            error:"服务器返回异常。"
+            success: false,
+            error: "服务器返回异常。"
         };
 
     }
 
 
-    if(
-        !response.ok
-    ){
+    if (!response.ok) {
 
         throw new Error(
             data.error ||
@@ -1732,6 +1720,26 @@ async function api(
 
 
 /* =========================================================
+   GO TO PERSONAL WORLD
+========================================================= */
+
+function goToYonder(username) {
+
+    if (!username) {
+
+        return;
+
+    }
+
+
+    window.location.href =
+        "/@" +
+        encodeURIComponent(username);
+
+}
+
+
+/* =========================================================
    REGISTER / LOGIN
 ========================================================= */
 
@@ -1741,9 +1749,7 @@ authForm.addEventListener(
 
         event.preventDefault();
 
-
-        formError.textContent =
-            "";
+        formError.textContent = "";
 
 
         const username =
@@ -1756,15 +1762,11 @@ authForm.addEventListener(
             passwordInput.value;
 
 
-        /*
-        ---------------------------------------------
-        REGISTER CHECK
-        ---------------------------------------------
-        */
+        /* =====================================================
+           REGISTER
+        ===================================================== */
 
-        if(
-            mode === "register"
-        ){
+        if (mode === "register") {
 
             const displayName =
                 displayNameInput.value
@@ -1775,10 +1777,11 @@ authForm.addEventListener(
                 confirmPasswordInput.value;
 
 
-            if(
-                !/^[a-z0-9_-]{3,20}$/
-                    .test(username)
-            ){
+            if (
+                !/^[a-z0-9_-]{3,20}$/.test(
+                    username
+                )
+            ) {
 
                 formError.textContent =
                     "账号格式不正确。";
@@ -1788,9 +1791,7 @@ authForm.addEventListener(
             }
 
 
-            if(
-                password.length < 8
-            ){
+            if (password.length < 8) {
 
                 formError.textContent =
                     "密码至少需要 8 位。";
@@ -1800,10 +1801,10 @@ authForm.addEventListener(
             }
 
 
-            if(
+            if (
                 password !==
                 confirmPassword
-            ){
+            ) {
 
                 formError.textContent =
                     "两次密码不一致。";
@@ -1813,7 +1814,7 @@ authForm.addEventListener(
             }
 
 
-            try{
+            try {
 
                 submitButton.disabled =
                     true;
@@ -1826,43 +1827,61 @@ authForm.addEventListener(
                     await api(
                         "/api/register",
                         {
-
-                            method:"POST",
+                            method: "POST",
 
                             body:
                                 JSON.stringify({
-
                                     username,
-
                                     password,
-
                                     display_name:
                                         displayName
-
                                 })
-
                         }
                     );
 
 
-                if(
-                    result.success
-                ){
+                if (
+                    result.success &&
+                    result.user
+                ) {
 
-                    await loadCurrentUser();
+                    goToYonder(
+                        result.user.username
+                    );
+
+                    return;
 
                 }
 
+
+                if (
+                    result.success
+                ) {
+
+                    goToYonder(
+                        username
+                    );
+
+                    return;
+
+                }
+
+
+                throw new Error(
+                    result.error ||
+                    "注册失败。"
+                );
+
             }
 
-            catch(error){
+            catch (error) {
 
                 formError.textContent =
                     error.message;
 
             }
 
-            finally{
+            finally {
 
                 submitButton.disabled =
                     false;
@@ -1878,13 +1897,11 @@ authForm.addEventListener(
         }
 
 
-        /*
-        ---------------------------------------------
-        LOGIN
-        ---------------------------------------------
-        */
+        /* =====================================================
+           LOGIN
+        ===================================================== */
 
-        try{
+        try {
 
             submitButton.disabled =
                 true;
@@ -1897,40 +1914,46 @@ authForm.addEventListener(
                 await api(
                     "/api/login",
                     {
-
-                        method:"POST",
+                        method: "POST",
 
                         body:
                             JSON.stringify({
-
                                 username,
-
                                 password
-
                             })
-
                     }
                 );
 
 
-            if(
-                result.success
-            ){
+            if (
+                result.success &&
+                result.user
+            ) {
 
-                await loadCurrentUser();
+                goToYonder(
+                    result.user.username
+                );
+
+                return;
 
             }
 
+
+            throw new Error(
+                result.error ||
+                "登录失败。"
+            );
+
         }
 
-        catch(error){
+        catch (error) {
 
             formError.textContent =
                 error.message;
 
         }
 
-        finally{
+        finally {
 
             submitButton.disabled =
                 false;
@@ -1948,76 +1971,48 @@ authForm.addEventListener(
    LOAD CURRENT USER
 ========================================================= */
 
-async function loadCurrentUser(){
+async function loadCurrentUser() {
 
-    try{
+    try {
 
         const result =
             await api(
                 "/api/me",
                 {
-                    method:"GET"
+                    method: "GET"
                 }
             );
 
 
-        if(
+        if (
             result.authenticated &&
-            result.user
-        ){
+            result.user &&
+            result.user.username
+        ) {
 
-            showUser(
-                result.user
+            goToYonder(
+                result.user.username
             );
+
+            return true;
 
         }
 
+
+        return false;
+
     }
 
-    catch(error){
+    catch (error) {
 
         console.error(
+            "LOAD USER ERROR:",
             error
         );
 
+        return false;
+
     }
-
-}
-
-
-/* =========================================================
-   SHOW USER
-========================================================= */
-
-function showUser(
-    user
-){
-
-    const profile =
-        user.profile || {};
-
-
-    userName.textContent =
-        profile.display_name ||
-        user.username;
-
-
-    userHandle.textContent =
-        "@" +
-        user.username;
-
-
-    userBio.textContent =
-        profile.bio ||
-        "这是我的彼岸。";
-
-
-    closeAuth();
-
-
-    userPanel.classList.add(
-        "show"
-    );
 
 }
 
@@ -2027,72 +2022,66 @@ function showUser(
 ========================================================= */
 
 document
-    .getElementById(
-        "logoutButton"
-    )
+    .getElementById("logoutButton")
     .addEventListener(
         "click",
         async () => {
 
-            try{
+            try {
 
                 await api(
                     "/api/logout",
                     {
-                        method:"POST"
+                        method: "POST"
                     }
                 );
 
             }
 
-            catch(error){
+            catch (error) {
 
                 console.error(
+                    "LOGOUT ERROR:",
                     error
                 );
 
             }
 
 
-            userPanel.classList.remove(
-                "show"
-            );
+            window.location.href =
+                "/yonder";
 
         }
     );
 
 
 /* =========================================================
-   BUTTONS
+   LOGIN BUTTON
 ========================================================= */
 
 document
-    .getElementById(
-        "loginButton"
-    )
+    .getElementById("loginButton")
     .addEventListener(
         "click",
         () => {
 
-            openAuth(
-                "login"
-            );
+            openAuth("login");
 
         }
     );
 
 
+/* =========================================================
+   REGISTER BUTTON
+========================================================= */
+
 document
-    .getElementById(
-        "registerButton"
-    )
+    .getElementById("registerButton")
     .addEventListener(
         "click",
         () => {
 
-            openAuth(
-                "register"
-            );
+            openAuth("register");
 
         }
     );
@@ -2103,69 +2092,20 @@ document
 ========================================================= */
 
 document
-    .getElementById(
-        "guestButton"
-    )
+    .getElementById("guestButton")
     .addEventListener(
         "click",
         () => {
 
-            enterGuest();
+            /*
+             * 游客直接进入「无限」
+             */
+
+            window.location.href =
+                "/infinite";
 
         }
     );
-
-
-function enterGuest(){
-
-    /*
-    -----------------------------------------------------
-    第一版游客直接进入探索状态。
-
-    后面可以替换成真正的：
-    /explore
-    -----------------------------------------------------
-    */
-
-    document
-        .querySelector(
-            ".hero"
-        )
-        .innerHTML = `
-
-            <div class="title">
-                彼岸
-            </div>
-
-            <div class="subtitle">
-                YONDER
-            </div>
-
-            <div class="description">
-
-                你正在以游客身份进入彼岸。
-
-                <br><br>
-
-                这里将成为 HYOOL 的作品、
-                创作者与世界相遇的地方。
-
-            </div>
-
-            <div class="actions">
-
-                <button
-                    class="action"
-                    onclick="location.reload()"
-                >
-                    返回
-                </button>
-
-            </div>
-
-        `;
-
-}
 
 
 /* =========================================================
@@ -2173,9 +2113,7 @@ function enterGuest(){
 ========================================================= */
 
 document
-    .getElementById(
-        "closeModal"
-    )
+    .getElementById("closeModal")
     .addEventListener(
         "click",
         closeAuth
@@ -2186,10 +2124,10 @@ authModal.addEventListener(
     "click",
     event => {
 
-        if(
+        if (
             event.target ===
             authModal
-        ){
+        ) {
 
             closeAuth();
 
@@ -2204,19 +2142,13 @@ authModal.addEventListener(
 ========================================================= */
 
 document
-    .getElementById(
-        "backButton"
-    )
+    .getElementById("backButton")
     .addEventListener(
         "click",
         () => {
 
-            /*
-            返回真正的第二页
-            */
-
             window.location.href =
-                "./index.html";
+                "/";
 
         }
     );
@@ -2227,15 +2159,13 @@ document
 ========================================================= */
 
 document
-    .getElementById(
-        "logoButton"
-    )
+    .getElementById("logoButton")
     .addEventListener(
         "click",
         () => {
 
             window.location.href =
-                "./index.html";
+                "/";
 
         }
     );
