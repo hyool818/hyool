@@ -130,7 +130,9 @@ export default {
                 return json({
                     success: false,
                     error: "注册失败。",
-                    message: error?.message || String(error)
+                    message:
+                        error?.message ||
+                        String(error)
                 }, 500);
 
             }
@@ -226,7 +228,9 @@ export default {
                 return json({
                     success: false,
                     error: "服务器登录异常。",
-                    message: error?.message || String(error)
+                    message:
+                        error?.message ||
+                        String(error)
                 }, 500);
 
             }
@@ -333,7 +337,9 @@ export default {
                 return json({
                     authenticated: false,
                     error: "服务器返回异常。",
-                    message: error?.message || String(error)
+                    message:
+                        error?.message ||
+                        String(error)
                 }, 500);
 
             }
@@ -389,7 +395,9 @@ export default {
                 return json({
                     success: false,
                     error: "退出登录失败。",
-                    message: error?.message || String(error)
+                    message:
+                        error?.message ||
+                        String(error)
                 }, 500);
 
             }
@@ -459,7 +467,555 @@ export default {
                 return json({
                     success: false,
                     error: "数据库异常。",
-                    message: error?.message || String(error)
+                    message:
+                        error?.message ||
+                        String(error)
+                }, 500);
+
+            }
+
+        }
+
+
+        /* =====================================================
+           YONDER DATA
+           GET /api/yonder/:username
+           
+           返回：
+           profile
+           posts
+        ===================================================== */
+
+        if (
+            pathname.startsWith("/api/yonder/") &&
+            pathname.split("/").length === 4 &&
+            request.method === "GET"
+        ) {
+
+            const username =
+                pathname
+                    .substring("/api/yonder/".length)
+                    .trim()
+                    .toLowerCase();
+
+
+            if (!username) {
+
+                return json({
+                    success: false,
+                    error: "缺少用户名。"
+                }, 400);
+
+            }
+
+
+            try {
+
+                const profile =
+                    await env.DB
+                        .prepare(
+                            "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE username = ? LIMIT 1"
+                        )
+                        .bind(username)
+                        .first();
+
+
+                if (!profile) {
+
+                    return json({
+                        success: false,
+                        error: "彼岸不存在。"
+                    }, 404);
+
+                }
+
+
+                const posts =
+                    await env.DB
+                        .prepare(
+                            "SELECT id, user_id, type, title, content, media_url, cover_url, visibility, created_at, updated_at FROM yonder_posts WHERE user_id = ? AND visibility = 'public' ORDER BY created_at DESC LIMIT 50"
+                        )
+                        .bind(profile.id)
+                        .all();
+
+
+                return json({
+
+                    success: true,
+
+                    yonder: {
+
+                        profile: profile,
+
+                        posts:
+                            posts.results || []
+
+                    }
+
+                });
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    "YONDER DATA ERROR:",
+                    error
+                );
+
+
+                return json({
+                    success: false,
+                    error: "彼岸数据加载失败。",
+                    message:
+                        error?.message ||
+                        String(error)
+                }, 500);
+
+            }
+
+        }
+
+
+        /* =====================================================
+           YONDER POSTS
+           GET /api/yonder/:username/posts
+        ===================================================== */
+
+        if (
+            pathname.startsWith("/api/yonder/") &&
+            pathname.endsWith("/posts") &&
+            request.method === "GET"
+        ) {
+
+            const parts =
+                pathname.split("/");
+
+
+            const username =
+                parts[3]
+                    ?.trim()
+                    .toLowerCase();
+
+
+            if (!username) {
+
+                return json({
+                    success: false,
+                    error: "缺少用户名。"
+                }, 400);
+
+            }
+
+
+            try {
+
+                const profile =
+                    await env.DB
+                        .prepare(
+                            "SELECT id, username FROM profiles WHERE username = ? LIMIT 1"
+                        )
+                        .bind(username)
+                        .first();
+
+
+                if (!profile) {
+
+                    return json({
+                        success: false,
+                        error: "彼岸不存在。"
+                    }, 404);
+
+                }
+
+
+                const posts =
+                    await env.DB
+                        .prepare(
+                            "SELECT id, user_id, type, title, content, media_url, cover_url, visibility, created_at, updated_at FROM yonder_posts WHERE user_id = ? AND visibility = 'public' ORDER BY created_at DESC LIMIT 50"
+                        )
+                        .bind(profile.id)
+                        .all();
+
+
+                return json({
+
+                    success: true,
+
+                    username:
+                        profile.username,
+
+                    posts:
+                        posts.results || []
+
+                });
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    "YONDER POSTS ERROR:",
+                    error
+                );
+
+
+                return json({
+                    success: false,
+                    error: "彼岸内容加载失败。",
+                    message:
+                        error?.message ||
+                        String(error)
+                }, 500);
+
+            }
+
+        }
+
+
+        /* =====================================================
+           CREATE YONDER POST
+           POST /api/yonder/posts
+        ===================================================== */
+
+        if (
+            pathname === "/api/yonder/posts" &&
+            request.method === "POST"
+        ) {
+
+            try {
+
+                const auth =
+                    await getAuthenticatedUser(
+                        request,
+                        env
+                    );
+
+
+                if (!auth) {
+
+                    return json({
+                        success: false,
+                        error: "请先登录。"
+                    }, 401);
+
+                }
+
+
+                const body =
+                    await request.json();
+
+
+                const type =
+                    String(
+                        body.type ||
+                        "thought"
+                    ).trim();
+
+
+                const allowedTypes = [
+                    "thought",
+                    "image",
+                    "video",
+                    "audio",
+                    "project"
+                ];
+
+
+                if (
+                    !allowedTypes.includes(type)
+                ) {
+
+                    return json({
+                        success: false,
+                        error: "内容类型不正确。"
+                    }, 400);
+
+                }
+
+
+                const title =
+                    String(
+                        body.title ||
+                        ""
+                    ).trim();
+
+
+                const content =
+                    String(
+                        body.content ||
+                        ""
+                    ).trim();
+
+
+                const mediaUrl =
+                    String(
+                        body.media_url ||
+                        ""
+                    ).trim();
+
+
+                const coverUrl =
+                    String(
+                        body.cover_url ||
+                        ""
+                    ).trim();
+
+
+                const visibility =
+                    String(
+                        body.visibility ||
+                        "public"
+                    ).trim();
+
+
+                if (
+                    ![
+                        "public",
+                        "private"
+                    ].includes(visibility)
+                ) {
+
+                    return json({
+                        success: false,
+                        error: "可见范围不正确。"
+                    }, 400);
+
+                }
+
+
+                if (
+                    !title &&
+                    !content &&
+                    !mediaUrl
+                ) {
+
+                    return json({
+                        success: false,
+                        error: "内容不能为空。"
+                    }, 400);
+
+                }
+
+
+                const postId =
+                    crypto.randomUUID();
+
+
+                await env.DB
+                    .prepare(
+                        `INSERT INTO yonder_posts
+                        (
+                            id,
+                            user_id,
+                            type,
+                            title,
+                            content,
+                            media_url,
+                            cover_url,
+                            visibility,
+                            created_at,
+                            updated_at
+                        )
+                        VALUES
+                        (
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            CURRENT_TIMESTAMP,
+                            CURRENT_TIMESTAMP
+                        )`
+                    )
+                    .bind(
+                        postId,
+                        auth.user.id,
+                        type,
+                        title || null,
+                        content || null,
+                        mediaUrl || null,
+                        coverUrl || null,
+                        visibility
+                    )
+                    .run();
+
+
+                const post =
+                    await env.DB
+                        .prepare(
+                            "SELECT id, user_id, type, title, content, media_url, cover_url, visibility, created_at, updated_at FROM yonder_posts WHERE id = ? LIMIT 1"
+                        )
+                        .bind(postId)
+                        .first();
+
+
+                return json({
+
+                    success: true,
+
+                    post: post
+
+                }, 201);
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    "CREATE POST ERROR:",
+                    error
+                );
+
+
+                return json({
+                    success: false,
+                    error: "发布失败。",
+                    message:
+                        error?.message ||
+                        String(error)
+                }, 500);
+
+            }
+
+        }
+
+
+        /* =====================================================
+           DELETE YONDER POST
+           DELETE /api/yonder/posts/:id
+        ===================================================== */
+
+        if (
+            pathname.startsWith("/api/yonder/posts/") &&
+            request.method === "DELETE"
+        ) {
+
+            const postId =
+                pathname
+                    .substring(
+                        "/api/yonder/posts/".length
+                    )
+                    .trim();
+
+
+            if (!postId) {
+
+                return json({
+                    success: false,
+                    error: "缺少内容 ID。"
+                }, 400);
+
+            }
+
+
+            try {
+
+                const auth =
+                    await getAuthenticatedUser(
+                        request,
+                        env
+                    );
+
+
+                if (!auth) {
+
+                    return json({
+                        success: false,
+                        error: "请先登录。"
+                    }, 401);
+
+                }
+
+
+                const post =
+                    await env.DB
+                        .prepare(
+                            "SELECT id, user_id FROM yonder_posts WHERE id = ? LIMIT 1"
+                        )
+                        .bind(postId)
+                        .first();
+
+
+                if (!post) {
+
+                    return json({
+                        success: false,
+                        error: "内容不存在。"
+                    }, 404);
+
+                }
+
+
+                if (
+                    post.user_id !==
+                    auth.user.id
+                ) {
+
+                    return json({
+                        success: false,
+                        error: "你没有权限删除这条内容。"
+                    }, 403);
+
+                }
+
+
+                await env.DB
+                    .prepare(
+                        "DELETE FROM yonder_posts WHERE id = ?"
+                    )
+                    .bind(postId)
+                    .run();
+
+
+                /*
+                 * 同步清理相关数据
+                 */
+
+                await env.DB
+                    .prepare(
+                        "DELETE FROM yonder_feed WHERE post_id = ?"
+                    )
+                    .bind(postId)
+                    .run();
+
+
+                await env.DB
+                    .prepare(
+                        "DELETE FROM yonder_collections WHERE post_id = ?"
+                    )
+                    .bind(postId)
+                    .run();
+
+
+                return json({
+
+                    success: true,
+
+                    deleted:
+                        postId
+
+                });
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    "DELETE POST ERROR:",
+                    error
+                );
+
+
+                return json({
+                    success: false,
+                    error: "删除失败。",
+                    message:
+                        error?.message ||
+                        String(error)
                 }, 500);
 
             }
@@ -472,7 +1028,10 @@ export default {
            /@333123
         ===================================================== */
 
-        if (pathname.startsWith("/@") && pathname.length > 2) {
+        if (
+            pathname.startsWith("/@") &&
+            pathname.length > 2
+        ) {
 
             const username =
                 pathname
@@ -508,11 +1067,6 @@ export default {
 
                 }
 
-
-                /*
-                 * 直接从 Worker Assets 加载
-                 * yonder-home.html
-                 */
 
                 const homeUrl =
                     new URL(
@@ -571,6 +1125,84 @@ export default {
 
 
 /* =========================================================
+   AUTHENTICATED USER
+========================================================= */
+
+async function getAuthenticatedUser(
+    request,
+    env
+) {
+
+    const token =
+        getSessionToken(request);
+
+
+    if (!token) {
+
+        return null;
+
+    }
+
+
+    const session =
+        await env.DB
+            .prepare(
+                "SELECT * FROM sessions WHERE token = ? LIMIT 1"
+            )
+            .bind(token)
+            .first();
+
+
+    if (!session) {
+
+        return null;
+
+    }
+
+
+    if (
+        session.expires_at &&
+        new Date(session.expires_at).getTime() <= Date.now()
+    ) {
+
+        await env.DB
+            .prepare(
+                "DELETE FROM sessions WHERE token = ?"
+            )
+            .bind(token)
+            .run();
+
+
+        return null;
+
+    }
+
+
+    const profile =
+        await env.DB
+            .prepare(
+                "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE id = ? LIMIT 1"
+            )
+            .bind(session.user_id)
+            .first();
+
+
+    if (!profile) {
+
+        return null;
+
+    }
+
+
+    return {
+        session,
+        user: profile
+    };
+
+}
+
+
+/* =========================================================
    CREATE LOGIN SESSION
 ========================================================= */
 
@@ -606,12 +1238,13 @@ async function createLoginResponse(
         .run();
 
 
-    const profile = await env.DB
-        .prepare(
-            "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE id = ? LIMIT 1"
-        )
-        .bind(userId)
-        .first();
+    const profile =
+        await env.DB
+            .prepare(
+                "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE id = ? LIMIT 1"
+            )
+            .bind(userId)
+            .first();
 
 
     return json(
