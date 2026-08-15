@@ -1,0 +1,8 @@
+name = "hyool"
+
+compatibility_date = "2026-08-16"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hyool-db"
+database_id = "86e8193a-c300-4d58-9fed-c3d7b9e98af2"
