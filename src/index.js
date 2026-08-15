@@ -1,4 +1,4 @@
-```javascript
+javascript
 export default {
     async fetch(request, env) {
 
@@ -766,4 +766,3 @@ function json(
     );
 
 }
-```
