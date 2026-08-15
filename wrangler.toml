@@ -2,8 +2,12 @@ name = "hyool"
 
 compatibility_date = "2026-08-16"
 
+main = "./src/index.js"
+
 [assets]
 directory = "./"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
 
 [[d1_databases]]
 binding = "DB"
