@@ -4,15 +4,25 @@ HYOOL WORKER
 =========================================================
 */
 
+const SESSION_DAYS = 30;
+
+
+/*
+=========================================================
+MAIN
+=========================================================
+*/
+
 export default {
 
     async fetch(request, env) {
 
         const url = new URL(request.url);
 
+
         /*
         =====================================================
-        CORS / 基础响应
+        CORS
         =====================================================
         */
 
@@ -20,7 +30,8 @@ export default {
             "Access-Control-Allow-Origin": url.origin,
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+            "Access-Control-Allow-Methods":
+                "GET, POST, OPTIONS"
         };
 
 
@@ -50,9 +61,9 @@ export default {
             try {
 
                 /*
-                =============================================
+                =================================================
                 HEALTH
-                =============================================
+                =================================================
                 */
 
                 if (
@@ -62,10 +73,12 @@ export default {
 
                     const result =
                         await env.DB
-                            .prepare("SELECT 1 AS ok")
+                            .prepare(
+                                "SELECT 1 AS ok"
+                            )
                             .first();
 
-                    return Response.json({
+                    return json({
 
                         success: true,
 
@@ -74,17 +87,15 @@ export default {
                         database:
                             result?.ok === 1
 
-                    }, {
-                        headers: corsHeaders
-                    });
+                    }, 200, corsHeaders);
 
                 }
 
 
                 /*
-                =============================================
+                =================================================
                 REGISTER
-                =============================================
+                =================================================
                 */
 
                 if (
@@ -95,12 +106,14 @@ export default {
                     const body =
                         await request.json();
 
+
                     const username =
                         String(
                             body.username || ""
                         )
                         .trim()
                         .toLowerCase();
+
 
                     const password =
                         String(
@@ -109,91 +122,86 @@ export default {
 
 
                     /*
-                    -----------------------------------------
-                    USERNAME VALIDATION
-                    -----------------------------------------
+                    ---------------------------------------------
+                    USERNAME
+                    ---------------------------------------------
                     */
 
                     if (
-                        !/^[a-z0-9_-]{3,20}$/.test(
-                            username
-                        )
+                        !/^[a-z0-9_-]{3,20}$/
+                            .test(username)
                     ) {
 
-                        return Response.json({
+                        return json({
 
                             success: false,
 
                             error:
                                 "账号只能使用英文字母、数字、下划线和连字符，长度 3-20 位。"
 
-                        }, {
-                            status: 400,
-                            headers: corsHeaders
-                        });
+                        }, 400, corsHeaders);
 
                     }
 
 
                     /*
-                    -----------------------------------------
-                    PASSWORD VALIDATION
-                    -----------------------------------------
+                    ---------------------------------------------
+                    PASSWORD
+                    ---------------------------------------------
                     */
 
-                    if (password.length < 8) {
+                    if (
+                        password.length < 8 ||
+                        password.length > 128
+                    ) {
 
-                        return Response.json({
+                        return json({
 
                             success: false,
 
                             error:
-                                "密码至少需要 8 位。"
+                                "密码长度需要在 8-128 位之间。"
 
-                        }, {
-                            status: 400,
-                            headers: corsHeaders
-                        });
+                        }, 400, corsHeaders);
 
                     }
 
 
                     /*
-                    -----------------------------------------
-                    CHECK USER
-                    -----------------------------------------
+                    ---------------------------------------------
+                    CHECK EXISTING USER
+                    ---------------------------------------------
                     */
 
                     const existing =
                         await env.DB
-                            .prepare(
-                                "SELECT id FROM users WHERE username = ?"
-                            )
+                            .prepare(`
+                                SELECT id
+                                FROM users
+                                WHERE username = ?
+                            `)
                             .bind(username)
                             .first();
 
 
                     if (existing) {
 
-                        return Response.json({
+                        return json({
 
                             success: false,
 
                             error:
                                 "这个账号已经存在。"
 
-                        }, {
-                            status: 409,
-                            headers: corsHeaders
-                        });
+                        }, 409, corsHeaders);
 
                     }
 
 
                     /*
-                    -----------------------------------------
-                    CREATE USER ID
-                    -----------------------------------------
+                    ---------------------------------------------
+                    USER ID
+                    ---------------------------------------------
                     */
 
                     const userId =
@@ -201,9 +209,9 @@ export default {
 
 
                     /*
-                    -----------------------------------------
+                    ---------------------------------------------
                     PASSWORD HASH
-                    -----------------------------------------
+                    ---------------------------------------------
                     */
 
                     const passwordHash =
@@ -213,9 +221,9 @@ export default {
 
 
                     /*
-                    -----------------------------------------
+                    ---------------------------------------------
                     CREATE USER
-                    -----------------------------------------
+                    ---------------------------------------------
                     */
 
                     await env.DB
@@ -237,9 +245,9 @@ export default {
 
 
                     /*
-                    -----------------------------------------
+                    ---------------------------------------------
                     CREATE PROFILE
-                    -----------------------------------------
+                    ---------------------------------------------
                     */
 
                     await env.DB
@@ -263,12 +271,29 @@ export default {
 
 
                     /*
-                    -----------------------------------------
-                    RESPONSE
-                    -----------------------------------------
+                    ---------------------------------------------
+                    CREATE SESSION
+                    ---------------------------------------------
                     */
 
-                    return Response.json({
+                    const sessionToken =
+                        generateToken();
+
+
+                    await createSession(
+                        env,
+                        sessionToken,
+                        userId
+                    );
+
+
+                    /*
+                    ---------------------------------------------
+                    RESPONSE
+                    ---------------------------------------------
+                    */
+
+                    return json({
 
                         success: true,
 
@@ -280,18 +305,24 @@ export default {
 
                         }
 
-                    }, {
-                        status: 201,
-                        headers: corsHeaders
+                    }, 201, {
+
+                        ...corsHeaders,
+
+                        "Set-Cookie":
+                            createSessionCookie(
+                                sessionToken
+                            )
+
                     });
 
                 }
 
 
                 /*
-                =============================================
+                =================================================
                 LOGIN
-                =============================================
+                =================================================
                 */
 
                 if (
@@ -302,12 +333,14 @@ export default {
                     const body =
                         await request.json();
 
+
                     const username =
                         String(
                             body.username || ""
                         )
                         .trim()
                         .toLowerCase();
+
 
                     const password =
                         String(
@@ -316,9 +349,9 @@ export default {
 
 
                     /*
-                    -----------------------------------------
+                    ---------------------------------------------
                     FIND USER
-                    -----------------------------------------
+                    ---------------------------------------------
                     */
 
                     const user =
@@ -337,25 +370,22 @@ export default {
 
                     if (!user) {
 
-                        return Response.json({
+                        return json({
 
                             success: false,
 
                             error:
                                 "账号或密码错误。"
 
-                        }, {
-                            status: 401,
-                            headers: corsHeaders
-                        });
+                        }, 401, corsHeaders);
 
                     }
 
 
                     /*
-                    -----------------------------------------
+                    ---------------------------------------------
                     VERIFY PASSWORD
-                    -----------------------------------------
+                    ---------------------------------------------
                     */
 
                     const valid =
@@ -367,34 +397,42 @@ export default {
 
                     if (!valid) {
 
-                        return Response.json({
+                        return json({
 
                             success: false,
 
                             error:
                                 "账号或密码错误。"
 
-                        }, {
-                            status: 401,
-                            headers: corsHeaders
-                        });
+                        }, 401, corsHeaders);
 
                     }
 
 
                     /*
-                    -----------------------------------------
-                    TEMPORARY SESSION
-                    -----------------------------------------
-
-                    第一版先返回用户身份。
-
-                    下一阶段再接真正的
-                    HttpOnly Session Cookie。
-                    -----------------------------------------
+                    ---------------------------------------------
+                    CREATE SESSION
+                    ---------------------------------------------
                     */
 
-                    return Response.json({
+                    const sessionToken =
+                        generateToken();
+
+
+                    await createSession(
+                        env,
+                        sessionToken,
+                        user.id
+                    );
+
+
+                    /*
+                    ---------------------------------------------
+                    RESPONSE
+                    ---------------------------------------------
+                    */
+
+                    return json({
 
                         success: true,
 
@@ -407,46 +445,203 @@ export default {
 
                         }
 
-                    }, {
-                        headers: corsHeaders
+                    }, 200, {
+
+                        ...corsHeaders,
+
+                        "Set-Cookie":
+                            createSessionCookie(
+                                sessionToken
+                            )
+
                     });
 
                 }
 
 
                 /*
-                =============================================
-                UNKNOWN API
-                =============================================
+                =================================================
+                CURRENT USER
+                =================================================
                 */
 
-                return Response.json({
+                if (
+                    url.pathname === "/api/me" &&
+                    request.method === "GET"
+                ) {
+
+                    const token =
+                        getSessionToken(
+                            request
+                        );
+
+
+                    if (!token) {
+
+                        return json({
+
+                            success: true,
+
+                            authenticated: false,
+
+                            user: null
+
+                        }, 200, corsHeaders);
+
+                    }
+
+
+                    const session =
+                        await getSession(
+                            env,
+                            token
+                        );
+
+
+                    if (!session) {
+
+                        return json({
+
+                            success: true,
+
+                            authenticated: false,
+
+                            user: null
+
+                        }, 200, {
+
+                            ...corsHeaders,
+
+                            "Set-Cookie":
+                                clearSessionCookie()
+
+                        });
+
+                    }
+
+
+                    /*
+                    ---------------------------------------------
+                    GET PROFILE
+                    ---------------------------------------------
+                    */
+
+                    const profile =
+                        await env.DB
+                            .prepare(`
+                                SELECT
+                                    id,
+                                    username,
+                                    display_name,
+                                    avatar_url,
+                                    bio,
+                                    background_url,
+                                    theme,
+                                    created_at,
+                                    updated_at
+                                FROM profiles
+                                WHERE id = ?
+                            `)
+                            .bind(session.user_id)
+                            .first();
+
+
+                    return json({
+
+                        success: true,
+
+                        authenticated: true,
+
+                        user: {
+
+                            id:
+                                session.user_id,
+
+                            username:
+                                session.username,
+
+                            profile:
+                                profile || null
+
+                        }
+
+                    }, 200, corsHeaders);
+
+                }
+
+
+                /*
+                =================================================
+                LOGOUT
+                =================================================
+                */
+
+                if (
+                    url.pathname === "/api/logout" &&
+                    request.method === "POST"
+                ) {
+
+                    const token =
+                        getSessionToken(
+                            request
+                        );
+
+
+                    if (token) {
+
+                        await deleteSession(
+                            env,
+                            token
+                        );
+
+                    }
+
+
+                    return json({
+
+                        success: true
+
+                    }, 200, {
+
+                        ...corsHeaders,
+
+                        "Set-Cookie":
+                            clearSessionCookie()
+
+                    });
+
+                }
+
+
+                /*
+                =================================================
+                UNKNOWN API
+                =================================================
+                */
+
+                return json({
 
                     success: false,
 
-                    error: "API not found."
+                    error:
+                        "API not found."
 
-                }, {
-                    status: 404,
-                    headers: corsHeaders
-                });
+                }, 404, corsHeaders);
 
 
             } catch (error) {
 
                 console.error(error);
 
-                return Response.json({
+
+                return json({
 
                     success: false,
 
                     error:
                         "服务器发生错误。"
 
-                }, {
-                    status: 500,
-                    headers: corsHeaders
-                });
+                }, 500, corsHeaders);
 
             }
 
@@ -468,12 +663,317 @@ export default {
 
 /*
 =========================================================
+JSON RESPONSE
+=========================================================
+*/
+
+function json(
+    data,
+    status = 200,
+    headers = {}
+) {
+
+    return new Response(
+        JSON.stringify(data),
+        {
+            status,
+
+            headers: {
+                "Content-Type":
+                    "application/json; charset=UTF-8",
+
+                ...headers
+            }
+        }
+    );
+
+}
+
+
+/*
+=========================================================
+GENERATE SESSION TOKEN
+=========================================================
+*/
+
+function generateToken() {
+
+    const bytes =
+        crypto.getRandomValues(
+            new Uint8Array(32)
+        );
+
+
+    return bytesToHex(bytes);
+
+}
+
+
+/*
+=========================================================
+CREATE SESSION
+=========================================================
+*/
+
+async function createSession(
+    env,
+    token,
+    userId
+) {
+
+    /*
+    -----------------------------------------------------
+    Session 暂时存 D1。
+    
+    后续用户量上来以后，
+    可以迁移到 Cloudflare KV。
+    -----------------------------------------------------
+    */
+
+    const expiresAt =
+        new Date(
+            Date.now() +
+            SESSION_DAYS *
+            24 *
+            60 *
+            60 *
+            1000
+        ).toISOString();
+
+
+    const user =
+        await env.DB
+            .prepare(`
+                SELECT username
+                FROM users
+                WHERE id = ?
+            `)
+            .bind(userId)
+            .first();
+
+
+    await env.DB
+        .prepare(`
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                username TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+        `)
+        .run();
+
+
+    await env.DB
+        .prepare(`
+            INSERT INTO sessions
+            (
+                token,
+                user_id,
+                username,
+                expires_at
+            )
+            VALUES (?, ?, ?, ?)
+        `)
+        .bind(
+            token,
+            userId,
+            user.username,
+            expiresAt
+        )
+        .run();
+
+}
+
+
+/*
+=========================================================
+GET SESSION
+=========================================================
+*/
+
+async function getSession(
+    env,
+    token
+) {
+
+    const session =
+        await env.DB
+            .prepare(`
+                SELECT
+                    token,
+                    user_id,
+                    username,
+                    expires_at
+                FROM sessions
+                WHERE token = ?
+            `)
+            .bind(token)
+            .first();
+
+
+    if (!session) {
+
+        return null;
+
+    }
+
+
+    /*
+    -----------------------------------------------------
+    EXPIRED
+    -----------------------------------------------------
+    */
+
+    if (
+        new Date(
+            session.expires_at
+        ).getTime()
+        <= Date.now()
+    ) {
+
+        await deleteSession(
+            env,
+            token
+        );
+
+        return null;
+
+    }
+
+
+    return session;
+
+}
+
+
+/*
+=========================================================
+DELETE SESSION
+=========================================================
+*/
+
+async function deleteSession(
+    env,
+    token
+) {
+
+    await env.DB
+        .prepare(`
+            DELETE FROM sessions
+            WHERE token = ?
+        `)
+        .bind(token)
+        .run();
+
+}
+
+
+/*
+=========================================================
+GET COOKIE
+=========================================================
+*/
+
+function getSessionToken(
+    request
+) {
+
+    const cookie =
+        request.headers.get(
+            "Cookie"
+        );
+
+
+    if (!cookie) {
+
+        return null;
+
+    }
+
+
+    const match =
+        cookie.match(
+            /(?:^|;\s*)hyool_session=([^;]+)/
+        );
+
+
+    return match
+        ? decodeURIComponent(match[1])
+        : null;
+
+}
+
+
+/*
+=========================================================
+CREATE COOKIE
+=========================================================
+*/
+
+function createSessionCookie(
+    token
+) {
+
+    return [
+        "hyool_session=" +
+        encodeURIComponent(token),
+
+        "Path=/",
+
+        "Max-Age=" +
+        (
+            SESSION_DAYS *
+            24 *
+            60 *
+            60
+        ),
+
+        "HttpOnly",
+
+        "Secure",
+
+        "SameSite=Lax"
+    ].join("; ");
+
+}
+
+
+/*
+=========================================================
+CLEAR COOKIE
+=========================================================
+*/
+
+function clearSessionCookie() {
+
+    return [
+        "hyool_session=",
+
+        "Path=/",
+
+        "Max-Age=0",
+
+        "HttpOnly",
+
+        "Secure",
+
+        "SameSite=Lax"
+    ].join("; ");
+
+}
+
+
+/*
+=========================================================
 PASSWORD HASH
 PBKDF2 + SHA-256
 =========================================================
 */
 
-async function hashPassword(password) {
+async function hashPassword(
+    password
+) {
 
     const encoder =
         new TextEncoder();
@@ -488,25 +988,34 @@ async function hashPassword(password) {
     const key =
         await crypto.subtle.importKey(
             "raw",
-            encoder.encode(password),
+
+            encoder.encode(
+                password
+            ),
+
             "PBKDF2",
+
             false,
+
             ["deriveBits"]
         );
 
 
     const bits =
         await crypto.subtle.deriveBits(
+
             {
                 name: "PBKDF2",
 
-                salt: salt,
+                salt,
 
                 iterations: 100000,
 
                 hash: "SHA-256"
             },
+
             key,
+
             256
         );
 
@@ -530,7 +1039,7 @@ async function hashPassword(password) {
 
 /*
 =========================================================
-PASSWORD VERIFY
+VERIFY PASSWORD
 =========================================================
 */
 
@@ -556,8 +1065,10 @@ async function verifyPassword(
     const iterations =
         Number(parts[1]);
 
+
     const salt =
         hexToBytes(parts[2]);
+
 
     const expected =
         hexToBytes(parts[3]);
@@ -570,25 +1081,34 @@ async function verifyPassword(
     const key =
         await crypto.subtle.importKey(
             "raw",
-            encoder.encode(password),
+
+            encoder.encode(
+                password
+            ),
+
             "PBKDF2",
+
             false,
+
             ["deriveBits"]
         );
 
 
     const bits =
         await crypto.subtle.deriveBits(
+
             {
                 name: "PBKDF2",
 
-                salt: salt,
+                salt,
 
-                iterations: iterations,
+                iterations,
 
                 hash: "SHA-256"
             },
+
             key,
+
             expected.length * 8
         );
 
@@ -606,6 +1126,12 @@ async function verifyPassword(
 
     }
 
+
+    /*
+    -----------------------------------------------------
+    CONSTANT-TIME COMPARISON
+    -----------------------------------------------------
+    */
 
     let result = 0;
 
@@ -630,11 +1156,13 @@ async function verifyPassword(
 
 /*
 =========================================================
-HEX
+BYTES → HEX
 =========================================================
 */
 
-function bytesToHex(bytes) {
+function bytesToHex(
+    bytes
+) {
 
     return Array
         .from(bytes)
@@ -649,7 +1177,15 @@ function bytesToHex(bytes) {
 }
 
 
-function hexToBytes(hex) {
+/*
+=========================================================
+HEX → BYTES
+=========================================================
+*/
+
+function hexToBytes(
+    hex
+) {
 
     const bytes =
         new Uint8Array(
@@ -665,7 +1201,10 @@ function hexToBytes(hex) {
 
         bytes[i] =
             parseInt(
-                hex.substr(i * 2, 2),
+                hex.substr(
+                    i * 2,
+                    2
+                ),
                 16
             );
 
