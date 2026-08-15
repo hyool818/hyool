@@ -473,82 +473,101 @@ export default {
         }
 
 
-        /* =====================================================
-           PERSONAL YONDER
-           /@333123
-        ===================================================== */
+       ```javascript
+/* =====================================================
+   PERSONAL YONDER
+   /@333123
+===================================================== */
 
-        if (pathname.startsWith("/@") && pathname.length > 2) {
+if (pathname.startsWith("/@") && pathname.length > 2) {
 
-            const username =
-                pathname
-                    .substring(2)
-                    .trim()
-                    .toLowerCase();
-
-
-            try {
-
-                const profile = await env.DB
-                    .prepare(
-                        "SELECT id, username FROM profiles WHERE username = ? LIMIT 1"
-                    )
-                    .bind(username)
-                    .first();
+    const username =
+        pathname
+            .substring(2)
+            .trim()
+            .toLowerCase();
 
 
-                if (!profile) {
+    try {
 
-                    return new Response(
-                        "这个彼岸不存在",
-                        {
-                            status: 404,
+        /* ---------------------------------------------
+           检查用户是否存在
+        --------------------------------------------- */
 
-                            headers: {
-                                "Content-Type":
-                                    "text/plain; charset=UTF-8"
-                            }
-                        }
-                    );
+        const profile =
+            await env.DB
+                .prepare(
+                    "SELECT id, username FROM profiles WHERE username = ? LIMIT 1"
+                )
+                .bind(username)
+                .first();
 
+
+        if (!profile) {
+
+            return new Response(
+                "这个彼岸不存在",
+                {
+                    status: 404,
+
+                    headers: {
+                        "Content-Type":
+                            "text/plain; charset=UTF-8"
+                    }
                 }
-
-
-                const assetUrl =
-                    new URL(
-                        "/yonder-home.html",
-                        request.url
-                    );
-
-
-                return env.ASSETS.fetch(
-                    new Request(
-                        assetUrl,
-                        {
-                            method: "GET",
-                            headers: request.headers
-                        }
-                    )
-                );
-
-            }
-
-            catch (error) {
-
-                console.error(
-                    "YONDER ERROR:",
-                    error
-                );
-
-
-                return json({
-                    success: false,
-                    error: "彼岸加载异常。"
-                }, 500);
-
-            }
+            );
 
         }
+
+
+        /* ---------------------------------------------
+           加载彼岸主页
+        --------------------------------------------- */
+
+        const homeUrl =
+            new URL(
+                "/yonder-home.html",
+                request.url
+            );
+
+
+        const assetRequest =
+            new Request(
+                homeUrl.toString(),
+                {
+                    method: "GET"
+                }
+            );
+
+
+        return await env.ASSETS.fetch(
+            assetRequest
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "YONDER ERROR:",
+            error
+        );
+
+
+        return json(
+            {
+                success: false,
+                error: "彼岸加载异常。",
+                message:
+                    error?.message ||
+                    String(error)
+            },
+            500
+        );
+
+    }
+
+}
 
 
         /* =====================================================
