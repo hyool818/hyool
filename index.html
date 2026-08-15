@@ -25,25 +25,17 @@
 ========================================================= */
 
 * {
-
     margin: 0;
     padding: 0;
-
     box-sizing: border-box;
-
 }
-
 
 html,
 body {
-
     width: 100%;
     height: 100%;
-
     overflow: hidden;
-
     background: #000;
-
     color: #fff;
 
     font-family:
@@ -54,7 +46,11 @@ body {
         "Microsoft YaHei",
         Arial,
         sans-serif;
+}
 
+button,
+a {
+    font: inherit;
 }
 
 
@@ -65,7 +61,6 @@ body {
 #entrance {
 
     position: fixed;
-
     inset: 0;
 
     z-index: 10;
@@ -74,29 +69,19 @@ body {
     height: 100%;
 
     display: flex;
-
     flex-direction: column;
-
     align-items: center;
-
     justify-content: center;
 
     background: #000;
 
     opacity: 1;
-
     transform: scale(1);
 
     transition:
-
-        opacity 1.25s
-        cubic-bezier(.77,0,.18,1),
-
-        transform 1.5s
-        cubic-bezier(.2,.8,.2,1);
-
+        opacity 1.25s cubic-bezier(.77,0,.18,1),
+        transform 1.5s cubic-bezier(.2,.8,.2,1);
 }
-
 
 #entrance.exit {
 
@@ -105,7 +90,6 @@ body {
     transform: scale(1.035);
 
     pointer-events: none;
-
 }
 
 
@@ -128,17 +112,11 @@ body {
     border-radius: 50%;
 
     background:
-
         radial-gradient(
-
             circle,
-
             rgba(255,255,255,.035) 0%,
-
             rgba(255,255,255,.012) 35%,
-
             transparent 72%
-
         );
 
     opacity: 0;
@@ -148,21 +126,15 @@ body {
     pointer-events: none;
 
     transition:
-
         opacity 1.5s ease,
-
-        transform 2s
-        cubic-bezier(.2,.8,.2,1);
-
+        transform 2s cubic-bezier(.2,.8,.2,1);
 }
-
 
 #entrance.active::before {
 
     opacity: 1;
 
     transform: scale(1);
-
 }
 
 
@@ -173,19 +145,15 @@ body {
 .brand {
 
     position: relative;
-
     z-index: 2;
 
     display: flex;
-
     flex-direction: column;
-
     align-items: center;
 
     text-align: center;
 
     user-select: none;
-
 }
 
 
@@ -196,9 +164,7 @@ body {
 .logo {
 
     display: flex;
-
     align-items: center;
-
     justify-content: center;
 
     opacity: 0;
@@ -206,35 +172,24 @@ body {
     transform: translateY(24px);
 
     animation:
-
-        logoIn 1.5s
-        cubic-bezier(.2,.8,.2,1)
-        .2s
-        forwards;
-
+        logoIn 1.5s cubic-bezier(.2,.8,.2,1)
+        .2s forwards;
 }
-
 
 .logo img {
 
     display: block;
 
     width:
-
         clamp(
-
             260px,
-
             28vw,
-
             520px
-
         );
 
     height: auto;
 
     object-fit: contain;
-
 }
 
 
@@ -247,15 +202,10 @@ body {
     margin-top: 24px;
 
     font-size:
-
         clamp(
-
             18px,
-
             2vw,
-
             28px
-
         );
 
     font-weight: 300;
@@ -265,14 +215,11 @@ body {
     margin-left: .55em;
 
     color:
-
         rgba(
-
             255,
             255,
             255,
             .72
-
         );
 
     opacity: 0;
@@ -280,12 +227,8 @@ body {
     transform: translateY(16px);
 
     animation:
-
-        logoIn 1.5s
-        cubic-bezier(.2,.8,.2,1)
-        .45s
-        forwards;
-
+        logoIn 1.5s cubic-bezier(.2,.8,.2,1)
+        .45s forwards;
 }
 
 
@@ -296,7 +239,6 @@ body {
 .slogan {
 
     position: relative;
-
     z-index: 2;
 
     margin-top: 58px;
@@ -308,68 +250,49 @@ body {
     transform: translateY(18px);
 
     animation:
-
-        logoIn 1.5s
-        cubic-bezier(.2,.8,.2,1)
-        .75s
-        forwards;
-
+        logoIn 1.5s cubic-bezier(.2,.8,.2,1)
+        .75s forwards;
 }
-
 
 .slogan .line-one,
 .slogan .line-two {
 
     font-size:
-
         clamp(
-
-            15px,
+            17px,
             1.45vw,
-            20px
-
+            21px
         );
 
     font-weight: 300;
 
-    letter-spacing: .18em;
+    letter-spacing: .14em;
 
-    margin-left: .18em;
+    margin-left: .14em;
 
     line-height: 2;
-
 }
-
 
 .slogan .line-one {
 
     color:
-
         rgba(
-
             255,
             255,
             255,
             .82
-
         );
-
 }
-
 
 .slogan .line-two {
 
     color:
-
         rgba(
-
             255,
             255,
             255,
             .45
-
         );
-
 }
 
 
@@ -380,17 +303,13 @@ body {
 .enter-area {
 
     position: relative;
-
     z-index: 5;
 
     margin-top: 72px;
 
     display: flex;
-
     align-items: center;
-
     justify-content: center;
-
 }
 
 
@@ -407,13 +326,10 @@ body {
     pointer-events: none;
 
     font-size:
-
         clamp(
-
             48px,
             8vw,
             110px
-
         );
 
     font-weight: 200;
@@ -423,14 +339,11 @@ body {
     margin-left: .18em;
 
     color:
-
         rgba(
-
             255,
             255,
             255,
             0
-
         );
 
     filter: blur(9px);
@@ -438,34 +351,24 @@ body {
     transform: scale(.94);
 
     transition:
-
         color 1s ease,
-
         filter 1.2s ease,
-
-        transform 1.2s
-        cubic-bezier(.2,.8,.2,1);
-
+        transform 1.2s cubic-bezier(.2,.8,.2,1);
 }
-
 
 .enter-area:hover .enter-bg {
 
     color:
-
         rgba(
-
             255,
             255,
             255,
             .045
-
         );
 
     filter: blur(2px);
 
     transform: scale(1);
-
 }
 
 
@@ -486,42 +389,31 @@ body {
     user-select: none;
 
     font-family:
-
         Arial,
         Helvetica,
         sans-serif;
 
-    font-size: 13px;
+    font-size: 14px;
 
     font-weight: 400;
 
-    letter-spacing: .35em;
+    letter-spacing: .42em;
 
-    margin-left: .35em;
+    margin-left: .42em;
 
     color:
-
         rgba(
-
             255,
             255,
             255,
             .7
-
         );
 
     transition:
-
         color .6s ease,
-
-        letter-spacing .8s
-        cubic-bezier(.2,.8,.2,1),
-
-        transform .8s
-        cubic-bezier(.2,.8,.2,1);
-
+        letter-spacing .8s cubic-bezier(.2,.8,.2,1),
+        transform .8s cubic-bezier(.2,.8,.2,1);
 }
-
 
 .enter::before {
 
@@ -532,7 +424,6 @@ body {
     inset: 0;
 
     border:
-
         1px solid
         rgba(
             255,
@@ -546,39 +437,28 @@ body {
     transform: scale(.92);
 
     transition:
-
         opacity .6s ease,
-
-        transform .8s
-        cubic-bezier(.2,.8,.2,1);
-
+        transform .8s cubic-bezier(.2,.8,.2,1);
 }
-
 
 .enter:hover {
 
     color:
-
         rgba(
-
             255,
             255,
             255,
             .95
-
         );
 
-    letter-spacing: .48em;
-
+    letter-spacing: .55em;
 }
-
 
 .enter:hover::before {
 
     opacity: 1;
 
     transform: scale(1);
-
 }
 
 
@@ -599,20 +479,14 @@ body {
     height: 90px;
 
     transform:
-
         translate(-50%,-50%)
         scale(.6);
 
     background:
-
         radial-gradient(
-
             ellipse,
-
             rgba(255,255,255,.08),
-
             transparent 70%
-
         );
 
     opacity: 0;
@@ -620,28 +494,21 @@ body {
     filter: blur(18px);
 
     transition:
-
         opacity .8s ease,
-
-        transform 1s
-        cubic-bezier(.2,.8,.2,1);
+        transform 1s cubic-bezier(.2,.8,.2,1);
 
     pointer-events: none;
 
     z-index: -1;
-
 }
-
 
 .enter:hover::after {
 
     opacity: 1;
 
     transform:
-
         translate(-50%,-50%)
         scale(1);
-
 }
 
 
@@ -673,17 +540,10 @@ body {
     overflow: hidden;
 
     transition:
-
-        opacity 1.5s
-        cubic-bezier(.77,0,.18,1),
-
-        transform 2s
-        cubic-bezier(.2,.8,.2,1),
-
+        opacity 1.5s cubic-bezier(.77,0,.18,1),
+        transform 2s cubic-bezier(.2,.8,.2,1),
         visibility 0s linear 1.5s;
-
 }
-
 
 #world.show {
 
@@ -696,21 +556,14 @@ body {
     pointer-events: auto;
 
     transition:
-
-        opacity 1.5s
-        cubic-bezier(.77,0,.18,1),
-
-        transform 2s
-        cubic-bezier(.2,.8,.2,1),
-
+        opacity 1.5s cubic-bezier(.77,0,.18,1),
+        transform 2s cubic-bezier(.2,.8,.2,1),
         visibility 0s;
-
 }
 
 
 /* =========================================================
    LIFE VIDEO
-   视频是“空间”，不是播放器
 ========================================================= */
 
 .life-video {
@@ -729,7 +582,6 @@ body {
     object-position: center;
 
     border: none;
-
     outline: none;
 
     background: #000;
@@ -739,11 +591,8 @@ body {
     transform: scale(1.08);
 
     filter:
-
         brightness(.32)
-
         contrast(1.08)
-
         saturate(.65);
 
     pointer-events: none;
@@ -753,24 +602,15 @@ body {
     -webkit-user-select: none;
 
     transition:
-
-        opacity 4s
-        cubic-bezier(.2,.8,.2,1),
-
-        transform 8s
-        cubic-bezier(.2,.8,.2,1);
-
+        opacity 4s cubic-bezier(.2,.8,.2,1),
+        transform 8s cubic-bezier(.2,.8,.2,1);
 }
-
-
-/* 视频出现 */
 
 #world.show .life-video {
 
     opacity: 1;
 
     transform: scale(1);
-
 }
 
 
@@ -789,21 +629,13 @@ body {
     pointer-events: none;
 
     background:
-
         radial-gradient(
-
             ellipse at center,
-
             rgba(0,0,0,0) 0%,
-
             rgba(0,0,0,.12) 35%,
-
             rgba(0,0,0,.48) 72%,
-
             rgba(0,0,0,.82) 100%
-
         );
-
 }
 
 
@@ -822,19 +654,12 @@ body {
     pointer-events: none;
 
     background:
-
         radial-gradient(
-
             ellipse at center,
-
             transparent 20%,
-
             rgba(0,0,0,.25) 55%,
-
             rgba(0,0,0,.72) 100%
-
         );
-
 }
 
 
@@ -847,34 +672,27 @@ body {
     position: absolute;
 
     left: 42px;
-
     top: 34px;
 
-    z-index: 7;
+    z-index: 10;
 
     opacity: 0;
 
     transform: translateY(-10px);
 
     transition:
-
         opacity 1.5s ease,
-
         transform 1.5s ease;
 
     transition-delay: 5.8s;
-
 }
-
 
 #world.show .world-logo {
 
     opacity: .7;
 
     transform: translateY(0);
-
 }
-
 
 .world-logo img {
 
@@ -883,73 +701,62 @@ body {
     height: auto;
 
     display: block;
-
 }
 
 
 /* =========================================================
-   LIFE COPY
+   CORE PHRASE
 ========================================================= */
 
-.life-copy {
+.core {
 
     position: absolute;
 
     left: 50%;
-
     top: 50%;
 
-    z-index: 5;
+    z-index: 7;
 
     transform:
-
         translate(-50%,-50%)
-        translateY(25px);
+        translateY(20px);
+
+    width: max-content;
 
     text-align: center;
 
-    white-space: nowrap;
+    pointer-events: none;
 
     opacity: 0;
 
     transition:
-
         opacity 2s ease,
+        transform 2s cubic-bezier(.2,.8,.2,1);
 
-        transform 2s
-        cubic-bezier(.2,.8,.2,1);
-
-    transition-delay: 8.3s;
-
+    transition-delay: 8.1s;
 }
 
-
-#world.show .life-copy {
+#world.show .core {
 
     opacity: 1;
 
     transform:
-
         translate(-50%,-50%)
         translateY(0);
-
 }
 
 
 /* =========================================================
-   CHINESE LIFE TEXT
+   CORE CHINESE
 ========================================================= */
 
-.life-copy .cn {
+.core-cn {
 
     font-size:
-
         clamp(
-
             18px,
             2vw,
             28px
-
         );
 
     font-weight: 300;
@@ -959,41 +766,33 @@ body {
     margin-left: .28em;
 
     color:
-
         rgba(
-
             255,
             255,
             255,
             .9
-
         );
-
 }
 
 
 /* =========================================================
-   ENGLISH LIFE TEXT
+   CORE ENGLISH
 ========================================================= */
 
-.life-copy .en {
+.core-en {
 
     margin-top: 20px;
 
     font-family:
-
         Arial,
         Helvetica,
         sans-serif;
 
     font-size:
-
         clamp(
-
             9px,
             .9vw,
             12px
-
         );
 
     font-weight: 300;
@@ -1003,186 +802,474 @@ body {
     margin-left: .3em;
 
     color:
-
         rgba(
-
             255,
             255,
             255,
             .52
-
         );
-
 }
 
 
 /* =========================================================
-   NAVIGATION
+   FOUR WORLDS
 ========================================================= */
 
-.main-nav {
+.world-entry {
 
     position: absolute;
 
-    left: 50%;
+    z-index: 8;
 
-    bottom: 7%;
+    text-align: center;
 
-    z-index: 6;
+    cursor: pointer;
 
-    transform:
+    user-select: none;
 
-        translateX(-50%)
-        translateY(15px);
-
-    display: flex;
-
-    align-items: center;
-
-    gap:
-
-        clamp(
-
-            28px,
-            5vw,
-            80px
-
-        );
+    width: 280px;
 
     opacity: 0;
 
     transition:
-
         opacity 1.5s ease,
-
-        transform 1.5s
-        cubic-bezier(.2,.8,.2,1);
-
-    transition-delay: 9s;
-
+        transform 1.5s cubic-bezier(.2,.8,.2,1);
 }
 
 
-#world.show .main-nav {
+/* ---------------------------------------------------------
+   TOP — FANTASY
+--------------------------------------------------------- */
 
-    opacity: 1;
+.world-entry.fantasy {
+
+    left: 50%;
+
+    top: 12%;
 
     transform:
-
         translateX(-50%)
-        translateY(0);
+        translateY(-15px);
 
+    transition-delay: 8.45s;
+}
+
+
+/* ---------------------------------------------------------
+   LEFT — YONDER
+--------------------------------------------------------- */
+
+.world-entry.yonder {
+
+    left: 10%;
+
+    top: 50%;
+
+    transform:
+        translateY(-50%)
+        translateX(-15px);
+
+    transition-delay: 8.65s;
+}
+
+
+/* ---------------------------------------------------------
+   RIGHT — INFINITE
+--------------------------------------------------------- */
+
+.world-entry.infinite {
+
+    right: 10%;
+
+    top: 50%;
+
+    transform:
+        translateY(-50%)
+        translateX(15px);
+
+    transition-delay: 8.8s;
+}
+
+
+/* ---------------------------------------------------------
+   BOTTOM — LIFE
+--------------------------------------------------------- */
+
+.world-entry.life {
+
+    left: 50%;
+
+    bottom: 12%;
+
+    transform:
+        translateX(-50%)
+        translateY(15px);
+
+    transition-delay: 8.95s;
 }
 
 
 /* =========================================================
-   NAV ITEM
+   SHOW FOUR WORLDS
 ========================================================= */
 
-.nav-item {
+#world.show .world-entry {
 
-    position: relative;
+    opacity: 1;
+}
 
-    color:
+#world.show .world-entry.fantasy {
 
-        rgba(
+    transform:
+        translateX(-50%)
+        translateY(0);
+}
 
-            255,
-            255,
-            255,
-            .6
+#world.show .world-entry.yonder {
 
-        );
+    transform:
+        translateY(-50%)
+        translateX(0);
+}
 
-    text-decoration: none;
+#world.show .world-entry.infinite {
 
-    font-family:
+    transform:
+        translateY(-50%)
+        translateX(0);
+}
 
-        Arial,
-        Helvetica,
-        sans-serif;
+#world.show .world-entry.life {
 
-    font-size: 11px;
-
-    font-weight: 400;
-
-    letter-spacing: .28em;
-
-    margin-left: .28em;
-
-    cursor: pointer;
-
-    transition:
-
-        color .5s ease,
-
-        letter-spacing .6s ease;
-
+    transform:
+        translateX(-50%)
+        translateY(0);
 }
 
 
-.nav-item::after {
+/* =========================================================
+   ENTRY TITLE
+========================================================= */
+
+.entry-title {
+
+    position: relative;
+
+    display: inline-block;
+
+    font-size:
+        clamp(
+            19px,
+            2vw,
+            27px
+        );
+
+    font-weight: 300;
+
+    letter-spacing: .32em;
+
+    margin-left: .32em;
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .68
+        );
+
+    transition:
+        color .7s ease,
+        letter-spacing .8s cubic-bezier(.2,.8,.2,1),
+        transform .8s cubic-bezier(.2,.8,.2,1);
+}
+
+
+/* =========================================================
+   ENTRY TITLE GLOW
+========================================================= */
+
+.entry-title::before {
 
     content: "";
 
     position: absolute;
 
     left: 50%;
+    top: 50%;
 
-    bottom: -8px;
+    width: 160px;
+    height: 70px;
 
-    width: 0;
-
-    height: 1px;
+    transform:
+        translate(-50%,-50%)
+        scale(.7);
 
     background:
-
-        rgba(
-
-            255,
-            255,
-            255,
-            .7
-
+        radial-gradient(
+            ellipse,
+            rgba(255,255,255,.07),
+            transparent 70%
         );
 
-    transform: translateX(-50%);
+    filter: blur(20px);
+
+    opacity: 0;
 
     transition:
+        opacity .8s ease,
+        transform 1s cubic-bezier(.2,.8,.2,1);
 
-        width .6s
-        cubic-bezier(.2,.8,.2,1);
+    pointer-events: none;
 
-}
-
-
-.nav-item:hover {
-
-    color:
-
-        rgba(
-
-            255,
-            255,
-            255,
-            1
-
-        );
-
-    letter-spacing: .38em;
-
-}
-
-
-.nav-item:hover::after {
-
-    width: 100%;
-
+    z-index: -1;
 }
 
 
 /* =========================================================
-   ANIMATION
+   ENTRY DESCRIPTION
+========================================================= */
+
+.entry-description {
+
+    margin-top: 12px;
+
+    opacity: 0;
+
+    transform: translateY(8px);
+
+    pointer-events: none;
+
+    transition:
+        opacity .8s ease,
+        transform .8s cubic-bezier(.2,.8,.2,1);
+}
+
+
+/* =========================================================
+   DESCRIPTION MAIN
+========================================================= */
+
+.entry-description .meaning {
+
+    font-size:
+        clamp(
+            12px,
+            1vw,
+            14px
+        );
+
+    font-weight: 300;
+
+    letter-spacing: .12em;
+
+    margin-left: .12em;
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .72
+        );
+
+    line-height: 1.8;
+}
+
+
+/* =========================================================
+   DESCRIPTION TAGS
+========================================================= */
+
+.entry-description .tags {
+
+    margin-top: 7px;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size:
+        clamp(
+            7px,
+            .7vw,
+            9px
+        );
+
+    font-weight: 300;
+
+    letter-spacing: .12em;
+
+    margin-left: .12em;
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .38
+        );
+
+    white-space: nowrap;
+}
+
+
+/* =========================================================
+   HOVER
+========================================================= */
+
+.world-entry:hover .entry-title {
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            1
+        );
+
+    letter-spacing: .4em;
+
+    transform: translateY(-2px);
+}
+
+.world-entry:hover .entry-title::before {
+
+    opacity: 1;
+
+    transform:
+        translate(-50%,-50%)
+        scale(1);
+}
+
+.world-entry:hover .entry-description {
+
+    opacity: 1;
+
+    transform: translateY(0);
+}
+
+
+/* =========================================================
+   HOVER OTHER ITEMS
+========================================================= */
+
+#world:has(.world-entry:hover)
+.world-entry:not(:hover) {
+
+    opacity: .32;
+}
+
+#world:has(.world-entry:hover) .core {
+
+    opacity: .72;
+}
+
+
+/* =========================================================
+   REALM
+========================================================= */
+
+.realm {
+
+    position: absolute;
+
+    left: 50%;
+
+    bottom: 3.8%;
+
+    z-index: 9;
+
+    transform:
+        translateX(-50%)
+        translateY(10px);
+
+    text-align: center;
+
+    pointer-events: none;
+
+    opacity: 0;
+
+    transition:
+        opacity 2s ease,
+        transform 2s cubic-bezier(.2,.8,.2,1);
+
+    transition-delay: 9.1s;
+}
+
+#world.show .realm {
+
+    opacity: 1;
+
+    transform:
+        translateX(-50%)
+        translateY(0);
+}
+
+
+/* =========================================================
+   REALM TITLE
+========================================================= */
+
+.realm-title {
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    font-size:
+        clamp(
+            8px,
+            .8vw,
+            11px
+        );
+
+    font-weight: 300;
+
+    letter-spacing: .45em;
+
+    margin-left: .45em;
+
+    color:
+        rgba(
+            255,
+            255,
+            255,
+            .3
+        );
+}
+
+
+/* =========================================================
+   SUBTLE SEPARATOR
+========================================================= */
+
+.realm::before {
+
+    content: "";
+
+    display: block;
+
+    width: 18px;
+
+    height: 1px;
+
+    margin: 0 auto 10px;
+
+    background:
+        rgba(
+            255,
+            255,
+            255,
+            .16
+        );
+}
+
+
+/* =========================================================
+   LOGO ANIMATION
 ========================================================= */
 
 @keyframes logoIn {
@@ -1193,7 +1280,6 @@ body {
 
         transform:
             translateY(24px);
-
     }
 
     to {
@@ -1202,9 +1288,7 @@ body {
 
         transform:
             translateY(0);
-
     }
-
 }
 
 
@@ -1212,13 +1296,12 @@ body {
    MOBILE
 ========================================================= */
 
-@media (max-width: 600px) {
+@media (max-width: 700px) {
 
 
     .logo img {
 
         width: 220px;
-
     }
 
 
@@ -1231,14 +1314,12 @@ body {
         letter-spacing: .45em;
 
         margin-left: .45em;
-
     }
 
 
     .slogan {
 
         margin-top: 46px;
-
     }
 
 
@@ -1247,66 +1328,21 @@ body {
 
         font-size: 14px;
 
-        letter-spacing: .12em;
+        letter-spacing: .1em;
 
-        margin-left: .12em;
-
+        margin-left: .1em;
     }
 
 
     .enter-area {
 
         margin-top: 60px;
-
     }
 
 
     .enter-bg {
 
         font-size: 54px;
-
-    }
-
-
-    .life-copy .cn {
-
-        font-size: 17px;
-
-        letter-spacing: .18em;
-
-        margin-left: .18em;
-
-    }
-
-
-    .life-copy .en {
-
-        font-size: 8px;
-
-        letter-spacing: .2em;
-
-        margin-left: .2em;
-
-    }
-
-
-    .main-nav {
-
-        bottom: 6%;
-
-        gap: 24px;
-
-    }
-
-
-    .nav-item {
-
-        font-size: 9px;
-
-        letter-spacing: .18em;
-
-        margin-left: .18em;
-
     }
 
 
@@ -1315,14 +1351,108 @@ body {
         left: 20px;
 
         top: 22px;
-
     }
 
 
     .world-logo img {
 
         width: 70px;
+    }
 
+
+    .core {
+
+        width: 90vw;
+    }
+
+
+    .core-cn {
+
+        font-size: 16px;
+
+        letter-spacing: .15em;
+
+        margin-left: .15em;
+    }
+
+
+    .core-en {
+
+        font-size: 7px;
+
+        letter-spacing: .16em;
+
+        margin-left: .16em;
+    }
+
+
+    .world-entry {
+
+        width: 190px;
+    }
+
+
+    .world-entry.fantasy {
+
+        top: 13%;
+    }
+
+
+    .world-entry.yonder {
+
+        left: 3%;
+    }
+
+
+    .world-entry.infinite {
+
+        right: 3%;
+    }
+
+
+    .world-entry.life {
+
+        bottom: 12%;
+    }
+
+
+    .entry-title {
+
+        font-size: 17px;
+
+        letter-spacing: .2em;
+
+        margin-left: .2em;
+    }
+
+
+    .entry-description .meaning {
+
+        font-size: 10px;
+
+        letter-spacing: .06em;
+
+        margin-left: .06em;
+    }
+
+
+    .entry-description .tags {
+
+        font-size: 6px;
+
+        letter-spacing: .05em;
+
+        margin-left: .05em;
+
+        white-space: normal;
+
+        line-height: 1.7;
+    }
+
+
+    .realm {
+
+        bottom: 4%;
     }
 
 }
@@ -1334,12 +1464,13 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
 
-    * {
+    *,
+    *::before,
+    *::after {
 
         animation-duration: .01ms !important;
 
         transition-duration: .01ms !important;
-
     }
 
 }
@@ -1353,7 +1484,7 @@ body {
 
 
 <!-- =======================================================
-     PAGE 1
+     PAGE 1 — HYOOL / 幻灵
 ======================================================= -->
 
 <section id="entrance">
@@ -1377,6 +1508,7 @@ body {
 
     <div class="slogan">
 
+
         <div class="line-one">
 
             自幻想，奔赴彼岸。
@@ -1389,6 +1521,7 @@ body {
             于无限，孕育生命。
 
         </div>
+
 
     </div>
 
@@ -1421,7 +1554,7 @@ body {
 
 
 <!-- =======================================================
-     PAGE 2
+     PAGE 2 — HYOOL REALM
 ======================================================= -->
 
 <section id="world">
@@ -1429,7 +1562,9 @@ body {
 
     <!-- ===================================================
          LIFE VIDEO
-         注意：这里绝对不要加入 controls
+
+         注意：
+         不要添加 controls
     ==================================================== -->
 
     <video
@@ -1456,7 +1591,7 @@ body {
 
 
     <!-- ===================================================
-         WORLD LOGO
+         SMALL HYOOL LOGO
     ==================================================== -->
 
     <div class="world-logo">
@@ -1470,20 +1605,165 @@ body {
 
 
     <!-- ===================================================
-         CORE MESSAGE
+         FOUR WORLD ENTRIES
     ==================================================== -->
 
-    <div class="life-copy">
+
+    <!-- FANTASY -->
+
+    <div
+        class="world-entry fantasy"
+        data-world="fantasy"
+    >
+
+        <div class="entry-title">
+
+            幻想
+
+        </div>
 
 
-        <div class="cn">
+        <div class="entry-description">
+
+            <div class="meaning">
+
+                让想象成为作品。
+
+            </div>
+
+
+            <div class="tags">
+
+                AI 图片 · 视频 · 音乐 · 故事 · 角色
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- YONDER -->
+
+    <div
+        class="world-entry yonder"
+        data-world="yonder"
+    >
+
+        <div class="entry-title">
+
+            彼岸
+
+        </div>
+
+
+        <div class="entry-description">
+
+            <div class="meaning">
+
+                让作品抵达彼岸。
+
+            </div>
+
+
+            <div class="tags">
+
+                展示 · 分享 · 发现 · 个人空间 · 社区
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- INFINITE -->
+
+    <div
+        class="world-entry infinite"
+        data-world="infinite"
+    >
+
+        <div class="entry-title">
+
+            无限
+
+        </div>
+
+
+        <div class="entry-description">
+
+            <div class="meaning">
+
+                让创造拥有无限可能。
+
+            </div>
+
+
+            <div class="tags">
+
+                AI 模型 · 工具 · 素材 · 工作流 · 实验
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- LIFE -->
+
+    <div
+        class="world-entry life"
+        data-world="life"
+    >
+
+        <div class="entry-title">
+
+            生命
+
+        </div>
+
+
+        <div class="entry-description">
+
+            <div class="meaning">
+
+                让创造拥有真正的存在。
+
+            </div>
+
+
+            <div class="tags">
+
+                AI 角色 · 数字人格 · 智能体 · 虚拟生命
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- ===================================================
+         CORE PHRASE
+    ==================================================== -->
+
+    <div class="core">
+
+
+        <div class="core-cn">
 
             幻想 × 彼岸 × 无限 × 生命
 
         </div>
 
 
-        <div class="en">
+        <div class="core-en">
 
             Fantasy · Yonder · Infinite · Life
 
@@ -1493,44 +1773,20 @@ body {
     </div>
 
 
+
     <!-- ===================================================
-         NAVIGATION
+         REALM
     ==================================================== -->
 
-    <nav class="main-nav">
+    <div class="realm">
 
+        <div class="realm-title">
 
-        <div
-            class="nav-item"
-            data-page="create"
-        >
-
-            CREATE
+            HYOOL REALM
 
         </div>
 
-
-        <div
-            class="nav-item"
-            data-page="explore"
-        >
-
-            EXPLORE
-
-        </div>
-
-
-        <div
-            class="nav-item"
-            data-page="life"
-        >
-
-            LIFE
-
-        </div>
-
-
-    </nav>
+    </div>
 
 
 </section>
@@ -1583,23 +1839,23 @@ button.addEventListener(
 
 
         /*
-           防止重复点击
-        */
+         * 防止重复点击
+         */
 
         button.style.pointerEvents =
             "none";
 
 
         /*
-           第一页退出
-        */
+         * 第一页离开
+         */
 
         entrance.classList.add("exit");
 
 
         /*
-           第二页进入
-        */
+         * 第二页进入
+         */
 
         setTimeout(
             () => {
@@ -1609,16 +1865,14 @@ button.addEventListener(
 
 
                 /*
-                   从第一帧开始
-                */
+                 * 从第一帧开始
+                 */
 
                 try {
 
                     lifeVideo.currentTime = 0;
 
-                }
-
-                catch (error) {
+                } catch (error) {
 
                     console.log(error);
 
@@ -1626,10 +1880,11 @@ button.addEventListener(
 
 
                 /*
-                   确保视频处于静音状态
-
-                   浏览器允许静音自动播放。
-                */
+                 * 确保静音
+                 *
+                 * 静音状态下浏览器允许
+                 * 自动播放。
+                 */
 
                 lifeVideo.muted = true;
 
@@ -1640,8 +1895,8 @@ button.addEventListener(
 
 
                 /*
-                   开始播放
-                */
+                 * 开始播放
+                 */
 
                 const playPromise =
                     lifeVideo.play();
@@ -1726,7 +1981,6 @@ enterArea.addEventListener(
 
 
         button.style.transform =
-
             `translate(
                 ${moveX}px,
                 ${moveY}px
@@ -1737,7 +1991,7 @@ enterArea.addEventListener(
 
 
 /* =========================================================
-   RESET ENTER BUTTON
+   RESET ENTER
 ========================================================= */
 
 enterArea.addEventListener(
@@ -1755,11 +2009,10 @@ enterArea.addEventListener(
 ========================================================= */
 
 /*
-   不循环。
-
-   视频播放结束后停在最后一帧，
-   让用户看到已经“苏醒”的生命世界。
-*/
+ * 不循环。
+ *
+ * 视频结束后停在最后一帧。
+ */
 
 lifeVideo.addEventListener(
     "ended",
@@ -1772,43 +2025,67 @@ lifeVideo.addEventListener(
 
 
 /* =========================================================
-   NAVIGATION
+   WORLD ENTRY INTERACTION
 ========================================================= */
 
-document
-    .querySelectorAll(".nav-item")
-    .forEach(
-        (item) => {
-
-
-            item.addEventListener(
-                "click",
-                () => {
-
-
-                    const page =
-                        item.dataset.page;
-
-
-                    console.log(
-                        "HYOOL:",
-                        page
-                    );
-
-
-                    /*
-                       后续接入真正页面：
-
-                       CREATE
-                       EXPLORE
-                       LIFE
-                    */
-
-                }
-            );
-
-        }
+const worldEntries =
+    document.querySelectorAll(
+        ".world-entry"
     );
+
+
+worldEntries.forEach(
+    (entry) => {
+
+
+        entry.addEventListener(
+            "mouseenter",
+            () => {
+
+                /*
+                 * 以后这里可以加入：
+                 *
+                 * - 页面切换
+                 * - 光线响应
+                 * - 粒子响应
+                 * - 声音
+                 * - 页面转场
+                 */
+
+                const worldName =
+                    entry.dataset.world;
+
+                console.log(
+                    "Enter:",
+                    worldName
+                );
+
+            }
+        );
+
+
+        entry.addEventListener(
+            "click",
+            () => {
+
+                const worldName =
+                    entry.dataset.world;
+
+                console.log(
+                    "HYOOL WORLD:",
+                    worldName
+                );
+
+
+                /*
+                 * 后续真正接入四个世界。
+                 */
+
+            }
+        );
+
+    }
+);
 
 
 /* =========================================================
@@ -1824,6 +2101,32 @@ button.addEventListener(
 
     }
 );
+
+
+/* =========================================================
+   FUTURE AUDIO
+========================================================= */
+
+/*
+ * 以后加入背景音乐时，
+ * 可以直接在这里接入。
+ *
+ * 例如：
+ *
+ * const ambientAudio =
+ *     new Audio("./ambient.mp3");
+ *
+ * ambientAudio.loop = true;
+ * ambientAudio.volume = 0;
+ *
+ * 然后在 ENTER HYOOL 点击后：
+ *
+ * ambientAudio.play();
+ *
+ * 再通过渐变慢慢提高音量。
+ *
+ * 现在暂时不启用。
+ */
 
 </script>
 
