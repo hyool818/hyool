@@ -1673,6 +1673,17 @@ function updateModal(){
 
 async function api(path, options = {}) {
 
+    const token = localStorage.getItem("hyool_token");
+
+    const headers = {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+    };
+
+    if (token) {
+        headers["Authorization"] = "Bearer " + token;
+    }
+
     const response = await fetch(
         path,
         {
@@ -1680,10 +1691,7 @@ async function api(path, options = {}) {
 
             ...options,
 
-            headers: {
-                "Content-Type": "application/json",
-                ...(options.headers || {})
-            }
+            headers: headers
         }
     );
 
@@ -1845,6 +1853,8 @@ authForm.addEventListener(
                     result.user
                 ) {
 
+                    if (result.token) localStorage.setItem("hyool_token", result.token);
+
                     goToYonder(
                         result.user.username
                     );
@@ -1929,6 +1939,8 @@ authForm.addEventListener(
                 result.success &&
                 result.user
             ) {
+
+                if (result.token) localStorage.setItem("hyool_token", result.token);
 
                 goToYonder(
                     result.user.username

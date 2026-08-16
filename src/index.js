@@ -945,6 +945,7 @@ async function createLoginResponse(
     return json(
         {
             success: true,
+            token: token,
             user: {
                 id: userId,
                 username: username,
@@ -1000,13 +1001,23 @@ function getSessionToken(request) {
             /(?:^|;\s*)hyool_session=([^;]+)/
         );
 
-    if (!match) {
-        return null;
+    if (match) {
+        return decodeURIComponent(
+            match[1]
+        );
     }
 
-    return decodeURIComponent(
-        match[1]
-    );
+    const auth =
+        request.headers.get("Authorization") || "";
+
+    const bearer =
+        auth.match(/^Bearer\s+(.+)/);
+
+    if (bearer) {
+        return bearer[1].trim();
+    }
+
+    return null;
 }
 
 

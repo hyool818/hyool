@@ -1350,7 +1350,13 @@ async function checkOwner() {
                 "/api/me",
                 {
                     credentials: "include",
-                    cache: "no-store"
+                    cache: "no-store",
+                    headers: (() => {
+                        const h = {};
+                        const t = localStorage.getItem("hyool_token");
+                        if (t) h["Authorization"] = "Bearer " + t;
+                        return h;
+                    })()
                 }
             );
 
@@ -1959,7 +1965,13 @@ async function saveSettings() {
 
                     headers: {
                         "Content-Type":
-                            "application/json"
+                            "application/json",
+                        ...(() => {
+                            const h = {};
+                            const t = localStorage.getItem("hyool_token");
+                            if (t) h["Authorization"] = "Bearer " + t;
+                            return h;
+                        })()
                     },
 
                     body:
