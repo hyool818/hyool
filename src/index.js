@@ -317,7 +317,11 @@ export default {
            /api/profile/:username
         ===================================================== */
 
-        if (pathname.startsWith("/api/profile/")) {
+        if (
+            pathname.startsWith("/api/profile/") &&
+            request.method === "GET" &&
+            !pathname.endsWith("/update")
+        ) {
             const username =
                 pathname
                     .substring("/api/profile/".length)
