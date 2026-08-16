@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>HYOOL · 相遇</title>
 <style>
 :root {
@@ -21,7 +21,7 @@ body {
     radial-gradient(circle at 50% 0%, rgba(100,100,180,.20), transparent 42%),
     linear-gradient(135deg, #11121a, #090a10 55%, #050507);
   background-attachment: fixed;
-  min-height: 100vh; overflow: hidden;
+  min-height: 100dvh; min-height: 100vh; overflow: hidden;
   line-height: 1.7;
 }
 a { color: inherit; text-decoration: none; }
@@ -51,7 +51,7 @@ a { color: inherit; text-decoration: none; }
 .header-link:hover { color: #fff; background: rgba(255,255,255,.12); }
 
 /* Layout */
-.app { display: flex; flex-direction: column; height: 100vh; padding-top: 64px; }
+.app { display: flex; flex-direction: column; height: 100dvh; height: 100vh; padding-top: 64px; }
 .chat-area { flex: 1; overflow-y: auto; padding: 24px 24px 8px; }
 .chat-inner { max-width: 760px; margin: 0 auto; }
 
@@ -74,12 +74,17 @@ a { color: inherit; text-decoration: none; }
 
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-.typing .bubble { position: relative; }
-.typing .bubble::after {
-  content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-  background: var(--accent); margin-left: 6px; animation: blink 1s infinite;
+.typing .bubble { display: flex; gap: 5px; align-items: center; padding: 16px 18px; }
+.typing .bubble span {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+  animation: dotBounce 1.2s infinite ease-in-out;
 }
-@keyframes blink { 0%,100% { opacity:.3; } 50% { opacity:1; } }
+.typing .bubble span:nth-child(2) { animation-delay: .15s; }
+.typing .bubble span:nth-child(3) { animation-delay: .3s; }
+@keyframes dotBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
 
 /* Memory bar */
 .mem-bar {
@@ -90,7 +95,7 @@ a { color: inherit; text-decoration: none; }
 
 /* Composer */
 .composer {
-  padding: 12px 24px 18px; border-top: 1px solid rgba(255,255,255,.06);
+  padding: 12px 24px calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,.06);
   background: rgba(5,5,8,.4); backdrop-filter: blur(8px);
 }
 .composer-inner { max-width: 760px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
@@ -178,7 +183,6 @@ const api = (p, o = {}) => {
 
 const $ = id => document.getElementById(id);
 const escapeHtml = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
-const isSvg = u => u && (u.endsWith(".svg") || u.includes("/portrait"));
 
 function getCharId() {
   const parts = location.pathname.split("/").filter(Boolean);
@@ -189,13 +193,18 @@ let character = null;
 let sending = false;
 
 function scrollBottom() { const a = $("chatArea"); a.scrollTop = a.scrollHeight; }
+if (window.visualViewport) window.visualViewport.addEventListener("resize", scrollBottom);
 
 function addMessage(role, content, animate) {
   const row = document.createElement("div");
   row.className = "msg-row " + role + (animate ? " typing" : "");
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.innerHTML = escapeHtml(content).replace(/\n/g, "<br>");
+  if (animate) {
+    bubble.innerHTML = "<span></span><span></span><span></span>";
+  } else {
+    bubble.innerHTML = escapeHtml(content).replace(/\n/g, "<br>");
+  }
   row.appendChild(bubble);
   $("chatInner").appendChild(row);
   scrollBottom();
@@ -225,7 +234,7 @@ function renderHeader(c) {
   $("charName").textContent = c.name || "TA";
   $("charWorld").textContent = c.world_name || "";
   const img = $("charAvatar");
-  if (c.image_url) { img.src = c.image_url; img.classList.toggle("svg-fallback", false); }
+  if (c.image_url) { img.src = c.image_url; }
   else { img.style.display = "none"; }
   if (c.share_url) $("shareLink").href = c.share_url;
 }
@@ -272,6 +281,12 @@ async function sendMessage() {
     if (!res.success) throw new Error(res.error || "对话失败。");
     typingRow.classList.remove("typing");
     typingRow.querySelector(".bubble").innerHTML = escapeHtml(res.reply).replace(/\n/g, "<br>");
+    if (res.memories_count !== undefined) {
+      const bar = document.querySelector(".mem-bar");
+      if (bar) {
+        bar.innerHTML = '<span class="dot"></span> TA 记得 ' + res.memories_count + ' 段与你有关的记忆';
+      }
+    }
     scrollBottom();
   } catch (e) {
     typingRow.remove();

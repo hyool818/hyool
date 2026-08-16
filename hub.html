@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>HYOOL · 数字生命库</title>
 <style>
 :root {
@@ -54,7 +54,7 @@ a { color: inherit; text-decoration: none; }
   transition: transform .25s, background .25s, border .25s;
   backdrop-filter: blur(18px); display: flex; flex-direction: column;
 }
-.card:hover { transform: translateY(-4px); background: rgba(255,255,255,.08); border-color: rgba(139,139,255,.3); }
+@media (hover: hover) { .card:hover { transform: translateY(-4px); background: rgba(255,255,255,.08); border-color: rgba(139,139,255,.3); } }
 .card .thumb { width: 100%; aspect-ratio: 4/3; object-fit: cover; background: #0c0d14; display: block; }
 .card .body { padding: 1rem 1.1rem 1.2rem; flex: 1; display: flex; flex-direction: column; }
 .card .name { font-size: 1.05rem; font-weight: 700; margin-bottom: .15rem; }
@@ -78,7 +78,15 @@ a { color: inherit; text-decoration: none; }
 .spinner { width: 26px; height: 26px; border: 2px solid rgba(255,255,255,.15); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 600px) { .page { padding: 100px 16px 60px; } .page-head h1 { font-size: 1.5rem; } }
+@media (max-width: 600px) {
+  .header { height: 58px; padding: 0 16px; }
+  .page { padding: 80px 16px calc(60px + env(safe-area-inset-bottom)); }
+  .page-head h1 { font-size: 1.5rem; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .8rem; }
+  .card .body { padding: .7rem .8rem .8rem; }
+  .card .name { font-size: .92rem; }
+  .header-link { padding: 7px 12px; font-size: 12px; }
+}
 @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 </style>
 </head>
@@ -103,7 +111,7 @@ a { color: inherit; text-decoration: none; }
     <div class="empty" id="empty" style="display:none;">
       <div class="big">○</div>
       <span id="emptyText">这里还没有数字生命。<br>去创造你的第一个吧。</span>
-      <div><button class="go" onclick="location.href='/yonder'">登录后创造</button></div>
+      <div><button class="go" onclick="location.href='/yonder.html?next=/create'">登录后创造</button></div>
     </div>
   </main>
 </div>

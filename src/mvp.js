@@ -180,7 +180,7 @@ export async function handleMvpRoutes(
             }
 
             const result = await env.DB.prepare(
-                `SELECT id, name, appearance, personality, story_hook, image_url, share_id, created_at, updated_at
+                `SELECT id, name, appearance, personality, story_hook, image_url, share_id, world_name, created_at, updated_at
                  FROM characters
                  WHERE owner_id = ?
                  ORDER BY created_at DESC`
@@ -314,9 +314,10 @@ export async function handleMvpRoutes(
                 `SELECT id, role, content, created_at
                  FROM messages
                  WHERE conversation_id = ?
-                 ORDER BY created_at ASC
+                 ORDER BY created_at DESC
                  LIMIT 100`
             ).bind(conversation.id).all();
+            (result.results || []).reverse();
 
             const memories = await getMemories(
                 env,
@@ -450,6 +451,10 @@ export async function handleMvpRoutes(
                 await trimMemories(env, characterId, user.id, 30);
             }
 
+            const memCount = await env.DB.prepare(
+                `SELECT COUNT(*) as cnt FROM memories WHERE character_id = ? AND user_id = ?`
+            ).bind(characterId, user.id).first();
+
             return json({
                 success: true,
                 reply: aiResult.reply,
@@ -458,6 +463,7 @@ export async function handleMvpRoutes(
                     role: "assistant",
                     content: aiResult.reply
                 },
+                memories_count: memCount?.cnt || 0,
                 ai_mode: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock"
             });
 

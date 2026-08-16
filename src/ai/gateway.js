@@ -101,7 +101,7 @@ function mockChat(character, memories, userMessage) {
     const reply =
         `${memoryHint}\n\n` +
         `作为${name}，我听到了你说：「${userMessage}」。\n\n` +
-        `（当前为 mock 对话模式。配置 AI_PROVIDER 与 AI_API_KEY 后可接入真实大模型。）`;
+        `（当前为 mock 对话模式。配置 GEMINI_API_KEY 后可接入真实大模型。）`;
 
     return {
         reply,
