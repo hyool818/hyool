@@ -96,7 +96,7 @@ a { color: inherit; text-decoration: none; }
 <div id="app" style="display:none;">
   <header class="header">
     <div style="display:flex;align-items:center;gap:14px;">
-      <a href="/" class="header-link" style="padding:8px 13px;font-size:13px;">← 返回</a>
+      <a href="/" id="backLink" class="header-link" style="padding:8px 13px;font-size:13px;">← 返回</a>
       <a class="logo" href="/"><img src="/logo1.png" alt="HYOOL"><span>HYOOL</span></a>
     </div>
     <div style="display:flex;gap:.6rem;" id="headerActions">
@@ -167,6 +167,10 @@ function renderCards(chars, isGuest) {
 document.addEventListener("DOMContentLoaded", async () => {
   const auth = await checkAuthSoft();
   const isGuest = !auth;
+
+  if (auth && auth.user && auth.user.username) {
+    document.getElementById("backLink").href = "/@" + auth.user.username;
+  }
 
   if (isGuest) {
     document.getElementById("createLink").style.display = "none";
