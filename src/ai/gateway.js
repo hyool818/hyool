@@ -2,8 +2,8 @@
  * HYOOL AI Gateway
  *
  * Env (Worker secrets / .dev.vars):
- *   GEMINI_API_KEY   API key — set this to enable real Gemini (unset = mock mode)
- *   AI_CHAT_MODEL    optional, defaults to gemini-2.5-flash
+ *   GEMINI_API_KEY or AI_API_KEY  API key — set either to enable real Gemini
+ *   AI_CHAT_MODEL    optional, defaults to gemini-flash-latest
  *   AI_CREATE_MODEL  optional, model for character JSON
  *   IMAGE_PROVIDER   mock | openai
  *   IMAGE_MODEL      e.g. dall-e-3
@@ -20,8 +20,12 @@ const CHARACTER_SCHEMA = {
     story_hook: "string"
 };
 
+function getApiKey(env) {
+    return env.GEMINI_API_KEY || env.AI_API_KEY || "";
+}
+
 export async function generateCharacterFromIdea(idea, env) {
-    if (!env.GEMINI_API_KEY) {
+    if (!getApiKey(env)) {
         return mockGenerateCharacter(idea);
     }
 
@@ -32,7 +36,7 @@ export async function chatWithCharacter(
     { character, memories, recentMessages, userMessage },
     env
 ) {
-    if (!env.GEMINI_API_KEY) {
+    if (!getApiKey(env)) {
         return mockChat(character, memories, userMessage);
     }
 
@@ -156,7 +160,7 @@ async function callChatModel(
 }
 
 async function callImageModel(character, env) {
-    const apiKey = env.GEMINI_API_KEY || env.AI_API_KEY || env.IMAGE_API_KEY;
+    const apiKey = getApiKey(env) || env.IMAGE_API_KEY;
     if (!apiKey) {
         throw new Error("IMAGE API key not configured.");
     }
@@ -205,12 +209,26 @@ function toGeminiMessages(messages) {
         .map((m) => m.content)
         .join("\n");
 
-    const contents = messages
+    const rawContents = messages
         .filter((m) => m.role !== "system")
         .map((m) => ({
             role: m.role === "assistant" ? "model" : "user",
             parts: [{ text: m.content }]
         }));
+
+    const contents = [];
+    for (const msg of rawContents) {
+        const last = contents[contents.length - 1];
+        if (last && last.role === msg.role) {
+            last.parts[0].text += "\n" + msg.parts[0].text;
+        } else {
+            contents.push({ ...msg, parts: [{ text: msg.parts[0].text }] });
+        }
+    }
+
+    while (contents.length > 0 && contents[0].role !== "user") {
+        contents.shift();
+    }
 
     return {
         systemInstruction: systemText ? { parts: [{ text: systemText }] } : undefined,
@@ -219,15 +237,28 @@ function toGeminiMessages(messages) {
 }
 
 async function chatCompletions(env, messages, modelOverride) {
-    const apiKey = env.GEMINI_API_KEY || env.AI_API_KEY;
+    const apiKey = getApiKey(env);
     if (!apiKey) {
-        throw new Error("GEMINI_API_KEY not configured.");
+        throw new Error("AI API key not configured.");
     }
 
     const model = modelOverride || env.AI_CHAT_MODEL || env.AI_CREATE_MODEL || "gemini-flash-latest";
     const { systemInstruction, contents } = toGeminiMessages(messages);
 
-    const body = { contents };
+    const body = {
+        contents,
+        generationConfig: {
+            temperature: 0.9,
+            maxOutputTokens: 2048,
+            topP: 0.95
+        },
+        safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" }
+        ]
+    };
     if (systemInstruction) {
         body.systemInstruction = systemInstruction;
     }
@@ -249,23 +280,34 @@ async function chatCompletions(env, messages, modelOverride) {
             const data = await response.json();
 
             if (!response.ok) {
-                lastError = new Error(data?.error?.message || "Gemini API failed.");
-                if (response.status !== 429 && response.status < 500) {
+                const errMsg = data?.error?.message || `Gemini API HTTP ${response.status}`;
+                lastError = new Error(errMsg);
+                if (response.status === 400) {
                     throw lastError;
                 }
-                await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
-                continue;
+                if (attempt < 2 && (response.status === 429 || response.status >= 500)) {
+                    await new Promise((r) => setTimeout(r, 1000 * (attempt + 1) * 2));
+                    continue;
+                }
+                throw lastError;
             }
 
-            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            const candidate = data?.candidates?.[0];
+            const finishReason = candidate?.finishReason;
+
+            const text = candidate?.content?.parts?.map((p) => p.text).filter(Boolean).join("");
             if (text) {
                 return text;
+            }
+
+            if (finishReason === "SAFETY" || finishReason === "RECITATION") {
+                return "（……似乎触发了安全过滤，换个话题聊聊吧。）";
             }
             return "（我一时不知该说什么……）";
         } catch (e) {
             lastError = e;
             if (attempt < 2) {
-                await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+                await new Promise((r) => setTimeout(r, 1000 * (attempt + 1) * 2));
                 continue;
             }
             throw e;

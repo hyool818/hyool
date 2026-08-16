@@ -141,7 +141,7 @@ export async function handleMvpRoutes(
                 character: formatCharacter(character),
                 share_url: `/s/${shareId}`,
                 buddy_url: `/buddy/${characterId}`,
-                ai_mode: env.AI_PROVIDER || "mock",
+                ai_mode: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock",
                 image_mode: env.IMAGE_PROVIDER || "mock"
             });
 
@@ -322,7 +322,7 @@ export async function handleMvpRoutes(
                 character: formatCharacter(character),
                 messages: result.results || [],
                 memories_count: memories.length,
-                ai_mode: env.AI_PROVIDER || "mock"
+                ai_mode: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock"
             });
 
         } catch (error) {
@@ -450,7 +450,7 @@ export async function handleMvpRoutes(
                     role: "assistant",
                     content: aiResult.reply
                 },
-                ai_mode: env.AI_PROVIDER || "mock"
+                ai_mode: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock"
             });
 
         } catch (error) {
@@ -458,7 +458,7 @@ export async function handleMvpRoutes(
 
             return json({
                 success: false,
-                error: "对话失败，请稍后再试。"
+                error: "对话失败：" + (error.message || "未知错误")
             }, 500);
         }
     }
@@ -468,11 +468,11 @@ export async function handleMvpRoutes(
     if (pathname === "/api/ai/status" && method === "GET") {
         return json({
             success: true,
-            ai_provider: env.AI_PROVIDER || "mock",
+            ai_provider: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock",
             image_provider: env.IMAGE_PROVIDER || "mock",
-            has_api_key: Boolean(env.AI_API_KEY),
-            create_model: env.AI_CREATE_MODEL || env.AI_CHAT_MODEL || null,
-            chat_model: env.AI_CHAT_MODEL || null,
+            has_api_key: Boolean(env.GEMINI_API_KEY || env.AI_API_KEY),
+            create_model: env.AI_CREATE_MODEL || env.AI_CHAT_MODEL || "gemini-flash-latest",
+            chat_model: env.AI_CHAT_MODEL || "gemini-flash-latest",
             image_model: env.IMAGE_MODEL || null
         });
     }
