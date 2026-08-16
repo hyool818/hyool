@@ -1022,7 +1022,7 @@ function createSessionCookie(token) {
         "Path=/",
         "HttpOnly",
         "Secure",
-        "SameSite=Lax",
+        "SameSite=None",
         "Max-Age=2592000"
     ].join("; ");
 }
@@ -1038,7 +1038,7 @@ function clearSessionCookie() {
         "Path=/",
         "HttpOnly",
         "Secure",
-        "SameSite=Lax",
+        "SameSite=None",
         "Max-Age=0"
     ].join("; ");
 }

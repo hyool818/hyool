@@ -196,18 +196,19 @@ function showStage(name) {
 let currentChar = null;
 
 async function checkAuth() {
-  try {
-    const res = await fetch("/api/me", { credentials: "include", cache: "no-store" });
-    const data = await res.json();
-    if (!data.authenticated) {
-      location.href = "/yonder.html?next=/create";
-      return false;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const res = await fetch("/api/me", { credentials: "include", cache: "no-store" });
+      const data = await res.json();
+      if (data.authenticated) return true;
+      if (i === 1) { location.href = "/yonder.html?next=/create"; return false; }
+    } catch {
+      if (i === 1) { location.href = "/yonder.html?next=/create"; return false; }
+      await new Promise(r => setTimeout(r, 800));
     }
-    return true;
-  } catch {
-    location.href = "/yonder.html?next=/create";
-    return false;
   }
+  location.href = "/yonder.html?next=/create";
+  return false;
 }
 
 function renderCharacter(c) {
