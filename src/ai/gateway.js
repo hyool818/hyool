@@ -3,7 +3,7 @@
  *
  * Env (Worker secrets / .dev.vars):
  *   AI_PROVIDER      mock | openai | openrouter
- *   AI_API_KEY       API key
+ *   GEMINI_API_KEY   API key (preferred; AI_API_KEY also works)
  *   AI_BASE_URL      optional, default OpenAI-compatible /v1
  *   AI_CREATE_MODEL  model for character JSON
  *   AI_CHAT_MODEL    model for buddy chat
@@ -162,7 +162,7 @@ async function callChatModel(
 }
 
 async function callImageModel(character, env) {
-    const apiKey = env.AI_API_KEY || env.IMAGE_API_KEY;
+    const apiKey = env.GEMINI_API_KEY || env.AI_API_KEY || env.IMAGE_API_KEY;
     if (!apiKey) {
         throw new Error("IMAGE API key not configured.");
     }
@@ -206,9 +206,9 @@ async function callImageModel(character, env) {
 }
 
 async function chatCompletions(env, messages, modelOverride) {
-    const apiKey = env.AI_API_KEY;
+    const apiKey = env.GEMINI_API_KEY || env.AI_API_KEY;
     if (!apiKey) {
-        throw new Error("AI_API_KEY not configured.");
+        throw new Error("GEMINI_API_KEY not configured.");
     }
 
     const baseUrl = normalizeBaseUrl(env.AI_BASE_URL);
