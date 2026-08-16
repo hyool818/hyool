@@ -421,7 +421,7 @@ body{
         opacity 1.5s ease,
         transform 1.5s ease;
 
-    transition-delay:5.8s;
+    transition-delay:2.5s;
 }
 
 #world.show .world-logo{
@@ -450,7 +450,8 @@ body{
 
     transform:
         translate(-50%,-50%)
-        translateY(20px);
+        translateY(50px)
+        scale(.82);
 
     width:max-content;
 
@@ -461,10 +462,10 @@ body{
     opacity:0;
 
     transition:
-        opacity 2s ease,
-        transform 2s cubic-bezier(.2,.8,.2,1);
+        opacity 1.5s ease,
+        transform 1.5s cubic-bezier(.2,.8,.2,1);
 
-    transition-delay:5.8s;
+    transition-delay:.3s;
 }
 
 #world.show .core{
@@ -472,7 +473,8 @@ body{
 
     transform:
         translate(-50%,-50%)
-        translateY(0);
+        translateY(0)
+        scale(1);
 }
 
 .core-cn{
@@ -1042,7 +1044,7 @@ body{
         opacity 2s ease,
         transform 2s cubic-bezier(.2,.8,.2,1);
 
-    transition-delay:5.9s;
+    transition-delay:3s;
 }
 
 #world.show .realm{
@@ -1888,7 +1890,7 @@ button.addEventListener(
                         );
 
                     },
-                    3000
+                    1200
                 );
 
 
