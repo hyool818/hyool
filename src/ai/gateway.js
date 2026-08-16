@@ -249,7 +249,7 @@ async function chatCompletions(env, messages, modelOverride) {
         contents,
         generationConfig: {
             temperature: 0.9,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 300,
             topP: 0.95
         },
         safetySettings: [
@@ -326,7 +326,13 @@ function buildBuddySystemPrompt(character, memories) {
         `说话风格：${character.speech_style || "自然"}`,
         `世界：${character.world_name || ""} — ${character.world_description || ""}`,
         "",
-        "保持角色一致性，用中文回复，不要跳出角色。",
+        "【回复规则——必须严格遵守】",
+        "- 像真人微信聊天一样，简短、自然、口语化。",
+        "- 每次回复控制在1~3句话，通常不超过50字。",
+        "- 不要写长段落、不要列举、不要用markdown格式。",
+        "- 不要自问自答，不要铺垫，直接回应对方的话。",
+        "- 可以偶尔用语气词、表情符号让对话更有温度。",
+        "- 保持角色一致性，用中文回复，不要跳出角色。",
         memories.length
             ? "相关记忆：\n- " + memories.map((m) => m.content).join("\n- ")
             : "这是你与用户的早期互动，可以自然建立关系。"
