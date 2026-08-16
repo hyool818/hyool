@@ -2,11 +2,9 @@
  * HYOOL AI Gateway
  *
  * Env (Worker secrets / .dev.vars):
- *   AI_PROVIDER      mock | openai | openrouter
- *   GEMINI_API_KEY   API key (preferred; AI_API_KEY also works)
- *   AI_BASE_URL      optional, default OpenAI-compatible /v1
- *   AI_CREATE_MODEL  model for character JSON
- *   AI_CHAT_MODEL    model for buddy chat
+ *   GEMINI_API_KEY   API key — set this to enable real Gemini (unset = mock mode)
+ *   AI_CHAT_MODEL    optional, defaults to gemini-2.5-flash
+ *   AI_CREATE_MODEL  optional, model for character JSON
  *   IMAGE_PROVIDER   mock | openai
  *   IMAGE_MODEL      e.g. dall-e-3
  */
@@ -23,9 +21,7 @@ const CHARACTER_SCHEMA = {
 };
 
 export async function generateCharacterFromIdea(idea, env) {
-    const provider = (env.AI_PROVIDER || "mock").toLowerCase();
-
-    if (provider === "mock") {
+    if (!env.GEMINI_API_KEY) {
         return mockGenerateCharacter(idea);
     }
 
@@ -36,9 +32,7 @@ export async function chatWithCharacter(
     { character, memories, recentMessages, userMessage },
     env
 ) {
-    const provider = (env.AI_PROVIDER || "mock").toLowerCase();
-
-    if (provider === "mock") {
+    if (!env.GEMINI_API_KEY) {
         return mockChat(character, memories, userMessage);
     }
 
@@ -205,38 +199,58 @@ async function callImageModel(character, env) {
     };
 }
 
+function toGeminiMessages(messages) {
+    const systemText = messages
+        .filter((m) => m.role === "system")
+        .map((m) => m.content)
+        .join("\n");
+
+    const contents = messages
+        .filter((m) => m.role !== "system")
+        .map((m) => ({
+            role: m.role === "assistant" ? "model" : "user",
+            parts: [{ text: m.content }]
+        }));
+
+    return {
+        systemInstruction: systemText ? { parts: [{ text: systemText }] } : undefined,
+        contents
+    };
+}
+
 async function chatCompletions(env, messages, modelOverride) {
     const apiKey = env.GEMINI_API_KEY || env.AI_API_KEY;
     if (!apiKey) {
         throw new Error("GEMINI_API_KEY not configured.");
     }
 
-    const baseUrl = normalizeBaseUrl(env.AI_BASE_URL);
-    const model =
-        modelOverride ||
-        env.AI_CHAT_MODEL ||
-        "gpt-4o-mini";
+    const model = modelOverride || env.AI_CHAT_MODEL || env.AI_CREATE_MODEL || "gemini-2.5-flash";
+    const { systemInstruction, contents } = toGeminiMessages(messages);
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            model,
-            messages,
-            temperature: 0.85
-        })
-    });
+    const body = { contents };
+    if (systemInstruction) {
+        body.systemInstruction = systemInstruction;
+    }
+
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-goog-api-key": apiKey
+            },
+            body: JSON.stringify(body)
+        }
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data?.error?.message || "Chat API failed.");
+        throw new Error(data?.error?.message || "Gemini API failed.");
     }
 
-    return data?.choices?.[0]?.message?.content || "";
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
 function buildBuddySystemPrompt(character, memories) {
