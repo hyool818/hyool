@@ -688,6 +688,179 @@ export default {
 
 
         /* =====================================================
+           UPDATE PROFILE
+           POST /api/profile/update
+        ===================================================== */
+
+        if (
+            pathname === "/api/profile/update" &&
+            request.method === "POST"
+        ) {
+            try {
+                const user =
+                    await getAuthenticatedUser(
+                        request,
+                        env
+                    );
+
+                if (!user) {
+                    return json({
+                        success: false,
+                        error: "请先登录。"
+                    }, 401);
+                }
+
+                const body = await request.json();
+
+                const displayName =
+                    cleanSettingValue(
+                        body.display_name,
+                        "",
+                        30
+                    );
+
+                const avatarUrl =
+                    cleanSettingValue(
+                        body.avatar_url,
+                        "",
+                        200000
+                    );
+
+                const bio =
+                    cleanSettingValue(
+                        body.bio,
+                        "",
+                        200
+                    );
+
+                await env.DB
+                    .prepare(
+                        `UPDATE profiles
+                         SET display_name = ?,
+                             avatar_url = ?,
+                             bio = ?,
+                             updated_at = CURRENT_TIMESTAMP
+                         WHERE id = ?`
+                    )
+                    .bind(
+                        displayName,
+                        avatarUrl,
+                        bio,
+                        user.id
+                    )
+                    .run();
+
+                const updatedProfile =
+                    await env.DB
+                        .prepare(
+                            `SELECT id, username, display_name, avatar_url, bio, background_url, theme
+                             FROM profiles WHERE id = ? LIMIT 1`
+                        )
+                        .bind(user.id)
+                        .first();
+
+                return json({
+                    success: true,
+                    profile: updatedProfile
+                });
+
+            } catch (error) {
+                return json({
+                    success: false,
+                    error: "资料更新失败：" + (error.message || "未知错误")
+                }, 500);
+            }
+        }
+
+
+        /* =====================================================
+           UPLOAD FILE
+           POST /api/upload
+        ===================================================== */
+
+        if (
+            pathname === "/api/upload" &&
+            request.method === "POST"
+        ) {
+            try {
+                const user =
+                    await getAuthenticatedUser(
+                        request,
+                        env
+                    );
+
+                if (!user) {
+                    return json({
+                        success: false,
+                        error: "请先登录。"
+                    }, 401);
+                }
+
+                const formData =
+                    await request.formData();
+
+                const file =
+                    formData.get("file");
+
+                if (!file || !file.size) {
+                    return json({
+                        success: false,
+                        error: "未选择文件。"
+                    }, 400);
+                }
+
+                if (file.size > 3 * 1024 * 1024) {
+                    return json({
+                        success: false,
+                        error: "文件过大（限 3MB 以内）。"
+                    }, 400);
+                }
+
+                const allowedTypes = [
+                    "image/jpeg",
+                    "image/png",
+                    "image/gif",
+                    "image/webp",
+                    "image/svg+xml"
+                ];
+
+                if (!allowedTypes.includes(file.type)) {
+                    return json({
+                        success: false,
+                        error: "仅支持 JPG/PNG/GIF/WebP/SVG 格式。"
+                    }, 400);
+                }
+
+                const arrayBuffer =
+                    await file.arrayBuffer();
+
+                const base64 =
+                    btoa(
+                        String.fromCharCode(
+                            ...new Uint8Array(arrayBuffer)
+                        )
+                    );
+
+                const dataUrl =
+                    `data:${file.type};base64,${base64}`;
+
+                return json({
+                    success: true,
+                    url: dataUrl,
+                    size: file.size,
+                    type: file.type
+                });
+
+            } catch (error) {
+                return json({
+                    success: false,
+                    error: "上传失败：" + (error.message || "未知错误")
+                }, 500);
+            }
+        }
+
+
+        /* =====================================================
            PERSONAL YONDER
            /@333123
         ===================================================== */

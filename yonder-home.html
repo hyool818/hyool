@@ -652,6 +652,91 @@ body {
 }
 
 
+.upload-row {
+
+    display: flex;
+
+    gap: 8px;
+
+    align-items: center;
+}
+
+
+.upload-row input {
+
+    flex: 1;
+}
+
+
+.upload-btn {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 9px 14px;
+
+    border-radius: 8px;
+
+    background: rgba(255,255,255,.08);
+
+    color: rgba(255,255,255,.82);
+
+    font-size: 13px;
+
+    cursor: pointer;
+
+    white-space: nowrap;
+
+    transition: background .2s;
+
+}
+
+
+.upload-btn:hover {
+
+    background: rgba(255,255,255,.14);
+}
+
+
+.preview-area {
+
+    margin-top: 10px;
+
+    min-height: 0;
+}
+
+
+.preview-area img {
+
+    width: 60px;
+
+    height: 60px;
+
+    border-radius: 50%;
+
+    object-fit: cover;
+
+    border: 2px solid rgba(255,255,255,.12);
+}
+
+
+.preview-area .preview-bg {
+
+    width: 100%;
+
+    height: 80px;
+
+    border-radius: 10px;
+
+    object-fit: cover;
+
+    border: 1px solid rgba(255,255,255,.12);
+}
+
+
 /* =====================================================
    CHECKBOXES
 ===================================================== */
@@ -1052,6 +1137,78 @@ body {
         </div>
 
 
+        <!-- PROFILE -->
+
+        <div class="form-group">
+
+            <label>
+                昵称
+            </label>
+
+            <input
+                id="editDisplayName"
+                type="text"
+                placeholder="你的昵称"
+                maxlength="30"
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label>
+                头像
+            </label>
+
+            <div class="upload-row">
+
+                <input
+                    id="editAvatarUrl"
+                    type="text"
+                    placeholder="图片 URL（可选）"
+                >
+
+                <label
+                    class="upload-btn"
+                >
+                    上传图片
+                    <input
+                        id="avatarFile"
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                        style="display:none;"
+                    >
+                </label>
+
+            </div>
+
+            <div
+                id="avatarPreview"
+                class="preview-area"
+            >
+            </div>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label>
+                简介
+            </label>
+
+            <textarea
+                id="editBio"
+                placeholder="介绍一下你自己"
+                maxlength="200"
+                rows="3"
+            >
+            </textarea>
+
+        </div>
+
+
         <!-- BACKGROUND -->
 
         <div class="form-group">
@@ -1087,11 +1244,27 @@ body {
                 背景内容
             </label>
 
-            <input
-                id="backgroundValue"
-                type="text"
-                placeholder="颜色 / 图片 URL"
-            >
+            <div class="upload-row">
+
+                <input
+                    id="backgroundValue"
+                    type="text"
+                    placeholder="颜色 / 图片 URL"
+                >
+
+                <label
+                    class="upload-btn"
+                >
+                    上传图片
+                    <input
+                        id="backgroundFile"
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                        style="display:none;"
+                    >
+                </label>
+
+            </div>
 
         </div>
 
@@ -1758,6 +1931,57 @@ function openEditor() {
     const settings =
         state.settings || {};
 
+    const profile =
+        state.profile || {};
+
+
+    // Profile fields
+
+    document
+        .getElementById(
+            "editDisplayName"
+        )
+        .value =
+            profile.display_name ||
+            "";
+
+    document
+        .getElementById(
+            "editAvatarUrl"
+        )
+        .value =
+            profile.avatar_url ||
+            "";
+
+    document
+        .getElementById(
+            "editBio"
+        )
+        .value =
+            profile.bio ||
+            "";
+
+
+    // Avatar preview
+
+    const avatarPreview =
+        document.getElementById(
+            "avatarPreview"
+        );
+
+    const avatarUrl =
+        profile.avatar_url ||
+        "";
+
+    if (avatarUrl) {
+        avatarPreview.innerHTML =
+            `<img src="${escapeHtml(avatarUrl)}" alt="">`;
+    } else {
+        avatarPreview.innerHTML = "";
+    }
+
+
+    // Background fields
 
     document
         .getElementById(
@@ -1877,6 +2101,85 @@ async function saveSettings() {
 
 
     try {
+
+        // Save profile first
+
+        const profilePayload = {
+
+            display_name:
+                document
+                    .getElementById(
+                        "editDisplayName"
+                    )
+                    .value
+                    .trim(),
+
+            avatar_url:
+                document
+                    .getElementById(
+                        "editAvatarUrl"
+                    )
+                    .value
+                    .trim(),
+
+            bio:
+                document
+                    .getElementById(
+                        "editBio"
+                    )
+                    .value
+                    .trim()
+
+        };
+
+
+        const profileResponse =
+            await fetch(
+                "/api/profile/update",
+                {
+                    method: "POST",
+
+                    credentials:
+                        "include",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                        ...(() => {
+                            const h = {};
+                            const t = localStorage.getItem("hyool_token");
+                            if (t) h["Authorization"] = "Bearer " + t;
+                            return h;
+                        })()
+                    },
+
+                    body:
+                        JSON.stringify(
+                            profilePayload
+                        )
+                }
+            );
+
+
+        const profileData =
+            await profileResponse.json();
+
+
+        if (!profileData.success) {
+
+            throw new Error(
+                profileData.error ||
+                "资料保存失败"
+            );
+
+        }
+
+
+        state.profile =
+            profileData.profile;
+
+
+        // Now save settings
 
         const backgroundType =
             document
@@ -2003,6 +2306,9 @@ async function saveSettings() {
         applySettings(
             state.settings
         );
+
+
+        renderProfile();
 
 
         closeEditor();
@@ -2285,6 +2591,178 @@ document
                     .value =
                         event.target.value;
 
+            }
+
+        }
+    );
+
+
+/* =====================================================
+   FILE UPLOAD
+===================================================== */
+
+async function uploadFile(
+    fileInput
+) {
+
+    const file =
+        fileInput.files &&
+        fileInput.files[0];
+
+    if (!file) return null;
+
+    const formData =
+        new FormData();
+
+    formData.append(
+        "file",
+        file
+    );
+
+    const response =
+        await fetch(
+            "/api/upload",
+            {
+                method: "POST",
+                credentials: "include",
+                headers: (() => {
+                    const h = {};
+                    const t = localStorage.getItem("hyool_token");
+                    if (t) h["Authorization"] = "Bearer " + t;
+                    return h;
+                })(),
+                body: formData
+            }
+        );
+
+    const data =
+        await response.json();
+
+    if (!data.success) {
+
+        throw new Error(
+            data.error ||
+            "上传失败"
+        );
+
+    }
+
+    return data.url;
+
+}
+
+
+document
+    .getElementById(
+        "avatarFile"
+    )
+    .addEventListener(
+        "change",
+        async event => {
+
+            try {
+
+                const url =
+                    await uploadFile(
+                        event.target
+                    );
+
+                if (url) {
+
+                    document
+                        .getElementById(
+                            "editAvatarUrl"
+                        )
+                        .value = url;
+
+                    document
+                        .getElementById(
+                            "avatarPreview"
+                        )
+                        .innerHTML =
+                            `<img src="${escapeHtml(url)}" alt="">`;
+
+                }
+
+            } catch (error) {
+
+                alert(
+                    error.message ||
+                    "头像上传失败。"
+                );
+
+            }
+
+        }
+    );
+
+
+document
+    .getElementById(
+        "backgroundFile"
+    )
+    .addEventListener(
+        "change",
+        async event => {
+
+            try {
+
+                const url =
+                    await uploadFile(
+                        event.target
+                    );
+
+                if (url) {
+
+                    document
+                        .getElementById(
+                            "backgroundValue"
+                        )
+                        .value = url;
+
+                    document
+                        .getElementById(
+                            "backgroundType"
+                        )
+                        .value = "image";
+
+                }
+
+            } catch (error) {
+
+                alert(
+                    error.message ||
+                    "背景上传失败。"
+                );
+
+            }
+
+        }
+    );
+
+
+document
+    .getElementById(
+        "editAvatarUrl"
+    )
+    .addEventListener(
+        "input",
+        event => {
+
+            const url =
+                event.target.value
+                    .trim();
+
+            const preview =
+                document.getElementById(
+                    "avatarPreview"
+                );
+
+            if (url) {
+                preview.innerHTML =
+                    `<img src="${escapeHtml(url)}" alt="">`;
+            } else {
+                preview.innerHTML = "";
             }
 
         }
