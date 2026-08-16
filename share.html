@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>HYOOL · 分享</title>
+<style>
+:root {
+  --accent: #8b8bff;
+  --text: rgba(255,255,255,.94);
+  --muted: rgba(255,255,255,.55);
+  --glass: rgba(255,255,255,.06);
+  --glass-border: rgba(255,255,255,.11);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(100,100,180,.20), transparent 42%),
+    linear-gradient(135deg, #11121a, #090a10 55%, #050507);
+  background-attachment: fixed; min-height: 100vh; overflow-x: hidden; line-height: 1.7;
+}
+a { color: inherit; text-decoration: none; }
+
+.header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50; height: 72px;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 28px;
+  background: linear-gradient(to bottom, rgba(5,5,8,.52), transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.header .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .12em; font-size: 15px; }
+.header .logo img { height: 30px; width: auto; }
+.header-link {
+  border: 0; background: rgba(255,255,255,.06); color: rgba(255,255,255,.76);
+  padding: 9px 14px; border-radius: 999px; font-size: 13px; cursor: pointer;
+  transition: background .2s, color .2s, transform .2s;
+}
+.header-link:hover { color: #fff; background: rgba(255,255,255,.12); transform: translateY(-1px); }
+.header-link.accent { background: var(--accent); color: #0a0a12; font-weight: 600; }
+
+.page { max-width: 820px; margin: 0 auto; padding: 120px 24px 100px; }
+
+.share-card {
+  border: 1px solid var(--glass-border); background: rgba(255,255,255,.05);
+  border-radius: 22px; overflow: hidden; backdrop-filter: blur(18px);
+  box-shadow: 0 18px 50px rgba(0,0,0,.20);
+}
+.portrait { width: 100%; aspect-ratio: 1/1; max-height: 420px; object-fit: cover; background: #0c0d14; display: block; }
+.body { padding: 1.8rem 2rem 2rem; }
+.body h1 { font-size: 2rem; font-weight: 800; margin-bottom: .2rem; }
+.body .world { color: var(--accent); font-size: .88rem; margin-bottom: 1.4rem; }
+.intro { font-size: .92rem; color: rgba(255,255,255,.7); margin-bottom: 1.6rem; line-height: 1.7; }
+.field { margin-bottom: 1rem; }
+.field .k { font-size: .72rem; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-bottom: .25rem; }
+.field .v { font-size: .92rem; color: rgba(255,255,255,.86); }
+.actions { display: flex; gap: .8rem; margin-top: 1.8rem; flex-wrap: wrap; }
+.btn {
+  border: 0; border-radius: 13px; padding: 14px 22px; font-size: 14px; cursor: pointer;
+  font-weight: 600; transition: opacity .2s, transform .2s, background .2s;
+  text-align: center; flex: 1; min-width: 140px;
+}
+.btn-primary { background: var(--accent); color: #0a0a12; }
+.btn-primary:hover { opacity: .88; transform: translateY(-1px); }
+.btn-ghost { background: rgba(255,255,255,.06); color: rgba(255,255,255,.82); border: 1px solid rgba(255,255,255,.12); }
+.btn-ghost:hover { background: rgba(255,255,255,.12); color: #fff; transform: translateY(-1px); }
+
+.loading-screen { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; color: var(--muted); flex-direction: column; gap: 14px; }
+.spinner { width: 26px; height: 26px; border: 2px solid rgba(255,255,255,.15); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.err-screen { text-align: center; padding: 2rem; }
+.err-screen a { color: var(--accent); }
+
+@media (max-width: 600px) { .page { padding: 100px 16px 60px; } .actions { flex-direction: column; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+<div class="loading-screen" id="loading"><span class="spinner"></span><span>正在打开分享……</span></div>
+
+<div id="app" style="display:none;">
+  <header class="header">
+    <a class="logo" href="/"><img src="/logo1.png" alt="HYOOL"><span>HYOOL</span></a>
+    <a class="header-link accent" href="/create">创造我的数字生命</a>
+  </header>
+
+  <main class="page">
+    <div class="share-card">
+      <img class="portrait" id="charImg" alt="">
+      <div class="body">
+        <h1 id="charName"></h1>
+        <div class="world" id="charWorld"></div>
+        <div class="intro" id="charIntro"></div>
+        <div class="field"><div class="k">外貌</div><div class="v" id="charAppearance"></div></div>
+        <div class="field"><div class="k">性格</div><div class="v" id="charPersonality"></div></div>
+        <div class="field"><div class="k">背景</div><div class="v" id="charBackground"></div></div>
+        <div class="field"><div class="k">说话风格</div><div class="v" id="charSpeech"></div></div>
+        <div class="field"><div class="k">故事钩子</div><div class="v" id="charHook"></div></div>
+        <div class="actions">
+          <a class="btn btn-primary" id="meetBtn">与 TA 相遇</a>
+          <a class="btn btn-ghost" href="/create">创造我的</a>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const escapeHtml = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+
+function getShareId() {
+  const parts = location.pathname.split("/").filter(Boolean);
+  return parts[1] || "";
+}
+
+async function load() {
+  const id = getShareId();
+  if (!id) { showError("无效的分享链接。"); return; }
+  try {
+    const res = await fetch("/api/share/" + id, { credentials: "include", cache: "no-store" });
+    const data = await res.json();
+    if (!data.success) { showError(data.error || "分享不存在或已失效。"); return; }
+    const c = data.character;
+    document.getElementById("charImg").src = c.image_url || "";
+    document.getElementById("charImg").onerror = function() { this.style.opacity = .2; };
+    document.getElementById("charName").textContent = c.name || "未名";
+    document.getElementById("charWorld").textContent = (c.world_name ? c.world_name + " — " : "") + (c.world_description || "");
+    document.getElementById("charIntro").textContent = c.story_hook || c.appearance || "";
+    document.getElementById("charAppearance").textContent = c.appearance || "—";
+    document.getElementById("charPersonality").textContent = c.personality || "—";
+    document.getElementById("charBackground").textContent = c.background || "—";
+    document.getElementById("charSpeech").textContent = c.speech_style || "—";
+    document.getElementById("charHook").textContent = c.story_hook || "—";
+    document.getElementById("meetBtn").href = "/buddy/" + encodeURIComponent(c.id);
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    document.title = "HYOOL · " + (c.name || "分享");
+  } catch (e) {
+    showError("加载失败：" + e.message);
+  }
+}
+
+function showError(msg) {
+  document.getElementById("loading").innerHTML = '<div class="err-screen">' + escapeHtml(msg) + '<br><br><a href="/">返回首页</a> · <a href="/create">去创造</a></div>';
+}
+
+document.addEventListener("DOMContentLoaded", load);
+</script>
+</body>
+</html>

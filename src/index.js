@@ -1,3 +1,5 @@
+import { handleMvpRoutes } from "./mvp.js";
+
 export default {
     async fetch(request, env) {
         const url = new URL(request.url);
@@ -752,6 +754,40 @@ export default {
                         String(error)
                 }, 500);
             }
+        }
+
+
+        /* =====================================================
+           MVP: CREATE / BUDDY / HUB / SHARE
+        ===================================================== */
+
+        const mvpResponse = await handleMvpRoutes(
+            request,
+            env,
+            pathname,
+            request.method,
+            {
+                json,
+                getAuthenticatedUser: (req) =>
+                    getAuthenticatedUser(req, env),
+                serveHtml: async (filename) => {
+                    const assetUrl = new URL(
+                        "/" + filename,
+                        request.url
+                    );
+
+                    return env.ASSETS.fetch(
+                        new Request(assetUrl, {
+                            method: "GET",
+                            headers: request.headers
+                        })
+                    );
+                }
+            }
+        );
+
+        if (mvpResponse) {
+            return mvpResponse;
         }
 
 
