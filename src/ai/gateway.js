@@ -224,7 +224,7 @@ async function chatCompletions(env, messages, modelOverride) {
         throw new Error("GEMINI_API_KEY not configured.");
     }
 
-    const model = modelOverride || env.AI_CHAT_MODEL || env.AI_CREATE_MODEL || "gemini-2.5-flash";
+    const model = modelOverride || env.AI_CHAT_MODEL || env.AI_CREATE_MODEL || "gemini-flash-latest";
     const { systemInstruction, contents } = toGeminiMessages(messages);
 
     const body = { contents };
