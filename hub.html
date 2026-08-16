@@ -95,7 +95,10 @@ a { color: inherit; text-decoration: none; }
 
 <div id="app" style="display:none;">
   <header class="header">
-    <a class="logo" href="/"><img src="/logo1.png" alt="HYOOL"><span>HYOOL</span></a>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <a href="/" class="header-link" style="padding:8px 13px;font-size:13px;">← 返回</a>
+      <a class="logo" href="/"><img src="/logo1.png" alt="HYOOL"><span>HYOOL</span></a>
+    </div>
     <div style="display:flex;gap:.6rem;" id="headerActions">
       <a class="header-link accent" href="/create" id="createLink">+ 创造</a>
       <button class="header-link" id="logoutBtn">退出</button>
