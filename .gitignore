@@ -1,0 +1,21 @@
+# Wrangler local state
+.wrangler/
+.dev.vars
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Archives (avoid re-importing duplicates)
+*.zip
