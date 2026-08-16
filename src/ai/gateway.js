@@ -232,25 +232,47 @@ async function chatCompletions(env, messages, modelOverride) {
         body.systemInstruction = systemInstruction;
     }
 
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-goog-api-key": apiKey
-            },
-            body: JSON.stringify(body)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    let lastError;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": apiKey
+                },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                lastError = new Error(data?.error?.message || "Gemini API failed.");
+                if (response.status !== 429 && response.status < 500) {
+                    throw lastError;
+                }
+                await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+                continue;
+            }
+
+            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+                return text;
+            }
+            return "（我一时不知该说什么……）";
+        } catch (e) {
+            lastError = e;
+            if (attempt < 2) {
+                await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+                continue;
+            }
+            throw e;
         }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data?.error?.message || "Gemini API failed.");
     }
 
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    throw lastError || new Error("Gemini API failed after retries.");
 }
 
 function buildBuddySystemPrompt(character, memories) {
