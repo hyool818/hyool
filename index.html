@@ -456,7 +456,7 @@ body{
 
     text-align:center;
 
-    pointer-events:none;
+    pointer-events:auto;
 
     opacity:0;
 
@@ -503,6 +503,55 @@ body{
 
 
 /* =========================================================
+   CORE ENTRY (clickable words)
+========================================================= */
+
+.core-entry{
+    display:inline-block;
+
+    cursor:pointer;
+
+    padding-bottom:5px;
+
+    border-bottom:1px solid transparent;
+
+    transition:
+        color .6s ease,
+        text-shadow .6s ease,
+        border-color .6s ease,
+        opacity .5s ease,
+        transform .6s cubic-bezier(.2,.8,.2,1);
+}
+
+.core-entry:hover{
+    color:#fff;
+
+    text-shadow:
+        0 0 14px rgba(255,255,255,.45),
+        0 0 32px rgba(255,255,255,.18);
+
+    border-bottom-color:
+        rgba(255,255,255,.35);
+
+    transform:translateY(-2px);
+}
+
+.core-cn:hover .core-entry:not(:hover){
+    opacity:.38;
+}
+
+.core-sep{
+    display:inline-block;
+
+    margin:0 .18em;
+
+    color:rgba(255,255,255,.16);
+
+    font-weight:200;
+}
+
+
+/* =========================================================
    FLOATING STAR
 ========================================================= */
 
@@ -514,7 +563,7 @@ body{
     width:32px;
     height:32px;
 
-    cursor:pointer;
+    cursor:default;
 
     opacity:0;
 
@@ -586,7 +635,7 @@ body{
 
 
 /* =========================================================
-   STAR CORE
+   STAR ORB (core light point)
 ========================================================= */
 
 .light::before{
@@ -597,30 +646,28 @@ body{
     left:50%;
     top:50%;
 
-    width:5px;
-    height:5px;
+    width:3px;
+    height:3px;
 
-    transform:
-        translate(-50%,-50%)
-        rotate(45deg);
+    transform:translate(-50%,-50%);
 
-    background:rgba(255,255,255,.92);
+    border-radius:50%;
 
-    border-radius:
-        45% 55% 48% 52%;
+    background:rgba(255,255,255,1);
 
     box-shadow:
-        0 0 7px rgba(255,255,255,.8),
-        0 0 18px rgba(255,255,255,.38),
-        0 0 45px rgba(255,255,255,.14);
+        0 0 4px rgba(255,255,255,.9),
+        0 0 10px rgba(255,255,255,.45),
+        0 0 22px rgba(255,255,255,.2),
+        0 0 42px rgba(255,255,255,.08);
 
     animation:
-        starPulse 4.8s ease-in-out infinite;
+        orbPulse 4.5s ease-in-out infinite;
 }
 
 
 /* =========================================================
-   STAR RAYS
+   STAR HALO (subtle ring)
 ========================================================= */
 
 .light::after{
@@ -631,39 +678,20 @@ body{
     left:50%;
     top:50%;
 
-    width:44px;
-    height:44px;
+    width:20px;
+    height:20px;
 
-    transform:
-        translate(-50%,-50%)
-        rotate(45deg);
+    transform:translate(-50%,-50%);
 
-    background:
+    border-radius:50%;
 
-        linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255,255,255,.16) 42%,
-            rgba(255,255,255,.75) 50%,
-            rgba(255,255,255,.16) 58%,
-            transparent 100%
-        ),
+    border:1px solid rgba(255,255,255,.05);
 
-        linear-gradient(
-            0deg,
-            transparent 0%,
-            rgba(255,255,255,.12) 42%,
-            rgba(255,255,255,.65) 50%,
-            rgba(255,255,255,.12) 58%,
-            transparent 100%
-        );
-
-    filter:blur(1px);
-
-    opacity:.55;
+    box-shadow:
+        inset 0 0 6px rgba(255,255,255,.03);
 
     animation:
-        starRay 5.5s ease-in-out infinite;
+        haloPulse 7s ease-in-out infinite;
 }
 
 
@@ -705,111 +733,66 @@ body{
 
 
 /* =========================================================
-   STAR PULSE
+   ORB PULSE
 ========================================================= */
 
-@keyframes starPulse{
+@keyframes orbPulse{
 
-    0%{
-        opacity:.32;
-
-        transform:
-            translate(-50%,-50%)
-            rotate(45deg)
-            scale(.65);
-
-        box-shadow:
-            0 0 5px rgba(255,255,255,.4),
-            0 0 16px rgba(255,255,255,.16);
-    }
-
-    35%{
-        opacity:.75;
+    0%,100%{
+        opacity:.4;
 
         transform:
             translate(-50%,-50%)
-            rotate(58deg)
-            scale(.85);
+            scale(.75);
 
         box-shadow:
-            0 0 9px rgba(255,255,255,.7),
-            0 0 28px rgba(255,255,255,.32);
+            0 0 3px rgba(255,255,255,.5),
+            0 0 8px rgba(255,255,255,.22),
+            0 0 18px rgba(255,255,255,.1);
     }
 
-    55%{
+    50%{
         opacity:1;
 
         transform:
             translate(-50%,-50%)
-            rotate(38deg)
-            scale(1.15);
+            scale(1.2);
 
         box-shadow:
-            0 0 12px rgba(255,255,255,.9),
-            0 0 42px rgba(255,255,255,.38),
-            0 0 75px rgba(255,255,255,.12);
-    }
-
-    75%{
-        opacity:.55;
-
-        transform:
-            translate(-50%,-50%)
-            rotate(51deg)
-            scale(.82);
-    }
-
-    100%{
-        opacity:.32;
-
-        transform:
-            translate(-50%,-50%)
-            rotate(45deg)
-            scale(.65);
+            0 0 5px rgba(255,255,255,.95),
+            0 0 14px rgba(255,255,255,.5),
+            0 0 30px rgba(255,255,255,.22),
+            0 0 55px rgba(255,255,255,.08);
     }
 }
 
 
 /* =========================================================
-   STAR RAY
+   HALO PULSE
 ========================================================= */
 
-@keyframes starRay{
+@keyframes haloPulse{
 
     0%,100%{
-        opacity:.22;
+        opacity:.12;
 
         transform:
             translate(-50%,-50%)
-            rotate(45deg)
-            scale(.65);
-    }
-
-    45%{
-        opacity:.55;
-
-        transform:
-            translate(-50%,-50%)
-            rotate(42deg)
-            scale(1);
-    }
-
-    60%{
-        opacity:.8;
-
-        transform:
-            translate(-50%,-50%)
-            rotate(48deg)
-            scale(1.25);
-    }
-
-    80%{
-        opacity:.3;
-
-        transform:
-            translate(-50%,-50%)
-            rotate(43deg)
             scale(.8);
+
+        border-color:
+            rgba(255,255,255,.03);
+    }
+
+    50%{
+        opacity:.32;
+
+        transform:
+            translate(-50%,-50%)
+            scale(1.15);
+
+        border-color:
+            rgba(255,255,255,.09);
     }
 }
 
@@ -934,7 +917,7 @@ body{
 
 
 /* =========================================================
-   UNIFIED LABEL DISTANCE
+   LABEL POSITION (hidden, decoration only)
 ========================================================= */
 
 .light.fantasy .light-label{
@@ -943,29 +926,11 @@ body{
         translateY(-62px);
 }
 
-.light.fantasy:hover .light-label{
-    opacity:1;
-
-    transform:
-        translate(-50%,-50%)
-        translateY(-68px);
-}
-
-
 .light.yonder .light-label{
     transform:
         translate(-100%,-50%)
         translateX(-48px);
 }
-
-.light.yonder:hover .light-label{
-    opacity:1;
-
-    transform:
-        translate(-100%,-50%)
-        translateX(-54px);
-}
-
 
 .light.infinite .light-label{
     transform:
@@ -973,74 +938,10 @@ body{
         translateX(48px);
 }
 
-.light.infinite:hover .light-label{
-    opacity:1;
-
-    transform:
-        translate(0,-50%)
-        translateX(54px);
-}
-
-
 .light.life .light-label{
     transform:
         translate(-50%,-50%)
         translateY(62px);
-}
-
-.light.life:hover .light-label{
-    opacity:1;
-
-    transform:
-        translate(-50%,-50%)
-        translateY(68px);
-}
-
-
-/* =========================================================
-   HOVER STAR
-========================================================= */
-
-.light:hover{
-    z-index:15;
-
-    transform:scale(1.2);
-}
-
-.light:hover::before{
-
-    animation-play-state:paused;
-
-    opacity:1;
-
-    transform:
-        translate(-50%,-50%)
-        rotate(45deg)
-        scale(1.55);
-
-    box-shadow:
-        0 0 15px rgba(255,255,255,.95),
-        0 0 45px rgba(255,255,255,.55),
-        0 0 100px rgba(255,255,255,.2);
-}
-
-.light:hover::after{
-
-    opacity:1;
-
-    transform:
-        translate(-50%,-50%)
-        rotate(45deg)
-        scale(1.6);
-}
-
-
-/* =========================================================
-   CENTER DIM WHEN HOVER
-========================================================= */
-
-#world:has(.light:hover) .core{
-    opacity:.35;
 }
 
 
@@ -1687,7 +1588,13 @@ body{
     <div class="core">
 
         <div class="core-cn">
-            幻想 × 彼岸 × 无限 × 生命
+            <span class="core-entry" data-world="fantasy">幻想</span>
+            <span class="core-sep">×</span>
+            <span class="core-entry" data-world="yonder">彼岸</span>
+            <span class="core-sep">×</span>
+            <span class="core-entry" data-world="infinite">无限</span>
+            <span class="core-sep">×</span>
+            <span class="core-entry" data-world="life">生命</span>
         </div>
 
         <div class="core-en">
@@ -2097,21 +2004,20 @@ document.addEventListener(
 
 
 /* =========================================================
-   FOUR WORLD ENTRANCES
+   CORE ENTRY CLICKS (center text = world entrances)
 ========================================================= */
 
-lights.forEach(
-    light => {
+document.querySelectorAll(".core-entry").forEach(
+    entry => {
 
-        light.addEventListener(
+        entry.addEventListener(
             "click",
             event => {
 
                 event.stopPropagation();
 
-
                 const worldName =
-                    light.dataset.world;
+                    entry.dataset.world;
 
 
                 /* =========================================
