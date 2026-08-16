@@ -2145,7 +2145,21 @@ document.querySelectorAll(".core-entry").forEach(
     }
 );
 
-</script>
+
+/* =========================================================
+   AUTO-ENTER (from ?entered=1)
+   Skip landing page, go straight to world
+========================================================= */
+
+if (
+    new URLSearchParams(
+        window.location.search
+    ).get("entered") === "1"
+) {
+
+    button.click();
+
+}
 
 </body>
 </html>
