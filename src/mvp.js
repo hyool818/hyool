@@ -164,11 +164,19 @@ export async function handleMvpRoutes(
             const user = await getAuthenticatedUser(request);
 
             if (!user) {
+                const result = await env.DB.prepare(
+                    `SELECT id, name, appearance, personality, story_hook, image_url, share_id, world_name, created_at, updated_at
+                     FROM characters
+                     WHERE share_id IS NOT NULL AND share_id != ''
+                     ORDER BY created_at DESC
+                     LIMIT 60`
+                ).all();
+
                 return json({
-                    success: false,
-                    error: "请先登录。",
-                    login_url: "/yonder.html?next=/hub.html"
-                }, 401);
+                    success: true,
+                    guest: true,
+                    characters: (result.results || []).map(formatCharacter)
+                });
             }
 
             const result = await env.DB.prepare(

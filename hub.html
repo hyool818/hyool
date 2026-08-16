@@ -88,21 +88,22 @@ a { color: inherit; text-decoration: none; }
 <div id="app" style="display:none;">
   <header class="header">
     <a class="logo" href="/"><img src="/logo1.png" alt="HYOOL"><span>HYOOL</span></a>
-    <div style="display:flex;gap:.6rem;">
-      <a class="header-link accent" href="/create">+ 创造</a>
+    <div style="display:flex;gap:.6rem;" id="headerActions">
+      <a class="header-link accent" href="/create" id="createLink">+ 创造</a>
       <button class="header-link" id="logoutBtn">退出</button>
+      <a class="header-link accent" href="/yonder" id="loginLink" style="display:none;">登录</a>
     </div>
   </header>
 
   <main class="page">
     <div class="page-head">
-      <div><h1>数字生命库</h1><p>你孕育的所有数字生命都在这里。</p></div>
+      <div><h1>数字生命库</h1><p id="subTitle">你孕育的所有数字生命都在这里。</p></div>
     </div>
     <div class="grid" id="grid"></div>
     <div class="empty" id="empty" style="display:none;">
       <div class="big">○</div>
-      这里还没有数字生命。<br>去创造你的第一个吧。
-      <div><button class="go" onclick="location.href='/create'">开始创造</button></div>
+      <span id="emptyText">这里还没有数字生命。<br>去创造你的第一个吧。</span>
+      <div><button class="go" onclick="location.href='/yonder'">登录后创造</button></div>
     </div>
   </main>
 </div>
@@ -118,30 +119,29 @@ const api = (p, o = {}) => {
 const escapeHtml = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
 const isSvg = u => u && (u.endsWith(".svg") || u.includes("/portrait"));
 
-async function checkAuth() {
+async function checkAuthSoft() {
   const t = localStorage.getItem("hyool_token");
-  for (let i = 0; i < 2; i++) {
-    try {
-      const h = {};
-      if (t) h["Authorization"] = "Bearer " + t;
-      const res = await fetch("/api/me", { credentials: "include", cache: "no-store", headers: h });
-      const data = await res.json();
-      if (data.authenticated) return true;
-      if (i === 1) { location.href = "/yonder.html?next=/hub"; return false; }
-    } catch {
-      if (i === 1) { location.href = "/yonder.html?next=/hub"; return false; }
-      await new Promise(r => setTimeout(r, 800));
-    }
+  try {
+    const h = {};
+    if (t) h["Authorization"] = "Bearer " + t;
+    const res = await fetch("/api/me", { credentials: "include", cache: "no-store", headers: h });
+    const data = await res.json();
+    return data.authenticated ? data : null;
+  } catch {
+    return null;
   }
-  location.href = "/yonder.html?next=/hub";
-  return false;
 }
 
-function renderCards(chars) {
+function renderCards(chars, isGuest) {
   const grid = document.getElementById("grid");
-  if (!chars.length) { document.getElementById("empty").style.display = "block"; return; }
-  grid.innerHTML = chars.map(c => `
-    <a class="card" href="/buddy/${escapeHtml(c.id)}">
+  if (!chars.length) {
+    document.getElementById("empty").style.display = "block";
+    if (isGuest) document.getElementById("emptyText").innerHTML = "还没有公开的数字生命。<br>登录后来创造第一个吧。";
+    return;
+  }
+  grid.innerHTML = chars.map(c => {
+    const href = isGuest ? "/yonder.html?next=/buddy/" + escapeHtml(c.id) : "/buddy/" + escapeHtml(c.id);
+    return `<a class="card" href="${href}">
       <img class="thumb" src="${escapeHtml(c.image_url || '')}" alt="" onerror="this.style.opacity=.2">
       <div class="body">
         <div class="name">${escapeHtml(c.name || '未名')}</div>
@@ -149,21 +149,32 @@ function renderCards(chars) {
         <div class="hook">${escapeHtml(c.story_hook || c.appearance || '')}</div>
         <div class="foot">${c.created_at ? new Date(c.created_at).toLocaleDateString('zh-CN') : ''}</div>
       </div>
-    </a>`).join("");
+    </a>`;
+  }).join("");
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  if (!(await checkAuth())) return;
-  document.getElementById("logoutBtn").addEventListener("click", async () => {
-    localStorage.removeItem("hyool_token");
-    try { await api("/api/logout", { method: "POST" }); } catch {}
-    location.href = "/yonder";
-  });
+  const auth = await checkAuthSoft();
+  const isGuest = !auth;
+
+  if (isGuest) {
+    document.getElementById("createLink").style.display = "none";
+    document.getElementById("logoutBtn").style.display = "none";
+    document.getElementById("loginLink").style.display = "";
+    document.getElementById("subTitle").textContent = "浏览大家创造的数字生命，登录后即可开始聊天。";
+  } else {
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      localStorage.removeItem("hyool_token");
+      try { await api("/api/logout", { method: "POST" }); } catch {}
+      location.href = "/yonder";
+    });
+  }
+
   try {
     const res = await api("/api/hub");
-    renderCards(res.characters || []);
+    renderCards(res.characters || [], isGuest);
   } catch (e) {
-    document.getElementById("loading").innerHTML = '<div style="text-align:center;">加载失败：' + escapeHtml(e.message) + '<br><a href="/create" style="color:var(--accent)">去创造</a></div>';
+    document.getElementById("loading").innerHTML = '<div style="text-align:center;">加载失败：' + escapeHtml(e.message) + '</div>';
     return;
   }
   document.getElementById("loading").style.display = "none";
