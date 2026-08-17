@@ -21,6 +21,10 @@ export async function handleMvpRoutes(
         return serveHtml("create.html");
     }
 
+    if (pathname === "/create/character" || pathname === "/create/character/") {
+        return serveHtml("create-character.html");
+    }
+
     if (pathname === "/hub" || pathname === "/hub.html") {
         return serveHtml("hub.html");
     }
@@ -196,6 +200,201 @@ export async function handleMvpRoutes(
         } catch (error) {
             console.error("REGEN IMAGE ERROR:", error);
             return json({ success: false, error: "生成失败：" + (error.message || "未知错误") }, 500);
+        }
+    }
+
+    /* ----- CHARACTER create-advanced (7-step flow) ----- */
+
+    if (pathname === "/api/character/create-advanced" && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const s = await request.json();
+
+            const styleMap = {
+                realistic: "realistic photorealistic portrait, cinematic lighting, detailed skin, 8k",
+                "3d": "3D rendered character, game model, octane render, unreal engine style",
+                anime: "anime style illustration, 2D cel shading, key visual, detailed eyes",
+                guofeng: "Chinese guofeng art style, ink wash influence, oriental aesthetic, xianxia fantasy",
+            };
+
+            const raceMap = {
+                human: "human", elf: "elf, pointed ears, ethereal",
+                yao: "yokai, fox spirit, supernatural being",
+                xianshen: "immortal deity, divine being, celestial",
+                mo: "demon, dark aura, infernal",
+                cyber: "cyborg, mechanical body, cyberpunk",
+            };
+
+            const genderMap = { female: "female", male: "male", neutral: "androgynous" };
+            const ageMap = { teen: "teenager", young: "young adult", mature: "mature adult", immortal: "ageless immortal" };
+            const skinMap = { fair: "fair skin", natural: "natural skin tone", wheat: "wheat skin", dark: "dark skin", special: "unusual skin color" };
+            const eyeMap = { black: "black eyes", amber: "amber eyes", blue: "blue eyes", green: "green eyes", purple: "purple eyes", red: "red eyes", gold: "golden eyes", heterochromia: "heterochromia eyes" };
+            const hairColorMap = { black: "black hair", white: "white hair", blonde: "blonde hair", brown: "brown hair", red: "red hair", blue: "blue hair", purple: "purple hair", silver: "silver hair" };
+            const hairStyleMap = { long: "long hair", short: "short hair", ponytail: "ponytail", twin: "twin tails", braid: "braided hair", bun: "hair bun", wave: "wavy hair", pixie: "pixie cut" };
+            const bodyMap = { slim: "slim body", balanced: "balanced body", athletic: "athletic body", curvy: "curvy figure", petite: "petite", tall: "tall stature" };
+            const heightMap = { petite: "short height", medium: "medium height", tall: "tall height" };
+            const bustMap = { small: "small chest", medium: "medium chest", large: "large chest" };
+            const hipMap = { slim: "slim hips", medium: "medium hips", full: "full hips" };
+            const outfitMap = {
+                xianxia: "xianxia immortal robes, flowing sleeves, hanfu inspired",
+                wuxia: "wuxia martial arts clothing, practical robes",
+                modern: "modern casual clothing",
+                fantasy: "fantasy mage robes, ornate magical outfit",
+                armor: "battle armor, plated protection",
+                ethnic: "ethnic traditional clothing",
+                casual: "casual relaxed clothing",
+                sleepwear: "sleepwear, loungewear",
+            };
+            const outfitColorMap = { dark: "dark colored", white: "white", red: "red", gold: "golden", blue: "blue", green: "green", purple: "purple", black: "black" };
+            const accessoryMap = { none: "", hairpin: "hairpin", earrings: "earrings", necklace: "necklace", mask: "mask", veil: "veil", ribbon: "ribbon", hat: "hat" };
+
+            const parts = [];
+            if (s.style === "custom" && s.styleCustom) parts.push(s.styleCustom);
+            else if (styleMap[s.style]) parts.push(styleMap[s.style]);
+
+            parts.push("upper body portrait of a");
+            if (raceMap[s.race]) parts.push(raceMap[s.race]);
+            else if (s.race === "custom" && s.raceCustom) parts.push(s.raceCustom);
+            else parts.push("character");
+
+            if (genderMap[s.gender]) parts.push(genderMap[s.gender]);
+            if (ageMap[s.age]) parts.push(ageMap[s.age]);
+            if (skinMap[s.skin]) parts.push(skinMap[s.skin]);
+            if (eyeMap[s.eyeColor]) parts.push(eyeMap[s.eyeColor]);
+            if (hairColorMap[s.hairColor]) parts.push(hairColorMap[s.hairColor]);
+            if (hairStyleMap[s.hairstyle]) parts.push(hairStyleMap[s.hairstyle]);
+            if (bodyMap[s.bodyType]) parts.push(bodyMap[s.bodyType]);
+            if (heightMap[s.height]) parts.push(heightMap[s.height]);
+            if (bustMap[s.bust]) parts.push(bustMap[s.bust]);
+            if (hipMap[s.hip]) parts.push(hipMap[s.hip]);
+            if (outfitMap[s.outfit]) parts.push("wearing " + outfitMap[s.outfit]);
+            if (outfitColorMap[s.outfitColor]) parts.push(outfitColorMap[s.outfitColor] + " colored");
+            if (accessoryMap[s.accessory] && s.accessory !== "none") parts.push("with " + accessoryMap[s.accessory]);
+            if (s.background) parts.push(s.background.slice(0, 150));
+            if (s.personality && s.personality.length) parts.push(s.personality.join(", ") + " expression");
+
+            parts.push("face clearly visible, looking at viewer, vertical portrait, centered composition, clean background, high quality, detailed");
+
+            const imagePrompt = parts.join(", ");
+
+            const ideaForAI = [
+                s.style === "custom" && s.styleCustom ? s.styleCustom : s.style,
+                s.race === "custom" && s.raceCustom ? s.raceCustom : s.race,
+                s.gender, s.age, s.skin, s.eyeColor, s.hairColor, s.hairstyle,
+                s.bodyType, s.height, s.bust, s.hip,
+                s.outfit, s.outfitColor, s.accessory,
+                s.personality ? s.personality.join("、") : "",
+                s.background,
+                s.name ? "名字：" + s.name : "",
+            ].filter(Boolean).join("，");
+
+            const generated = await generateCharacterFromIdea(ideaForAI || "一个神秘角色", env);
+
+            if (s.name) generated.name = s.name;
+
+            const characterId = "char_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+            const shareId = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+
+            let imageUrl = null;
+
+            if (env.AI) {
+                try {
+                    const aiResult = await env.AI.run(
+                        "@cf/black-forest-labs/flux-2-klein-4b",
+                        { prompt: imagePrompt }
+                    );
+                    if (aiResult instanceof Response) {
+                        const buffer = await aiResult.arrayBuffer();
+                        const bytes = new Uint8Array(buffer);
+                        let binary = "";
+                        const chunk = 8192;
+                        for (let i = 0; i < bytes.length; i += chunk) {
+                            binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+                        }
+                        imageUrl = "data:image/png;base64," + btoa(binary);
+                    }
+                } catch (aiErr) {
+                    console.error("Workers AI image gen failed:", aiErr);
+                }
+            }
+
+            if (!imageUrl) {
+                const seed = Math.floor(Math.random() * 1000000);
+                imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=768&height=1024&nologo=true&model=flux&seed=${seed}`;
+            }
+
+            await env.DB.prepare(
+                `INSERT INTO characters (
+                    id, owner_id, name, appearance, personality, background,
+                    speech_style, world_name, world_description, story_hook,
+                    source_idea, image_url, share_id, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+            ).bind(
+                characterId,
+                user.id,
+                generated.name,
+                generated.appearance,
+                generated.personality,
+                generated.background,
+                generated.speech_style,
+                generated.world_name,
+                generated.world_description,
+                generated.story_hook,
+                ideaForAI.slice(0, 500),
+                imageUrl,
+                shareId
+            ).run();
+
+            return json({
+                success: true,
+                character: {
+                    id: characterId,
+                    name: generated.name,
+                    appearance: generated.appearance,
+                    personality: generated.personality,
+                    background: generated.background,
+                    image_url: imageUrl,
+                    share_id: shareId
+                }
+            });
+
+        } catch (error) {
+            console.error("ADVANCED CREATE ERROR:", error);
+            return json({ success: false, error: "创建失败：" + (error.message || "未知错误") }, 500);
+        }
+    }
+
+    /* ----- CHARACTER save ----- */
+
+    const saveMatch = pathname.match(
+        /^\/api\/character\/(char_[a-z0-9]+)\/save$/
+    );
+
+    if (saveMatch && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const characterId = saveMatch[1];
+            const character = await getCharacterById(env, characterId);
+
+            if (!character) {
+                return json({ success: false, error: "角色不存在。" }, 404);
+            }
+
+            if (character.owner_id !== user.id) {
+                return json({ success: false, error: "无权操作。" }, 403);
+            }
+
+            return json({ success: true });
+        } catch (error) {
+            return json({ success: false, error: "保存失败。" }, 500);
         }
     }
 

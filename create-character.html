@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>HYOOL · 创造数字生命</title>
+<style>
+:root {
+  --bg: #0a0612;
+  --surface: #15102a;
+  --surface2: #1e1638;
+  --surface3: #251c42;
+  --gold: #c9a84c;
+  --gold-bright: #e0c068;
+  --purple: #8b5cf6;
+  --purple-light: #a78bfa;
+  --purple-dim: rgba(139,92,246,.15);
+  --text: rgba(255,255,255,.94);
+  --muted: rgba(255,255,255,.50);
+  --border: rgba(167,139,250,.12);
+  --selected-border: rgba(201,168,76,.55);
+  --selected-bg: rgba(201,168,76,.07);
+  --danger: #e8505b;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  color: var(--text); background: var(--bg); min-height: 100dvh; overflow-x: hidden; line-height: 1.6;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(139,92,246,.08), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(201,168,76,.05), transparent 40%),
+    radial-gradient(1px 1px at 25% 15%, rgba(255,255,255,.4), transparent),
+    radial-gradient(1px 1px at 60% 35%, rgba(255,255,255,.3), transparent),
+    radial-gradient(1px 1px at 85% 55%, rgba(255,255,255,.35), transparent),
+    radial-gradient(1px 1px at 15% 75%, rgba(255,255,255,.25), transparent),
+    radial-gradient(1px 1px at 45% 85%, rgba(255,255,255,.3), transparent),
+    radial-gradient(1px 1px at 70% 20%, rgba(255,255,255,.2), transparent),
+    radial-gradient(1.5px 1.5px at 90% 40%, rgba(201,168,76,.3), transparent);
+}
+a { color: inherit; text-decoration: none; }
+
+/* Header */
+.header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50; height: 60px;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
+  background: linear-gradient(to bottom, rgba(10,6,18,.85), transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.header .left { display: flex; align-items: center; gap: 14px; }
+.header .logo img { height: 28px; width: auto; }
+.back-link { font-size: 13px; color: var(--muted); cursor: pointer; background: none; border: 0; transition: color .2s; }
+.back-link:hover { color: #fff; }
+
+/* Progress bar */
+.progress-wrap {
+  position: fixed; top: 60px; left: 0; right: 0; z-index: 45;
+  background: rgba(10,6,18,.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  padding: 12px 24px 10px; border-bottom: 1px solid var(--border);
+}
+.progress-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.progress-label { font-size: 13px; color: var(--muted); letter-spacing: .03em; }
+.progress-label .current { color: var(--gold); font-weight: 600; }
+.progress-dots { display: flex; gap: 5px; }
+.progress-dot { width: 22px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.10); transition: all .35s; }
+.progress-dot.done { background: var(--purple); }
+.progress-dot.active { background: var(--gold); box-shadow: 0 0 8px rgba(201,168,76,.4); }
+.progress-bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--purple), var(--gold)); transition: width .5s cubic-bezier(.2,.8,.2,1); }
+
+/* Main */
+.main { position: relative; z-index: 1; padding: 130px 24px calc(100px + env(safe-area-inset-bottom)); max-width: 860px; margin: 0 auto; }
+
+/* Steps */
+.step { display: none; animation: stepIn .45s cubic-bezier(.2,.8,.2,1); }
+.step.active { display: block; }
+@keyframes stepIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+.step-title { font-size: 1.5rem; font-weight: 700; margin-bottom: .3rem; }
+.step-title .accent { color: var(--gold); }
+.step-desc { font-size: .85rem; color: var(--muted); margin-bottom: 1.6rem; }
+
+/* Sub-sections */
+.subsection { margin-bottom: 1.8rem; }
+.subsection-label { font-size: .82rem; color: var(--purple-light); margin-bottom: .7rem; display: flex; align-items: center; gap: 6px; }
+.subsection-label .req { color: var(--gold); font-size: .7rem; }
+.subsection-label .opt { color: var(--muted); font-size: .7rem; }
+
+/* Option cards grid */
+.option-grid { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.option-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+.option-grid.cols-2 { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+
+.option-card {
+  position: relative; cursor: pointer; border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 12px; background: var(--surface); transition: all .25s; user-select: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center;
+}
+@media (hover: hover) { .option-card:hover { border-color: rgba(167,139,250,.3); background: var(--surface2); } }
+.option-card.selected {
+  border-color: var(--selected-border); background: var(--selected-bg);
+  box-shadow: 0 0 0 1px rgba(201,168,76,.25), 0 4px 20px rgba(201,168,76,.08);
+}
+.option-card.highlight {
+  border-color: rgba(201,168,76,.25); background: linear-gradient(135deg, rgba(201,168,76,.04), var(--surface));
+}
+.option-card.highlight::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent); border-radius: 12px 12px 0 0;
+}
+.option-card.selected .check {
+  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--gold); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--bg);
+}
+.option-card .check { display: none; }
+.option-card.selected .check { display: flex; }
+.option-card .name { font-size: .88rem; font-weight: 600; }
+.option-card .desc { font-size: .72rem; color: var(--muted); line-height: 1.4; }
+.option-card.highlight .name { color: var(--gold); }
+
+/* Color swatches */
+.color-grid { display: flex; flex-wrap: wrap; gap: .5rem; }
+.color-swatch {
+  width: 44px; height: 44px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
+  transition: all .2s; position: relative;
+}
+.color-swatch:hover { transform: scale(1.08); }
+.color-swatch.selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,168,76,.2); }
+.color-swatch.selected::after {
+  content: ""; position: absolute; top: -2px; left: 50%; transform: translateX(-50%);
+  width: 6px; height: 6px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 6px var(--gold);
+}
+
+/* Text input */
+.text-input, .text-area {
+  width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px;
+  background: var(--surface); color: var(--text); outline: none; font: inherit; font-size: .9rem;
+  transition: border .3s;
+}
+.text-input:focus, .text-area:focus { border-color: var(--gold); }
+.text-input::placeholder, .text-area::placeholder { color: rgba(255,255,255,.25); }
+.text-area { min-height: 70px; resize: vertical; line-height: 1.6; }
+
+.custom-input { margin-top: .6rem; display: none; }
+.custom-input.show { display: block; animation: stepIn .3s; }
+
+/* Tags (multi-select) */
+.tag-grid { display: flex; flex-wrap: wrap; gap: .5rem; }
+.tag-chip {
+  padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface);
+  font-size: .82rem; cursor: pointer; transition: all .2s; user-select: none;
+}
+.tag-chip:hover { border-color: rgba(167,139,250,.3); }
+.tag-chip.selected {
+  border-color: var(--selected-border); background: var(--selected-bg); color: var(--gold);
+}
+
+/* Nav buttons */
+.nav-btns { display: flex; gap: .8rem; margin-top: 2rem; }
+.nav-btn {
+  flex: 1; border: 0; border-radius: 12px; padding: 14px; font-size: 14px; cursor: pointer;
+  font-weight: 600; transition: all .25s; font-family: inherit;
+}
+.nav-btn.back { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.nav-btn.back:hover { color: #fff; background: var(--surface3); }
+.nav-btn.next { background: linear-gradient(135deg, var(--purple), #6d4bb8); color: #fff; }
+.nav-btn.next:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(139,92,246,.2); }
+.nav-btn.next:disabled { opacity: .3; cursor: not-allowed; }
+.nav-btn.gold { background: linear-gradient(135deg, var(--gold), #a68a3a); color: #0a0612; }
+
+/* Result page */
+.result-page { display: none; animation: stepIn .5s; }
+.result-page.active { display: flex; flex-direction: column; align-items: center; }
+.result-loading {
+  width: 100%; max-width: 400px; aspect-ratio: 3/4; border-radius: 20px;
+  background: linear-gradient(135deg, var(--surface), var(--surface2));
+  border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
+}
+.result-loading .spinner {
+  width: 36px; height: 36px; border: 2px solid rgba(201,168,76,.15); border-top-color: var(--gold);
+  border-radius: 50%; animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.result-loading .text { color: var(--gold); font-size: .88rem; letter-spacing: .05em; }
+
+.result-img-wrap {
+  position: relative; width: 100%; max-width: 400px; border-radius: 20px; overflow: hidden;
+  border: 1px solid var(--selected-border); box-shadow: 0 8px 40px rgba(0,0,0,.3);
+}
+.result-img-wrap img { width: 100%; display: block; object-fit: cover; object-position: center top; }
+
+.result-info { width: 100%; max-width: 400px; margin-top: 1.2rem; }
+.result-info .name { font-size: 1.4rem; font-weight: 700; color: var(--gold); }
+.result-info .tags { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+.result-info .tag { font-size: .72rem; padding: 3px 10px; border-radius: 999px; background: var(--purple-dim); color: var(--purple-light); }
+.result-info .desc { font-size: .82rem; color: var(--muted); margin-top: .6rem; line-height: 1.6; }
+
+.result-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.4rem; width: 100%; max-width: 400px; }
+.result-actions .nav-btn { flex: 1; min-width: 120px; }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .header { height: 52px; padding: 0 16px; }
+  .header .logo img { height: 24px; }
+  .progress-wrap { padding: 10px 16px 8px; }
+  .main { padding: 110px 16px calc(80px + env(safe-area-inset-bottom)); }
+  .step-title { font-size: 1.25rem; }
+  .option-grid, .option-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: .5rem; }
+  .option-card { padding: 10px 8px; }
+  .option-card .name { font-size: .82rem; }
+  .option-card .desc { font-size: .68rem; }
+  .color-swatch { width: 38px; height: 38px; }
+  .nav-btn { padding: 12px; font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="left">
+    <button class="back-link" id="backBtn">← 返回</button>
+    <a class="logo" href="/?entered=1"><img src="/logo1.png" alt="HYOOL"></a>
+  </div>
+</header>
+
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-info">
+    <span class="progress-label">Step <span class="current" id="stepCurrent">1</span> / 7</span>
+    <div class="progress-dots" id="progressDots"></div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:14%"></div></div>
+</div>
+
+<main class="main" id="main">
+
+  <!-- Step 1: 艺术风格 -->
+  <section class="step active" data-step="1">
+    <h2 class="step-title">选择<span class="accent">艺术风格</span></h2>
+    <p class="step-desc">你的数字生命将以何种视觉风格降临？</p>
+    <div class="option-grid" id="step1Grid"></div>
+    <div class="custom-input" id="step1Custom"><input class="text-input" placeholder="描述你想要的风格..." id="styleCustomInput"></div>
+  </section>
+
+  <!-- Step 2: 种族/身份 -->
+  <section class="step" data-step="2">
+    <h2 class="step-title">选择<span class="accent">种族身份</span></h2>
+    <p class="step-desc">TA 从何而来？属于哪个种族？</p>
+    <div class="option-grid" id="step2Grid"></div>
+    <div class="custom-input" id="step2Custom"><input class="text-input" placeholder="描述你想要的种族身份..." id="raceCustomInput"></div>
+  </section>
+
+  <!-- Step 3: 基础外观 -->
+  <section class="step" data-step="3">
+    <h2 class="step-title">基础<span class="accent">外观</span></h2>
+    <p class="step-desc">设定 TA 的性别、年龄感与肤色。</p>
+    <div class="subsection">
+      <div class="subsection-label">性别 <span class="req">必选</span></div>
+      <div class="option-grid cols-3" id="genderGrid"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">年龄感 <span class="req">必选</span></div>
+      <div class="option-grid cols-3" id="ageGrid"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">肤色 <span class="req">必选</span></div>
+      <div class="color-grid" id="skinGrid"></div>
+    </div>
+  </section>
+
+  <!-- Step 4: 面部特征 -->
+  <section class="step" data-step="4">
+    <h2 class="step-title">面部<span class="accent">特征</span></h2>
+    <p class="step-desc">TA 的眼睛、发色与发型。</p>
+    <div class="subsection">
+      <div class="subsection-label">瞳色 <span class="req">必选</span></div>
+      <div class="color-grid" id="eyeGrid"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">发色 <span class="req">必选</span></div>
+      <div class="color-grid" id="hairColorGrid"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">发型 <span class="req">必选</span></div>
+      <div class="option-grid cols-3" id="hairStyleGrid"></div>
+    </div>
+  </section>
+
+  <!-- Step 5: 体型 -->
+  <section class="step" data-step="5">
+    <h2 class="step-title">体型<span class="accent">设定</span></h2>
+    <p class="step-desc">TA 的身形与比例。</p>
+    <div class="subsection">
+      <div class="subsection-label">身材类型 <span class="req">必选</span></div>
+      <div class="option-grid cols-3" id="bodyTypeGrid"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">身高感 <span class="req">必选</span></div>
+      <div class="option-grid cols-3" id="heightGrid"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">胸部大小 <span class="req">必选</span></div>
+      <div class="option-grid cols-3" id="bustGrid"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">臀部大小 <span class="req">必选</span></div>
+      <div class="option-grid cols-3" id="hipGrid"></div>
+    </div>
+  </section>
+
+  <!-- Step 6: 服饰 -->
+  <section class="step" data-step="6">
+    <h2 class="step-title">服饰<span class="accent">搭配</span></h2>
+    <p class="step-desc">可选，不选将使用 AI 默认搭配。</p>
+    <div class="subsection">
+      <div class="subsection-label">服饰风格 <span class="opt">可选</span></div>
+      <div class="option-grid cols-2" id="outfitGrid"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">主色调 <span class="opt">可选</span></div>
+      <div class="color-grid" id="outfitColorGrid"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">配饰 <span class="opt">可选</span></div>
+      <div class="option-grid cols-3" id="accessoryGrid"></div>
+    </div>
+  </section>
+
+  <!-- Step 7: 性格与名字 -->
+  <section class="step" data-step="7">
+    <h2 class="step-title">性格与<span class="accent">名字</span></h2>
+    <p class="step-desc">可选，未填部分将由 AI 补全。</p>
+    <div class="subsection">
+      <div class="subsection-label">角色名 <span class="opt">可选，留空由 AI 命名</span></div>
+      <input class="text-input" placeholder="给 TA 起个名字..." id="nameInput" maxlength="20">
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">性格标签 <span class="opt">可多选</span></div>
+      <div class="tag-grid" id="personalityGrid"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-label">一句话背景 <span class="opt">可选</span></div>
+      <textarea class="text-area" placeholder="TA 从哪里来？有着怎样的故事..." id="bgInput" maxlength="200"></textarea>
+    </div>
+  </section>
+
+  <!-- Nav buttons (hidden on result page) -->
+  <div class="nav-btns" id="navBtns">
+    <button class="nav-btn back" id="prevBtn" style="visibility:hidden">上一步</button>
+    <button class="nav-btn next" id="nextBtn" disabled>下一步</button>
+  </div>
+
+  <!-- Result page -->
+  <div class="result-page" id="resultPage">
+    <div class="result-loading" id="resultLoading">
+      <div class="spinner"></div>
+      <div class="text">角色正在从幻想中降临...</div>
+    </div>
+    <div class="result-img-wrap" id="resultImgWrap" style="display:none">
+      <img id="resultImg" alt="角色立绘">
+    </div>
+    <div class="result-info" id="resultInfo" style="display:none"></div>
+    <div class="result-actions" id="resultActions" style="display:none">
+      <button class="nav-btn gold" id="saveBtn">保存到我的空间</button>
+      <button class="nav-btn back" id="regenBtn">重新生成</button>
+      <button class="nav-btn back" id="modifyBtn">返回修改</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const api = (p, o = {}) => {
+  const t = localStorage.getItem("hyool_token");
+  const h = { "Content-Type": "application/json", ...(o.headers || {}) };
+  if (t) h["Authorization"] = "Bearer " + t;
+  return fetch(p, { credentials: "include", ...o, headers: h }).then(async r => { let d; try { d = await r.json(); } catch { d = { success:false, error:"服务器异常。" }; } if (!r.ok) throw new Error(d.error || "请求失败。"); return d; });
+};
+
+const $ = id => document.getElementById(id);
+const state = { step: 1, style: null, styleCustom: "", race: null, raceCustom: "", gender: null, age: null, skin: null, eyeColor: null, hairColor: null, hairstyle: null, bodyType: null, height: null, bust: null, hip: null, outfit: null, outfitColor: null, accessory: null, name: "", personality: [], background: "" };
+
+/* Data */
+const STEP1 = [
+  { id: "realistic", name: "写实风", desc: "真实质感，电影光影", highlight: false },
+  { id: "3d", name: "3D渲染", desc: "游戏建模，立体光影", highlight: false },
+  { id: "anime", name: "2D动漫", desc: "日系动画，赛璐璐上色", highlight: false },
+  { id: "guofeng", name: "国风仙侠", desc: "水墨意境，东方美学", highlight: true },
+  { id: "custom", name: "自定义", desc: "自由描述风格", highlight: false },
+];
+const STEP2 = [
+  { id: "human", name: "人类", desc: "凡尘之子" },
+  { id: "elf", name: "精灵", desc: "优雅灵动" },
+  { id: "yao", name: "妖族", desc: "万物有灵" },
+  { id: "xianshen", name: "仙神", desc: "超脱凡俗" },
+  { id: "mo", name: "魔族", desc: "暗渊之力" },
+  { id: "cyber", name: "机械赛博", desc: "钢铁之躯" },
+  { id: "custom", name: "自定义", desc: "自由描述" },
+];
+const GENDER = [{id:"female",name:"女"},{id:"male",name:"男"},{id:"neutral",name:"中性"}];
+const AGE = [{id:"teen",name:"少年"},{id:"young",name:"青年"},{id:"mature",name:"中年"},{id:"immortal",name:"不朽"}];
+const SKIN = [{id:"fair",name:"白皙",color:"#f5dcc8"},{id:"natural",name:"自然",color:"#e0b080"},{id:"wheat",name:"小麦",color:"#c48856"},{id:"dark",name:"深色",color:"#6b4030"},{id:"special",name:"特殊色",color:"linear-gradient(135deg,#8b5cf6,#c9a84c)"}];
+const EYE = [{id:"black",name:"黑",color:"#1a1a1a"},{id:"amber",name:"琥珀",color:"#d4a020"},{id:"blue",name:"蓝",color:"#4a90d9"},{id:"green",name:"绿",color:"#3aab5e"},{id:"purple",name:"紫",color:"#8b5cf6"},{id:"red",name:"红",color:"#e8505b"},{id:"gold",name:"金",color:"#c9a84c"},{id:"heterochromia",name:"异色瞳",color:"linear-gradient(135deg,#4a90d9,#e8505b)"}];
+const HAIR_COLOR = [{id:"black",name:"黑",color:"#1a1a1a"},{id:"white",name:"白",color:"#e8e0d8"},{id:"blonde",name:"金",color:"#d4a838"},{id:"brown",name:"棕",color:"#6b4030"},{id:"red",name:"红",color:"#a83838"},{id:"blue",name:"蓝",color:"#3a6ab5"},{id:"purple",name:"紫",color:"#7a4cc4"},{id:"silver",name:"银",color:"linear-gradient(135deg,#c0c0c0,#e8e8e8)"}];
+const HAIR_STYLE = [{id:"long",name:"长发"},{id:"short",name:"短发"},{id:"ponytail",name:"马尾"},{id:"twin",name:"双马尾"},{id:"braid",name:"编发"},{id:"bun",name:"盘发/丸子头"},{id:"wave",name:"波浪"},{id:"pixie",name:"精灵短"}];
+const BODY_TYPE = [{id:"slim",name:"纤细"},{id:"balanced",name:"匀称"},{id:"athletic",name:"健美"},{id:"curvy",name:"丰满"},{id:"petite",name:"娇小"},{id:"tall",name:"高大"}];
+const HEIGHT = [{id:"petite",name:"娇小"},{id:"medium",name:"中等"},{id:"tall",name:"高挑"}];
+const BUST = [{id:"small",name:"小巧"},{id:"medium",name:"适中"},{id:"large",name:"丰满"}];
+const HIP = [{id:"slim",name:"纤细"},{id:"medium",name:"适中"},{id:"full",name:"丰满"}];
+const OUTFIT = [{id:"xianxia",name:"古风仙侠",desc:"仙袍广袖，飘逸出尘"},{id:"wuxia",name:"古风武侠",desc:"劲装束发，江湖侠气"},{id:"modern",name:"现代日常",desc:"简洁舒适，都市风格"},{id:"fantasy",name:"奇幻法袍",desc:"华丽法衣，神秘纹饰"},{id:"armor",name:"战甲",desc:"铠甲披挂，英姿飒爽"},{id:"ethnic",name:"民族风",desc:"民族服饰，特色鲜明"},{id:"casual",name:"休闲",desc:"轻松随性"},{id:"sleepwear",name:"睡衣/居家",desc:"慵懒私密"}];
+const OUTFIT_COLOR = [{id:"dark",name:"暗色",color:"#1a1a2e"},{id:"white",name:"白色",color:"#e8e0d8"},{id:"red",name:"红色",color:"#a83838"},{id:"gold",name:"金色",color:"#c9a84c"},{id:"blue",name:"蓝色",color:"#3a6ab5"},{id:"green",name:"绿色",color:"#3aab5e"},{id:"purple",name:"紫色",color:"#7a4cc4"},{id:"black",name:"黑色",color:"#0a0a0a"}];
+const ACCESSORY = [{id:"none",name:"无"},{id:"hairpin",name:"发簪"},{id:" earrings",name:"耳饰"},{id:"necklace",name:"项链"},{id:"mask",name:"面具"},{id:"veil",name:"面纱"},{id:"ribbon",name:"发带"},{id:"hat",name:"帽子"}];
+const PERSONALITY = ["温柔","冷傲","活泼","沉稳","邪魅","天真","威严","慵懒","傲娇","腹黑"];
+
+/* Render functions */
+function renderCards(containerId, items, stateKey, isMulti) {
+  const grid = $(containerId);
+  grid.innerHTML = items.map(item => `
+    <div class="option-card ${item.highlight ? 'highlight' : ''}" data-value="${item.id}" data-state="${stateKey}">
+      <div class="check">&#10003;</div>
+      <div class="name">${item.name}</div>
+      ${item.desc ? `<div class="desc">${item.desc}</div>` : ''}
+    </div>`).join("");
+  grid.querySelectorAll(".option-card").forEach(card => {
+    card.addEventListener("click", () => {
+      const val = card.dataset.value;
+      const key = card.dataset.state;
+      if (isMulti) {
+        card.classList.toggle("selected");
+        if (!state[key]) state[key] = [];
+        const idx = state[key].indexOf(val);
+        if (idx > -1) state[key].splice(idx, 1);
+        else state[key].push(val);
+      } else {
+        grid.querySelectorAll(".option-card").forEach(c => c.classList.remove("selected"));
+        card.classList.add("selected");
+        state[key] = val;
+        if (val === "custom") {
+          $(containerId.replace("Grid","Custom"))?.classList.add("show");
+        } else {
+          $(containerId.replace("Grid","Custom"))?.classList.remove("show");
+        }
+      }
+      updateNextButton();
+    });
+  });
+}
+
+function renderColors(containerId, items, stateKey) {
+  const grid = $(containerId);
+  grid.innerHTML = items.map(item => `
+    <div class="color-swatch ${item.highlight ? 'highlight' : ''}" data-value="${item.id}" data-state="${stateKey}" title="${item.name}" style="background:${item.color}"></div>`).join("");
+  grid.querySelectorAll(".color-swatch").forEach(swatch => {
+    swatch.addEventListener("click", () => {
+      grid.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("selected"));
+      swatch.classList.add("selected");
+      state[stateKey] = swatch.dataset.value;
+      updateNextButton();
+    });
+  });
+}
+
+function renderTags(containerId, items, stateKey) {
+  const grid = $(containerId);
+  grid.innerHTML = items.map(item => `<div class="tag-chip" data-value="${item}">${item}</div>`).join("");
+  grid.querySelectorAll(".tag-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      chip.classList.toggle("selected");
+      const val = chip.dataset.value;
+      if (!state[stateKey]) state[stateKey] = [];
+      const idx = state[stateKey].indexOf(val);
+      if (idx > -1) state[stateKey].splice(idx, 1);
+      else state[stateKey].push(val);
+    });
+  });
+}
+
+/* Init all steps */
+renderCards("step1Grid", STEP1, "style");
+renderCards("step2Grid", STEP2, "race");
+renderCards("genderGrid", GENDER, "gender");
+renderCards("ageGrid", AGE, "age");
+renderColors("skinGrid", SKIN, "skin");
+renderColors("eyeGrid", EYE, "eyeColor");
+renderColors("hairColorGrid", HAIR_COLOR, "hairColor");
+renderCards("hairStyleGrid", HAIR_STYLE, "hairstyle");
+renderCards("bodyTypeGrid", BODY_TYPE, "bodyType");
+renderCards("heightGrid", HEIGHT, "height");
+renderCards("bustGrid", BUST, "bust");
+renderCards("hipGrid", HIP, "hip");
+renderCards("outfitGrid", OUTFIT, "outfit");
+renderColors("outfitColorGrid", OUTFIT_COLOR, "outfitColor");
+renderCards("accessoryGrid", ACCESSORY, "accessory");
+renderTags("personalityGrid", PERSONALITY, "personality");
+
+/* Custom inputs */
+$("styleCustomInput").addEventListener("input", e => state.styleCustom = e.target.value);
+$("raceCustomInput").addEventListener("input", e => state.raceCustom = e.target.value);
+$("nameInput").addEventListener("input", e => state.name = e.target.value);
+$("bgInput").addEventListener("input", e => state.background = e.target.value);
+
+/* Progress dots */
+function renderDots() {
+  const dots = $("progressDots");
+  dots.innerHTML = Array.from({length:7}, (_,i) => `<div class="progress-dot ${i < state.step-1 ? 'done' : ''} ${i === state.step-1 ? 'active' : ''}"></div>`).join("");
+}
+renderDots();
+
+/* Validation */
+function isStepValid(step) {
+  switch(step) {
+    case 1: return !!state.style;
+    case 2: return !!state.race;
+    case 3: return !!state.gender && !!state.age && !!state.skin;
+    case 4: return !!state.eyeColor && !!state.hairColor && !!state.hairstyle;
+    case 5: return !!state.bodyType && !!state.height && !!state.bust && !!state.hip;
+    case 6: return true;
+    case 7: return true;
+    default: return true;
+  }
+}
+
+function updateNextButton() {
+  const btn = $("nextBtn");
+  btn.disabled = !isStepValid(state.step);
+  if (state.step === 7) btn.textContent = "生成角色";
+  else btn.textContent = "下一步";
+}
+
+/* Navigation */
+function goToStep(n) {
+  document.querySelectorAll(".step").forEach(s => s.classList.remove("active"));
+  const target = document.querySelector(`.step[data-step="${n}"]`);
+  if (target) target.classList.add("active");
+  state.step = n;
+  $("stepCurrent").textContent = n;
+  $("progressFill").style.width = (n / 7 * 100) + "%";
+  renderDots();
+  $("prevBtn").style.visibility = n === 1 ? "hidden" : "visible";
+  updateNextButton();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+$("prevBtn").addEventListener("click", () => { if (state.step > 1) goToStep(state.step - 1); });
+
+$("nextBtn").addEventListener("click", () => {
+  if (!isStepValid(state.step)) return;
+  if (state.step < 7) { goToStep(state.step + 1); }
+  else { generateCharacter(); }
+});
+
+$("backBtn").addEventListener("click", () => {
+  if (state.step > 1 && !$("resultPage").classList.contains("active")) goToStep(state.step - 1);
+  else location.href = "/hub";
+});
+
+/* Generate */
+async function generateCharacter() {
+  document.querySelectorAll(".step").forEach(s => s.style.display = "none");
+  $("navBtns").style.display = "none";
+  $("progressWrap").style.display = "none";
+  $("resultPage").classList.add("active");
+  $("resultLoading").style.display = "flex";
+  $("resultImgWrap").style.display = "none";
+  $("resultInfo").style.display = "none";
+  $("resultActions").style.display = "none";
+
+  if (state.style === "custom") state.styleCustom = $("styleCustomInput").value;
+  if (state.race === "custom") state.raceCustom = $("raceCustomInput").value;
+
+  try {
+    const res = await api("/api/character/create-advanced", {
+      method: "POST",
+      body: JSON.stringify(state)
+    });
+    if (!res.success) throw new Error(res.error || "生成失败。");
+
+    const char = res.character;
+    $("resultLoading").style.display = "none";
+    $("resultImgWrap").style.display = "block";
+    $("resultImg").src = char.image_url || "";
+    $("resultInfo").style.display = "block";
+    $("resultInfo").innerHTML = `
+      <div class="name">${char.name || '未名'}</div>
+      <div class="tags">${(state.personality || []).map(t => `<span class="tag">${t}</span>`).join('')}</div>
+      <div class="desc">${char.background || char.appearance || ''}</div>`;
+    $("resultActions").style.display = "flex";
+    window.currentCharId = char.id;
+  } catch (e) {
+    $("resultLoading").innerHTML = `<div class="text" style="color:var(--danger)">生成失败：${e.message}</div>`;
+  }
+}
+
+$("saveBtn").addEventListener("click", async () => {
+  if (!window.currentCharId) return;
+  try {
+    const res = await api("/api/character/" + window.currentCharId + "/save", { method: "POST" });
+    if (res.success) { location.href = "/buddy/" + window.currentCharId; }
+    else throw new Error(res.error);
+  } catch (e) { alert(e.message); }
+});
+
+$("regenBtn").addEventListener("click", () => { location.reload(); });
+$("modifyBtn").addEventListener("click", () => { location.reload(); });
+
+updateNextButton();
+</script>
+</body>
+</html>
