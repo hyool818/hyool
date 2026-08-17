@@ -302,8 +302,6 @@ export async function handleMvpRoutes(
             let imageUrl = null;
 
             const aiModels = [
-                "@cf/black-forest-labs/flux-2-klein-9b",
-                "@cf/black-forest-labs/flux-2-klein-4b",
                 "@cf/stabilityai/stable-diffusion-xl-base-1.0",
             ];
 
