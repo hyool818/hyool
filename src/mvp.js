@@ -280,6 +280,121 @@ export async function handleMvpRoutes(
         }
     }
 
+    /* ----- CHARACTER delete ----- */
+
+    const deleteMatch = pathname.match(
+        /^\/api\/characters\/(char_[a-z0-9]+)\/delete$/
+    );
+
+    if (deleteMatch && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const characterId = deleteMatch[1];
+            const character = await getCharacterById(env, characterId);
+
+            if (!character) {
+                return json({ success: false, error: "角色不存在。" }, 404);
+            }
+
+            if (character.owner_id !== user.id) {
+                return json({ success: false, error: "无权操作此角色。" }, 403);
+            }
+
+            const convs = await env.DB.prepare(
+                "SELECT id FROM conversations WHERE character_id = ?"
+            ).bind(characterId).all();
+
+            const convIds = (convs.results || []).map(c => c.id);
+
+            if (convIds.length > 0) {
+                const placeholders = convIds.map(() => "?").join(",");
+                await env.DB.prepare(
+                    `DELETE FROM messages WHERE conversation_id IN (${placeholders})`
+                ).bind(...convIds).run();
+                await env.DB.prepare(
+                    "DELETE FROM conversations WHERE character_id = ?"
+                ).bind(characterId).run();
+            }
+
+            await env.DB.batch([
+                env.DB.prepare("DELETE FROM memories WHERE character_id = ?").bind(characterId),
+                env.DB.prepare("DELETE FROM assets WHERE character_id = ?").bind(characterId),
+                env.DB.prepare("DELETE FROM characters WHERE id = ?").bind(characterId)
+            ]);
+
+            return json({ success: true });
+
+        } catch (error) {
+            console.error("CHARACTER DELETE ERROR:", error);
+            return json({ success: false, error: "删除失败：" + (error.message || "未知错误") }, 500);
+        }
+    }
+
+    /* ----- CHARACTER update ----- */
+
+    const updateMatch = pathname.match(
+        /^\/api\/characters\/(char_[a-z0-9]+)\/update$/
+    );
+
+    if (updateMatch && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const characterId = updateMatch[1];
+            const character = await getCharacterById(env, characterId);
+
+            if (!character) {
+                return json({ success: false, error: "角色不存在。" }, 404);
+            }
+
+            if (character.owner_id !== user.id) {
+                return json({ success: false, error: "无权操作此角色。" }, 403);
+            }
+
+            const body = await request.json();
+
+            const fields = ["name", "appearance", "personality", "background", "speech_style", "world_name", "world_description", "story_hook"];
+            const updates = [];
+            const values = [];
+
+            for (const f of fields) {
+                if (body[f] !== undefined) {
+                    updates.push(`${f} = ?`);
+                    values.push(String(body[f]).slice(0, f === "background" || f === "world_description" ? 2000 : 800));
+                }
+            }
+
+            if (updates.length === 0) {
+                return json({ success: false, error: "没有需要更新的字段。" }, 400);
+            }
+
+            updates.push("updated_at = CURRENT_TIMESTAMP");
+            values.push(characterId);
+
+            await env.DB.prepare(
+                `UPDATE characters SET ${updates.join(", ")} WHERE id = ?`
+            ).bind(...values).run();
+
+            const updated = await getCharacterById(env, characterId);
+
+            return json({
+                success: true,
+                character: formatCharacter(updated)
+            });
+
+        } catch (error) {
+            console.error("CHARACTER UPDATE ERROR:", error);
+            return json({ success: false, error: "更新失败：" + (error.message || "未知错误") }, 500);
+        }
+    }
+
     /* ----- SHARE public ----- */
 
     const shareMatch = pathname.match(
