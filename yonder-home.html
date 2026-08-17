@@ -183,60 +183,7 @@ body {
     opacity: .95;
 }
 
-.header-right {
 
-    display: flex;
-
-    align-items: center;
-
-    gap: 10px;
-}
-
-.header-link,
-.edit-button {
-
-    border: 0;
-
-    background:
-        rgba(255,255,255,.06);
-
-    color:
-        rgba(255,255,255,.76);
-
-    text-decoration: none;
-
-    padding:
-        9px 14px;
-
-    border-radius: 999px;
-
-    font-size: 13px;
-
-    cursor: pointer;
-
-    transition:
-        background .2s ease,
-        color .2s ease,
-        transform .2s ease;
-}
-
-.header-link:hover,
-.edit-button:hover {
-
-    color: white;
-
-    background:
-        rgba(255,255,255,.12);
-
-    transform:
-        translateY(-1px);
-}
-
-.edit-button {
-
-    border:
-        1px solid var(--accent);
-}
 
 
 /* =====================================================
@@ -1076,6 +1023,39 @@ body {
     color: var(--accent);
 }
 
+.more-card {
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    background: rgba(255,255,255,.04);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 3/4;
+    cursor: pointer;
+    transition: all .25s;
+    text-decoration: none;
+    color: inherit;
+}
+@media (hover: hover) {
+    .more-card:hover {
+        border-color: var(--accent);
+        background: rgba(139,139,255,.06);
+        transform: translateY(-3px);
+    }
+}
+.more-card .more-num {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: rgba(255,255,255,.60);
+}
+.more-card .more-label {
+    font-size: .78rem;
+    color: rgba(255,255,255,.40);
+    margin-top: .4rem;
+    letter-spacing: .03em;
+}
+
 
 /* =====================================================
    BOTTOM NAV
@@ -1087,16 +1067,17 @@ body {
     left: 0;
     right: 0;
     z-index: 100;
-    height: 56px;
+    height: 60px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 1.5rem;
-    background: linear-gradient(to top, rgba(5,5,8,.85), rgba(5,5,8,.5));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    gap: .5rem;
+    background: linear-gradient(to top, rgba(5,5,8,.92), rgba(5,5,8,.6));
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border-top: 1px solid var(--glass-border);
     padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -8px 32px rgba(0,0,0,.35);
 }
 .bottom-nav a, .bottom-nav button {
     display: flex;
@@ -1104,16 +1085,257 @@ body {
     gap: 6px;
     border: 0;
     background: none;
-    color: rgba(255,255,255,.50);
-    font-size: 13px;
+    color: rgba(255,255,255,.45);
+    font-size: 12px;
     cursor: pointer;
     text-decoration: none;
-    transition: color .2s;
-    padding: 6px 14px;
+    transition: color .25s, background .25s, transform .25s;
+    padding: 8px 16px;
     border-radius: 999px;
+    position: relative;
 }
-.bottom-nav a:hover, .bottom-nav button:hover {
-    color: #fff;
+.bottom-nav a svg, .bottom-nav button svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    opacity: .7;
+    transition: opacity .25s;
+}
+@media (hover: hover) {
+    .bottom-nav a:hover, .bottom-nav button:hover {
+        color: #fff;
+        background: rgba(255,255,255,.06);
+        transform: translateY(-1px);
+    }
+    .bottom-nav a:hover svg, .bottom-nav button:hover svg {
+        opacity: 1;
+    }
+}
+.bottom-nav a:active, .bottom-nav button:active {
+    transform: scale(.96);
+}
+.bottom-nav .nav-edit-btn {
+    color: var(--accent);
+    border: 1px solid rgba(139,139,255,.25);
+    background: rgba(139,139,255,.05);
+}
+.bottom-nav .nav-edit-btn svg {
+    opacity: .9;
+}
+@media (hover: hover) {
+    .bottom-nav .nav-edit-btn:hover {
+        background: rgba(139,139,255,.12);
+        border-color: var(--accent);
+        box-shadow: 0 0 20px rgba(139,139,255,.15);
+    }
+}
+
+
+/* =====================================================
+   ACCESS GATE
+===================================================== */
+
+.gate-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 800;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #11121a, #090a10 55%, #050507);
+    padding: 20px;
+}
+
+.gate-overlay.active {
+    display: flex;
+}
+
+.gate-card {
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    padding: 40px 32px;
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    background: rgba(255,255,255,.04);
+    backdrop-filter: blur(20px);
+    box-shadow: 0 40px 100px rgba(0,0,0,.45);
+}
+
+.gate-card .gate-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(139,139,255,.10);
+    border: 1px solid rgba(139,139,255,.20);
+}
+
+.gate-card .gate-icon svg {
+    width: 26px;
+    height: 26px;
+    color: var(--accent);
+}
+
+.gate-card h2 {
+    margin: 0 0 8px;
+    font-size: 19px;
+    font-weight: 600;
+}
+
+.gate-card .gate-desc {
+    color: rgba(255,255,255,.45);
+    font-size: 13px;
+    margin-bottom: 28px;
+    line-height: 1.6;
+}
+
+.gate-card .gate-username {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.gate-input-wrap {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.gate-input-wrap input {
+    width: 100%;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 13px;
+    padding: 13px 16px;
+    background: rgba(255,255,255,.06);
+    color: white;
+    font: inherit;
+    outline: none;
+    text-align: center;
+    letter-spacing: .1em;
+}
+
+.gate-input-wrap input:focus {
+    border-color: var(--accent);
+}
+
+.gate-input-wrap input.shake {
+    animation: shake .4s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+}
+
+.gate-btn {
+    width: 100%;
+    border: 0;
+    border-radius: 13px;
+    padding: 13px;
+    background: var(--accent);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .2s;
+}
+
+.gate-btn:hover { opacity: .88; transform: translateY(-1px); }
+.gate-btn:disabled { opacity: .45; cursor: wait; }
+
+.gate-links {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.gate-links a {
+    color: rgba(255,255,255,.35);
+    font-size: 12px;
+    text-decoration: none;
+    transition: color .2s;
+}
+
+.gate-links a:hover { color: rgba(255,255,255,.6); }
+
+.gate-error {
+    color: #ff6b6b;
+    font-size: 12px;
+    margin-top: 10px;
+    display: none;
+}
+
+.gate-error.active { display: block; }
+
+
+/* =====================================================
+   ACCESS PASSWORD FIELD IN EDITOR
+===================================================== */
+
+.access-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.045);
+    cursor: pointer;
+    transition: background .2s;
+}
+
+.access-toggle:hover { background: rgba(255,255,255,.07); }
+
+.access-toggle .toggle-label {
+    font-size: 13px;
+    color: rgba(255,255,255,.70);
+}
+
+.access-toggle .toggle-switch {
+    width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.12);
+    position: relative;
+    transition: background .25s;
+    flex-shrink: 0;
+}
+
+.access-toggle .toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: white;
+    transition: transform .25s;
+}
+
+.access-toggle.active .toggle-switch {
+    background: var(--accent);
+}
+
+.access-toggle.active .toggle-switch::after {
+    transform: translateX(18px);
+}
+
+.access-password-field {
+    margin-top: 12px;
+    display: none;
+}
+
+.access-password-field.active { display: block; }
+
+.access-hint {
+    font-size: 11px;
+    color: rgba(255,255,255,.30);
+    margin-top: 6px;
+    line-height: 1.5;
 }
 
 
@@ -1133,16 +1355,6 @@ body {
     .logo {
 
         font-size: 15px;
-
-    }
-
-    .header-link,
-    .edit-button {
-
-        padding:
-            8px 11px;
-
-        font-size: 12px;
 
     }
 
@@ -1228,24 +1440,7 @@ body {
 </a>
 
 
-    <div class="header-right">
-
-        <a
-            href="/hub"
-            class="header-link"
-        >数字生命库</a>
-
-        <button
-            id="editButton"
-            class="edit-button"
-            style="display:none;"
-        >
-            编辑彼岸
-        </button>
-
-    </div>
-
-</header>
+    </header>
 
 
 <main class="page">
@@ -1393,9 +1588,28 @@ body {
 </main>
 
 <nav class="bottom-nav" id="bottomNav" style="display:none;">
-    <a href="/hub">数字生命库</a>
-    <button id="navEditBtn">编辑彼岸</button>
-    <a href="/?entered=1">返回幻灵</a>
+    <a href="/hub">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4v7a8 8 0 0 0 16 0V4"/>
+            <path d="M4 4h16"/>
+            <path d="M12 19v3"/>
+        </svg>
+        数字生命库
+    </a>
+    <button id="navEditBtn" class="nav-edit-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+        编辑彼岸
+    </button>
+    <a href="/?entered=1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <path d="M9 22V12h6v10"/>
+        </svg>
+        返回幻灵
+    </a>
 </nav>
 
 </div>
@@ -1653,6 +1867,26 @@ body {
         </div>
 
 
+        <!-- ACCESS PASSWORD -->
+
+        <div class="form-group">
+            <label>访问权限</label>
+            <div class="access-toggle" id="accessToggle">
+                <span class="toggle-label">密码保护</span>
+                <span class="toggle-switch"></span>
+            </div>
+            <div class="access-password-field" id="accessPasswordField">
+                <input
+                    id="accessPassword"
+                    type="password"
+                    placeholder="设置访问密码"
+                    maxlength="30"
+                >
+                <div class="access-hint">设置后，访客需输入密码才能查看你的彼岸。</div>
+            </div>
+        </div>
+
+
         <!-- SAVE -->
 
         <button
@@ -1685,6 +1919,32 @@ body {
         <div class="crop-actions">
             <button id="cropCancel" type="button" class="crop-btn-cancel">取消</button>
             <button id="cropConfirm" type="button" class="crop-btn-confirm">确认</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ACCESS GATE -->
+<div id="gateOverlay" class="gate-overlay">
+    <div class="gate-card">
+        <div class="gate-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+        </div>
+        <h2>彼岸已设密</h2>
+        <p class="gate-desc">
+            <span class="gate-username" id="gateUsername">@username</span> 的彼岸需要密码才能进入。
+        </p>
+        <div class="gate-input-wrap">
+            <input id="gatePassword" type="password" placeholder="输入访问密码" maxlength="30" autocomplete="off">
+        </div>
+        <div class="gate-error" id="gateError">密码错误，请重试。</div>
+        <button class="gate-btn" id="gateSubmit">进入</button>
+        <div class="gate-links">
+            <a href="/">返回首页</a>
+            <a href="/yonder.html">登录账号</a>
         </div>
     </div>
 </div>
@@ -1773,7 +2033,13 @@ async function loadYonder() {
                 {
                     method: "GET",
                     credentials: "include",
-                    cache: "no-store"
+                    cache: "no-store",
+                    headers: (() => {
+                        const h = {};
+                        const t = localStorage.getItem("hyool_token");
+                        if (t) h["Authorization"] = "Bearer " + t;
+                        return h;
+                    })()
                 }
             );
 
@@ -1791,21 +2057,37 @@ async function loadYonder() {
 
         }
 
+        if (data.requires_password) {
+            await checkOwner();
+            if (state.isOwner) {
+                const verifyRes = await fetch(
+                    "/api/yonder/" + encodeURIComponent(username) + "/verify",
+                    {
+                        method: "POST",
+                        credentials: "include",
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(() => {
+                                const h = {};
+                                const t = localStorage.getItem("hyool_token");
+                                if (t) h["Authorization"] = "Bearer " + t;
+                                return h;
+                            })()
+                        },
+                        body: JSON.stringify({ owner_bypass: true })
+                    }
+                );
+                const verifyData = await verifyRes.json();
+                if (verifyData.success) {
+                    applyYonderData(verifyData.yonder);
+                    return;
+                }
+            }
+            showGate(username);
+            return;
+        }
 
-        state.profile =
-            data.yonder.profile;
-
-        state.settings =
-            data.yonder.settings || {};
-
-        state.posts =
-            data.yonder.posts || [];
-
-
-        await checkOwner();
-
-
-        render();
+        applyYonderData(data.yonder);
 
     }
 
@@ -1823,6 +2105,62 @@ async function loadYonder() {
 
     }
 
+}
+
+function applyYonderData(yonder) {
+    state.profile = yonder.profile;
+    state.settings = yonder.settings || {};
+    state.posts = yonder.posts || [];
+    render();
+}
+
+function showGate(username) {
+    document.getElementById("gateUsername").textContent = "@" + username;
+    document.getElementById("gateOverlay").classList.add("active");
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("gatePassword").focus();
+}
+
+async function verifyGatePassword() {
+    const password = document.getElementById("gatePassword").value.trim();
+    if (!password) return;
+
+    const btn = document.getElementById("gateSubmit");
+    btn.disabled = true;
+    btn.textContent = "验证中……";
+    document.getElementById("gateError").classList.remove("active");
+
+    try {
+        const response = await fetch(
+            "/api/yonder/" + encodeURIComponent(state.username) + "/verify",
+            {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password: password })
+            }
+        );
+
+        const data = await response.json();
+
+        if (data.success) {
+            document.getElementById("gateOverlay").classList.remove("active");
+            applyYonderData(data.yonder);
+        } else {
+            const input = document.getElementById("gatePassword");
+            input.classList.add("shake");
+            setTimeout(() => input.classList.remove("shake"), 400);
+            document.getElementById("gateError").classList.add("active");
+            input.value = "";
+            input.focus();
+        }
+    } catch (error) {
+        document.getElementById("gateError").textContent = "验证失败，请重试。";
+        document.getElementById("gateError").classList.add("active");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "进入";
+    }
 }
 
 
@@ -1894,15 +2232,21 @@ function render() {
 
     document
         .getElementById(
-            "editButton"
+            "bottomNav"
+        )
+        .style.display =
+            "flex";
+
+    document
+        .getElementById(
+            "navEditBtn"
         )
         .style.display =
             state.isOwner
-                ? "block"
+                ? "flex"
                 : "none";
 
     if (state.isOwner) {
-        document.getElementById("bottomNav").style.display = "flex";
         document.getElementById("navEditBtn").addEventListener("click", openEditor);
         loadCharacters();
     }
@@ -2273,6 +2617,9 @@ function renderCharacters() {
     const chars = state.characters || [];
     document.getElementById("statCharacters").textContent = chars.length;
 
+    const showCount = 3;
+    const visible = chars.slice(0, showCount);
+
     let html = "";
     if (state.isOwner) {
         html += `<a href="/create/character/" class="create-card">
@@ -2280,7 +2627,7 @@ function renderCharacters() {
             <div class="label">创造数字生命</div>
         </a>`;
     }
-    html += chars.map(c => `
+    html += visible.map(c => `
         <a class="char-card" href="/buddy/${c.id}">
             <img class="thumb" src="${escapeHtml(c.avatar_url || c.image_url || '/placeholder.png')}" alt="${escapeHtml(c.name || '')}" onerror="this.style.opacity=.3">
             <div class="info">
@@ -2289,6 +2636,13 @@ function renderCharacters() {
             </div>
         </a>
     `).join("");
+
+    if (chars.length > showCount) {
+        html += `<a href="/hub" class="more-card">
+            <div class="more-num">+${chars.length - showCount}</div>
+            <div class="more-label">查看全部</div>
+        </a>`;
+    }
 
     if (!state.isOwner && !chars.length) {
         grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">还没有创造数字生命。</div>`;
@@ -2431,6 +2785,22 @@ function openEditor() {
         .checked =
             settings.show_infinite !== 0;
 
+    // Access password
+    const hasPassword = Boolean(settings.has_access_password);
+    const toggle = document.getElementById("accessToggle");
+    const pwField = document.getElementById("accessPasswordField");
+    const pwInput = document.getElementById("accessPassword");
+    if (hasPassword) {
+        toggle.classList.add("active");
+        pwField.classList.add("active");
+        pwInput.value = "";
+        pwInput.placeholder = "输入新密码（留空则不修改）";
+    } else {
+        toggle.classList.remove("active");
+        pwField.classList.remove("active");
+        pwInput.value = "";
+        pwInput.placeholder = "设置访问密码";
+    }
 
     document
         .getElementById(
@@ -2628,7 +2998,15 @@ async function saveSettings() {
                     .checked,
 
             custom_css:
-                ""
+                "",
+
+            access_password: (() => {
+                const toggleActive = document.getElementById("accessToggle").classList.contains("active");
+                const pwVal = document.getElementById("accessPassword").value.trim();
+                if (!toggleActive) return "__clear__";
+                if (pwVal) return pwVal;
+                return null;
+            })()
 
         };
 
@@ -2878,16 +3256,6 @@ function showError(
 
 document
     .getElementById(
-        "editButton"
-    )
-    .addEventListener(
-        "click",
-        openEditor
-    );
-
-
-document
-    .getElementById(
         "closeEditor"
     )
     .addEventListener(
@@ -2925,6 +3293,32 @@ document
 
         }
     );
+
+// Access toggle
+document
+    .getElementById("accessToggle")
+    .addEventListener("click", () => {
+        const toggle = document.getElementById("accessToggle");
+        const field = document.getElementById("accessPasswordField");
+        toggle.classList.toggle("active");
+        if (toggle.classList.contains("active")) {
+            field.classList.add("active");
+            document.getElementById("accessPassword").focus();
+        } else {
+            field.classList.remove("active");
+        }
+    });
+
+// Gate submit
+document
+    .getElementById("gateSubmit")
+    .addEventListener("click", verifyGatePassword);
+
+document
+    .getElementById("gatePassword")
+    .addEventListener("keydown", (e) => {
+        if (e.key === "Enter") verifyGatePassword();
+    });
 
 
 document

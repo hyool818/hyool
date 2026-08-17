@@ -375,7 +375,8 @@ export default {
         if (
             pathname.startsWith("/api/yonder/") &&
             !pathname.endsWith("/posts") &&
-            !pathname.endsWith("/settings")
+            !pathname.endsWith("/settings") &&
+            !pathname.endsWith("/verify")
         ) {
             const username =
                 pathname
@@ -405,6 +406,35 @@ export default {
                     }, 404);
                 }
 
+                const settings =
+                    await getYonderSettings(
+                        env,
+                        profile.id
+                    );
+
+                const hasPassword =
+                    settings.access_password &&
+                    settings.access_password.length > 0;
+
+                const visitor =
+                    await getAuthenticatedUser(
+                        request,
+                        env
+                    );
+
+                const isOwner =
+                    visitor &&
+                    visitor.username &&
+                    visitor.username.toLowerCase() ===
+                        username;
+
+                if (hasPassword && !isOwner) {
+                    return json({
+                        success: true,
+                        requires_password: true
+                    });
+                }
+
                 const postsResult = await env.DB
                     .prepare(
                         "SELECT * FROM yonder_posts WHERE user_id = ? ORDER BY created_at DESC"
@@ -412,17 +442,18 @@ export default {
                     .bind(profile.id)
                     .all();
 
-                const settings =
-                    await getYonderSettings(
-                        env,
-                        profile.id
-                    );
+                const safeSettings = {
+                    ...settings
+                };
+                safeSettings.has_access_password =
+                    hasPassword;
+                delete safeSettings.access_password;
 
                 return json({
                     success: true,
                     yonder: {
                         profile: profile,
-                        settings: settings,
+                        settings: safeSettings,
                         posts: postsResult.results || []
                     }
                 });
@@ -434,6 +465,143 @@ export default {
                     success: false,
                     error: "彼岸加载异常。",
                     message: error?.message || String(error)
+                }, 500);
+            }
+        }
+
+
+        /* =====================================================
+           VERIFY YONDER PASSWORD
+           POST /api/yonder/:username/verify
+        ===================================================== */
+
+        if (
+            pathname.startsWith("/api/yonder/") &&
+            pathname.endsWith("/verify") &&
+            request.method === "POST"
+        ) {
+            const username =
+                pathname
+                    .substring("/api/yonder/".length)
+                    .replace(/\/verify$/, "")
+                    .trim()
+                    .toLowerCase();
+
+            if (!username) {
+                return json({
+                    success: false,
+                    error: "缺少用户名。"
+                }, 400);
+            }
+
+            try {
+                const profile = await env.DB
+                    .prepare(
+                        "SELECT id, username, display_name, avatar_url, bio, background_url, theme, created_at, updated_at FROM profiles WHERE username = ? LIMIT 1"
+                    )
+                    .bind(username)
+                    .first();
+
+                if (!profile) {
+                    return json({
+                        success: false,
+                        error: "彼岸不存在。"
+                    }, 404);
+                }
+
+                const settings =
+                    await getYonderSettings(
+                        env,
+                        profile.id
+                    );
+
+                const hasPassword =
+                    settings.access_password &&
+                    settings.access_password.length > 0;
+
+                const body =
+                    await request.json();
+
+                if (body.owner_bypass) {
+                    const visitor =
+                        await getAuthenticatedUser(
+                            request,
+                            env
+                        );
+
+                    const isOwner =
+                        visitor &&
+                        visitor.username &&
+                        visitor.username.toLowerCase() ===
+                            username;
+
+                    if (!isOwner) {
+                        return json({
+                            success: false,
+                            error: "无权访问。"
+                        }, 403);
+                    }
+                } else if (hasPassword) {
+                    const password = String(
+                        body.password || ""
+                    );
+
+                    if (!password) {
+                        return json({
+                            success: false,
+                            error: "请输入密码。"
+                        }, 400);
+                    }
+
+                    const passwordHash =
+                        await hashPassword(password);
+
+                    if (
+                        passwordHash !==
+                        settings.access_password
+                    ) {
+                        return json({
+                            success: false,
+                            error: "密码错误。"
+                        }, 401);
+                    }
+                }
+
+                const postsResult = await env.DB
+                    .prepare(
+                        "SELECT * FROM yonder_posts WHERE user_id = ? ORDER BY created_at DESC"
+                    )
+                    .bind(profile.id)
+                    .all();
+
+                const safeSettings = {
+                    ...settings
+                };
+                safeSettings.has_access_password =
+                    hasPassword;
+                delete safeSettings.access_password;
+
+                return json({
+                    success: true,
+                    yonder: {
+                        profile: profile,
+                        settings: safeSettings,
+                        posts: postsResult.results || []
+                    }
+                });
+
+            } catch (error) {
+                console.error(
+                    "YONDER VERIFY ERROR:",
+                    error
+                );
+
+                return json({
+                    success: false,
+                    error: "验证失败。",
+                    message:
+                        error?.message ||
+                        String(error)
                 }, 500);
             }
         }
@@ -533,10 +701,20 @@ export default {
                         profile.id
                     );
 
+                const safeGetSettings = {
+                    ...settings
+                };
+                safeGetSettings.has_access_password =
+                    Boolean(
+                        safeGetSettings.access_password &&
+                        safeGetSettings.access_password.length > 0
+                    );
+                delete safeGetSettings.access_password;
+
                 return json({
                     success: true,
                     username: username,
-                    settings: settings
+                    settings: safeGetSettings
                 });
 
             } catch (error) {
@@ -623,6 +801,33 @@ export default {
                         20000
                     );
 
+                const currentSettings =
+                    await getYonderSettings(
+                        env,
+                        user.id
+                    );
+
+                let accessPassword =
+                    currentSettings.access_password ||
+                    "";
+
+                if (
+                    body.access_password ===
+                    "__clear__"
+                ) {
+                    accessPassword = "";
+                } else if (
+                    body.access_password &&
+                    typeof body.access_password ===
+                        "string" &&
+                    body.access_password.length >= 1
+                ) {
+                    accessPassword =
+                        await hashPassword(
+                            body.access_password
+                        );
+                }
+
                 await env.DB
                     .prepare(
                         `INSERT INTO yonder_settings
@@ -637,10 +842,11 @@ export default {
                             show_works,
                             show_infinite,
                             custom_css,
+                            access_password,
                             created_at,
                             updated_at
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         ON CONFLICT(user_id)
                         DO UPDATE SET
                             background_type = excluded.background_type,
@@ -652,6 +858,7 @@ export default {
                             show_works = excluded.show_works,
                             show_infinite = excluded.show_infinite,
                             custom_css = excluded.custom_css,
+                            access_password = excluded.access_password,
                             updated_at = CURRENT_TIMESTAMP`
                     )
                     .bind(
@@ -664,7 +871,8 @@ export default {
                         showPosts,
                         showWorks,
                         showInfinite,
-                        customCss
+                        customCss,
+                        accessPassword
                     )
                     .run();
 
@@ -674,9 +882,19 @@ export default {
                         user.id
                     );
 
+                const safeSettings = {
+                    ...settings
+                };
+                safeSettings.has_access_password =
+                    Boolean(
+                        safeSettings.access_password &&
+                        safeSettings.access_password.length > 0
+                    );
+                delete safeSettings.access_password;
+
                 return json({
                     success: true,
-                    settings: settings
+                    settings: safeSettings
                 });
 
             } catch (error) {
@@ -1054,10 +1272,11 @@ async function ensureYonderSettings(
                 show_works,
                 show_infinite,
                 custom_css,
+                access_password,
                 created_at,
                 updated_at
             )
-            VALUES (?, 'gradient', '', '#8b8bff', 'default', 1, 1, 1, 1, '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+            VALUES (?, 'gradient', '', '#8b8bff', 'default', 1, 1, 1, 1, '', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
         )
         .bind(userId)
         .run();
