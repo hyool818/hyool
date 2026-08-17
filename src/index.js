@@ -1018,6 +1018,21 @@ export default {
                     }, 401);
                 }
 
+                const uploadAllowed = await checkRateLimit(
+                    request,
+                    env,
+                    "upload",
+                    10,
+                    60
+                );
+
+                if (!uploadAllowed) {
+                    return json({
+                        success: false,
+                        error: "上传过于频繁，请稍后再试。"
+                    }, 429);
+                }
+
                 const formData =
                     await request.formData();
 
@@ -1129,6 +1144,27 @@ export default {
 
         if (imgMatch && request.method === "GET") {
             try {
+
+                const allowed = await checkRateLimit(
+                    request,
+                    env,
+                    "img",
+                    60,
+                    60
+                );
+
+                if (!allowed) {
+                    return new Response(
+                        "Too many requests",
+                        {
+                            status: 429,
+                            headers: {
+                                "Content-Type": "text/plain",
+                                "Retry-After": "60"
+                            }
+                        }
+                    );
+                }
                 const imageId = imgMatch[1];
 
                 const imageMeta = await env.DB
@@ -1582,6 +1618,66 @@ function cleanSettingValue(
     }
 
     return result;
+}
+
+
+/* =========================================================
+   RATE LIMIT
+========================================================= */
+
+async function checkRateLimit(
+    request,
+    env,
+    route,
+    limit,
+    windowSec
+) {
+    const ip =
+        request.headers.get("cf-connecting-ip") ||
+        request.headers.get("x-forwarded-for") ||
+        "unknown";
+
+    const now = Date.now();
+    const windowId = Math.floor(
+        now / 1000 / windowSec
+    );
+    const key = `${ip}:${route}:${windowId}`;
+    const expiresAt = (windowId + 1) * windowSec;
+
+    const existing = await env.DB.prepare(
+        "SELECT count FROM rate_limits WHERE key = ?"
+    )
+        .bind(key)
+        .first();
+
+    if (existing && existing.count >= limit) {
+        return false;
+    }
+
+    if (existing) {
+        await env.DB.prepare(
+            "UPDATE rate_limits SET count = count + 1 WHERE key = ?"
+        )
+            .bind(key)
+            .run();
+    } else {
+        await env.DB.prepare(
+            "INSERT INTO rate_limits (key, count, expires_at) VALUES (?, 1, ?)"
+        )
+            .bind(key, expiresAt)
+            .run();
+    }
+
+    if (Math.random() < 0.01) {
+        const nowSec = Math.floor(now / 1000);
+        env.DB.prepare(
+            "DELETE FROM rate_limits WHERE expires_at < ?"
+        )
+            .bind(nowSec)
+            .run();
+    }
+
+    return true;
 }
 
 

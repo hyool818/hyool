@@ -130,3 +130,12 @@ CREATE TABLE IF NOT EXISTS image_chunks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_image_chunks ON image_chunks(image_id, chunk_index);
+
+-- ===== 速率限制 =====
+CREATE TABLE IF NOT EXISTS rate_limits (
+    key TEXT PRIMARY KEY,
+    count INTEGER DEFAULT 1,
+    expires_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_rate_limits_expires ON rate_limits(expires_at);
