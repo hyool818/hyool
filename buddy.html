@@ -39,55 +39,8 @@ a { color: inherit; text-decoration: none; }
   transition: color .2s; background: none; border: 0;
 }
 .back-link:hover { color: #fff; }
-.char-mini { display: flex; align-items: center; gap: 10px; }
-.char-avatar-wrap { position: relative; width: 38px; height: 38px; }
-.char-avatar-wrap img {
-  width: 38px; height: 38px; border-radius: 50%; object-fit: cover; background: rgba(0,0,0,.3);
-  animation: avatarBreathe 4s ease-in-out infinite;
-  position: relative; z-index: 2;
-}
-.char-avatar-glow {
-  position: absolute; inset: -3px; border-radius: 50%; z-index: 1;
-  background: radial-gradient(circle, rgba(139,139,255,.25), transparent 70%);
-  opacity: .5; animation: avatarGlow 4s ease-in-out infinite;
-  transition: opacity .3s;
-}
-.char-avatar-wrap.speaking .char-avatar-glow {
-  opacity: 1; animation: speakingPulse 1.2s ease-in-out infinite;
-}
-.char-avatar-wrap.speaking img {
-  animation: avatarSpeak 1.2s ease-in-out infinite;
-}
-.char-avatar-wrap::after {
-  content: ""; position: absolute; inset: -8px; border-radius: 50%; z-index: 0;
-  border: 1px solid rgba(139,139,255,.12);
-  opacity: 0; transition: opacity .3s;
-}
-.char-avatar-wrap.speaking::after {
-  opacity: 1; animation: ringRipple 1.2s ease-out infinite;
-}
-@keyframes avatarBreathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.03); }
-}
-@keyframes avatarGlow {
-  0%, 100% { opacity: .4; }
-  50% { opacity: .7; }
-}
-@keyframes avatarSpeak {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
-}
-@keyframes speakingPulse {
-  0%, 100% { opacity: .6; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.15); }
-}
-@keyframes ringRipple {
-  0% { transform: scale(1); opacity: .5; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-.char-mini .name { font-weight: 700; font-size: .95rem; }
-.char-mini .sub { font-size: .72rem; color: var(--muted); }
+.char-name { font-weight: 700; font-size: .95rem; }
+.char-sub { font-size: .72rem; color: var(--muted); }
 .header-link {
   border: 0; background: rgba(255,255,255,.06); color: rgba(255,255,255,.76);
   padding: 8px 13px; border-radius: 999px; font-size: 12px; cursor: pointer;
@@ -95,10 +48,96 @@ a { color: inherit; text-decoration: none; }
 }
 .header-link:hover { color: #fff; background: rgba(255,255,255,.12); }
 
-/* Layout */
-.app { display: flex; flex-direction: column; height: 100dvh; height: 100vh; padding-top: 64px; }
-.chat-area { flex: 1; overflow-y: auto; padding: 24px 24px 8px; }
-.chat-inner { max-width: 760px; margin: 0 auto; }
+/* Main layout: split view */
+.main {
+  display: flex; height: 100dvh; height: 100vh; padding-top: 64px;
+}
+
+/* Portrait panel */
+.portrait-panel {
+  flex: 0 0 42%; max-width: 560px; min-width: 280px;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  position: relative; overflow: hidden;
+  background: linear-gradient(to bottom, transparent 30%, rgba(0,0,0,.4) 100%);
+  border-right: 1px solid var(--glass-border);
+}
+.portrait-panel::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at 50% 60%, rgba(139,139,255,.10), transparent 50%);
+}
+.portrait-stage {
+  position: relative; width: 100%; flex: 1; display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: 0; overflow: hidden;
+}
+.portrait-img {
+  max-height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center;
+  filter: drop-shadow(0 8px 40px rgba(0,0,0,.5));
+  animation: portraitBreathe 5s ease-in-out infinite;
+  position: relative; z-index: 2;
+}
+.portrait-glow {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 60%; height: 40%; pointer-events: none; z-index: 1;
+  background: radial-gradient(ellipse at 50% 100%, rgba(139,139,255,.20), transparent 60%);
+  opacity: .5; animation: glowPulse 5s ease-in-out infinite;
+}
+.portrait-stage.speaking .portrait-glow {
+  opacity: 1; animation: speakGlow 1.2s ease-in-out infinite;
+}
+.portrait-stage.speaking .portrait-img {
+  animation: portraitSpeak 1.2s ease-in-out infinite;
+}
+.portrait-ripple {
+  position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
+  width: 30%; height: 30%; border-radius: 50%; pointer-events: none; z-index: 0;
+  border: 1px solid rgba(139,139,255,.15);
+  opacity: 0;
+}
+.portrait-stage.speaking .portrait-ripple {
+  animation: rippleOut 1.5s ease-out infinite;
+}
+@keyframes portraitBreathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+@keyframes glowPulse {
+  0%, 100% { opacity: .4; }
+  50% { opacity: .65; }
+}
+@keyframes portraitSpeak {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.025); }
+}
+@keyframes speakGlow {
+  0%, 100% { opacity: .6; }
+  50% { opacity: 1; }
+}
+@keyframes rippleOut {
+  0% { transform: translateX(-50%) scale(.8); opacity: .4; }
+  100% { transform: translateX(-50%) scale(1.8); opacity: 0; }
+}
+
+/* Portrait toolbar (future features) */
+.portrait-toolbar {
+  flex: 0 0 auto; width: 100%; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  display: flex; justify-content: center; gap: .5rem; z-index: 5;
+  background: linear-gradient(to top, rgba(0,0,0,.5), transparent);
+}
+.tool-btn {
+  border: 1px solid var(--glass-border); background: var(--glass);
+  color: rgba(255,255,255,.5); padding: 7px 14px; border-radius: 999px;
+  font-size: 12px; cursor: pointer; transition: all .2s; white-space: nowrap;
+  display: flex; align-items: center; gap: 4px;
+}
+.tool-btn:hover { background: rgba(255,255,255,.10); color: rgba(255,255,255,.7); }
+.tool-btn .badge { font-size: 9px; background: rgba(139,139,255,.2); color: var(--accent); padding: 1px 5px; border-radius: 4px; }
+
+/* Chat panel */
+.chat-panel {
+  flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100%;
+}
+.chat-area { flex: 1; overflow-y: auto; padding: 20px 24px 8px; }
+.chat-inner { max-width: 680px; margin: 0 auto; }
 
 /* Messages */
 .msg-row { display: flex; margin-bottom: 1.1rem; animation: fadeUp .4s cubic-bezier(.2,.8,.2,1); }
@@ -116,9 +155,7 @@ a { color: inherit; text-decoration: none; }
 }
 .msg-time { font-size: .68rem; color: var(--muted); margin: 4px 10px 0; align-self: flex-end; }
 .msg-row.user .msg-time { text-align: right; }
-
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-
 .typing .bubble { display: flex; gap: 5px; align-items: center; padding: 16px 18px; }
 .typing .bubble span {
   width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
@@ -130,10 +167,9 @@ a { color: inherit; text-decoration: none; }
   0%, 60%, 100% { transform: translateY(0); opacity: .4; }
   30% { transform: translateY(-6px); opacity: 1; }
 }
-
 /* Memory bar */
 .mem-bar {
-  max-width: 760px; margin: 0 auto 8px; padding: 6px 4px;
+  max-width: 680px; margin: 0 auto 8px; padding: 6px 4px;
   font-size: .72rem; color: var(--muted); display: flex; align-items: center; gap: 6px;
 }
 .mem-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
@@ -141,9 +177,9 @@ a { color: inherit; text-decoration: none; }
 /* Composer */
 .composer {
   padding: 12px 24px calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,.06);
-  background: rgba(5,5,8,.4); backdrop-filter: blur(8px);
+  background: rgba(5,5,8,.4); backdrop-filter: blur(8px); flex: 0 0 auto;
 }
-.composer-inner { max-width: 760px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
+.composer-inner { max-width: 680px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
 .composer textarea {
   flex: 1; min-height: 48px; max-height: 140px; resize: none;
   border: 1px solid rgba(255,255,255,.10); border-radius: 16px;
@@ -160,6 +196,16 @@ a { color: inherit; text-decoration: none; }
 .send-btn:hover { opacity: .88; transform: translateY(-1px); }
 .send-btn:disabled { opacity: .4; cursor: wait; }
 
+/* Mobile toggle for portrait */
+.portrait-toggle {
+  display: none; position: fixed; bottom: calc(80px + env(safe-area-inset-bottom)); right: 16px; z-index: 40;
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--glass-border);
+  background: rgba(20,20,30,.8); backdrop-filter: blur(10px); color: var(--accent);
+  cursor: pointer; font-size: 18px; align-items: center; justify-content: center;
+  transition: transform .2s;
+}
+.portrait-toggle:hover { transform: scale(1.08); }
+
 /* States */
 .loading-screen {
   position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
@@ -174,12 +220,23 @@ a { color: inherit; text-decoration: none; }
 .err-screen { text-align: center; padding: 2rem; }
 .err-screen a { color: var(--accent); }
 
-@media (max-width: 600px) {
+/* Mobile: portrait becomes overlay */
+@media (max-width: 768px) {
   .header { padding: 0 16px; height: 58px; }
-  .app { padding-top: 58px; }
+  .main { padding-top: 58px; flex-direction: column; }
+  .portrait-panel {
+    position: fixed; inset: 58px 0 auto 0; z-index: 30; max-width: none; min-width: 0;
+    height: 45%; border-right: 0; border-bottom: 1px solid var(--glass-border);
+    transform: translateY(-100%); transition: transform .4s cubic-bezier(.2,.8,.2,1);
+  }
+  .portrait-panel.mobile-show { transform: translateY(0); }
+  .chat-panel { flex: 1; }
   .chat-area, .composer { padding-left: 14px; padding-right: 14px; }
   .msg-row .bubble { max-width: 88%; }
-  .char-mini .sub { display: none; }
+  .char-sub { display: none; }
+  .portrait-toggle { display: flex; }
+  .portrait-toolbar { padding-bottom: 6px; }
+  .tool-btn { padding: 6px 10px; font-size: 11px; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 </style>
@@ -191,15 +248,9 @@ a { color: inherit; text-decoration: none; }
   <header class="header">
     <div class="left">
       <button class="back-link" id="backBtn">← 返回</button>
-      <div class="char-mini">
-        <div class="char-avatar-wrap" id="avatarWrap">
-          <div class="char-avatar-glow"></div>
-          <img id="charAvatar" alt="">
-        </div>
-        <div>
-          <div class="name" id="charName"></div>
-          <div class="sub" id="charWorld"></div>
-        </div>
+      <div>
+        <div class="char-name" id="charName"></div>
+        <div class="char-sub" id="charWorld"></div>
       </div>
     </div>
     <div style="display:flex;gap:.5rem;">
@@ -208,17 +259,37 @@ a { color: inherit; text-decoration: none; }
     </div>
   </header>
 
-  <div class="app">
-    <div class="chat-area" id="chatArea">
-      <div class="chat-inner" id="chatInner"></div>
-    </div>
-    <div class="composer">
-      <div class="composer-inner">
-        <textarea id="msgInput" placeholder="对 TA 说点什么……" rows="1"></textarea>
-        <button class="send-btn" id="sendBtn">发送</button>
+  <div class="main">
+    <!-- Portrait Panel -->
+    <aside class="portrait-panel" id="portraitPanel">
+      <div class="portrait-stage" id="portraitStage">
+        <div class="portrait-ripple"></div>
+        <div class="portrait-glow"></div>
+        <img class="portrait-img" id="portraitImg" alt="" src="">
+      </div>
+      <div class="portrait-toolbar">
+        <button class="tool-btn" onclick="alert('装扮功能即将上线')">装扮 <span class="badge">soon</span></button>
+        <button class="tool-btn" onclick="alert('场景功能即将上线')">场景 <span class="badge">soon</span></button>
+        <button class="tool-btn" onclick="alert('天气功能即将上线')">天气 <span class="badge">soon</span></button>
+      </div>
+    </aside>
+
+    <!-- Chat Panel -->
+    <div class="chat-panel">
+      <div class="chat-area" id="chatArea">
+        <div class="chat-inner" id="chatInner"></div>
+      </div>
+      <div class="composer">
+        <div class="composer-inner">
+          <textarea id="msgInput" placeholder="对 TA 说点什么……" rows="1"></textarea>
+          <button class="send-btn" id="sendBtn">发送</button>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- Mobile portrait toggle -->
+  <button class="portrait-toggle" id="portraitToggle">👤</button>
 </div>
 
 <script>
@@ -278,19 +349,23 @@ async function checkAuth() {
   return false;
 }
 
-function renderHeader(c) {
+function renderCharacter(c) {
   $("charName").textContent = c.name || "TA";
   $("charWorld").textContent = c.world_name || "";
-  const img = $("charAvatar");
-  if (c.image_url) { img.src = c.image_url; }
-  else { img.style.display = "none"; }
+  const img = $("portraitImg");
+  if (c.image_url) {
+    img.src = c.image_url;
+    img.style.display = "";
+  } else {
+    img.style.display = "none";
+  }
   if (c.share_url) $("shareLink").href = c.share_url;
 }
 
 function setSpeaking(on) {
-  const wrap = $("avatarWrap");
-  if (on) wrap.classList.add("speaking");
-  else wrap.classList.remove("speaking");
+  const stage = $("portraitStage");
+  if (on) stage.classList.add("speaking");
+  else stage.classList.remove("speaking");
 }
 
 async function loadMessages() {
@@ -298,7 +373,7 @@ async function loadMessages() {
   try {
     const res = await api("/api/buddy/" + id + "/messages");
     character = res.character;
-    renderHeader(character);
+    renderCharacter(character);
     (res.messages || []).forEach(m => addMessage(m.role, m.content, false));
     if (res.memories_count) {
       const bar = document.createElement("div");
@@ -365,6 +440,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     localStorage.removeItem("hyool_token");
     try { await api("/api/logout", { method: "POST" }); } catch {}
     location.href = "/yonder";
+  });
+
+  // Mobile portrait toggle
+  $("portraitToggle").addEventListener("click", () => {
+    $("portraitPanel").classList.toggle("mobile-show");
   });
 
   const input = $("msgInput");
