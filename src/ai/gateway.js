@@ -133,7 +133,7 @@ function buildImagePrompt(character, style, params) {
         parts.push(`named ${character.name}`);
     }
 
-    parts.push("bust portrait, centered composition, clean background, high quality, detailed");
+    parts.push("upper body portrait, face clearly visible, centered composition, looking at viewer, clean background, vertical portrait, high quality, detailed");
 
     return parts.join(", ");
 }
