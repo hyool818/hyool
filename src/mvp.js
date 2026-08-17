@@ -2,6 +2,7 @@ import {
     generateCharacterFromIdea,
     chatWithCharacter,
     generateCharacterImage,
+    regenerateCharacterImage,
     buildPortraitSvg
 } from "./ai/gateway.js";
 
@@ -69,11 +70,13 @@ export async function handleMvpRoutes(
 
             const body = await request.json();
             const idea = String(body.idea || "").trim();
+            const style = String(body.style || "realistic");
+            const params = body.params || {};
 
-            if (idea.length < 4) {
+            if (idea.length < 4 && Object.values(params).every(v => !v)) {
                 return json({
                     success: false,
-                    error: "请至少输入一句脑洞描述（4 字以上）。"
+                    error: "请至少输入描述或选择参数。"
                 }, 400);
             }
 
@@ -87,7 +90,7 @@ export async function handleMvpRoutes(
             const characterId = "char_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
             const shareId = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 
-            const generated = await generateCharacterFromIdea(idea, env);
+            const generated = await generateCharacterFromIdea(idea || buildIdeaFromParams(params), env);
 
             const draftCharacter = {
                 id: characterId,
@@ -96,7 +99,9 @@ export async function handleMvpRoutes(
 
             const imageResult = await generateCharacterImage(
                 draftCharacter,
-                env
+                env,
+                style,
+                params
             );
 
             await env.DB.prepare(
@@ -142,7 +147,7 @@ export async function handleMvpRoutes(
                 share_url: `/s/${shareId}`,
                 buddy_url: `/buddy/${characterId}`,
                 ai_mode: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock",
-                image_mode: env.IMAGE_PROVIDER || "mock"
+                image_mode: "pollinations"
             });
 
         } catch (error) {
@@ -154,6 +159,43 @@ export async function handleMvpRoutes(
                     ? "数据库尚未初始化 MVP 表，请先执行 schema/mvp.sql。"
                     : "创造失败，请稍后再试。"
             }, 500);
+        }
+    }
+
+    /* ----- REGEN IMAGE ----- */
+
+    if (pathname === "/api/create/regen-image" && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const body = await request.json();
+            const characterId = String(body.character_id || "");
+            const style = String(body.style || "realistic");
+            const params = body.params || {};
+
+            const character = await getCharacterById(env, characterId);
+            if (!character) {
+                return json({ success: false, error: "角色不存在。" }, 404);
+            }
+
+            const imageResult = await regenerateCharacterImage(character, env, style, params);
+
+            await env.DB.prepare(
+                "UPDATE characters SET image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            ).bind(imageResult.url, characterId).run();
+
+            return json({
+                success: true,
+                image_url: imageResult.url,
+                image_mode: "pollinations"
+            });
+
+        } catch (error) {
+            console.error("REGEN IMAGE ERROR:", error);
+            return json({ success: false, error: "生成失败：" + (error.message || "未知错误") }, 500);
         }
     }
 
@@ -483,11 +525,10 @@ export async function handleMvpRoutes(
         return json({
             success: true,
             ai_provider: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock",
-            image_provider: env.IMAGE_PROVIDER || "mock",
+            image_provider: "pollinations",
             has_api_key: Boolean(env.GEMINI_API_KEY || env.AI_API_KEY),
             create_model: env.AI_CREATE_MODEL || env.AI_CHAT_MODEL || "gemini-flash-latest",
-            chat_model: env.AI_CHAT_MODEL || "gemini-flash-latest",
-            image_model: env.IMAGE_MODEL || null
+            chat_model: env.AI_CHAT_MODEL || "gemini-flash-latest"
         });
     }
 
@@ -582,4 +623,15 @@ function isMissingTableError(error) {
     const message = String(error?.message || error || "").toLowerCase();
     return message.includes("no such table") ||
         message.includes("does not exist");
+}
+
+function buildIdeaFromParams(params) {
+    const genderText = { female: "女性", male: "男性" }[params.gender] || "";
+    const ageText = { teen: "少年", young: "青年", mature: "成熟", elder: "长者" }[params.age] || "";
+    const vibeText = { gentle: "温柔", cool: "冷酷", energetic: "活泼", mysterious: "神秘", elegant: "优雅", wild: "狂野" }[params.vibe] || "";
+    const outfitText = { casual: "日常休闲", formal: "正式", fantasy: "奇幻", tech: "科技感", traditional: "传统", gothic: "哥特" }[params.outfit] || "";
+
+    const parts = [genderText, ageText, vibeText, outfitText].filter(Boolean);
+    if (parts.length === 0) return "一个独特的数字生命";
+    return `一个${parts.join("、")}的角色`;
 }

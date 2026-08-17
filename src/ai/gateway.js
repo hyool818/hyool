@@ -46,18 +46,96 @@ export async function chatWithCharacter(
     );
 }
 
-export async function generateCharacterImage(character, env) {
-    const provider = (env.IMAGE_PROVIDER || "mock").toLowerCase();
+export async function generateCharacterImage(character, env, style, params) {
+    style = style || "realistic";
+    params = params || {};
+    const prompt = buildImagePrompt(character, style, params);
+    const seed = Math.floor(Math.random() * 1000000);
+    const encoded = encodeURIComponent(prompt);
+    const url = `https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&nologo=true&model=flux&seed=${seed}`;
 
-    if (provider === "mock") {
-        return {
-            url: `/api/characters/${character.id}/portrait`,
-            provider: "mock",
-            asset_meta: { note: "Placeholder portrait; set IMAGE_PROVIDER to enable real generation." }
-        };
+    return {
+        url,
+        provider: "pollinations",
+        asset_meta: { prompt: prompt.slice(0, 200), style, seed }
+    };
+}
+
+export async function regenerateCharacterImage(character, env, style, params) {
+    return generateCharacterImage(character, env, style, params);
+}
+
+function buildImagePrompt(character, style, params) {
+    const styleMap = {
+        realistic: "realistic portrait, photorealistic, detailed skin texture, natural lighting, cinematic photography, 8k",
+        "3d": "3D rendered character, game character model, stylized 3D, octane render, unreal engine style",
+        anime: "anime style illustration, 2D anime character, cel shading, detailed anime eyes, key visual",
+        guofeng: "Chinese art style, guofeng illustration, ink wash painting influence, oriental aesthetic, hanfu"
+    };
+
+    const genderMap = {
+        female: "female character",
+        male: "male character"
+    };
+
+    const ageMap = {
+        teen: "teenager, young appearance",
+        young: "young adult",
+        mature: "mature adult",
+        elder: "elderly, aged"
+    };
+
+    const hairMap = {
+        black: "black hair", white: "silver white hair", blonde: "blonde hair",
+        brown: "brown hair", red: "red hair", blue: "blue hair", purple: "purple hair"
+    };
+
+    const eyesMap = {
+        black: "black eyes", amber: "amber eyes", blue: "blue eyes",
+        green: "green eyes", purple: "purple eyes", red: "red eyes",
+        heterochromia: "heterochromia eyes, different colored eyes"
+    };
+
+    const vibeMap = {
+        gentle: "gentle expression, soft smile, warm atmosphere",
+        cool: "cool expression, confident, sharp gaze",
+        energetic: "energetic expression, lively, dynamic pose",
+        mysterious: "mysterious atmosphere, enigmatic expression",
+        elegant: "elegant demeanor, graceful, refined",
+        wild: "wild appearance, fierce, untamed"
+    };
+
+    const outfitMap = {
+        casual: "casual everyday clothing",
+        formal: "formal attire, elegant clothing",
+        fantasy: "fantasy clothing, ornate armor, magical outfit",
+        tech: "futuristic tech wear, cyberpunk clothing",
+        traditional: "traditional clothing, cultural attire",
+        gothic: "gothic clothing, dark elegant outfit"
+    };
+
+    const parts = [
+        styleMap[style] || styleMap.realistic,
+        "portrait of a",
+        genderMap[params.gender] || "character",
+    ];
+
+    if (params.age) parts.push(ageMap[params.age]);
+    if (params.hair) parts.push(hairMap[params.hair]);
+    if (params.eyes) parts.push(eyesMap[params.eyes]);
+    if (params.vibe) parts.push(vibeMap[params.vibe]);
+    if (params.outfit) parts.push(outfitMap[params.outfit]);
+
+    if (character.appearance) {
+        parts.push(character.appearance.slice(0, 200));
+    }
+    if (character.name) {
+        parts.push(`named ${character.name}`);
     }
 
-    return callImageModel(character, env);
+    parts.push("bust portrait, centered composition, clean background, high quality, detailed");
+
+    return parts.join(", ");
 }
 
 function mockGenerateCharacter(idea) {
@@ -156,50 +234,6 @@ async function callChatModel(
     return {
         reply: String(reply || "").trim(),
         memory_note: `用户说：${userMessage.slice(0, 160)}`
-    };
-}
-
-async function callImageModel(character, env) {
-    const apiKey = getApiKey(env) || env.IMAGE_API_KEY;
-    if (!apiKey) {
-        throw new Error("IMAGE API key not configured.");
-    }
-
-    const baseUrl = normalizeBaseUrl(env.AI_BASE_URL);
-    const model = env.IMAGE_MODEL || "dall-e-3";
-
-    const prompt = [
-        "character portrait, digital art, cinematic lighting,",
-        character.appearance || "",
-        character.name || ""
-    ].join(" ");
-
-    const response = await fetch(`${baseUrl}/images/generations`, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            model,
-            prompt: prompt.slice(0, 900),
-            n: 1,
-            size: "1024x1024"
-        })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data?.error?.message || "Image API failed.");
-    }
-
-    const url = data?.data?.[0]?.url || "";
-
-    return {
-        url,
-        provider: env.IMAGE_PROVIDER || "openai",
-        asset_meta: { model, prompt: prompt.slice(0, 200) }
     };
 }
 
@@ -364,11 +398,6 @@ function parseCharacterJson(raw, idea) {
     } catch {
         return fallback;
     }
-}
-
-function normalizeBaseUrl(url) {
-    const base = (url || "https://api.openai.com/v1").replace(/\/$/, "");
-    return base.endsWith("/v1") ? base : `${base}/v1`;
 }
 
 export function buildPortraitSvg(character) {

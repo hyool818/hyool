@@ -40,7 +40,52 @@ a { color: inherit; text-decoration: none; }
 }
 .back-link:hover { color: #fff; }
 .char-mini { display: flex; align-items: center; gap: 10px; }
-.char-mini img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; background: rgba(0,0,0,.3); }
+.char-avatar-wrap { position: relative; width: 38px; height: 38px; }
+.char-avatar-wrap img {
+  width: 38px; height: 38px; border-radius: 50%; object-fit: cover; background: rgba(0,0,0,.3);
+  animation: avatarBreathe 4s ease-in-out infinite;
+  position: relative; z-index: 2;
+}
+.char-avatar-glow {
+  position: absolute; inset: -3px; border-radius: 50%; z-index: 1;
+  background: radial-gradient(circle, rgba(139,139,255,.25), transparent 70%);
+  opacity: .5; animation: avatarGlow 4s ease-in-out infinite;
+  transition: opacity .3s;
+}
+.char-avatar-wrap.speaking .char-avatar-glow {
+  opacity: 1; animation: speakingPulse 1.2s ease-in-out infinite;
+}
+.char-avatar-wrap.speaking img {
+  animation: avatarSpeak 1.2s ease-in-out infinite;
+}
+.char-avatar-wrap::after {
+  content: ""; position: absolute; inset: -8px; border-radius: 50%; z-index: 0;
+  border: 1px solid rgba(139,139,255,.12);
+  opacity: 0; transition: opacity .3s;
+}
+.char-avatar-wrap.speaking::after {
+  opacity: 1; animation: ringRipple 1.2s ease-out infinite;
+}
+@keyframes avatarBreathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+@keyframes avatarGlow {
+  0%, 100% { opacity: .4; }
+  50% { opacity: .7; }
+}
+@keyframes avatarSpeak {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+@keyframes speakingPulse {
+  0%, 100% { opacity: .6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+@keyframes ringRipple {
+  0% { transform: scale(1); opacity: .5; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
 .char-mini .name { font-weight: 700; font-size: .95rem; }
 .char-mini .sub { font-size: .72rem; color: var(--muted); }
 .header-link {
@@ -147,7 +192,10 @@ a { color: inherit; text-decoration: none; }
     <div class="left">
       <button class="back-link" id="backBtn">← 返回</button>
       <div class="char-mini">
-        <img id="charAvatar" alt="">
+        <div class="char-avatar-wrap" id="avatarWrap">
+          <div class="char-avatar-glow"></div>
+          <img id="charAvatar" alt="">
+        </div>
         <div>
           <div class="name" id="charName"></div>
           <div class="sub" id="charWorld"></div>
@@ -239,6 +287,12 @@ function renderHeader(c) {
   if (c.share_url) $("shareLink").href = c.share_url;
 }
 
+function setSpeaking(on) {
+  const wrap = $("avatarWrap");
+  if (on) wrap.classList.add("speaking");
+  else wrap.classList.remove("speaking");
+}
+
 async function loadMessages() {
   const id = getCharId();
   try {
@@ -274,11 +328,13 @@ async function sendMessage() {
   input.style.height = "auto";
   addMessage("user", text, false);
   const typingRow = addMessage("assistant", "", true);
+  setSpeaking(true);
   try {
     const res = await api("/api/buddy/" + getCharId() + "/chat", {
       method: "POST", body: JSON.stringify({ message: text })
     });
     if (!res.success) throw new Error(res.error || "对话失败。");
+    setSpeaking(false);
     typingRow.classList.remove("typing");
     typingRow.querySelector(".bubble").innerHTML = escapeHtml(res.reply).replace(/\n/g, "<br>");
     if (res.memories_count !== undefined) {
@@ -289,6 +345,7 @@ async function sendMessage() {
     }
     scrollBottom();
   } catch (e) {
+    setSpeaking(false);
     typingRow.remove();
     const errRow = addMessage("assistant", "（出了点问题：" + e.message + "）", false);
     errRow.querySelector(".bubble").style.color = "#ff8b8b";
