@@ -301,12 +301,22 @@ export async function handleMvpRoutes(
 
             let imageUrl = null;
 
-            if (env.AI) {
+            const aiModels = [
+                "@cf/black-forest-labs/flux-2-klein-9b",
+                "@cf/black-forest-labs/flux-2-klein-4b",
+                "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+            ];
+
+            for (const modelId of aiModels) {
+                if (!env.AI) break;
                 try {
-                    const aiResult = await env.AI.run(
-                        "@cf/black-forest-labs/flux-2-klein-4b",
-                        { prompt: imagePrompt }
-                    );
+                    const aiResult = await env.AI.run(modelId, { prompt: imagePrompt });
+
+                    if (aiResult && aiResult.image) {
+                        imageUrl = "data:image/png;base64," + aiResult.image;
+                        break;
+                    }
+
                     if (aiResult instanceof Response) {
                         const buffer = await aiResult.arrayBuffer();
                         const bytes = new Uint8Array(buffer);
@@ -316,9 +326,10 @@ export async function handleMvpRoutes(
                             binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.length)));
                         }
                         imageUrl = "data:image/png;base64," + btoa(binary);
+                        break;
                     }
                 } catch (aiErr) {
-                    console.error("Workers AI image gen failed:", aiErr);
+                    console.error("Workers AI (" + modelId + ") failed:", aiErr.message || aiErr);
                 }
             }
 
