@@ -139,3 +139,28 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rate_limits_expires ON rate_limits(expires_at);
+
+-- ===== 邀请码系统 =====
+CREATE TABLE IF NOT EXISTS invite_codes (
+    code TEXT PRIMARY KEY,
+    created_by TEXT NOT NULL,
+    max_uses INTEGER,
+    used_count INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    note TEXT DEFAULT '',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_invite_codes_created_by ON invite_codes(created_by);
+CREATE INDEX IF NOT EXISTS idx_invite_codes_is_active ON invite_codes(is_active);
+
+-- ===== CSRF保护 =====
+CREATE TABLE IF NOT EXISTS csrf_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_csrf_tokens_user ON csrf_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_csrf_tokens_expires ON csrf_tokens(expires_at);

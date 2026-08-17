@@ -199,7 +199,7 @@ export async function handleMvpRoutes(
 
         } catch (error) {
             console.error("REGEN IMAGE ERROR:", error);
-            return json({ success: false, error: "生成失败：" + (error.message || "未知错误") }, 500);
+            return json({ success: false, error: "生成失败，请稍后再试。" }, 500);
         }
     }
 
@@ -332,11 +332,7 @@ export async function handleMvpRoutes(
                     }
 
                     if (binaryData) {
-                        let binary = "";
-                        const chunk = 8192;
-                        for (let i = 0; i < binaryData.length; i += chunk) {
-                            binary += String.fromCharCode.apply(null, binaryData.subarray(i, Math.min(i + chunk, binaryData.length)));
-                        }
+                        const binary = String.fromCharCode.apply(null, binaryData);
                         imageUrl = "data:image/png;base64," + btoa(binary);
                         break;
                     }
@@ -387,7 +383,7 @@ export async function handleMvpRoutes(
 
         } catch (error) {
             console.error("ADVANCED CREATE ERROR:", error);
-            return json({ success: false, error: "创建失败：" + (error.message || "未知错误") }, 500);
+            return json({ success: false, error: "创建失败，请稍后再试。" }, 500);
         }
     }
 
@@ -417,7 +413,8 @@ export async function handleMvpRoutes(
 
             return json({ success: true });
         } catch (error) {
-            return json({ success: false, error: "保存失败。" }, 500);
+            console.error("CHARACTER SAVE ERROR:", error);
+            return json({ success: false, error: "保存失败，请稍后再试。" }, 500);
         }
     }
 
@@ -533,7 +530,17 @@ export async function handleMvpRoutes(
             const convIds = (convs.results || []).map(c => c.id);
 
             if (convIds.length > 0) {
+                // Limit the number of conversations to delete to prevent abuse
+                if (convIds.length > 100) {
+                    return json({ success: false, error: "对话数量过多。" }, 400);
+                }
+
                 const placeholders = convIds.map(() => "?").join(",");
+                // Verify placeholder count matches bind parameter count
+                if (placeholders.split(",").length !== convIds.length) {
+                    return json({ success: false, error: "数据错误。" }, 500);
+                }
+
                 await env.DB.prepare(
                     `DELETE FROM messages WHERE conversation_id IN (${placeholders})`
                 ).bind(...convIds).run();
@@ -552,7 +559,7 @@ export async function handleMvpRoutes(
 
         } catch (error) {
             console.error("CHARACTER DELETE ERROR:", error);
-            return json({ success: false, error: "删除失败：" + (error.message || "未知错误") }, 500);
+            return json({ success: false, error: "删除失败，请稍后再试。" }, 500);
         }
     }
 
@@ -613,7 +620,7 @@ export async function handleMvpRoutes(
 
         } catch (error) {
             console.error("CHARACTER UPDATE ERROR:", error);
-            return json({ success: false, error: "更新失败：" + (error.message || "未知错误") }, 500);
+            return json({ success: false, error: "更新失败，请稍后再试。" }, 500);
         }
     }
 
@@ -650,7 +657,7 @@ export async function handleMvpRoutes(
                 success: false,
                 error: isMissingTableError(error)
                     ? "数据库尚未初始化 MVP 表，请先执行 schema/mvp.sql。"
-                    : "加载失败。"
+                    : "加载失败，请稍后再试。"
             }, 500);
         }
     }
@@ -718,7 +725,7 @@ export async function handleMvpRoutes(
 
             return json({
                 success: false,
-                error: "加载对话失败。"
+                error: "加载对话失败，请稍后再试。"
             }, 500);
         }
     }
@@ -876,7 +883,7 @@ export async function handleMvpRoutes(
 
             return json({
                 success: false,
-                error: "对话失败：" + (error.message || "未知错误")
+                error: "对话失败，请稍后再试。"
             }, 500);
         }
     }
@@ -970,7 +977,7 @@ async function generateEmbedding(text, env) {
         }
         return null;
     } catch (error) {
-        console.error("EMBEDDING ERROR:", error.message);
+        console.error("EMBEDDING ERROR:", error);
         return null;
     }
 }
@@ -1000,7 +1007,7 @@ async function searchRelevantMemories(env, characterId, userId, queryText, topK)
                 score: m.score || 0
             }));
     } catch (error) {
-        console.error("VECTORIZE SEARCH ERROR:", error.message);
+        console.error("VECTORIZE SEARCH ERROR:", error);
         return [];
     }
 }
@@ -1026,7 +1033,7 @@ async function storeConversationVector(env, characterId, userId, userMsg, aiRepl
             }
         }]);
     } catch (error) {
-        console.error("VECTORIZE STORE ERROR:", error.message);
+        console.error("VECTORIZE STORE ERROR:", error);
     }
 }
 

@@ -6,6 +6,132 @@ export default {
         const pathname = decodeURIComponent(url.pathname);
 
         /* =====================================================
+           INVITE CODE MANAGEMENT
+        ===================================================== */
+
+        if (pathname === "/api/invite-codes" && request.method === "GET") {
+            try {
+                const user = await getAuthenticatedUser(request, env);
+                if (!user) {
+                    return json({ success: false, error: "请先登录。" }, 401);
+                }
+
+                // Only allow user 333123 to manage invite codes
+                if (user.username !== "333123") {
+                    return json({ success: false, error: "无权访问。" }, 403);
+                }
+
+                const result = await env.DB.prepare(
+                    "SELECT * FROM invite_codes ORDER BY created_at DESC"
+                ).all();
+
+                return json({
+                    success: true,
+                    invite_codes: result.results || []
+                });
+            } catch (error) {
+                console.error("GET INVITE CODES ERROR:", error);
+                return json({ success: false, error: "获取邀请码失败。" }, 500);
+            }
+        }
+
+        if (pathname === "/api/invite-codes" && request.method === "POST") {
+            try {
+                const user = await getAuthenticatedUser(request, env);
+                if (!user) {
+                    return json({ success: false, error: "请先登录。" }, 401);
+                }
+
+                // Only allow user 333123 to generate invite codes
+                if (user.username !== "333123") {
+                    return json({ success: false, error: "无权生成邀请码。" }, 403);
+                }
+
+                const body = await request.json();
+                const maxUses = body.max_uses !== undefined ? parseInt(body.max_uses) : null;
+                const note = String(body.note || "").slice(0, 200);
+
+                // Generate a random invite code
+                const code = crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
+
+                await env.DB.prepare(
+                    `INSERT INTO invite_codes (code, created_by, max_uses, used_count, is_active, note, created_at)
+                     VALUES (?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)`
+                ).bind(code, user.id, maxUses, 0, note).run();
+
+                return json({
+                    success: true,
+                    invite_code: {
+                        code: code,
+                        max_uses: maxUses,
+                        note: note
+                    }
+                });
+            } catch (error) {
+                console.error("CREATE INVITE CODE ERROR:", error);
+                return json({ success: false, error: "生成邀请码失败。" }, 500);
+            }
+        }
+
+        if (pathname.startsWith("/api/invite-codes/") && request.method === "DELETE") {
+            try {
+                const user = await getAuthenticatedUser(request, env);
+                if (!user) {
+                    return json({ success: false, error: "请先登录。" }, 401);
+                }
+
+                // Only allow user 333123 to delete invite codes
+                if (user.username !== "333123") {
+                    return json({ success: false, error: "无权删除邀请码。" }, 403);
+                }
+
+                const code = pathname.split("/").pop();
+
+                await env.DB.prepare(
+                    "DELETE FROM invite_codes WHERE code = ?"
+                ).bind(code).run();
+
+                return json({ success: true });
+            } catch (error) {
+                console.error("DELETE INVITE CODE ERROR:", error);
+                return json({ success: false, error: "删除邀请码失败。" }, 500);
+            }
+        }
+
+        if (pathname.startsWith("/api/invite-codes/") && pathname.endsWith("/toggle") && request.method === "POST") {
+            try {
+                const user = await getAuthenticatedUser(request, env);
+                if (!user) {
+                    return json({ success: false, error: "请先登录。" }, 401);
+                }
+
+                // Only allow user 333123 to toggle invite codes
+                if (user.username !== "333123") {
+                    return json({ success: false, error: "无权操作邀请码。" }, 403);
+                }
+
+                const code = pathname.split("/").slice(-2, -1)[0];
+
+                const current = await env.DB.prepare(
+                    "SELECT is_active FROM invite_codes WHERE code = ? LIMIT 1"
+                ).bind(code).first();
+
+                if (!current) {
+                    return json({ success: false, error: "邀请码不存在。" }, 404);
+                }
+
+                await env.DB.prepare(
+                    "UPDATE invite_codes SET is_active = ? WHERE code = ?"
+                ).bind(current.is_active ? 0 : 1, code).run();
+
+                return json({ success: true });
+            } catch (error) {
+                console.error("TOGGLE INVITE CODE ERROR:", error);
+                return json({ success: false, error: "操作失败。" }, 500);
+            }
+        }
+
+        /* =====================================================
            REGISTER
         ===================================================== */
 
@@ -22,6 +148,8 @@ export default {
                 const displayName = String(body.display_name || "")
                     .trim();
 
+                const inviteCode = String(body.invite_code || "").trim();
+
                 if (!/^[a-z0-9_-]{3,20}$/.test(username)) {
                     return json({
                         success: false,
@@ -36,6 +164,33 @@ export default {
                     }, 400);
                 }
 
+                // Validate invite code
+                if (!inviteCode) {
+                    return json({
+                        success: false,
+                        error: "需要邀请码才能注册。"
+                    }, 400);
+                }
+
+                const inviteRecord = await env.DB.prepare(
+                    "SELECT * FROM invite_codes WHERE code = ? AND is_active = 1 LIMIT 1"
+                ).bind(inviteCode).first();
+
+                if (!inviteRecord) {
+                    return json({
+                        success: false,
+                        error: "邀请码无效或已过期。"
+                    }, 400);
+                }
+
+                // Check if invite code has uses left
+                if (inviteRecord.max_uses !== null && inviteRecord.used_count >= inviteRecord.max_uses) {
+                    return json({
+                        success: false,
+                        error: "邀请码使用次数已达上限。"
+                    }, 400);
+                }
+
                 const existing = await env.DB
                     .prepare(
                         "SELECT id, username, password_hash FROM profiles WHERE username = ? LIMIT 1"
@@ -45,6 +200,32 @@ export default {
 
                 if (existing) {
                     if (!existing.password_hash) {
+                        // Validate invite code for existing users too
+                        if (!inviteCode) {
+                            return json({
+                                success: false,
+                                error: "需要邀请码才能完成注册。"
+                            }, 400);
+                        }
+
+                        const inviteRecord = await env.DB.prepare(
+                            "SELECT * FROM invite_codes WHERE code = ? AND is_active = 1 LIMIT 1"
+                        ).bind(inviteCode).first();
+
+                        if (!inviteRecord) {
+                            return json({
+                                success: false,
+                                error: "邀请码无效或已过期。"
+                            }, 400);
+                        }
+
+                        if (inviteRecord.max_uses !== null && inviteRecord.used_count >= inviteRecord.max_uses) {
+                            return json({
+                                success: false,
+                                error: "邀请码使用次数已达上限。"
+                            }, 400);
+                        }
+
                         const passwordHash =
                             await hashPassword(password);
 
@@ -63,6 +244,11 @@ export default {
                             env,
                             existing.id
                         );
+
+                        // Increment invite code usage
+                        await env.DB.prepare(
+                            "UPDATE invite_codes SET used_count = used_count + 1 WHERE code = ?"
+                        ).bind(inviteCode).run();
 
                         return createLoginResponse(
                             env,
@@ -101,6 +287,11 @@ export default {
                     userId
                 );
 
+                // Increment invite code usage
+                await env.DB.prepare(
+                    "UPDATE invite_codes SET used_count = used_count + 1 WHERE code = ?"
+                ).bind(inviteCode).run();
+
                 return createLoginResponse(
                     env,
                     userId,
@@ -112,8 +303,7 @@ export default {
 
                 return json({
                     success: false,
-                    error: "注册失败。",
-                    message: error?.message || String(error)
+                    error: "注册失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -161,14 +351,21 @@ export default {
                     }, 401);
                 }
 
-                const passwordHash =
-                    await hashPassword(password);
+                const isValid = await verifyPassword(password, profile.password_hash);
 
-                if (passwordHash !== profile.password_hash) {
+                if (!isValid) {
                     return json({
                         success: false,
                         error: "账号或密码错误。"
                     }, 401);
+                }
+
+                // Migrate legacy SHA-256 hashes to PBKDF2 on successful login
+                if (!profile.password_hash.includes(":")) {
+                    const newHash = await hashPassword(password);
+                    await env.DB.prepare(
+                        "UPDATE profiles SET password_hash = ? WHERE id = ?"
+                    ).bind(newHash, profile.id).run();
                 }
 
                 await ensureYonderSettings(
@@ -187,8 +384,7 @@ export default {
 
                 return json({
                     success: false,
-                    error: "服务器登录异常。",
-                    message: error?.message || String(error)
+                    error: "登录失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -265,8 +461,7 @@ export default {
 
                 return json({
                     authenticated: false,
-                    error: "服务器返回异常。",
-                    message: error?.message || String(error)
+                    error: "服务器异常，请稍后再试。"
                 }, 500);
             }
         }
@@ -305,8 +500,7 @@ export default {
 
                 return json({
                     success: false,
-                    error: "退出登录失败。",
-                    message: error?.message || String(error)
+                    error: "退出登录失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -360,8 +554,7 @@ export default {
 
                 return json({
                     success: false,
-                    error: "数据库异常。",
-                    message: error?.message || String(error)
+                    error: "加载失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -463,8 +656,7 @@ export default {
 
                 return json({
                     success: false,
-                    error: "彼岸加载异常。",
-                    message: error?.message || String(error)
+                    error: "彼岸加载失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -553,17 +745,21 @@ export default {
                         }, 400);
                     }
 
-                    const passwordHash =
-                        await hashPassword(password);
+                    const isValid = await verifyPassword(password, settings.access_password);
 
-                    if (
-                        passwordHash !==
-                        settings.access_password
-                    ) {
+                    if (!isValid) {
                         return json({
                             success: false,
                             error: "密码错误。"
                         }, 401);
+                    }
+
+                    // Migrate legacy SHA-256 hashes to PBKDF2 on successful verification
+                    if (!settings.access_password.includes(":")) {
+                        const newHash = await hashPassword(password);
+                        await env.DB.prepare(
+                            "UPDATE yonder_settings SET access_password = ? WHERE user_id = ?"
+                        ).bind(newHash, profile.id).run();
                     }
                 }
 
@@ -598,10 +794,7 @@ export default {
 
                 return json({
                     success: false,
-                    error: "验证失败。",
-                    message:
-                        error?.message ||
-                        String(error)
+                    error: "验证失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -656,8 +849,7 @@ export default {
 
                 return json({
                     success: false,
-                    error: "内容加载失败。",
-                    message: error?.message || String(error)
+                    error: "内容加载失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -722,8 +914,7 @@ export default {
 
                 return json({
                     success: false,
-                    error: "主页设置加载失败。",
-                    message: error?.message || String(error)
+                    error: "主页设置加载失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -902,8 +1093,7 @@ export default {
 
                 return json({
                     success: false,
-                    error: "主页设置保存失败。",
-                    message: error?.message || String(error)
+                    error: "主页设置保存失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -987,9 +1177,10 @@ export default {
                 });
 
             } catch (error) {
+                console.error("PROFILE UPDATE ERROR:", error);
                 return json({
                     success: false,
-                    error: "资料更新失败：" + (error.message || "未知错误")
+                    error: "资料更新失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -1074,16 +1265,7 @@ export default {
                 const bytes =
                     new Uint8Array(arrayBuffer);
 
-                let binary = "";
-                const chunkSize = 8192;
-                for (let i = 0; i < bytes.length; i += chunkSize) {
-                    binary += String.fromCharCode.apply(
-                        null,
-                        bytes.subarray(i, i + chunkSize)
-                    );
-                }
-
-                const base64 = btoa(binary);
+                const base64 = btoa(String.fromCharCode.apply(null, bytes));
 
                 const imageId =
                     "img_" +
@@ -1125,9 +1307,10 @@ export default {
                 });
 
             } catch (error) {
+                console.error("UPLOAD ERROR:", error);
                 return json({
                     success: false,
-                    error: "上传失败：" + (error.message || "未知错误")
+                    error: "上传失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -1192,30 +1375,17 @@ export default {
                     .map(r => r.data)
                     .join("");
 
-                let binary = "";
-                const decodeChunk = 8192;
-                for (let i = 0; i < base64Data.length; i += decodeChunk) {
-                    const segment = base64Data.substring(
-                        i,
-                        i + decodeChunk
-                    );
-                    binary += String.fromCharCode.apply(
-                        null,
-                        atob(segment)
-                    );
-                }
-
-                const uint8 = new Uint8Array(binary.length);
-                for (let i = 0; i < binary.length; i++) {
-                    uint8[i] = binary.charCodeAt(i);
+                const binaryString = atob(base64Data);
+                const uint8 = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    uint8[i] = binaryString.charCodeAt(i);
                 }
 
                 return new Response(uint8.buffer, {
                     status: 200,
                     headers: {
                         "Content-Type": imageMeta.content_type,
-                        "Cache-Control": "public, max-age=86400",
-                        "Access-Control-Allow-Origin": "*"
+                        "Cache-Control": "public, max-age=86400"
                     }
                 });
 
@@ -1289,10 +1459,7 @@ export default {
 
                 return json({
                     success: false,
-                    error: "彼岸加载异常。",
-                    message:
-                        error?.message ||
-                        String(error)
+                    error: "彼岸加载失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -1504,29 +1671,99 @@ async function createLoginResponse(
 
 
 /* =========================================================
-   PASSWORD HASH
+   PASSWORD HASH (PBKDF2)
 ========================================================= */
 
 async function hashPassword(password) {
-    const data =
-        new TextEncoder()
-            .encode(password);
+    const encoder = new TextEncoder();
+    const passwordData = encoder.encode(password);
+    
+    // Generate a random salt
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    
+    // Derive key using PBKDF2
+    const keyMaterial = await crypto.subtle.importKey(
+        "raw",
+        passwordData,
+        { name: "PBKDF2" },
+        false,
+        ["deriveKey"]
+    );
+    
+    const derivedKey = await crypto.subtle.deriveKey(
+        {
+            name: "PBKDF2",
+            salt: salt,
+            iterations: 100000,
+            hash: "SHA-256"
+        },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+    );
+    
+    const rawKey = await crypto.subtle.exportKey("raw", derivedKey);
+    const hashArray = Array.from(new Uint8Array(rawKey));
+    const saltArray = Array.from(salt);
+    
+    // Combine salt and hash for storage
+    const saltHex = saltArray.map(b => b.toString(16).padStart(2, "0")).join("");
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+    
+    return `${saltHex}:${hashHex}`;
+}
 
-    const hash =
-        await crypto.subtle.digest(
-            "SHA-256",
-            data
+async function verifyPassword(password, storedHash) {
+    try {
+        // Check if this is a legacy SHA-256 hash (no salt separator)
+        if (!storedHash.includes(":")) {
+            // Legacy SHA-256 hash - verify with old method
+            const data = new TextEncoder().encode(password);
+            const hash = await crypto.subtle.digest("SHA-256", data);
+            const legacyHash = Array.from(new Uint8Array(hash))
+                .map(byte => byte.toString(16).padStart(2, "0"))
+                .join("");
+            return legacyHash === storedHash;
+        }
+
+        // New PBKDF2 hash
+        const [saltHex, hashHex] = storedHash.split(":");
+        const salt = new Uint8Array(saltHex.match(/.{2}/g).map(byte => parseInt(byte, 16)));
+        
+        const encoder = new TextEncoder();
+        const passwordData = encoder.encode(password);
+        
+        const keyMaterial = await crypto.subtle.importKey(
+            "raw",
+            passwordData,
+            { name: "PBKDF2" },
+            false,
+            ["deriveKey"]
         );
-
-    return Array
-        .from(new Uint8Array(hash))
-        .map(
-            byte =>
-                byte
-                    .toString(16)
-                    .padStart(2, "0")
-        )
-        .join("");
+        
+        const derivedKey = await crypto.subtle.deriveKey(
+            {
+                name: "PBKDF2",
+                salt: salt,
+                iterations: 100000,
+                hash: "SHA-256"
+            },
+            keyMaterial,
+            { name: "AES-GCM", length: 256 },
+            true,
+            ["encrypt", "decrypt"]
+        );
+        
+        const rawKey = await crypto.subtle.exportKey("raw", derivedKey);
+        const hashArray = Array.from(new Uint8Array(rawKey));
+        const computedHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+        
+        return computedHash === hashHex;
+    } catch (error) {
+        console.error("Password verification error:", error);
+        return false;
+    }
 }
 
 
@@ -1575,7 +1812,7 @@ function createSessionCookie(token) {
         "Path=/",
         "HttpOnly",
         "Secure",
-        "SameSite=None",
+        "SameSite=Lax",
         "Max-Age=2592000"
     ].join("; ");
 }
@@ -1591,7 +1828,7 @@ function clearSessionCookie() {
         "Path=/",
         "HttpOnly",
         "Secure",
-        "SameSite=None",
+        "SameSite=Lax",
         "Max-Age=0"
     ].join("; ");
 }
@@ -1680,6 +1917,46 @@ async function checkRateLimit(
     return true;
 }
 
+
+/* =========================================================
+   CSRF PROTECTION
+========================================================= */
+
+async function generateCsrfToken(env, userId) {
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(); // 2 hours
+    
+    await env.DB.prepare(
+        "INSERT INTO csrf_tokens (token, user_id, expires_at) VALUES (?, ?, ?)"
+    ).bind(token, userId, expiresAt).run();
+    
+    return token;
+}
+
+async function verifyCsrfToken(env, token, userId) {
+    if (!token) {
+        return false;
+    }
+    
+    const stored = await env.DB.prepare(
+        "SELECT * FROM csrf_tokens WHERE token = ? AND user_id = ? LIMIT 1"
+    ).bind(token, userId).first();
+    
+    if (!stored) {
+        return false;
+    }
+    
+    // Check if expired
+    if (new Date(stored.expires_at).getTime() <= Date.now()) {
+        await env.DB.prepare("DELETE FROM csrf_tokens WHERE token = ?").bind(token).run();
+        return false;
+    }
+    
+    // Delete after use (one-time token)
+    await env.DB.prepare("DELETE FROM csrf_tokens WHERE token = ?").bind(token).run();
+    
+    return true;
+}
 
 /* =========================================================
    JSON RESPONSE
