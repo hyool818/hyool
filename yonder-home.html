@@ -3450,6 +3450,17 @@ document
 
             try {
 
+                const file =
+                    event.target.files && event.target.files[0];
+
+                if (!file) return;
+
+                if (file.size > 600 * 1024) {
+                    alert("背景图片过大，请压缩到 600KB 以内。");
+                    event.target.value = "";
+                    return;
+                }
+
                 const url =
                     await uploadFile(
                         event.target

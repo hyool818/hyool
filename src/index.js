@@ -765,7 +765,7 @@ export default {
                     cleanSettingValue(
                         body.background_value,
                         "",
-                        2000
+                        900000
                     );
 
                 const accentColor =
