@@ -252,7 +252,7 @@ body {
     margin: 0 auto;
 
     padding:
-        130px 24px 100px;
+        130px 24px 90px;
 }
 
 
@@ -975,6 +975,149 @@ body {
 
 
 /* =====================================================
+   STATS
+===================================================== */
+
+.stats {
+    display: flex;
+    justify-content: center;
+    gap: 2.5rem;
+    margin: 1.6rem 0 0;
+}
+
+.stat {
+    text-align: center;
+}
+
+.stat .num {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.stat .label {
+    font-size: .72rem;
+    color: rgba(255,255,255,.40);
+    letter-spacing: .05em;
+    margin-top: 2px;
+}
+
+
+/* =====================================================
+   CHARACTER GRID
+===================================================== */
+
+.char-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.char-card {
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(255,255,255,.05);
+    transition: transform .25s, background .25s;
+    cursor: pointer;
+    display: block;
+    text-decoration: none;
+    color: inherit;
+}
+@media (hover: hover) {
+    .char-card:hover { transform: translateY(-3px); background: rgba(255,255,255,.08); }
+}
+.char-card .thumb {
+    width: 100%;
+    aspect-ratio: 3/4;
+    object-fit: cover;
+    object-position: center top;
+    background: #0c0d14;
+    display: block;
+}
+.char-card .info { padding: 12px 14px; }
+.char-card .name { font-size: .88rem; font-weight: 600; }
+.char-card .world { font-size: .72rem; color: rgba(255,255,255,.40); margin-top: 2px; }
+
+.create-card {
+    border: 1px dashed rgba(255,255,255,.15);
+    border-radius: 16px;
+    background: rgba(255,255,255,.03);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 3/4;
+    cursor: pointer;
+    transition: all .25s;
+    text-decoration: none;
+    color: inherit;
+}
+@media (hover: hover) {
+    .create-card:hover {
+        border-color: var(--accent);
+        background: rgba(139,139,255,.06);
+        transform: translateY(-3px);
+    }
+}
+.create-card .plus {
+    font-size: 2.2rem;
+    font-weight: 200;
+    color: rgba(255,255,255,.40);
+    line-height: 1;
+}
+.create-card .label {
+    font-size: .78rem;
+    color: rgba(255,255,255,.40);
+    margin-top: .6rem;
+    letter-spacing: .03em;
+}
+.create-card:hover .plus, .create-card:hover .label {
+    color: var(--accent);
+}
+
+
+/* =====================================================
+   BOTTOM NAV
+===================================================== */
+
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    background: linear-gradient(to top, rgba(5,5,8,.85), rgba(5,5,8,.5));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--glass-border);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+.bottom-nav a, .bottom-nav button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    background: none;
+    color: rgba(255,255,255,.50);
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: color .2s;
+    padding: 6px 14px;
+    border-radius: 999px;
+}
+.bottom-nav a:hover, .bottom-nav button:hover {
+    color: #fff;
+}
+
+
+/* =====================================================
    MOBILE
 ===================================================== */
 
@@ -1006,7 +1149,7 @@ body {
     .page {
 
         padding:
-            110px 16px 70px;
+            110px 16px 90px;
 
     }
 
@@ -1029,6 +1172,13 @@ body {
             1fr;
 
     }
+
+    .char-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 12px;
+    }
+
+    .stats { gap: 1.8rem; }
 
 }
 
@@ -1081,11 +1231,6 @@ body {
     <div class="header-right">
 
         <a
-            href="/create/character/"
-            class="header-link"
-        >创造数字生命</a>
-
-        <a
             href="/hub"
             class="header-link"
         >数字生命库</a>
@@ -1097,7 +1242,6 @@ body {
         >
             编辑彼岸
         </button>
-
 
     </div>
 
@@ -1140,6 +1284,17 @@ body {
             class="bio"
         ></div>
 
+        <div class="stats" id="statsContainer" style="display:none;">
+            <div class="stat">
+                <div class="num" id="statCharacters">0</div>
+                <div class="label">数字生命</div>
+            </div>
+            <div class="stat">
+                <div class="num" id="statPosts">0</div>
+                <div class="label">记录</div>
+            </div>
+        </div>
+
     </section>
 
 
@@ -1171,7 +1326,7 @@ body {
     </section>
 
 
-    <!-- WORKS -->
+    <!-- CHARACTERS -->
 
     <section
         id="worksSection"
@@ -1181,7 +1336,7 @@ body {
         <div class="section-title">
 
             <h2>
-                作品
+                数字生命
             </h2>
 
             <span>
@@ -1190,9 +1345,13 @@ body {
 
         </div>
 
-
-        <div class="empty">
-            这里以后会成为你的作品空间。
+        <div
+            id="charGrid"
+            class="char-grid"
+        >
+            <div class="empty" style="grid-column:1/-1;">
+                加载中……
+            </div>
         </div>
 
     </section>
@@ -1233,6 +1392,11 @@ body {
 
 </main>
 
+<nav class="bottom-nav" id="bottomNav" style="display:none;">
+    <a href="/hub">数字生命库</a>
+    <button id="navEditBtn">编辑彼岸</button>
+    <a href="/?entered=1">返回幻灵</a>
+</nav>
 
 </div>
 
@@ -1542,6 +1706,8 @@ const state = {
 
     posts: [],
 
+    characters: [],
+
     isOwner: false
 
 };
@@ -1735,6 +1901,14 @@ function render() {
                 ? "block"
                 : "none";
 
+    if (state.isOwner) {
+        document.getElementById("bottomNav").style.display = "flex";
+        document.getElementById("navEditBtn").addEventListener("click", openEditor);
+        loadCharacters();
+    }
+
+    document.getElementById("statPosts").textContent = state.posts.length;
+    document.getElementById("statsContainer").style.display = "flex";
 
     document
         .getElementById(
@@ -1742,7 +1916,6 @@ function render() {
         )
         .style.display =
             "none";
-
 
     document
         .getElementById(
@@ -2069,6 +2242,59 @@ function applySettings(
 
     }
 
+}
+
+
+/* =====================================================
+   CHARACTERS
+===================================================== */
+
+async function loadCharacters() {
+    try {
+        const headers = {};
+        const t = localStorage.getItem("hyool_token");
+        if (t) headers["Authorization"] = "Bearer " + t;
+        const res = await fetch("/api/hub", {
+            method: "GET",
+            headers
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "加载失败");
+        state.characters = data.characters || [];
+        renderCharacters();
+    } catch (e) {
+        state.characters = [];
+        renderCharacters();
+    }
+}
+
+function renderCharacters() {
+    const grid = document.getElementById("charGrid");
+    const chars = state.characters || [];
+    document.getElementById("statCharacters").textContent = chars.length;
+
+    let html = "";
+    if (state.isOwner) {
+        html += `<a href="/create/character/" class="create-card">
+            <div class="plus">+</div>
+            <div class="label">创造数字生命</div>
+        </a>`;
+    }
+    html += chars.map(c => `
+        <a class="char-card" href="/buddy/${c.id}">
+            <img class="thumb" src="${escapeHtml(c.avatar_url || c.image_url || '/placeholder.png')}" alt="${escapeHtml(c.name || '')}" onerror="this.style.opacity=.3">
+            <div class="info">
+                <div class="name">${escapeHtml(c.name || '未命名')}</div>
+                ${c.world ? `<div class="world">${escapeHtml(c.world)}</div>` : ''}
+            </div>
+        </a>
+    `).join("");
+
+    if (!state.isOwner && !chars.length) {
+        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">还没有创造数字生命。</div>`;
+    } else {
+        grid.innerHTML = html;
+    }
 }
 
 

@@ -553,8 +553,12 @@ $("nextBtn").addEventListener("click", () => {
 });
 
 $("backBtn").addEventListener("click", () => {
-  if (state.step > 1 && !$("resultPage").classList.contains("active")) goToStep(state.step - 1);
-  else location.href = "/hub";
+  if (state.step > 1 && !$("resultPage").classList.contains("active")) { goToStep(state.step - 1); return; }
+  if (document.referrer && document.referrer.includes(location.host)) {
+    history.back();
+  } else {
+    location.href = "/hub";
+  }
 });
 
 /* Generate */
