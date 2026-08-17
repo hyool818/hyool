@@ -302,32 +302,46 @@ export async function handleMvpRoutes(
             let imageUrl = null;
 
             const aiModels = [
-                "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+                { id: "@cf/stabilityai/stable-diffusion-xl-base-1.0", params: {
+                    prompt: imagePrompt,
+                    negative_prompt: "blurry, low quality, distorted, deformed, ugly, bad anatomy, extra fingers, watermark, text",
+                    width: 1024,
+                    height: 1024,
+                    num_steps: 20,
+                    guidance: 7.5,
+                }},
             ];
 
-            for (const modelId of aiModels) {
+            for (const model of aiModels) {
                 if (!env.AI) break;
                 try {
-                    const aiResult = await env.AI.run(modelId, { prompt: imagePrompt });
+                    const aiResult = await env.AI.run(model.id, model.params);
 
                     if (aiResult && aiResult.image) {
                         imageUrl = "data:image/png;base64," + aiResult.image;
                         break;
                     }
 
+                    let binaryData = null;
                     if (aiResult instanceof Response) {
                         const buffer = await aiResult.arrayBuffer();
-                        const bytes = new Uint8Array(buffer);
+                        binaryData = new Uint8Array(buffer);
+                    } else if (aiResult instanceof ReadableStream) {
+                        const buffer = await new Response(aiResult).arrayBuffer();
+                        binaryData = new Uint8Array(buffer);
+                    }
+
+                    if (binaryData) {
                         let binary = "";
                         const chunk = 8192;
-                        for (let i = 0; i < bytes.length; i += chunk) {
-                            binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+                        for (let i = 0; i < binaryData.length; i += chunk) {
+                            binary += String.fromCharCode.apply(null, binaryData.subarray(i, Math.min(i + chunk, binaryData.length)));
                         }
                         imageUrl = "data:image/png;base64," + btoa(binary);
                         break;
                     }
                 } catch (aiErr) {
-                    console.error("Workers AI (" + modelId + ") failed:", aiErr.message || aiErr);
+                    console.error("Workers AI (" + model.id + ") failed:", aiErr.message || aiErr);
                 }
             }
 
