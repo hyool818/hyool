@@ -667,6 +667,115 @@ body {
     object-fit: cover;
 
     border: 2px solid rgba(255,255,255,.12);
+
+}
+
+/* INVITE CODE STYLES */
+
+.invite-code-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.generate-btn, .refresh-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.generate-btn {
+    background: var(--accent);
+    color: white;
+}
+
+.generate-btn:hover {
+    background: #7a7aee;
+}
+
+.refresh-btn {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.8);
+}
+
+.refresh-btn:hover {
+    background: rgba(255,255,255,0.15);
+}
+
+.invite-code-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.invite-code-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.invite-code-item:last-child {
+    border-bottom: none;
+}
+
+.invite-code-text {
+    font-family: monospace;
+    font-size: 14px;
+    color: var(--accent);
+    font-weight: bold;
+}
+
+.invite-code-info {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+    margin-left: 10px;
+}
+
+.invite-code-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.invite-code-actions button {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.toggle-btn {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.8);
+}
+
+.toggle-btn.active {
+    background: rgba(76, 175, 80, 0.3);
+    color: #81c784;
+}
+
+.delete-btn {
+    background: rgba(244, 67, 54, 0.2);
+    color: #ef5350;
+}
+
+.toggle-btn:hover, .delete-btn:hover {
+    opacity: 0.8;
+}
+
+.empty-hint {
+    text-align: center;
+    color: rgba(255,255,255,0.4);
+    font-size: 13px;
+    padding: 20px;
+}
 }
 
 
@@ -1883,6 +1992,19 @@ body {
                     maxlength="30"
                 >
                 <div class="access-hint">设置后，访客需输入密码才能查看你的彼岸。</div>
+            </div>
+        </div>
+
+
+        <!-- INVITE CODE MANAGEMENT (Admin Only) -->
+        <div class="form-group" id="inviteCodeSection" style="display: none;">
+            <label>邀请码管理</label>
+            <div class="invite-code-controls">
+                <button id="generateInviteBtn" class="generate-btn">生成邀请码</button>
+                <button id="refreshInviteBtn" class="refresh-btn">刷新列表</button>
+            </div>
+            <div class="invite-code-list" id="inviteCodeList">
+                <div class="empty-hint">暂无邀请码</div>
             </div>
         </div>
 
@@ -3744,6 +3866,149 @@ document.getElementById("cropZoom").addEventListener("input", function() {
 ===================================================== */
 
 loadYonder();
+
+/* =========================================================
+   INVITE CODE MANAGEMENT
+========================================================= */
+
+let inviteCodes = [];
+
+async function loadInviteCodes() {
+    try {
+        const response = await fetch('/api/invite-codes');
+        const data = await response.json();
+        
+        if (data.success) {
+            inviteCodes = data.invite_codes || [];
+            renderInviteCodes();
+        } else {
+            console.error('Failed to load invite codes:', data.error);
+        }
+    } catch (error) {
+        console.error('Error loading invite codes:', error);
+    }
+}
+
+function renderInviteCodes() {
+    const container = document.getElementById('inviteCodeList');
+    
+    if (!inviteCodes || inviteCodes.length === 0) {
+        container.innerHTML = '<div class="empty-hint">暂无邀请码</div>';
+        return;
+    }
+    
+    container.innerHTML = inviteCodes.map(code => `
+        <div class="invite-code-item">
+            <div>
+                <span class="invite-code-text">${escapeHtml(code.code)}</span>
+                <span class="invite-code-info">
+                    ${code.max_uses ? `已用 ${code.used_count}/${code.max_uses}` : `已用 ${code.used_count}`}
+                    ${code.note ? ` · ${escapeHtml(code.note)}` : ''}
+                </span>
+            </div>
+            <div class="invite-code-actions">
+                <button class="toggle-btn ${code.is_active ? 'active' : ''}" onclick="toggleInviteCode('${code.code}')">
+                    ${code.is_active ? '启用' : '禁用'}
+                </button>
+                <button class="delete-btn" onclick="deleteInviteCode('${code.code}')">删除</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function generateInviteCode() {
+    const maxUses = prompt('请输入最大使用次数（留空表示无限制）:');
+    const note = prompt('请输入备注（可选）:') || '';
+    
+    try {
+        const response = await fetch('/api/invite-codes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                max_uses: maxUses ? parseInt(maxUses) : null,
+                note: note
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`邀请码生成成功: ${data.invite_code.code}`);
+            await loadInviteCodes();
+        } else {
+            alert(`生成失败: ${data.error}`);
+        }
+    } catch (error) {
+        console.error('Error generating invite code:', error);
+        alert('生成失败，请稍后再试');
+    }
+}
+
+async function toggleInviteCode(code) {
+    try {
+        const response = await fetch(`/api/invite-codes/${code}/toggle`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            await loadInviteCodes();
+        } else {
+            alert(`操作失败: ${data.error}`);
+        }
+    } catch (error) {
+        console.error('Error toggling invite code:', error);
+        alert('操作失败，请稍后再试');
+    }
+}
+
+async function deleteInviteCode(code) {
+    if (!confirm(`确定要删除邀请码 ${code} 吗？`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/invite-codes/${code}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            await loadInviteCodes();
+        } else {
+            alert(`删除失败: ${data.error}`);
+        }
+    } catch (error) {
+        console.error('Error deleting invite code:', error);
+        alert('删除失败，请稍后再试');
+    }
+}
+
+// Check if user is admin (333123) and show invite code section
+async function checkAdminAccess() {
+    try {
+        const response = await fetch('/api/me');
+        const data = await response.json();
+        
+        if (data.authenticated && data.user.username === '333123') {
+            document.getElementById('inviteCodeSection').style.display = 'block';
+            await loadInviteCodes();
+        }
+    } catch (error) {
+        console.error('Error checking admin access:', error);
+    }
+}
+
+// Add event listeners for invite code buttons
+document.getElementById('generateInviteBtn').addEventListener('click', generateInviteCode);
+document.getElementById('refreshInviteBtn').addEventListener('click', loadInviteCodes);
+
+// Check admin access when page loads
+window.addEventListener('load', checkAdminAccess);
 
 </script>
 
