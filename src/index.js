@@ -996,7 +996,7 @@ export default {
 
 
         /* =====================================================
-           UPLOAD FILE
+           UPLOAD FILE (chunked D1 storage)
            POST /api/upload
         ===================================================== */
 
@@ -1031,10 +1031,10 @@ export default {
                     }, 400);
                 }
 
-                if (file.size > 3 * 1024 * 1024) {
+                if (file.size > 5 * 1024 * 1024) {
                     return json({
                         success: false,
-                        error: "文件过大（限 3MB 以内）。"
+                        error: "文件过大（限 5MB 以内）。"
                     }, 400);
                 }
 
@@ -1070,12 +1070,41 @@ export default {
 
                 const base64 = btoa(binary);
 
-                const dataUrl =
-                    `data:${file.type};base64,${base64}`;
+                const imageId =
+                    "img_" +
+                    crypto
+                        .randomUUID()
+                        .replace(/-/g, "")
+                        .slice(0, 16);
+
+                const chunkLen = 400000;
+                const chunkCount = Math.ceil(
+                    base64.length / chunkLen
+                );
+
+                await env.DB.prepare(
+                    "INSERT INTO images (id, content_type, total_size, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)"
+                )
+                    .bind(imageId, file.type, file.size)
+                    .run();
+
+                for (let i = 0; i < chunkCount; i++) {
+                    const chunkData = base64.substring(
+                        i * chunkLen,
+                        (i + 1) * chunkLen
+                    );
+                    await env.DB.prepare(
+                        "INSERT INTO image_chunks (image_id, chunk_index, data) VALUES (?, ?, ?)"
+                    )
+                        .bind(imageId, i, chunkData)
+                        .run();
+                }
+
+                const imgUrl = `/img/${imageId}`;
 
                 return json({
                     success: true,
-                    url: dataUrl,
+                    url: imgUrl,
                     size: file.size,
                     type: file.type
                 });
@@ -1085,6 +1114,80 @@ export default {
                     success: false,
                     error: "上传失败：" + (error.message || "未知错误")
                 }, 500);
+            }
+        }
+
+
+        /* =====================================================
+           SERVE IMAGE
+           GET /img/:id
+        ===================================================== */
+
+        const imgMatch = pathname.match(
+            /^\/img\/(img_[a-z0-9]+)$/
+        );
+
+        if (imgMatch && request.method === "GET") {
+            try {
+                const imageId = imgMatch[1];
+
+                const imageMeta = await env.DB
+                    .prepare(
+                        "SELECT content_type, total_size FROM images WHERE id = ? LIMIT 1"
+                    )
+                    .bind(imageId)
+                    .first();
+
+                if (!imageMeta) {
+                    return new Response("Not found", {
+                        status: 404,
+                        headers: { "Content-Type": "text/plain" }
+                    });
+                }
+
+                const chunksResult = await env.DB
+                    .prepare(
+                        "SELECT data FROM image_chunks WHERE image_id = ? ORDER BY chunk_index ASC"
+                    )
+                    .bind(imageId)
+                    .all();
+
+                const base64Data = (chunksResult.results || [])
+                    .map(r => r.data)
+                    .join("");
+
+                let binary = "";
+                const decodeChunk = 8192;
+                for (let i = 0; i < base64Data.length; i += decodeChunk) {
+                    const segment = base64Data.substring(
+                        i,
+                        i + decodeChunk
+                    );
+                    binary += String.fromCharCode.apply(
+                        null,
+                        atob(segment)
+                    );
+                }
+
+                const uint8 = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    uint8[i] = binary.charCodeAt(i);
+                }
+
+                return new Response(uint8.buffer, {
+                    status: 200,
+                    headers: {
+                        "Content-Type": imageMeta.content_type,
+                        "Cache-Control": "public, max-age=86400",
+                        "Access-Control-Allow-Origin": "*"
+                    }
+                });
+
+            } catch (error) {
+                return new Response("Image error", {
+                    status: 500,
+                    headers: { "Content-Type": "text/plain" }
+                });
             }
         }
 

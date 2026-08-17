@@ -3455,8 +3455,8 @@ document
 
                 if (!file) return;
 
-                if (file.size > 600 * 1024) {
-                    alert("背景图片过大，请压缩到 600KB 以内。");
+                if (file.size > 5 * 1024 * 1024) {
+                    alert("背景图片过大，请压缩到 5MB 以内。");
                     event.target.value = "";
                     return;
                 }

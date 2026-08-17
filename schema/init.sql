@@ -113,3 +113,20 @@ CREATE TABLE IF NOT EXISTS assets (
     meta_json TEXT DEFAULT '{}',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ===== 图片分块存储（突破 D1 1MB 行限制）=====
+CREATE TABLE IF NOT EXISTS images (
+    id TEXT PRIMARY KEY,
+    content_type TEXT NOT NULL,
+    total_size INTEGER NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS image_chunks (
+    image_id TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    PRIMARY KEY (image_id, chunk_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_image_chunks ON image_chunks(image_id, chunk_index);
