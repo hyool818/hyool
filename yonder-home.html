@@ -2079,7 +2079,7 @@ async function loadYonder() {
                 );
                 const verifyData = await verifyRes.json();
                 if (verifyData.success) {
-                    applyYonderData(verifyData.yonder);
+                    await applyYonderData(verifyData.yonder);
                     return;
                 }
             }
@@ -2087,7 +2087,7 @@ async function loadYonder() {
             return;
         }
 
-        applyYonderData(data.yonder);
+        await applyYonderData(data.yonder);
 
     }
 
@@ -2107,10 +2107,11 @@ async function loadYonder() {
 
 }
 
-function applyYonderData(yonder) {
+async function applyYonderData(yonder) {
     state.profile = yonder.profile;
     state.settings = yonder.settings || {};
     state.posts = yonder.posts || [];
+    await checkOwner();
     render();
 }
 
@@ -2145,7 +2146,7 @@ async function verifyGatePassword() {
 
         if (data.success) {
             document.getElementById("gateOverlay").classList.remove("active");
-            applyYonderData(data.yonder);
+            await applyYonderData(data.yonder);
         } else {
             const input = document.getElementById("gatePassword");
             input.classList.add("shake");
