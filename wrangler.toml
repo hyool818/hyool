@@ -13,3 +13,7 @@ binding = "AI"
 binding = "DB"
 database_name = "hyool-db"
 database_id = "86e8193a-c300-4d58-9fed-c3d7b9e98af2"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "hyool-memory"

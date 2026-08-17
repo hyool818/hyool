@@ -784,12 +784,28 @@ export async function handleMvpRoutes(
 
             const recentMessages = (recentResult.results || []).reverse();
 
-            const memories = await getMemories(
+            const d1Memories = await getMemories(
                 env,
                 characterId,
                 user.id,
                 8
             );
+
+            const vectorMemories = await searchRelevantMemories(
+                env,
+                characterId,
+                user.id,
+                userMessage,
+                5
+            );
+
+            const memories = [
+                ...vectorMemories.map(m => ({
+                    content: m.content,
+                    importance: 2
+                })),
+                ...d1Memories
+            ].slice(0, 12);
 
             const aiResult = await chatWithCharacter(
                 {
@@ -829,6 +845,15 @@ export async function handleMvpRoutes(
 
                 await trimMemories(env, characterId, user.id, 30);
             }
+
+            await storeConversationVector(
+                env,
+                characterId,
+                user.id,
+                userMessage,
+                aiResult.reply,
+                aiResult.memory_note
+            );
 
             const memCount = await env.DB.prepare(
                 `SELECT COUNT(*) as cnt FROM memories WHERE character_id = ? AND user_id = ?`
@@ -932,6 +957,77 @@ async function getMemories(env, characterId, userId, limit) {
     ).bind(characterId, userId, limit).all();
 
     return (result.results || []).reverse();
+}
+
+async function generateEmbedding(text, env) {
+    try {
+        const truncated = String(text || "").slice(0, 500);
+        const result = await env.AI.run("@cf/baai/bge-base-en-v1.5", {
+            text: [truncated]
+        });
+        if (result && result.data && result.data[0]) {
+            return result.data[0];
+        }
+        return null;
+    } catch (error) {
+        console.error("EMBEDDING ERROR:", error.message);
+        return null;
+    }
+}
+
+async function searchRelevantMemories(env, characterId, userId, queryText, topK) {
+    if (!env.VECTORIZE) return [];
+
+    const embedding = await generateEmbedding(queryText, env);
+    if (!embedding) return [];
+
+    try {
+        const results = await env.VECTORIZE.query(embedding, {
+            topK: topK || 5,
+            filter: {
+                character_id: characterId,
+                user_id: userId
+            },
+            returnMetadata: "all"
+        });
+
+        const matches = results.matches || results.results || [];
+
+        return matches
+            .filter(m => m.metadata && m.metadata.content)
+            .map(m => ({
+                content: m.metadata.content,
+                score: m.score || 0
+            }));
+    } catch (error) {
+        console.error("VECTORIZE SEARCH ERROR:", error.message);
+        return [];
+    }
+}
+
+async function storeConversationVector(env, characterId, userId, userMsg, aiReply, memoryNote) {
+    if (!env.VECTORIZE) return;
+
+    const combinedText = `用户：${String(userMsg || "").slice(0, 200)}\n回复：${String(aiReply || "").slice(0, 200)}`;
+    const embedding = await generateEmbedding(combinedText, env);
+    if (!embedding) return;
+
+    try {
+        const vectorId = "vec_" + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+
+        await env.VECTORIZE.upsert([{
+            id: vectorId,
+            values: embedding,
+            metadata: {
+                character_id: characterId,
+                user_id: userId,
+                content: String(memoryNote || combinedText).slice(0, 300),
+                timestamp: Date.now()
+            }
+        }]);
+    } catch (error) {
+        console.error("VECTORIZE STORE ERROR:", error.message);
+    }
 }
 
 async function trimMemories(env, characterId, userId, keep) {
