@@ -1647,22 +1647,19 @@ function updateModal(){
         .getElementById(
             "switchButton"
         )
-        .addEventListener(
-            "click",
-            () => {
+        .onclick = () => {
 
-                mode =
-                    mode === "login"
-                        ? "register"
-                        : "login";
+            mode =
+                mode === "login"
+                    ? "register"
+                    : "login";
 
-                updateModal();
+            updateModal();
 
-                formError.textContent =
-                    "";
+            formError.textContent =
+                "";
 
-            }
-        );
+        };
 
 }
 
