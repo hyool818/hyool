@@ -1338,6 +1338,29 @@ body::before{
             </div>
 
 
+            <!-- INVITE CODE -->
+
+            <div
+                class="field"
+                id="inviteCodeField"
+                style="display:none;"
+            >
+
+                <label>
+                    邀请码
+                </label>
+
+                <input
+                    id="inviteCode"
+                    type="text"
+                    maxlength="32"
+                    placeholder="请输入邀请码"
+                    autocomplete="off"
+                >
+
+            </div>
+
+
             <div
                 class="error"
                 id="formError"
@@ -1490,6 +1513,16 @@ const confirmField =
         "confirmField"
     );
 
+const inviteCodeField =
+    document.getElementById(
+        "inviteCodeField"
+    );
+
+const inviteCodeInput =
+    document.getElementById(
+        "inviteCode"
+    );
+
 const formError =
     document.getElementById(
         "formError"
@@ -1612,6 +1645,9 @@ function updateModal(){
         confirmField.style.display =
             "block";
 
+        inviteCodeField.style.display =
+            "block";
+
         submitButton.textContent =
             "创建彼岸";
 
@@ -1632,6 +1668,9 @@ function updateModal(){
             "none";
 
         confirmField.style.display =
+            "none";
+
+        inviteCodeField.style.display =
             "none";
 
         submitButton.textContent =
@@ -1777,6 +1816,10 @@ authForm.addEventListener(
                 displayNameInput.value
                     .trim();
 
+            const inviteCode =
+                inviteCodeInput.value
+                    .trim();
+
 
             const confirmPassword =
                 confirmPasswordInput.value;
@@ -1839,7 +1882,9 @@ authForm.addEventListener(
                                     username,
                                     password,
                                     display_name:
-                                        displayName
+                                        displayName,
+                                    invite_code:
+                                        inviteCode
                                 })
                         }
                     );
