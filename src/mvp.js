@@ -1,4 +1,4 @@
-import {
+﻿import {
     generateCharacterFromIdea,
     chatWithCharacter,
     generateCharacterImage,
@@ -150,7 +150,7 @@ export async function handleMvpRoutes(
                 character: formatCharacter(character),
                 share_url: `/s/${shareId}`,
                 buddy_url: `/buddy/${characterId}`,
-                ai_mode: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock",
+                ai_mode: env.AI ? "workers-ai" : "mock",
                 image_mode: "pollinations"
             });
 
@@ -717,7 +717,7 @@ export async function handleMvpRoutes(
                 character: formatCharacter(character),
                 messages: result.results || [],
                 memories_count: memories.length,
-                ai_mode: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock"
+                ai_mode: env.AI ? "workers-ai" : "mock"
             });
 
         } catch (error) {
@@ -814,18 +814,33 @@ export async function handleMvpRoutes(
                 ...d1Memories
             ].slice(0, 12);
 
+            // 读取 chat_config 和 intimacy
+            let chatConfig = {};
+            let intimacy = 0;
+            try {
+                chatConfig = character.chat_config
+                    ? JSON.parse(character.chat_config)
+                    : {};
+            } catch { chatConfig = {}; }
+            intimacy = typeof character.intimacy === "number"
+                ? character.intimacy
+                : (parseInt(character.intimacy, 10) || 0);
+
             const aiResult = await chatWithCharacter(
                 {
                     character,
                     memories,
                     recentMessages,
-                    userMessage
+                    userMessage,
+                    intimacy,
+                    chatConfig
                 },
                 env
             );
 
             const userMsgId = "msg_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
             const assistantMsgId = "msg_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+            const newIntimacy = intimacy + 1;
 
             await env.DB.batch([
                 env.DB.prepare(
@@ -836,7 +851,10 @@ export async function handleMvpRoutes(
                 ).bind(assistantMsgId, conversation.id, aiResult.reply),
                 env.DB.prepare(
                     "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                ).bind(conversation.id)
+                ).bind(conversation.id),
+                env.DB.prepare(
+                    "UPDATE characters SET intimacy = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+                ).bind(newIntimacy, characterId)
             ]);
 
             if (aiResult.memory_note) {
@@ -875,7 +893,8 @@ export async function handleMvpRoutes(
                     content: aiResult.reply
                 },
                 memories_count: memCount?.cnt || 0,
-                ai_mode: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock"
+                intimacy: newIntimacy,
+                ai_mode: env.AI ? "workers-ai" : "mock"
             });
 
         } catch (error) {
@@ -888,16 +907,74 @@ export async function handleMvpRoutes(
         }
     }
 
+    /* ----- BUDDY chat-config save ----- */
+
+    const chatConfigMatch = pathname.match(
+        /^\/api\/buddy\/(char_[a-z0-9]+)\/chat-config$/
+    );
+
+    if (chatConfigMatch && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const characterId = chatConfigMatch[1];
+            const character = await getCharacterById(env, characterId);
+
+            if (!character) {
+                return json({ success: false, error: "角色不存在。" }, 404);
+            }
+
+            if (character.owner_id !== user.id) {
+                return json({ success: false, error: "无权修改。" }, 403);
+            }
+
+            const body = await request.json();
+
+            // 合并到现有 config，只允许更新白名单字段
+            let existing = {};
+            try { existing = JSON.parse(character.chat_config || "{}"); } catch { existing = {}; }
+
+            const temperature = typeof body.temperature === "number"
+                ? Math.min(1.1, Math.max(0.3, body.temperature))
+                : existing.temperature ?? 0.9;
+
+            const max_tokens = typeof body.max_tokens === "number"
+                ? Math.min(300, Math.max(60, Math.round(body.max_tokens)))
+                : existing.max_tokens ?? 150;
+
+            const allowed = ["passive", "balanced", "active"];
+            const proactivity = allowed.includes(body.proactivity)
+                ? body.proactivity
+                : (existing.proactivity ?? "balanced");
+
+            const newConfig = JSON.stringify({ temperature, max_tokens, proactivity });
+
+            await env.DB.prepare(
+                "UPDATE characters SET chat_config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            ).bind(newConfig, characterId).run();
+
+            return json({
+                success: true,
+                chat_config: { temperature, max_tokens, proactivity }
+            });
+
+        } catch (error) {
+            console.error("CHAT CONFIG ERROR:", error);
+            return json({ success: false, error: "保存失败。" }, 500);
+        }
+    }
+
     /* ----- AI status (for debugging / UI badge) ----- */
 
     if (pathname === "/api/ai/status" && method === "GET") {
         return json({
             success: true,
-            ai_provider: (env.GEMINI_API_KEY || env.AI_API_KEY) ? "gemini" : "mock",
+            ai_provider: env.AI ? "workers-ai" : "mock",
             image_provider: "pollinations",
-            has_api_key: Boolean(env.GEMINI_API_KEY || env.AI_API_KEY),
-            create_model: env.AI_CREATE_MODEL || env.AI_CHAT_MODEL || "gemini-flash-latest",
-            chat_model: env.AI_CHAT_MODEL || "gemini-flash-latest"
+            chat_model: env.AI_CHAT_MODEL || "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
         });
     }
 
@@ -931,6 +1008,10 @@ function formatCharacter(row) {
         share_id: row.share_id,
         share_url: row.share_id ? `/s/${row.share_id}` : null,
         buddy_url: `/buddy/${row.id}`,
+        intimacy: row.intimacy ?? 0,
+        chat_config: (() => {
+            try { return JSON.parse(row.chat_config || "{}"); } catch { return {}; }
+        })(),
         created_at: row.created_at,
         updated_at: row.updated_at
     };

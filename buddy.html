@@ -48,6 +48,42 @@ a { color: inherit; text-decoration: none; }
 }
 .header-link:hover { color: #fff; background: rgba(255,255,255,.12); }
 
+/* Settings Modal */
+.settings-overlay {
+  display: none; position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,.5); backdrop-filter: blur(4px);
+  align-items: center; justify-content: center;
+}
+.settings-overlay.show { display: flex; }
+.settings-panel {
+  background: linear-gradient(145deg, #1a1b2e, #12131f);
+  border: 1px solid var(--glass-border); border-radius: 16px;
+  padding: 24px; width: 90%; max-width: 380px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+.settings-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; }
+.setting-row { margin-bottom: 18px; }
+.setting-label { display: flex; justify-content: space-between; font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
+.setting-label .val { color: var(--accent); font-weight: 600; }
+.setting-slider { width: 100%; -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); outline: none; }
+.setting-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+.setting-slider::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; border: none; }
+.setting-seg { display: flex; gap: 6px; }
+.setting-seg button {
+  flex: 1; padding: 8px 0; border: 1px solid var(--glass-border); border-radius: 8px;
+  background: transparent; color: var(--muted); font-size: .8rem; cursor: pointer; transition: all .2s;
+}
+.setting-seg button.active { background: rgba(139,139,255,.15); color: var(--accent); border-color: rgba(139,139,255,.4); }
+.intimacy-bar { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--muted); }
+.intimacy-fill { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+.intimacy-fill span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #c084fc); border-radius: 3px; transition: width .4s; }
+.settings-close {
+  width: 100%; margin-top: 8px; padding: 10px; border: 0; border-radius: 10px;
+  background: rgba(139,139,255,.15); color: var(--accent); font-size: .9rem; cursor: pointer;
+  transition: background .2s;
+}
+.settings-close:hover { background: rgba(139,139,255,.25); }
+
 /* Main layout: split view */
 .main {
   display: flex; height: 100dvh; height: 100vh; padding-top: 64px;
@@ -254,6 +290,7 @@ a { color: inherit; text-decoration: none; }
       </div>
     </div>
     <div style="display:flex;gap:.5rem;">
+      <button class="header-link" id="settingsBtn">⚙ 设置</button>
       <a class="header-link" id="shareLink" href="#">分享</a>
       <button class="header-link" id="logoutBtn">退出</button>
     </div>
@@ -292,6 +329,44 @@ a { color: inherit; text-decoration: none; }
   <button class="portrait-toggle" id="portraitToggle">👤</button>
 </div>
 
+<!-- Settings Modal -->
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-panel">
+    <div class="settings-title">角色设定</div>
+
+    <div class="setting-row">
+      <div class="setting-label"><span>灵魂 · 沉稳/灵动</span><span class="val" id="tempVal">0.9</span></div>
+      <input type="range" class="setting-slider" id="tempSlider" min="0.3" max="1.1" step="0.1" value="0.9">
+      <div style="font-size:.72rem;color:var(--muted);margin-top:4px;">超过1.0角色可能语无伦次，建议0.7~1.0</div>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-label"><span>话语 · 寡言/健谈</span><span class="val" id="tokenVal">150</span></div>
+      <input type="range" class="setting-slider" id="tokenSlider" min="60" max="300" step="20" value="150">
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-label"><span>主动程度</span></div>
+      <div class="setting-seg" id="proSeg">
+        <button data-v="passive">被动</button>
+        <button data-v="balanced" class="active">适中</button>
+        <button data-v="active">主动</button>
+      </div>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-label"><span>羁绊</span></div>
+      <div class="intimacy-bar">
+        <span id="intimacyLabel">初识</span>
+        <div class="intimacy-fill"><span id="intimacyFill" style="width:0%"></span></div>
+        <span id="intimacyNum">0</span>
+      </div>
+    </div>
+
+    <button class="settings-close" id="settingsClose">完成</button>
+  </div>
+</div>
+
 <script>
 const api = (p, o = {}) => {
   const t = localStorage.getItem("hyool_token");
@@ -310,6 +385,8 @@ function getCharId() {
 
 let character = null;
 let sending = false;
+let chatConfig = { temperature: 0.9, max_tokens: 150, proactivity: "balanced" };
+let currentIntimacy = 0;
 
 function scrollBottom() { const a = $("chatArea"); a.scrollTop = a.scrollHeight; }
 if (window.visualViewport) window.visualViewport.addEventListener("resize", scrollBottom);
@@ -349,6 +426,15 @@ async function checkAuth() {
   return false;
 }
 
+function intimacyLabel(v) {
+  if (v >= 50) return "灵魂羁绊";
+  if (v >= 30) return "亲密";
+  if (v >= 10) return "熟识";
+  if (v >= 1) return "初见";
+  return "初识";
+}
+function intimacyPct(v) { return Math.min(100, (v / 50) * 100); }
+
 function renderCharacter(c) {
   $("charName").textContent = c.name || "TA";
   $("charWorld").textContent = c.world_name || "";
@@ -360,6 +446,44 @@ function renderCharacter(c) {
     img.style.display = "none";
   }
   if (c.share_url) $("shareLink").href = c.share_url;
+  if (c.chat_config) {
+    try { chatConfig = { ...chatConfig, ...(typeof c.chat_config === "string" ? JSON.parse(c.chat_config) : c.chat_config) }; } catch {}
+  }
+  // 安全clamp，极端值自动修正
+  chatConfig.temperature = Math.min(1.1, Math.max(0.3, chatConfig.temperature || 0.9));
+  chatConfig.max_tokens  = Math.min(300, Math.max(60, chatConfig.max_tokens || 150));
+  if (!["passive","balanced","active"].includes(chatConfig.proactivity)) chatConfig.proactivity = "balanced";
+  currentIntimacy = c.intimacy || 0;
+  updateSettingsUI();
+}
+
+function updateSettingsUI() {
+  $("tempVal").textContent = chatConfig.temperature.toFixed(1);
+  $("tempSlider").value = chatConfig.temperature;
+  // 高温预警：>=1.0 时数值变红
+  const tempWarn = chatConfig.temperature >= 1.0;
+  $("tempVal").style.color = tempWarn ? "#f87171" : "";
+  $("tokenVal").textContent = chatConfig.max_tokens;
+  $("tokenSlider").value = chatConfig.max_tokens;
+  document.querySelectorAll("#proSeg button").forEach(b => {
+    b.classList.toggle("active", b.dataset.v === chatConfig.proactivity);
+  });
+  $("intimacyLabel").textContent = intimacyLabel(currentIntimacy);
+  $("intimacyNum").textContent = currentIntimacy;
+  $("intimacyFill").style.width = intimacyPct(currentIntimacy) + "%";
+}
+
+let saveTimer = null;
+function saveConfig() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await api("/api/buddy/" + getCharId() + "/chat-config", {
+        method: "POST",
+        body: JSON.stringify(chatConfig)
+      });
+    } catch {}
+  }, 500);
 }
 
 function setSpeaking(on) {
@@ -412,6 +536,10 @@ async function sendMessage() {
     setSpeaking(false);
     typingRow.classList.remove("typing");
     typingRow.querySelector(".bubble").innerHTML = escapeHtml(res.reply).replace(/\n/g, "<br>");
+    if (res.intimacy !== undefined) {
+      currentIntimacy = res.intimacy;
+      updateSettingsUI();
+    }
     if (res.memories_count !== undefined) {
       const bar = document.querySelector(".mem-bar");
       if (bar) {
@@ -445,6 +573,36 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Mobile portrait toggle
   $("portraitToggle").addEventListener("click", () => {
     $("portraitPanel").classList.toggle("mobile-show");
+  });
+
+  // Settings
+  $("settingsBtn").addEventListener("click", () => {
+    updateSettingsUI();
+    $("settingsOverlay").classList.add("show");
+  });
+  $("settingsClose").addEventListener("click", () => {
+    $("settingsOverlay").classList.remove("show");
+  });
+  $("settingsOverlay").addEventListener("click", (e) => {
+    if (e.target === $("settingsOverlay")) $("settingsOverlay").classList.remove("show");
+  });
+  $("tempSlider").addEventListener("input", (e) => {
+    chatConfig.temperature = parseFloat(e.target.value);
+    $("tempVal").textContent = chatConfig.temperature.toFixed(1);
+    saveConfig();
+  });
+  $("tokenSlider").addEventListener("input", (e) => {
+    chatConfig.max_tokens = parseInt(e.target.value);
+    $("tokenVal").textContent = chatConfig.max_tokens;
+    saveConfig();
+  });
+  document.querySelectorAll("#proSeg button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      chatConfig.proactivity = btn.dataset.v;
+      document.querySelectorAll("#proSeg button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      saveConfig();
+    });
   });
 
   const input = $("msgInput");

@@ -30,7 +30,7 @@ export async function generateCharacterFromIdea(idea, env) {
 }
 
 export async function chatWithCharacter(
-    { character, memories, recentMessages, userMessage },
+    { character, memories, recentMessages, userMessage, intimacy, chatConfig },
     env
 ) {
     if (!env.AI) {
@@ -38,7 +38,7 @@ export async function chatWithCharacter(
     }
 
     return callChatModel(
-        { character, memories, recentMessages, userMessage },
+        { character, memories, recentMessages, userMessage, intimacy, chatConfig },
         env
     );
 }
@@ -208,9 +208,16 @@ async function callCreateModel(idea, env) {
 }
 
 async function callChatModel(
-    { character, memories, recentMessages, userMessage },
+    { character, memories, recentMessages, userMessage, intimacy = 0, chatConfig = {} },
     env
 ) {
+    let cfg = chatConfig;
+    if (typeof cfg === "string") {
+        try { cfg = JSON.parse(cfg); } catch { cfg = {}; }
+    }
+    // 安全范围 clamp，防止前端传极端值导致模型崩坏
+    const temperature = Math.min(1.1, Math.max(0.3, typeof cfg.temperature === "number" ? cfg.temperature : 0.9));
+    const max_tokens  = Math.min(300, Math.max(60, typeof cfg.max_tokens  === "number" ? cfg.max_tokens  : 150));
     const system = buildBuddySystemPrompt(character, memories);
 
     const messages = [
@@ -225,7 +232,9 @@ async function callChatModel(
     const reply = await chatCompletions(
         env,
         messages,
-        env.AI_CHAT_MODEL
+        env.AI_CHAT_MODEL,
+        temperature,
+        max_tokens
     );
 
     return {
@@ -237,7 +246,7 @@ async function callChatModel(
 const DEFAULT_CHAT_MODEL   = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const DEFAULT_CREATE_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
-async function chatCompletions(env, messages, modelOverride) {
+async function chatCompletions(env, messages, modelOverride, temperature = 0.9, max_tokens = 150) {
     const model =
         modelOverride ||
         env.AI_CHAT_MODEL ||
@@ -250,8 +259,8 @@ async function chatCompletions(env, messages, modelOverride) {
         try {
             response = await env.AI.run(model, {
                 messages,
-                max_tokens: 512,
-                temperature: 0.9
+                max_tokens,
+                temperature
             });
 
             const text =
