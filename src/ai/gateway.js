@@ -1,12 +1,13 @@
 /**
  * HYOOL AI Gateway
  *
- * Env (Worker secrets / .dev.vars):
- *   GEMINI_API_KEY or AI_API_KEY  API key — set either to enable real Gemini
- *   AI_CHAT_MODEL    optional, defaults to gemini-flash-latest
- *   AI_CREATE_MODEL  optional, model for character JSON
- *   IMAGE_PROVIDER   mock | openai
- *   IMAGE_MODEL      e.g. dall-e-3
+ * LLM: Cloudflare Workers AI — @cf/meta/llama-3.3-70b-instruct-fp8-fast
+ * Requires [ai] binding in wrangler.toml (already configured).
+ * No API key needed.
+ *
+ * Env overrides (optional):
+ *   AI_CHAT_MODEL    override chat model id
+ *   AI_CREATE_MODEL  override character generation model id
  */
 
 const CHARACTER_SCHEMA = {
@@ -20,12 +21,8 @@ const CHARACTER_SCHEMA = {
     story_hook: "string"
 };
 
-function getApiKey(env) {
-    return env.GEMINI_API_KEY || env.AI_API_KEY || "";
-}
-
 export async function generateCharacterFromIdea(idea, env) {
-    if (!getApiKey(env)) {
+    if (!env.AI) {
         return mockGenerateCharacter(idea);
     }
 
@@ -36,7 +33,7 @@ export async function chatWithCharacter(
     { character, memories, recentMessages, userMessage },
     env
 ) {
-    if (!getApiKey(env)) {
+    if (!env.AI) {
         return mockChat(character, memories, userMessage);
     }
 
@@ -179,7 +176,7 @@ function mockChat(character, memories, userMessage) {
     const reply =
         `${memoryHint}\n\n` +
         `作为${name}，我听到了你说：「${userMessage}」。\n\n` +
-        `（当前为 mock 对话模式。配置 GEMINI_API_KEY 后可接入真实大模型。）`;
+        `（当前为 mock 对话模式。Workers AI binding 未配置。）`;
 
     return {
         reply,
@@ -204,7 +201,7 @@ async function callCreateModel(idea, env) {
                 content: `用户脑洞：\n${idea}\n\n请生成角色 JSON。`
             }
         ],
-        env.AI_CREATE_MODEL || env.AI_CHAT_MODEL
+        env.AI_CREATE_MODEL || DEFAULT_CREATE_MODEL
     );
 
     return parseCharacterJson(content, idea);
@@ -237,118 +234,49 @@ async function callChatModel(
     };
 }
 
-function toGeminiMessages(messages) {
-    const systemText = messages
-        .filter((m) => m.role === "system")
-        .map((m) => m.content)
-        .join("\n");
-
-    const rawContents = messages
-        .filter((m) => m.role !== "system")
-        .map((m) => ({
-            role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: m.content }]
-        }));
-
-    const contents = [];
-    for (const msg of rawContents) {
-        const last = contents[contents.length - 1];
-        if (last && last.role === msg.role) {
-            last.parts[0].text += "\n" + msg.parts[0].text;
-        } else {
-            contents.push({ ...msg, parts: [{ text: msg.parts[0].text }] });
-        }
-    }
-
-    while (contents.length > 0 && contents[0].role !== "user") {
-        contents.shift();
-    }
-
-    return {
-        systemInstruction: systemText ? { parts: [{ text: systemText }] } : undefined,
-        contents
-    };
-}
+const DEFAULT_CHAT_MODEL   = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const DEFAULT_CREATE_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 async function chatCompletions(env, messages, modelOverride) {
-    const apiKey = getApiKey(env);
-    if (!apiKey) {
-        throw new Error("AI API key not configured.");
-    }
+    const model =
+        modelOverride ||
+        env.AI_CHAT_MODEL ||
+        DEFAULT_CHAT_MODEL;
 
-    const model = modelOverride || env.AI_CHAT_MODEL || env.AI_CREATE_MODEL || "gemini-flash-latest";
-    const { systemInstruction, contents } = toGeminiMessages(messages);
-
-    const body = {
-        contents,
-        generationConfig: {
-            temperature: 0.9,
-            maxOutputTokens: 300,
-            topP: 0.95
-        },
-        safetySettings: [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" }
-        ]
-    };
-    if (systemInstruction) {
-        body.systemInstruction = systemInstruction;
-    }
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    let response;
     let lastError;
 
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-goog-api-key": apiKey
-                },
-                body: JSON.stringify(body)
+            response = await env.AI.run(model, {
+                messages,
+                max_tokens: 512,
+                temperature: 0.9
             });
 
-            const data = await response.json();
+            const text =
+                response?.response ||
+                response?.result?.response ||
+                "";
 
-            if (!response.ok) {
-                const errMsg = data?.error?.message || `Gemini API HTTP ${response.status}`;
-                lastError = new Error(errMsg);
-                if (response.status === 400) {
-                    throw lastError;
-                }
-                if (attempt < 2 && (response.status === 429 || response.status >= 500)) {
-                    await new Promise((r) => setTimeout(r, 1000 * (attempt + 1) * 2));
-                    continue;
-                }
-                throw lastError;
-            }
-
-            const candidate = data?.candidates?.[0];
-            const finishReason = candidate?.finishReason;
-
-            const text = candidate?.content?.parts?.map((p) => p.text).filter(Boolean).join("");
             if (text) {
                 return text;
             }
 
-            if (finishReason === "SAFETY" || finishReason === "RECITATION") {
-                return "（……似乎触发了安全过滤，换个话题聊聊吧。）";
-            }
             return "（我一时不知该说什么……）";
         } catch (e) {
             lastError = e;
             if (attempt < 2) {
-                await new Promise((r) => setTimeout(r, 1000 * (attempt + 1) * 2));
+                await new Promise((r) =>
+                    setTimeout(r, 1000 * (attempt + 1))
+                );
                 continue;
             }
             throw e;
         }
     }
 
-    throw lastError || new Error("Gemini API failed after retries.");
+    throw lastError || new Error("Workers AI failed after retries.");
 }
 
 function buildBuddySystemPrompt(character, memories) {
