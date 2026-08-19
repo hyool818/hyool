@@ -1,4 +1,6 @@
 import { handleMvpRoutes } from "./mvp.js";
+import { handleTtsRequest, TTS_VOICES } from "./tts.js";
+
 
 export default {
     async fetch(request, env) {
@@ -1461,6 +1463,43 @@ export default {
                     success: false,
                     error: "彼岸加载失败，请稍后再试。"
                 }, 500);
+            }
+        }
+
+
+        /* =====================================================
+           TTS: EDGE 语音合成（微软 Edge 在线 TTS 代理）
+        ===================================================== */
+
+        if (pathname === "/api/tts" && (request.method === "POST" || request.method === "GET")) {
+            try {
+                const user = await getAuthenticatedUser(request, env);
+                if (!user) {
+                    return json({ success: false, error: "请先登录。", login_url: "/yonder.html" }, 401);
+                }
+
+                const allowed = await checkRateLimit(request, env, "tts", 20, 60);
+                if (!allowed) {
+                    return json({ success: false, error: "语音合成请求过于频繁，请稍后再试。" }, 429);
+                }
+
+                return await handleTtsRequest(request, env, user);
+            } catch (error) {
+                console.error("TTS ERROR:", error);
+                return json({ success: false, error: "语音合成失败，请稍后再试。" }, 500);
+            }
+        }
+
+        if (pathname === "/api/tts/voices" && request.method === "GET") {
+            try {
+                const user = await getAuthenticatedUser(request, env);
+                if (!user) {
+                    return json({ success: false, error: "请先登录。", login_url: "/yonder.html" }, 401);
+                }
+                return json({ success: true, voices: TTS_VOICES });
+            } catch (error) {
+                console.error("TTS VOICES ERROR:", error);
+                return json({ success: false, error: "获取语音列表失败。" }, 500);
             }
         }
 
