@@ -1269,7 +1269,13 @@ export default {
                 const bytes =
                     new Uint8Array(arrayBuffer);
 
-                const base64 = btoa(String.fromCharCode.apply(null, bytes));
+                // base64 转换必须分块：String.fromCharCode.apply 传参过多会栈溢出（RangeError），
+                // 导致稍大的图片（> 几十 KB）上传必失败。分块拼接可安全处理 5MB 上限内的任意文件。
+                let binaryStr = "";
+                for (let i = 0; i < bytes.length; i += 32768) {
+                    binaryStr += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+                }
+                const base64 = btoa(binaryStr);
 
                 const imageId =
                     "img_" +

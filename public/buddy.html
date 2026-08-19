@@ -916,9 +916,14 @@ function handlePortraitFile(file) {
 
 /* 上传形象图片并更新角色的形象（image_url） */
 async function uploadPortrait(blob) {
+  // 裁剪/转换后可能比原文件大，上传前再校验一次
+  if (blob.size > PORTRAIT_MAX_BYTES) {
+    alert("处理后的图片超过 5MB 限制，请换一张图重试。");
+    return;
+  }
   const btn = $("cropConfirm");
   const formData = new FormData();
-  formData.append("file", blob, blob.type === "image/gif" ? "portrait.gif" : "portrait.png");
+  formData.append("file", blob, blob.type === "image/gif" ? "portrait.gif" : "portrait.jpg");
   try {
     const res = await fetch("/api/upload", {
       method: "POST",
@@ -1024,10 +1029,11 @@ function confirmCrop() {
   const cb = portraitCropCb;
   portraitCropCb = null;
   closeCropModal();
+  // 输出 JPEG（720×960 质量 0.92，通常 <400KB），比 PNG 小一个数量级，避免超出 5MB 上限
   out.toBlob(function(blob) {
     if (!blob) { if (btn) btn.disabled = false; alert("裁剪失败，请重试。"); return; }
     if (cb) cb(blob);
-  }, "image/png");
+  }, "image/jpeg", 0.92);
 }
 
 async function sendMessage() {

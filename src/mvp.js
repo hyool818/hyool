@@ -377,7 +377,11 @@ export async function handleMvpRoutes(
                     }
 
                     if (binaryData) {
-                        const binary = String.fromCharCode.apply(null, binaryData);
+                        // 分块转换，避免 String.fromCharCode.apply 对较大图片栈溢出
+                        let binary = "";
+                        for (let i = 0; i < binaryData.length; i += 32768) {
+                            binary += String.fromCharCode.apply(null, binaryData.subarray(i, i + 32768));
+                        }
                         imageUrl = "data:image/png;base64," + btoa(binary);
                         break;
                     }
