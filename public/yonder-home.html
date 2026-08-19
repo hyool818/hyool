@@ -87,6 +87,8 @@ body {
 
     pointer-events: none;
 
+    overflow: hidden;
+
     background:
         radial-gradient(
             circle at 50% 0%,
@@ -1871,6 +1873,11 @@ body {
                     placeholder="颜色 / 图片 URL"
                 >
 
+                <input
+                    id="backgroundRegion"
+                    type="hidden"
+                >
+
                 <label
                     class="upload-btn"
                 >
@@ -2559,6 +2566,100 @@ function renderPost(post) {
    SETTINGS
 ===================================================== */
 
+/* =====================================================
+   SETTINGS
+===================================================== */
+
+let cachedBackgroundRegion = null;
+
+function applyBackgroundImageFit() {
+
+    const image =
+        document.getElementById(
+            "background-image"
+        );
+
+    if (!image) return;
+
+    if (
+        !cachedBackgroundRegion ||
+        !image.naturalWidth ||
+        !image.naturalHeight
+    ) {
+
+        image.style.objectFit =
+            "cover";
+
+        image.style.objectPosition =
+            "";
+
+        image.style.transformOrigin =
+            "";
+
+        image.style.transform =
+            "";
+
+        return;
+
+    }
+
+    const viewW =
+        window.innerWidth;
+
+    const viewH =
+        window.innerHeight;
+
+    const region =
+        cachedBackgroundRegion;
+
+    const scale = Math.max(
+        viewW /
+            (region.w *
+                image.naturalWidth),
+        viewH /
+            (region.h *
+                image.naturalHeight)
+    );
+
+    const cx =
+        (region.x + region.w / 2) *
+        image.naturalWidth;
+
+    const cy =
+        (region.y + region.h / 2) *
+        image.naturalHeight;
+
+    const tx =
+        viewW / 2 - cx * scale;
+
+    const ty =
+        viewH / 2 - cy * scale;
+
+    image.style.objectFit =
+        "none";
+
+    image.style.objectPosition =
+        "0 0";
+
+    image.style.transformOrigin =
+        "0 0";
+
+    image.style.transform =
+        "translate(" +
+        tx.toFixed(2) +
+        "px," +
+        ty.toFixed(2) +
+        "px) scale(" +
+        scale.toFixed(4) +
+        ")";
+
+}
+
+window.addEventListener(
+    "resize",
+    applyBackgroundImageFit
+);
+
 function applySettings(
     settings
 ) {
@@ -2620,11 +2721,45 @@ function applySettings(
 
         if (backgroundValue) {
 
+            try {
+
+                const rawRegion =
+                    settings.background_region;
+
+                const parsed =
+                    rawRegion
+                        ? JSON.parse(
+                            rawRegion
+                        )
+                        : null;
+
+                cachedBackgroundRegion =
+                    parsed &&
+                    parsed.w > 0 &&
+                    parsed.h > 0
+                        ? parsed
+                        : null;
+
+            }
+
+            catch (error) {
+
+                cachedBackgroundRegion =
+                    null;
+
+            }
+
+
             image.src =
                 backgroundValue;
 
             image.style.display =
                 "block";
+
+            image.onload =
+                applyBackgroundImageFit;
+
+            applyBackgroundImageFit();
 
             requestAnimationFrame(
                 () => {
@@ -2861,6 +2996,15 @@ function openEditor() {
             "";
 
 
+    document
+        .getElementById(
+            "backgroundRegion"
+        )
+        .value =
+            settings.background_region ||
+            "";
+
+
     const accent =
         settings.accent_color ||
         "#8b8bff";
@@ -3090,6 +3234,14 @@ async function saveSettings() {
 
             background_value:
                 backgroundValue,
+
+            background_region:
+                document
+                    .getElementById(
+                        "backgroundRegion"
+                    )
+                    .value
+                    .trim(),
 
             accent_color:
                 validColor(accent)
@@ -3572,12 +3724,28 @@ document
 
 document
     .getElementById(
+        "backgroundValue"
+    )
+    .addEventListener(
+        "input",
+        function() {
+            // 手动输入/修改 URL 时，清除上次裁剪框记录的显示区域
+            document
+                .getElementById(
+                    "backgroundRegion"
+                )
+                .value = "";
+        }
+    );
+
+
+document
+    .getElementById(
         "backgroundFile"
     )
     .addEventListener(
         "change",
         async event => {
-
             const file =
                 event.target.files && event.target.files[0];
 
@@ -3592,12 +3760,12 @@ document
             event.target.value = "";
 
             if (file.type === "image/gif") {
-                await uploadBackgroundFile(file);
+                openCropModal(file, "background-anim");
                 return;
             }
 
             if (file.type === "image/svg+xml") {
-                await uploadBackgroundFile(file);
+                openCropModal(file, "background-anim");
                 return;
             }
 
@@ -3605,7 +3773,7 @@ document
                 try {
                     const buf = await file.arrayBuffer();
                     if (isAnimatedWebP(buf)) {
-                        await uploadBackgroundFile(file);
+                        openCropModal(file, "background-anim");
                         return;
                     }
                 } catch (e) { }
@@ -3615,18 +3783,6 @@ document
 
         }
     );
-
-async function uploadBackgroundFile(file) {
-    try {
-        const url = await uploadFile(file);
-        if (url) {
-            document.getElementById("backgroundValue").value = url;
-            document.getElementById("backgroundType").value = "image";
-        }
-    } catch (error) {
-        alert(error.message || "背景上传失败。");
-    }
-}
 
 /* 解析 WebP 容器：存在 ANMF chunk 即为动画 WebP（动图直传，静态才走裁剪） */
 function isAnimatedWebP(buf) {
@@ -3681,6 +3837,7 @@ document
 
 const cropState = {
     img: null,
+    rawFile: null,
     baseScale: 1,
     zoom: 1,
     offsetX: 0,
@@ -3746,7 +3903,8 @@ function renderCrop() {
 function openCropModal(file, mode) {
     mode = mode || "avatar";
     cropState.mode = mode;
-    if (mode === "background") {
+    cropState.rawFile = file;
+    if (mode === "background" || mode === "background-anim") {
         cropState.stageW = 320;
         cropState.stageH = 180;
         cropState.cropW = 320;
@@ -3771,12 +3929,45 @@ function openCropModal(file, mode) {
     }
 
     const title = document.querySelector("#cropBackdrop .crop-header h2");
-    if (title) title.textContent = mode === "background" ? "裁剪背景（16:9 横屏）" : "裁剪头像";
+    if (title) title.textContent = mode === "background"
+        ? "裁剪背景（16:9 横屏）"
+        : mode === "background-anim"
+            ? "选择动图显示区域（16:9 横屏）"
+            : "裁剪头像";
 
     const reader = new FileReader();
     reader.onload = function(e) {
         const img = new Image();
         img.onload = function() {
+            if (!img.width || !img.height) {
+                // 无固有尺寸的 SVG：无法计算显示区域，直接直传原文件（cover 显示）
+                closeCropModal();
+                const fd = new FormData();
+                fd.append("file", file);
+                fetch("/api/upload", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: (() => {
+                        const h = {};
+                        const t = localStorage.getItem("hyool_token");
+                        if (t) h["Authorization"] = "Bearer " + t;
+                        return h;
+                    })(),
+                    body: fd
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById("backgroundValue").value = data.url;
+                            document.getElementById("backgroundType").value = "image";
+                            document.getElementById("backgroundRegion").value = "";
+                        } else {
+                            throw new Error(data.error || "上传失败");
+                        }
+                    })
+                    .catch(err => alert(err.message || "上传失败。"));
+                return;
+            }
             cropState.img = img;
             cropState.baseScale = Math.max(cropState.cropW / img.width, cropState.cropH / img.height);
             cropState.zoom = 1;
@@ -3803,13 +3994,14 @@ function closeCropModal() {
     cropState.img = null;
 }
 
-function confirmCrop() {
+async function confirmCrop() {
     if (!cropState.img) return;
 
     const btn = document.getElementById("cropConfirm");
     if (btn) btn.disabled = true;
 
-    const isBg = cropState.mode === "background";
+    const isBg = cropState.mode === "background" || cropState.mode === "background-anim";
+    const isAnim = cropState.mode === "background-anim";
     const scale = cropState.baseScale * cropState.zoom;
     const sw = cropState.img.width * scale;
     const sh = cropState.img.height * scale;
@@ -3823,54 +4015,74 @@ function confirmCrop() {
     const srcW = cropState.cropW / scale;
     const srcH = cropState.cropH / scale;
 
-    const out = document.createElement("canvas");
-    out.width = isBg ? 1920 : 256;
-    out.height = isBg ? 1080 : 256;
-    const octx = out.getContext("2d");
-    octx.drawImage(cropState.img, srcX, srcY, srcW, srcH, 0, 0, out.width, out.height);
+    const imgW = cropState.img.width;
+    const imgH = cropState.img.height;
+    const rawFile = cropState.rawFile;
 
     closeCropModal();
 
-    out.toBlob(async function(blob) {
-        if (btn) btn.disabled = false;
+    const formData = new FormData();
+
+    if (isAnim) {
+        // 动图 / SVG：不重编码，保留动画与矢量，直传原文件
+        formData.append("file", rawFile);
+    } else {
+        const out = document.createElement("canvas");
+        out.width = isBg ? 1920 : 256;
+        out.height = isBg ? 1080 : 256;
+        const octx = out.getContext("2d");
+        octx.drawImage(cropState.img, srcX, srcY, srcW, srcH, 0, 0, out.width, out.height);
+
+        const blob = await new Promise(resolve =>
+            out.toBlob(resolve, isBg ? "image/jpeg" : "image/png", isBg ? 0.9 : undefined)
+        );
         if (!blob) {
+            if (btn) btn.disabled = false;
             alert("裁剪失败，请重试。");
             return;
         }
-
-        const formData = new FormData();
         formData.append("file", blob, isBg ? "background.jpg" : "avatar.png");
+    }
 
-        try {
-            const response = await fetch("/api/upload", {
-                method: "POST",
-                credentials: "include",
-                headers: (() => {
-                    const h = {};
-                    const t = localStorage.getItem("hyool_token");
-                    if (t) h["Authorization"] = "Bearer " + t;
-                    return h;
-                })(),
-                body: formData
-            });
+    try {
+        const response = await fetch("/api/upload", {
+            method: "POST",
+            credentials: "include",
+            headers: (() => {
+                const h = {};
+                const t = localStorage.getItem("hyool_token");
+                if (t) h["Authorization"] = "Bearer " + t;
+                return h;
+            })(),
+            body: formData
+        });
 
-            const data = await response.json();
-            if (!data.success) {
-                throw new Error(data.error || "上传失败");
-            }
-
-            if (isBg) {
-                document.getElementById("backgroundValue").value = data.url;
-                document.getElementById("backgroundType").value = "image";
-            } else {
-                document.getElementById("editAvatarUrl").value = data.url;
-                document.getElementById("avatarPreview").innerHTML =
-                    '<img src="' + escapeHtml(data.url) + '" alt="">';
-            }
-        } catch (error) {
-            alert(error.message || "上传失败。");
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error || "上传失败");
         }
-    }, isBg ? "image/jpeg" : "image/png", isBg ? 0.9 : undefined);
+
+        if (isBg) {
+            document.getElementById("backgroundValue").value = data.url;
+            document.getElementById("backgroundType").value = "image";
+            document.getElementById("backgroundRegion").value = isAnim
+                ? JSON.stringify({
+                    x: Math.max(0, Math.min(1, srcX / imgW)),
+                    y: Math.max(0, Math.min(1, srcY / imgH)),
+                    w: Math.max(0, Math.min(1, srcW / imgW)),
+                    h: Math.max(0, Math.min(1, srcH / imgH))
+                })
+                : "";
+        } else {
+            document.getElementById("editAvatarUrl").value = data.url;
+            document.getElementById("avatarPreview").innerHTML =
+                '<img src="' + escapeHtml(data.url) + '" alt="">';
+        }
+    } catch (error) {
+        alert(error.message || "上传失败。");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
 
 

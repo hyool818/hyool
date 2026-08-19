@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS yonder_settings (
     user_id TEXT PRIMARY KEY,
     background_type TEXT DEFAULT 'gradient',
     background_value TEXT DEFAULT '',
+    background_region TEXT DEFAULT '',
     accent_color TEXT DEFAULT '#8b8bff',
     layout TEXT DEFAULT 'default',
     show_profile INTEGER DEFAULT 1,

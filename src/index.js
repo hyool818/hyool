@@ -961,6 +961,13 @@ export default {
                         900000
                     );
 
+                const backgroundRegion =
+                    cleanSettingValue(
+                        body.background_region,
+                        "",
+                        500
+                    );
+
                 const accentColor =
                     cleanSettingValue(
                         body.accent_color,
@@ -1021,6 +1028,14 @@ export default {
                         );
                 }
 
+                // 兼容旧库：background_region 列不存在时自动补充
+                await env.DB
+                    .prepare(
+                        "ALTER TABLE yonder_settings ADD COLUMN background_region TEXT DEFAULT ''"
+                    )
+                    .run()
+                    .catch(() => {});
+
                 await env.DB
                     .prepare(
                         `INSERT INTO yonder_settings
@@ -1028,6 +1043,7 @@ export default {
                             user_id,
                             background_type,
                             background_value,
+                            background_region,
                             accent_color,
                             layout,
                             show_profile,
@@ -1039,11 +1055,12 @@ export default {
                             created_at,
                             updated_at
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         ON CONFLICT(user_id)
                         DO UPDATE SET
                             background_type = excluded.background_type,
                             background_value = excluded.background_value,
+                            background_region = excluded.background_region,
                             accent_color = excluded.accent_color,
                             layout = excluded.layout,
                             show_profile = excluded.show_profile,
@@ -1058,6 +1075,7 @@ export default {
                         user.id,
                         backgroundType,
                         backgroundValue,
+                        backgroundRegion,
                         accentColor,
                         layout,
                         showProfile,
