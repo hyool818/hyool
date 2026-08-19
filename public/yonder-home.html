@@ -100,28 +100,6 @@ body {
         background .4s ease;
 }
 
-#background-blur {
-
-    position: absolute;
-
-    inset: 0;
-
-    width: 100%;
-    height: 100%;
-
-    object-fit: cover;
-
-    filter: blur(24px);
-
-    transform: scale(1.15);
-
-    opacity: 0;
-
-    transition:
-        opacity .4s ease;
-
-}
-
 #background-image {
 
     position: absolute;
@@ -1542,11 +1520,6 @@ body {
 <div id="background-layer">
 
     <img
-        id="background-blur"
-        alt=""
-    >
-
-    <img
         id="background-image"
         alt=""
     >
@@ -2606,12 +2579,7 @@ function applyBackgroundImageFit() {
             "background-image"
         );
 
-    const blur =
-        document.getElementById(
-            "background-blur"
-        );
-
-    if (!image || !blur) return;
+    if (!image) return;
 
     if (
         !cachedBackgroundRegion ||
@@ -2619,6 +2587,7 @@ function applyBackgroundImageFit() {
         !image.naturalHeight
     ) {
 
+        // 静态图 / 无区域：cover 整图
         image.style.objectFit =
             "cover";
 
@@ -2630,9 +2599,6 @@ function applyBackgroundImageFit() {
 
         image.style.transform =
             "";
-
-        blur.style.opacity =
-            "0";
 
         return;
 
@@ -2647,9 +2613,7 @@ function applyBackgroundImageFit() {
     const region =
         cachedBackgroundRegion;
 
-    // 区域宽高比（近似 16:9）与视口宽高比对比：
-    // 竖屏（视口比区域更窄）→ 完整显示所选区域（等比缩小、留边，不放大裁切）
-    // 横屏（视口等于或宽于区域）→ 铺满（cover）
+    // 所选区域宽高比（近似 16:9）
     const regionAspect =
         (region.w *
             image.naturalWidth) /
@@ -2659,43 +2623,38 @@ function applyBackgroundImageFit() {
     const viewAspect =
         viewW / viewH;
 
-    let scale;
-
+    // 手机竖屏（视口比所选区域更窄）：整张原图铺满全屏，
+    // 不按所选区域，也不对区域放大裁切
     if (
         viewAspect <
         regionAspect
     ) {
 
-        scale = Math.min(
-            viewW /
-                (region.w *
-                    image.naturalWidth),
-            viewH /
-                (region.h *
-                    image.naturalHeight)
-        );
+        image.style.objectFit =
+            "cover";
 
-        // 竖屏完整显示：留边用同一张图的模糊放大版铺满全屏
-        blur.style.opacity =
-            "1";
+        image.style.objectPosition =
+            "";
 
-    }
+        image.style.transformOrigin =
+            "";
 
-    else {
+        image.style.transform =
+            "";
 
-        scale = Math.max(
-            viewW /
-                (region.w *
-                    image.naturalWidth),
-            viewH /
-                (region.h *
-                    image.naturalHeight)
-        );
-
-        blur.style.opacity =
-            "0";
+        return;
 
     }
+
+    // 横屏（视口等于或宽于区域）：以所选区域为准铺满（cover）
+    const scale = Math.max(
+        viewW /
+            (region.w *
+                image.naturalWidth),
+        viewH /
+            (region.h *
+                image.naturalHeight)
+    );
 
     const cx =
         (region.x + region.w / 2) *
@@ -2771,19 +2730,11 @@ function applySettings(
             "background-image"
         );
 
-    const blur =
-        document.getElementById(
-            "background-blur"
-        );
-
 
     image.style.display =
         "none";
 
     image.style.opacity =
-        "0";
-
-    blur.style.opacity =
         "0";
 
 
@@ -2835,9 +2786,6 @@ function applySettings(
 
 
             image.src =
-                backgroundValue;
-
-            blur.src =
                 backgroundValue;
 
             image.style.display =
