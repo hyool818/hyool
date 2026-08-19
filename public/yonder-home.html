@@ -3506,8 +3506,9 @@ async function uploadFile(
 ) {
 
     const file =
-        fileInput.files &&
-        fileInput.files[0];
+        fileInput.files ?
+        fileInput.files[0] :
+        fileInput;
 
     if (!file) return null;
 
@@ -3575,7 +3576,7 @@ document
     )
     .addEventListener(
         "change",
-        event => {
+        async event => {
 
             const file =
                 event.target.files && event.target.files[0];
@@ -3588,11 +3589,62 @@ document
                 return;
             }
 
-            openCropModal(file, "background");
             event.target.value = "";
+
+            if (file.type === "image/gif") {
+                await uploadBackgroundFile(file);
+                return;
+            }
+
+            if (file.type === "image/svg+xml") {
+                await uploadBackgroundFile(file);
+                return;
+            }
+
+            if (file.type === "image/webp") {
+                try {
+                    const buf = await file.arrayBuffer();
+                    if (isAnimatedWebP(buf)) {
+                        await uploadBackgroundFile(file);
+                        return;
+                    }
+                } catch (e) { }
+            }
+
+            openCropModal(file, "background");
 
         }
     );
+
+async function uploadBackgroundFile(file) {
+    try {
+        const url = await uploadFile(file);
+        if (url) {
+            document.getElementById("backgroundValue").value = url;
+            document.getElementById("backgroundType").value = "image";
+        }
+    } catch (error) {
+        alert(error.message || "背景上传失败。");
+    }
+}
+
+/* 解析 WebP 容器：存在 ANMF chunk 即为动画 WebP（动图直传，静态才走裁剪） */
+function isAnimatedWebP(buf) {
+    try {
+        const dv = new DataView(buf);
+        if (buf.byteLength < 12) return false;
+        const four = o => String.fromCharCode(dv.getUint8(o), dv.getUint8(o + 1), dv.getUint8(o + 2), dv.getUint8(o + 3));
+        if (four(0) !== "RIFF" || four(8) !== "WEBP") return false;
+        let offset = 12;
+        while (offset + 8 <= buf.byteLength) {
+            const tag = four(offset);
+            const size = dv.getUint32(offset + 4, true);
+            if (tag === "ANMF") return true;
+            offset += 8 + size + (size % 2);
+        }
+    } catch (e) { }
+    return false;
+}
 
 
 document
