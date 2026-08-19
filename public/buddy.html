@@ -902,16 +902,42 @@ function isStaticPortrait(type) {
   return ["image/jpeg", "image/png", "image/webp"].includes(type);
 }
 
-/* 选择文件后的入口：静态图走竖版裁剪，GIF 直接上传 */
+/* 解析 WebP 容器：存在 ANMF chunk 即为动画 WebP（展示端 <img> 原生播放，无需 Canvas） */
+function isAnimatedWebP(buf) {
+  try {
+    const dv = new DataView(buf);
+    if (buf.byteLength < 12) return false;
+    const four = o => String.fromCharCode(dv.getUint8(o), dv.getUint8(o + 1), dv.getUint8(o + 2), dv.getUint8(o + 3));
+    if (four(0) !== "RIFF" || four(8) !== "WEBP") return false;
+    let offset = 12;
+    while (offset + 8 <= buf.byteLength) {
+      const tag = four(offset);
+      const size = dv.getUint32(offset + 4, true);
+      if (tag === "ANMF") return true;
+      offset += 8 + size + (size % 2); // chunk 按 2 字节对齐
+    }
+  } catch {}
+  return false;
+}
+
+/* 选择文件后的入口：静态图走竖版裁剪；GIF / 动画 WebP 直接上传（<img> 原生播放动画） */
 function handlePortraitFile(file) {
   if (!file) return;
   if (file.size > PORTRAIT_MAX_BYTES) {
     alert("「" + (file.name || "图片") + "」超过 5MB 限制。");
     return;
   }
-  if (isStaticPortrait(file.type)) { openCropModal(file, uploadPortrait); return; }
   if (file.type === "image/gif") { uploadPortrait(file); return; }
-  alert("仅支持 JPG/PNG/WebP 静态图或 GIF 动图。");
+  if (file.type === "image/webp") {
+    // 区分静态/动画 WebP：动画与 GIF 一样直传，静态图才送 Canvas 裁剪（否则动画会丢成第一帧）
+    file.arrayBuffer().then(buf => {
+      if (isAnimatedWebP(buf)) uploadPortrait(file);
+      else openCropModal(file, uploadPortrait);
+    }).catch(() => openCropModal(file, uploadPortrait));
+    return;
+  }
+  if (isStaticPortrait(file.type)) { openCropModal(file, uploadPortrait); return; }
+  alert("仅支持 JPG/PNG/WebP 静态图，或 GIF / 动画 WebP 动图。");
 }
 
 /* 上传形象图片并更新角色的形象（image_url） */
@@ -923,7 +949,8 @@ async function uploadPortrait(blob) {
   }
   const btn = $("cropConfirm");
   const formData = new FormData();
-  formData.append("file", blob, blob.type === "image/gif" ? "portrait.gif" : "portrait.jpg");
+  const ext = blob.type === "image/gif" ? "gif" : blob.type === "image/webp" ? "webp" : "jpg";
+  formData.append("file", blob, "portrait." + ext);
   try {
     const res = await fetch("/api/upload", {
       method: "POST",
