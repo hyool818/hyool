@@ -107,7 +107,7 @@ a { color: inherit; text-decoration: none; }
 
 /* Portrait panel */
 .portrait-panel {
-  flex: 0 0 45%; max-width: 620px; min-width: 280px;
+  flex: 0 0 45%; max-width: 720px; min-width: 280px;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
   position: relative; overflow: hidden;
   background: linear-gradient(to bottom, transparent 30%, rgba(0,0,0,.4) 100%);
@@ -118,7 +118,7 @@ a { color: inherit; text-decoration: none; }
   background: radial-gradient(circle at 50% 60%, rgba(139,139,255,.10), transparent 50%);
 }
 .portrait-stage {
-  position: relative; width: 100%; flex: 1; display: flex; align-items: flex-end; justify-content: center;
+  position: relative; width: 100%; flex: 1; display: flex; align-items: center; justify-content: center;
   padding-bottom: 0; overflow: hidden;
 }
 .portrait-img {
@@ -131,7 +131,7 @@ a { color: inherit; text-decoration: none; }
 .portrait-blur {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; object-position: center top;
-  filter: blur(28px) brightness(.45) saturate(1.15);
+  filter: blur(28px) brightness(.55) saturate(1.15);
   transform: scale(1.15);
   z-index: 0; pointer-events: none;
 }
@@ -651,29 +651,6 @@ function intimacyLabel(v) {
   return "初识";
 }
 function intimacyPct(v) { return Math.min(100, (v / 50) * 100); }
-
-/* 形象显示区贴合图片比例：在可用空间内最大化且完整显示，
-   图片恰好铺满显示区（无裁切、无留白、不贴顶/不悬空），比例随图自适应 */
-function fitPortrait() {
-  const stage = $("portraitStage");
-  const img = $("portraitImg");
-  if (!stage || !img || !img.naturalWidth || img.style.display === "none") return;
-  // 先还原为占满的 flex:1，测量面板可用宽高
-  stage.style.flex = "1";
-  stage.style.width = "100%";
-  stage.style.height = "";
-  const availW = stage.clientWidth;
-  const availH = stage.clientHeight;
-  if (!availW || !availH) return;
-  const ratio = img.naturalWidth / img.naturalHeight;
-  let w = availW;
-  let h = Math.round(w / ratio);
-  if (h > availH) { h = availH; w = Math.round(h * ratio); }
-  // 显示区 = 图片比例矩形，图片 100% 铺满
-  stage.style.flex = "0 0 auto";
-  stage.style.width = w + "px";
-  stage.style.height = h + "px";
-}
 
 function renderCharacter(c) {
   $("charName").textContent = c.name || "TA";
@@ -1227,10 +1204,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     handlePortraitFile(e.target.files && e.target.files[0]);
     e.target.value = "";
   });
-
-  // 形象显示区按图片比例自适应（完整铺满、不裁切、不贴顶留空）
-  $("portraitImg").addEventListener("load", fitPortrait);
-  window.addEventListener("resize", () => fitPortrait());
 
   // 形象裁剪
   $("cropCancel").addEventListener("click", closeCropModal);
