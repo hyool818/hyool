@@ -10,6 +10,31 @@ import { TTS_VOICES } from "./tts.js";
 // 所有可用语音 id（创建/保存角色时校验 voice）
 const KNOWN_VOICE_IDS = new Set(TTS_VOICES.map(v => v.id));
 
+// voice id → 性别（用于“角色性别明确时，声音严格对应性别”）
+const VOICE_GENDER = Object.fromEntries(TTS_VOICES.map(v => [v.id, v.gender]));
+
+/** 声音是否匹配角色性别：空声音或性别未定（neutral/''）视为匹配 */
+function voiceMatchesGender(characterGender, voiceId) {
+    if (!voiceId) return true;
+    if (!characterGender || characterGender === "neutral") return true;
+    return VOICE_GENDER[voiceId] === characterGender;
+}
+
+/** 消息内容转纯文本（聊天内容可能是 {text, images} JSON 格式） */
+function messageToPlainText(content) {
+    if (!content) return "";
+    if (typeof content === "string" && content.charAt(0) === "{") {
+        try {
+            const p = JSON.parse(content);
+            if (p && typeof p === "object" && typeof p.text === "string") {
+                const imgCount = Array.isArray(p.images) ? p.images.length : 0;
+                return imgCount > 0 ? p.text + `（用户发送了 ${imgCount} 个附件）` : p.text;
+            }
+        } catch { /* 非 JSON 结构，按纯文本处理 */ }
+    }
+    return String(content);
+}
+
 export async function handleMvpRoutes(
     request,
     env,
@@ -114,7 +139,7 @@ export async function handleMvpRoutes(
 
             // 保存性别与初始语音（声音可选，按性别筛选）
             const gender = params.gender === "female" || params.gender === "male" ? params.gender : "";
-            const voice = typeof params.voice === "string" && KNOWN_VOICE_IDS.has(params.voice) ? params.voice : "";
+            const voice = typeof params.voice === "string" && KNOWN_VOICE_IDS.has(params.voice) && voiceMatchesGender(gender, params.voice) ? params.voice : "";
             const chatConfigJson = JSON.stringify({
                 temperature: 0.9,
                 max_tokens: 150,
@@ -793,7 +818,19 @@ export async function handleMvpRoutes(
             const body = await request.json();
             const userMessage = String(body.message || "").trim();
 
-            if (!userMessage) {
+            // 附件：最多 4 个 /img/ 引用（图片或视频），格式严格校验
+            let images = [];
+            if (Array.isArray(body.images)) {
+                images = body.images
+                    .filter(a => a && typeof a === "object"
+                        && typeof a.url === "string"
+                        && /^\/img\/img_[a-z0-9]+$/.test(a.url)
+                        && (a.kind === "image" || a.kind === "video"))
+                    .slice(0, 4)
+                    .map(a => ({ url: a.url, kind: a.kind }));
+            }
+
+            if (!userMessage && images.length === 0) {
                 return json({
                     success: false,
                     error: "请输入消息。"
@@ -806,6 +843,16 @@ export async function handleMvpRoutes(
                     error: "消息过长。"
                 }, 400);
             }
+
+            // 存储内容：带附件时存 JSON（前端据此重新展示图片/视频），否则存纯文本保持兼容
+            const storedContent = images.length
+                ? JSON.stringify({ text: userMessage, images })
+                : userMessage;
+
+            // 发给 AI 的纯文本：当前模型不支持看图，只传文字并注明有附件，避免 image_url 类型错误
+            const aiUserMessage = images.length
+                ? `${userMessage}\n（用户发送了 ${images.length} 个附件，你无法查看内容，请简短回应）`.trim()
+                : userMessage;
 
             const conversation = await ensureConversation(
                 env,
@@ -821,7 +868,10 @@ export async function handleMvpRoutes(
                  LIMIT 12`
             ).bind(conversation.id).all();
 
-            const recentMessages = (recentResult.results || []).reverse();
+            const recentMessages = (recentResult.results || []).reverse().map(m => ({
+                role: m.role,
+                content: messageToPlainText(m.content)
+            }));
 
             const d1Memories = await getMemories(
                 env,
@@ -834,7 +884,7 @@ export async function handleMvpRoutes(
                 env,
                 characterId,
                 user.id,
-                userMessage,
+                aiUserMessage,
                 5
             );
 
@@ -863,7 +913,7 @@ export async function handleMvpRoutes(
                     character,
                     memories,
                     recentMessages,
-                    userMessage,
+                    userMessage: aiUserMessage,
                     intimacy,
                     chatConfig
                 },
@@ -877,7 +927,7 @@ export async function handleMvpRoutes(
             await env.DB.batch([
                 env.DB.prepare(
                     "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, 'user', ?, CURRENT_TIMESTAMP)"
-                ).bind(userMsgId, conversation.id, userMessage),
+                ).bind(userMsgId, conversation.id, storedContent),
                 env.DB.prepare(
                     "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, 'assistant', ?, CURRENT_TIMESTAMP)"
                 ).bind(assistantMsgId, conversation.id, aiResult.reply),
@@ -907,7 +957,7 @@ export async function handleMvpRoutes(
                 env,
                 characterId,
                 user.id,
-                userMessage,
+                aiUserMessage,
                 aiResult.reply,
                 aiResult.memory_note
             );
@@ -982,11 +1032,11 @@ export async function handleMvpRoutes(
                 ? body.proactivity
                 : (existing.proactivity ?? "balanced");
 
-            // 语音：只接受已知声音 id 或空字符串（空 = 自动默认）
+            // 语音：只接受已知声音 id 或空字符串；角色性别明确时严格对应性别（空 = 自动默认）
             const voice = typeof body.voice === "string" &&
-                (body.voice === "" || KNOWN_VOICE_IDS.has(body.voice))
+                (body.voice === "" || (KNOWN_VOICE_IDS.has(body.voice) && voiceMatchesGender(character.gender, body.voice)))
                 ? body.voice
-                : (existing.voice || "");
+                : (existing.voice && KNOWN_VOICE_IDS.has(existing.voice) && voiceMatchesGender(character.gender, existing.voice) ? existing.voice : "");
 
             // 语速：整数偏移 -50 ~ +50（对应 Edge rate 的 -50% ~ +50%）
             const rate = typeof body.rate === "number"

@@ -1251,13 +1251,15 @@ export default {
                     "image/png",
                     "image/gif",
                     "image/webp",
-                    "image/svg+xml"
+                    "image/svg+xml",
+                    "video/mp4",
+                    "video/webm"
                 ];
 
                 if (!allowedTypes.includes(file.type)) {
                     return json({
                         success: false,
-                        error: "仅支持 JPG/PNG/GIF/WebP/SVG 格式。"
+                        error: "仅支持 JPG/PNG/GIF/WebP/SVG 图片与 MP4/WebM 视频。"
                     }, 400);
                 }
 
@@ -1383,10 +1385,42 @@ export default {
                     uint8[i] = binaryString.charCodeAt(i);
                 }
 
+                // 支持 Range 请求（视频播放/拖动进度必需），图片请求不受影响
+                const rangeHeader = request.headers.get("Range") || "";
+                const rangeMatch = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+                if (rangeMatch) {
+                    const total = uint8.length;
+                    let start = rangeMatch[1] !== "" ? parseInt(rangeMatch[1], 10) : 0;
+                    let end = rangeMatch[2] !== "" ? parseInt(rangeMatch[2], 10) : total - 1;
+                    if (!(start >= 0) || isNaN(end)) { start = 0; end = total - 1; }
+                    if (end >= total) end = total - 1;
+                    if (start > end || start >= total) {
+                        return new Response(null, {
+                            status: 416,
+                            headers: {
+                                "Content-Type": imageMeta.content_type,
+                                "Content-Range": `bytes */${total}`
+                            }
+                        });
+                    }
+                    const slice = uint8.slice(start, end + 1);
+                    return new Response(slice, {
+                        status: 206,
+                        headers: {
+                            "Content-Type": imageMeta.content_type,
+                            "Content-Range": `bytes ${start}-${end}/${total}`,
+                            "Accept-Ranges": "bytes",
+                            "Content-Length": String(slice.length),
+                            "Cache-Control": "public, max-age=86400"
+                        }
+                    });
+                }
+
                 return new Response(uint8.buffer, {
                     status: 200,
                     headers: {
                         "Content-Type": imageMeta.content_type,
+                        "Accept-Ranges": "bytes",
                         "Cache-Control": "public, max-age=86400"
                     }
                 });

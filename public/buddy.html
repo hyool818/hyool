@@ -239,6 +239,86 @@ a { color: inherit; text-decoration: none; }
 }
 .mem-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 
+/* Message media (聊天图片 / 视频) */
+.msg-media { margin-top: 8px; border-radius: 14px; overflow: hidden; }
+.msg-media:first-child { margin-top: 0; }
+.msg-media img, .msg-media video {
+  display: block; width: 100%; max-width: 280px; max-height: 300px;
+  object-fit: cover; border-radius: 12px; background: rgba(0,0,0,.35);
+}
+.msg-media img { cursor: zoom-in; }
+.msg-text + .msg-media, .msg-media + .msg-media { margin-top: 8px; }
+
+/* 附件预览条 */
+.attach-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; max-width: 680px; margin: 0 auto 8px;
+}
+.attach-chip {
+  position: relative; width: 72px; height: 72px; border-radius: 12px; overflow: hidden;
+  border: 1px solid var(--glass-border); background: rgba(255,255,255,.05);
+}
+.attach-chip img, .attach-chip video {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.attach-chip .chip-tag {
+  position: absolute; left: 4px; bottom: 4px; font-size: 9px; padding: 1px 5px;
+  border-radius: 4px; background: rgba(0,0,0,.55); color: #fff;
+}
+.attach-chip .chip-remove {
+  position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%;
+  border: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 11px; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.attach-chip .chip-remove:hover { background: #e5484d; }
+.attach-btn {
+  flex: 0 0 auto; height: 48px; padding: 0 12px; border: 1px solid rgba(255,255,255,.10);
+  border-radius: 16px; background: rgba(255,255,255,.06); color: var(--muted);
+  font-size: 18px; cursor: pointer; transition: all .2s; line-height: 1;
+}
+.attach-btn:hover { color: var(--accent); border-color: rgba(139,139,255,.4); background: rgba(139,139,255,.12); }
+
+/* Crop modal (聊天图片裁剪) */
+.crop-backdrop {
+  position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.65);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.crop-backdrop.active { display: flex; }
+.crop-modal {
+  width: 100%; max-width: 360px; padding: 24px;
+  border: 1px solid var(--glass-border); border-radius: 20px;
+  background: linear-gradient(145deg, #1a1b2e, #12131f);
+  box-shadow: 0 30px 80px rgba(0,0,0,.5);
+}
+.crop-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.crop-header h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.crop-stage {
+  position: relative; width: 280px; height: 280px; margin: 0 auto 20px;
+  border-radius: 14px; overflow: hidden; background: #0a0a12;
+}
+#cropCanvas { display: block; width: 280px; height: 280px; touch-action: none; cursor: grab; }
+#cropCanvas:active { cursor: grabbing; }
+.crop-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.crop-controls button {
+  width: 36px; height: 36px; border: 0; border-radius: 10px;
+  background: rgba(255,255,255,.1); color: #fff; font-size: 18px; cursor: pointer;
+  flex-shrink: 0; transition: background .2s;
+}
+.crop-controls button:hover { background: rgba(255,255,255,.18); }
+.crop-controls input[type="range"] { flex: 1; accent-color: var(--accent); }
+.crop-actions { display: flex; gap: 12px; }
+.crop-btn-cancel {
+  flex: 1; border: 1px solid rgba(255,255,255,.15); border-radius: 12px; padding: 12px;
+  background: transparent; color: rgba(255,255,255,.7); font-size: 14px; cursor: pointer; transition: background .2s;
+}
+.crop-btn-cancel:hover { background: rgba(255,255,255,.06); }
+.crop-btn-confirm {
+  flex: 1; border: 0; border-radius: 12px; padding: 12px;
+  background: var(--accent); color: #0a0a12; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity .2s;
+}
+.crop-btn-confirm:hover { opacity: .88; }
+.crop-btn-confirm:disabled { opacity: .5; cursor: wait; }
+
 /* Composer */
 .composer {
   padding: 12px 24px calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,.06);
@@ -346,7 +426,10 @@ a { color: inherit; text-decoration: none; }
         <div class="chat-inner" id="chatInner"></div>
       </div>
       <div class="composer">
+        <div class="attach-bar" id="attachBar" style="display:none;"></div>
         <div class="composer-inner">
+          <button class="attach-btn" id="attachBtn" type="button" title="发送图片 / GIF / 视频">📎</button>
+          <input type="file" id="attachInput" accept="image/*,video/mp4,video/webm,.gif" multiple hidden>
           <textarea id="msgInput" placeholder="对 TA 说点什么……" rows="1"></textarea>
           <button class="send-btn" id="sendBtn">发送</button>
         </div>
@@ -411,6 +494,25 @@ a { color: inherit; text-decoration: none; }
   </div>
 </div>
 
+<!-- Image crop modal -->
+<div class="crop-backdrop" id="cropBackdrop">
+  <div class="crop-modal">
+    <div class="crop-header"><h2>裁剪图片</h2></div>
+    <div class="crop-stage">
+      <canvas id="cropCanvas" width="280" height="280"></canvas>
+    </div>
+    <div class="crop-controls">
+      <button type="button" id="cropZoomOut" title="缩小">−</button>
+      <input type="range" id="cropZoom" min="100" max="400" step="10" value="100">
+      <button type="button" id="cropZoomIn" title="放大">＋</button>
+    </div>
+    <div class="crop-actions">
+      <button type="button" class="crop-btn-cancel" id="cropCancel">取消</button>
+      <button type="button" class="crop-btn-confirm" id="cropConfirm">完成</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const api = (p, o = {}) => {
   const t = localStorage.getItem("hyool_token");
@@ -451,21 +553,86 @@ function addMessage(role, content, animate) {
   if (animate) {
     bubble.innerHTML = "<span></span><span></span><span></span>";
   } else {
-    bubble.innerHTML = escapeHtml(content).replace(/\n/g, "<br>");
+    renderContent(bubble, content);
   }
   row.appendChild(bubble);
   if (role === "assistant" && !animate && content) {
-    const btn = document.createElement("button");
-    btn.className = "speaker-btn";
-    btn.type = "button";
-    btn.title = "朗读这条回复";
-    btn.textContent = "🔊";
-    btn.addEventListener("click", () => speakText(content, btn));
-    row.appendChild(btn);
+    const speechText = extractPlainText(content);
+    if (speechText) {
+      const btn = document.createElement("button");
+      btn.className = "speaker-btn";
+      btn.type = "button";
+      btn.title = "朗读这条回复";
+      btn.textContent = "🔊";
+      btn.addEventListener("click", () => speakText(speechText, btn));
+      row.appendChild(btn);
+    }
   }
   $("chatInner").appendChild(row);
   scrollBottom();
   return row;
+}
+
+/* 消息内容渲染：支持纯文本与 {text, images:[{url,kind}]} 两种格式 */
+function renderContent(bubble, content) {
+  let text = "";
+  let images = [];
+  if (typeof content === "string") {
+    if (content.indexOf("{") === 0) {
+      try {
+        const p = JSON.parse(content);
+        if (p && typeof p === "object" && ("text" in p || "images" in p)) {
+          text = typeof p.text === "string" ? p.text : "";
+          images = Array.isArray(p.images) ? p.images : [];
+        } else {
+          text = content;
+        }
+      } catch { text = content; }
+    } else {
+      text = content;
+    }
+  } else if (content && typeof content === "object") {
+    text = typeof content.text === "string" ? content.text : "";
+    images = Array.isArray(content.images) ? content.images : [];
+  }
+  if (text) {
+    const t = document.createElement("div");
+    t.className = "msg-text";
+    t.innerHTML = escapeHtml(text).replace(/\n/g, "<br>");
+    bubble.appendChild(t);
+  }
+  images.forEach(a => {
+    const src = typeof a === "string" ? a : (a && a.url ? a.url : "");
+    const kind = typeof a === "string" ? "image" : (a && a.kind === "video" ? "video" : "image");
+    if (!src) return;
+    const item = document.createElement("div");
+    item.className = "msg-media";
+    if (kind === "video") {
+      const v = document.createElement("video");
+      v.src = src; v.controls = true; v.playsInline = true; v.preload = "metadata";
+      item.appendChild(v);
+    } else {
+      const img = document.createElement("img");
+      img.src = src; img.alt = ""; img.loading = "lazy";
+      img.addEventListener("click", () => window.open(src, "_blank"));
+      item.appendChild(img);
+    }
+    bubble.appendChild(item);
+  });
+}
+
+/* 提取消息的纯文本部分（供 TTS 朗读） */
+function extractPlainText(content) {
+  if (typeof content === "string") {
+    if (content.indexOf("{") === 0) {
+      try {
+        const p = JSON.parse(content);
+        if (p && typeof p.text === "string") return p.text;
+      } catch {}
+    }
+    return content;
+  }
+  return content && typeof content.text === "string" ? content.text : "";
 }
 
 async function checkAuth() {
@@ -697,16 +864,14 @@ async function loadVoices() {
     auto.textContent = characterGender === "male" ? "自动（云健）" : "自动（默认晓晓）";
     sel.appendChild(auto);
     const list = res.voices || [];
-    // 按角色性别筛选：男角色只列男声、女角色只列女声、中性/未知列出全部
-    const filtered = list.filter(v => {
-      if (!characterGender || characterGender === "neutral") return true;
-      return v.gender === characterGender;
-    });
-    // 若已保存的声音不在筛选列表（如性别不符），仍保留该选项，避免静默丢失
-    const savedVoice = chatConfig.voice || "";
-    if (savedVoice && !filtered.some(v => v.id === savedVoice)) {
-      const saved = list.find(v => v.id === savedVoice);
-      if (saved) filtered.push(saved);
+    // 角色性别明确时严格过滤：男角色只列男声、女角色只列女声；中性/未知列出全部
+    let filtered = list;
+    if (characterGender === "male") filtered = list.filter(v => v.gender === "male");
+    else if (characterGender === "female") filtered = list.filter(v => v.gender === "female");
+    // 已保存的声音与角色性别不符 → 自动纠正为默认（不再把异性别声音加回列表）
+    if (chatConfig.voice && !filtered.some(v => v.id === chatConfig.voice)) {
+      chatConfig.voice = "";
+      saveConfig();
     }
     filtered.forEach(v => {
       const o = document.createElement("option");
@@ -742,21 +907,224 @@ async function loadMessages() {
   }
 }
 
+/* ---------- 聊天图片 / 视频上传 ---------- */
+const ATTACH_LIMIT = 4;
+const ATTACH_MAX_BYTES = 5 * 1024 * 1024;
+let pendingAttachments = []; // { file: Blob/File, kind: "image"|"video", label: string }
+let cropState = {
+  img: null, stageSize: 280, cropSize: 240, baseScale: 1,
+  zoom: 1, offsetX: 0, offsetY: 0, drag: false, dragStartX: 0, dragStartY: 0
+};
+
+function isStaticImage(type) {
+  return ["image/jpeg", "image/png", "image/webp", "image/bmp", "image/avif"].includes(type);
+}
+function isDirectMedia(type) {
+  return type === "image/gif" || type === "image/svg+xml" ||
+    type === "video/mp4" || type === "video/webm" || type === "video/ogg";
+}
+
+function renderAttachBar() {
+  const bar = $("attachBar");
+  if (!bar) return;
+  bar.innerHTML = "";
+  if (pendingAttachments.length === 0) { bar.style.display = "none"; return; }
+  bar.style.display = "flex";
+  pendingAttachments.forEach((a, i) => {
+    const chip = document.createElement("div");
+    chip.className = "attach-chip";
+    const objUrl = URL.createObjectURL(a.file);
+    if (a.kind === "video") {
+      const v = document.createElement("video");
+      v.src = objUrl; v.muted = true; v.playsInline = true; v.preload = "metadata";
+      chip.appendChild(v);
+    } else {
+      const img = document.createElement("img");
+      img.src = objUrl; img.alt = "";
+      chip.appendChild(img);
+    }
+    const tag = document.createElement("span");
+    tag.className = "chip-tag";
+    tag.textContent = a.kind === "video" ? "视频" : (a.file.type === "image/gif" ? "GIF" : "图片");
+    chip.appendChild(tag);
+    const rm = document.createElement("button");
+    rm.className = "chip-remove";
+    rm.type = "button";
+    rm.textContent = "×";
+    rm.addEventListener("click", () => {
+      pendingAttachments.splice(i, 1);
+      URL.revokeObjectURL(objUrl);
+      renderAttachBar();
+    });
+    chip.appendChild(rm);
+    bar.appendChild(chip);
+  });
+}
+
+function clearAttachments() {
+  pendingAttachments = [];
+  renderAttachBar();
+}
+
+function handleAttachFiles(files) {
+  const arr = Array.from(files || []);
+  arr.forEach(f => {
+    if (pendingAttachments.length >= ATTACH_LIMIT) {
+      alert("一次最多发送 " + ATTACH_LIMIT + " 个附件。");
+      return;
+    }
+    if (f.size > ATTACH_MAX_BYTES) {
+      alert("「" + (f.name || "附件") + "」超过 5MB 限制。");
+      return;
+    }
+    if (isStaticImage(f.type)) { openCropModal(f); return; }
+    if (isDirectMedia(f.type)) {
+      pendingAttachments.push({
+        file: f,
+        kind: f.type.indexOf("video/") === 0 ? "video" : "image",
+        label: f.name
+      });
+      renderAttachBar();
+      return;
+    }
+    alert("暂不支持该格式，仅支持 JPG/PNG/WebP/GIF/SVG 图片与 MP4/WebM 视频。");
+  });
+}
+
+/* ---- 图片裁剪（方形 512×512） ---- */
+function renderCrop() {
+  const canvas = $("cropCanvas");
+  const ctx = canvas.getContext("2d");
+  const S = cropState.stageSize;
+  const C = cropState.cropSize;
+  ctx.fillStyle = "#0a0a12";
+  ctx.fillRect(0, 0, S, S);
+  if (!cropState.img) return;
+  const scale = cropState.baseScale * cropState.zoom;
+  const sw = cropState.img.width * scale;
+  const sh = cropState.img.height * scale;
+  const drawX = S / 2 - sw / 2 + cropState.offsetX;
+  const drawY = S / 2 - sh / 2 + cropState.offsetY;
+  ctx.drawImage(cropState.img, drawX, drawY, sw, sh);
+  const cropX = (S - C) / 2;
+  const cropY = (S - C) / 2;
+  ctx.fillStyle = "rgba(0,0,0,.6)";
+  ctx.fillRect(0, 0, S, cropY);
+  ctx.fillRect(0, cropY + C, S, cropY);
+  ctx.fillRect(0, cropY, cropX, C);
+  ctx.fillRect(cropX + C, cropY, cropX, C);
+  ctx.strokeStyle = "rgba(255,255,255,.7)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(cropX, cropY, C, C);
+}
+
+function openCropModal(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      cropState.img = img;
+      const minDim = Math.min(img.width, img.height);
+      cropState.baseScale = cropState.cropSize / minDim;
+      cropState.zoom = 1;
+      cropState.offsetX = 0;
+      cropState.offsetY = 0;
+      const zoomEl = $("cropZoom");
+      if (zoomEl) { zoomEl.value = 100; zoomEl.min = 100; zoomEl.max = 400; }
+      renderCrop();
+      $("cropBackdrop").classList.add("active");
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function closeCropModal() {
+  $("cropBackdrop").classList.remove("active");
+  cropState.img = null;
+}
+
+function confirmCrop() {
+  if (!cropState.img) return;
+  const btn = $("cropConfirm");
+  if (btn) btn.disabled = true;
+  const S = cropState.stageSize;
+  const C = cropState.cropSize;
+  const scale = cropState.baseScale * cropState.zoom;
+  const sw = cropState.img.width * scale;
+  const sh = cropState.img.height * scale;
+  const imgStartX = S / 2 - sw / 2 + cropState.offsetX;
+  const imgStartY = S / 2 - sh / 2 + cropState.offsetY;
+  const cropX = (S - C) / 2;
+  const cropY = (S - C) / 2;
+  const srcX = (cropX - imgStartX) / scale;
+  const srcY = (cropY - imgStartY) / scale;
+  const srcSize = C / scale;
+  const out = document.createElement("canvas");
+  out.width = 512;
+  out.height = 512;
+  const octx = out.getContext("2d");
+  octx.drawImage(cropState.img, srcX, srcY, srcSize, srcSize, 0, 0, 512, 512);
+  closeCropModal();
+  out.toBlob(function(blob) {
+    if (btn) btn.disabled = false;
+    if (!blob) { alert("裁剪失败，请重试。"); return; }
+    if (pendingAttachments.length >= ATTACH_LIMIT) { alert("一次最多发送 " + ATTACH_LIMIT + " 个附件。"); return; }
+    pendingAttachments.push({ file: blob, kind: "image", label: "crop.png" });
+    renderAttachBar();
+  }, "image/png");
+}
+
+/* 上传单个附件 */
+async function uploadOne(a) {
+  const formData = new FormData();
+  const fname = (a.label && /\.\w+$/.test(a.label)) ? a.label : (a.kind === "video" ? "media.mp4" : "image.png");
+  formData.append("file", a.file, fname);
+  const res = await fetch("/api/upload", {
+    method: "POST",
+    credentials: "include",
+    headers: (() => { const h = {}; const t = localStorage.getItem("hyool_token"); if (t) h["Authorization"] = "Bearer " + t; return h; })(),
+    body: formData
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || "上传失败。");
+  return { url: data.url, kind: a.kind };
+}
+
+async function uploadPending() {
+  const results = [];
+  for (const a of pendingAttachments) {
+    results.push(await uploadOne(a));
+  }
+  return results;
+}
+
 async function sendMessage() {
   if (sending) return;
   const input = $("msgInput");
   const text = input.value.trim();
-  if (!text) return;
+  if (!text && pendingAttachments.length === 0) return;
   sending = true;
   $("sendBtn").disabled = true;
+  // 先上传待发附件（裁剪后的图片 / GIF / 视频），失败则中断发送
+  let attachments = [];
+  try {
+    attachments = pendingAttachments.length ? await uploadPending() : [];
+  } catch (e) {
+    alert("附件上传失败：" + e.message);
+    sending = false;
+    $("sendBtn").disabled = false;
+    return;
+  }
   input.value = "";
   input.style.height = "auto";
-  addMessage("user", text, false);
+  clearAttachments();
+  addMessage("user", { text, images: attachments }, false);
   const typingRow = addMessage("assistant", "", true);
   setSpeaking(true);
   try {
     const res = await api("/api/buddy/" + getCharId() + "/chat", {
-      method: "POST", body: JSON.stringify({ message: text })
+      method: "POST", body: JSON.stringify({ message: text, images: attachments })
     });
     if (!res.success) throw new Error(res.error || "对话失败。");
     setSpeaking(false);
@@ -861,6 +1229,55 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
   $("sendBtn").addEventListener("click", sendMessage);
+
+  // 附件上传与裁剪
+  $("attachBtn").addEventListener("click", () => $("attachInput").click());
+  $("attachInput").addEventListener("change", (e) => {
+    handleAttachFiles(e.target.files);
+    e.target.value = "";
+  });
+  $("cropCancel").addEventListener("click", closeCropModal);
+  $("cropConfirm").addEventListener("click", confirmCrop);
+  $("cropZoomOut").addEventListener("click", () => {
+    cropState.zoom = Math.max(1, +(cropState.zoom - 0.1).toFixed(2));
+    $("cropZoom").value = Math.round(cropState.zoom * 100);
+    renderCrop();
+  });
+  $("cropZoomIn").addEventListener("click", () => {
+    cropState.zoom = Math.min(4, +(cropState.zoom + 0.1).toFixed(2));
+    $("cropZoom").value = Math.round(cropState.zoom * 100);
+    renderCrop();
+  });
+  $("cropZoom").addEventListener("input", (e) => {
+    cropState.zoom = parseFloat(e.target.value) / 100;
+    renderCrop();
+  });
+  $("cropCanvas").addEventListener("mousedown", (e) => {
+    cropState.drag = true;
+    cropState.dragStartX = e.clientX - cropState.offsetX;
+    cropState.dragStartY = e.clientY - cropState.offsetY;
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!cropState.drag) return;
+    cropState.offsetX = e.clientX - cropState.dragStartX;
+    cropState.offsetY = e.clientY - cropState.dragStartY;
+    renderCrop();
+  });
+  window.addEventListener("mouseup", () => { cropState.drag = false; });
+  $("cropCanvas").addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    cropState.drag = true;
+    cropState.dragStartX = t.clientX - cropState.offsetX;
+    cropState.dragStartY = t.clientY - cropState.offsetY;
+  }, { passive: true });
+  window.addEventListener("touchmove", (e) => {
+    if (!cropState.drag) return;
+    const t = e.touches[0];
+    cropState.offsetX = t.clientX - cropState.dragStartX;
+    cropState.offsetY = t.clientY - cropState.dragStartY;
+    renderCrop();
+  }, { passive: true });
+  window.addEventListener("touchend", () => { cropState.drag = false; });
 
   await loadMessages();
 });
