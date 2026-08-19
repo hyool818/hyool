@@ -9,8 +9,6 @@
  *   GET  /api/tts?text=...    （同 POST，参数走 query）
  */
 
-import { connect } from "cloudflare:sockets";
-
 /* =========================================================
    常量（对齐 edge-tts constants.py）
 ========================================================= */
@@ -210,47 +208,37 @@ function json(data, status = 200) {
    WebSocket 连接与音频收集
 ========================================================= */
 
-function openWs(url) {
-    return new Promise((resolve, reject) => {
-        let ws;
-        try {
-            ws = connect(url, {
-                headers: { ...WSS_HEADERS, Cookie: `muid=${randomMuid()};` }
-            });
-        } catch (e) {
-            reject(e);
-            return;
+/**
+ * 建立到微软 Edge TTS 的出站 WebSocket 连接。
+ *
+ * 注意：cloudflare:sockets 的 connect() 仅支持 TCP host:port 地址，不支持
+ * wss:// URL（运行时直接抛 "Specified address is missing port."）。
+ * 出站 WebSocket 必须通过 fetch() + `Upgrade: websocket` 头完成握手，
+ * 且握手请求可以携带自定义 headers（Origin / User-Agent / Cookie 等，
+ * 微软服务要求浏览器类握手头，否则直接拒绝连接）。
+ */
+async function openWs(url) {
+    const fetchPromise = fetch(url.replace(/^wss:\/\//, "https://"), {
+        headers: {
+            Upgrade: "websocket",
+            Connection: "Upgrade",
+            ...WSS_HEADERS,
+            Cookie: `muid=${randomMuid()};`
         }
-
-        let settled = false;
-        const onOpen = () => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            resolve(ws);
-        };
-        const onError = () => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            reject(new Error("TTS 服务连接失败。"));
-        };
-        const onClose = () => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            reject(new Error("TTS 服务连接失败。"));
-        };
-        const cleanup = () => {
-            ws.removeEventListener("open", onOpen);
-            ws.removeEventListener("error", onError);
-            ws.removeEventListener("close", onClose);
-        };
-
-        ws.addEventListener("open", onOpen);
-        ws.addEventListener("error", onError);
-        ws.addEventListener("close", onClose);
     });
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("TTS 服务连接超时，请重试。")), 20000)
+    );
+    const resp = await Promise.race([fetchPromise, timeout]);
+    const ws = resp.webSocket;
+    if (!ws) {
+        throw new Error(`TTS WebSocket 升级失败（HTTP ${resp.status}）。`);
+    }
+    // compat date ≥ 2026-03-17 时 websocket_standard_binary_type 默认开启，
+    // 二进制帧按 WebSocket 标准以 Blob 投递；显式改回 ArrayBuffer 以便同步解析音频帧。
+    ws.binaryType = "arraybuffer";
+    ws.accept();
+    return ws;
 }
 
 function collectAudio(ws) {
