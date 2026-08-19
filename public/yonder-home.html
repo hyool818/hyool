@@ -107,43 +107,17 @@ body {
     width: 100%;
     height: 100%;
 
-    object-fit: contain;
-
-    opacity: 0;
-
-    display: none;
-
-    transition:
-        opacity .4s ease;
-}
-
-#background-blur {
-
-    position: absolute;
-
-    inset: 0;
-
-    width: 100%;
-
-    height: 100%;
-
     object-fit: cover;
 
-    object-position: center;
-
-    filter: blur(24px) brightness(.55) saturate(1.15);
-
-    transform: scale(1.12);
-
     opacity: 0;
 
     display: none;
 
     transition:
-
         opacity .4s ease;
-
 }
+
+
 
 #background-overlay {
 
@@ -842,7 +816,7 @@ body {
 
 .crop-modal {
     width: 100%;
-    max-width: 360px;
+    max-width: 400px;
     padding: 24px;
     border: 1px solid rgba(255,255,255,.12);
     border-radius: 20px;
@@ -1481,21 +1455,7 @@ body {
 
 
 
-@media (max-width: 768px) {
 
-    #background-blur {
-
-        display: none !important;
-
-    }
-
-    #background-image {
-
-        object-fit: cover;
-
-    }
-
-}
 
 @media (max-width: 650px) {
 
@@ -1556,11 +1516,6 @@ body {
 <body>
 
 <div id="background-layer">
-
-    <img
-        id="background-blur"
-        alt=""
-    >
 
     <img
         id="background-image"
@@ -2639,27 +2594,12 @@ function applySettings(
             "background-image"
         );
 
-    const blurImage =
-        document.getElementById(
-            "background-blur"
-        );
-
 
     image.style.display =
         "none";
 
     image.style.opacity =
         "0";
-
-    if (blurImage) {
-
-        blurImage.style.display =
-            "none";
-
-        blurImage.style.opacity =
-            "0";
-
-    }
 
 
     if (
@@ -2686,28 +2626,11 @@ function applySettings(
             image.style.display =
                 "block";
 
-            if (blurImage) {
-
-                blurImage.src =
-                    backgroundValue;
-
-                blurImage.style.display =
-                    "block";
-
-            }
-
             requestAnimationFrame(
                 () => {
 
                     image.style.opacity =
                         "1";
-
-                    if (blurImage) {
-
-                        blurImage.style.opacity =
-                            "1";
-
-                    }
 
                 }
             );
@@ -3652,50 +3575,21 @@ document
     )
     .addEventListener(
         "change",
-        async event => {
+        event => {
 
-            try {
+            const file =
+                event.target.files && event.target.files[0];
 
-                const file =
-                    event.target.files && event.target.files[0];
+            if (!file) return;
 
-                if (!file) return;
-
-                if (file.size > 5 * 1024 * 1024) {
-                    alert("背景图片过大，请压缩到 5MB 以内。");
-                    event.target.value = "";
-                    return;
-                }
-
-                const url =
-                    await uploadFile(
-                        event.target
-                    );
-
-                if (url) {
-
-                    document
-                        .getElementById(
-                            "backgroundValue"
-                        )
-                        .value = url;
-
-                    document
-                        .getElementById(
-                            "backgroundType"
-                        )
-                        .value = "image";
-
-                }
-
-            } catch (error) {
-
-                alert(
-                    error.message ||
-                    "背景上传失败。"
-                );
-
+            if (file.size > 5 * 1024 * 1024) {
+                alert("背景图片过大，请压缩到 5MB 以内。");
+                event.target.value = "";
+                return;
             }
+
+            openCropModal(file, "background");
+            event.target.value = "";
 
         }
     );
@@ -3742,19 +3636,37 @@ const cropState = {
     dragging: false,
     dragStartX: 0,
     dragStartY: 0,
-    stageSize: 280,
-    cropSize: 240
+    stageW: 280,
+    stageH: 280,
+    cropW: 240,
+    cropH: 240,
+    mode: "avatar"
 };
+
+function clampCropOffset() {
+    if (!cropState.img) return;
+    const scale = cropState.baseScale * cropState.zoom;
+    const sw = cropState.img.width * scale;
+    const sh = cropState.img.height * scale;
+    const maxOX = Math.max(0, (sw - cropState.cropW) / 2);
+    const maxOY = Math.max(0, (sh - cropState.cropH) / 2);
+    cropState.offsetX = Math.min(maxOX, Math.max(-maxOX, cropState.offsetX));
+    cropState.offsetY = Math.min(maxOY, Math.max(-maxOY, cropState.offsetY));
+}
 
 function renderCrop() {
     const canvas = document.getElementById("cropCanvas");
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const S = cropState.stageSize;
-    const C = cropState.cropSize;
+    const S = cropState.stageW;
+    const T = cropState.stageH;
+    const C = cropState.cropW;
+    const D = cropState.cropH;
+
+    clampCropOffset();
 
     ctx.fillStyle = "#0a0a12";
-    ctx.fillRect(0, 0, S, S);
+    ctx.fillRect(0, 0, S, T);
 
     if (!cropState.img) return;
 
@@ -3762,31 +3674,59 @@ function renderCrop() {
     const sw = cropState.img.width * scale;
     const sh = cropState.img.height * scale;
     const dx = S / 2 - sw / 2 + cropState.offsetX;
-    const dy = S / 2 - sh / 2 + cropState.offsetY;
+    const dy = T / 2 - sh / 2 + cropState.offsetY;
 
     ctx.drawImage(cropState.img, dx, dy, sw, sh);
 
     const cropX = (S - C) / 2;
-    const cropY = (S - C) / 2;
+    const cropY = (T - D) / 2;
     ctx.fillStyle = "rgba(0,0,0,.55)";
     ctx.fillRect(0, 0, S, cropY);
-    ctx.fillRect(0, cropY + C, S, cropY);
-    ctx.fillRect(0, cropY, cropX, C);
-    ctx.fillRect(cropX + C, cropY, cropX, C);
+    ctx.fillRect(0, cropY + D, S, T - cropY - D);
+    ctx.fillRect(0, cropY, cropX, D);
+    ctx.fillRect(cropX + C, cropY, S - cropX - C, D);
 
     ctx.strokeStyle = "rgba(255,255,255,.7)";
     ctx.lineWidth = 2;
-    ctx.strokeRect(cropX, cropY, C, C);
+    ctx.strokeRect(cropX, cropY, C, D);
 }
 
-function openCropModal(file) {
+function openCropModal(file, mode) {
+    mode = mode || "avatar";
+    cropState.mode = mode;
+    if (mode === "background") {
+        cropState.stageW = 320;
+        cropState.stageH = 180;
+        cropState.cropW = 320;
+        cropState.cropH = 180;
+    } else {
+        cropState.stageW = 280;
+        cropState.stageH = 280;
+        cropState.cropW = 240;
+        cropState.cropH = 240;
+    }
+
+    const canvas = document.getElementById("cropCanvas");
+    if (canvas) {
+        canvas.width = cropState.stageW;
+        canvas.height = cropState.stageH;
+    }
+
+    const stage = document.querySelector("#cropBackdrop .crop-stage");
+    if (stage) {
+        stage.style.width = cropState.stageW + "px";
+        stage.style.height = cropState.stageH + "px";
+    }
+
+    const title = document.querySelector("#cropBackdrop .crop-header h2");
+    if (title) title.textContent = mode === "background" ? "裁剪背景（16:9 横屏）" : "裁剪头像";
+
     const reader = new FileReader();
     reader.onload = function(e) {
         const img = new Image();
         img.onload = function() {
             cropState.img = img;
-            const minDim = Math.min(img.width, img.height);
-            cropState.baseScale = cropState.cropSize / minDim;
+            cropState.baseScale = Math.max(cropState.cropW / img.width, cropState.cropH / img.height);
             cropState.zoom = 1;
             cropState.offsetX = 0;
             cropState.offsetY = 0;
@@ -3817,25 +3757,25 @@ function confirmCrop() {
     const btn = document.getElementById("cropConfirm");
     if (btn) btn.disabled = true;
 
-    const S = cropState.stageSize;
-    const C = cropState.cropSize;
+    const isBg = cropState.mode === "background";
     const scale = cropState.baseScale * cropState.zoom;
     const sw = cropState.img.width * scale;
     const sh = cropState.img.height * scale;
-    const imgStartX = S / 2 - sw / 2 + cropState.offsetX;
-    const imgStartY = S / 2 - sh / 2 + cropState.offsetY;
-    const cropX = (S - C) / 2;
-    const cropY = (S - C) / 2;
+    const imgStartX = cropState.stageW / 2 - sw / 2 + cropState.offsetX;
+    const imgStartY = cropState.stageH / 2 - sh / 2 + cropState.offsetY;
+    const cropX = (cropState.stageW - cropState.cropW) / 2;
+    const cropY = (cropState.stageH - cropState.cropH) / 2;
 
     const srcX = (cropX - imgStartX) / scale;
     const srcY = (cropY - imgStartY) / scale;
-    const srcSize = C / scale;
+    const srcW = cropState.cropW / scale;
+    const srcH = cropState.cropH / scale;
 
     const out = document.createElement("canvas");
-    out.width = 256;
-    out.height = 256;
+    out.width = isBg ? 1920 : 256;
+    out.height = isBg ? 1080 : 256;
     const octx = out.getContext("2d");
-    octx.drawImage(cropState.img, srcX, srcY, srcSize, srcSize, 0, 0, 256, 256);
+    octx.drawImage(cropState.img, srcX, srcY, srcW, srcH, 0, 0, out.width, out.height);
 
     closeCropModal();
 
@@ -3847,7 +3787,7 @@ function confirmCrop() {
         }
 
         const formData = new FormData();
-        formData.append("file", blob, "avatar.png");
+        formData.append("file", blob, isBg ? "background.jpg" : "avatar.png");
 
         try {
             const response = await fetch("/api/upload", {
@@ -3867,13 +3807,18 @@ function confirmCrop() {
                 throw new Error(data.error || "上传失败");
             }
 
-            document.getElementById("editAvatarUrl").value = data.url;
-            document.getElementById("avatarPreview").innerHTML =
-                '<img src="' + escapeHtml(data.url) + '" alt="">';
+            if (isBg) {
+                document.getElementById("backgroundValue").value = data.url;
+                document.getElementById("backgroundType").value = "image";
+            } else {
+                document.getElementById("editAvatarUrl").value = data.url;
+                document.getElementById("avatarPreview").innerHTML =
+                    '<img src="' + escapeHtml(data.url) + '" alt="">';
+            }
         } catch (error) {
-            alert(error.message || "头像上传失败。");
+            alert(error.message || "上传失败。");
         }
-    }, "image/png");
+    }, isBg ? "image/jpeg" : "image/png", isBg ? 0.9 : undefined);
 }
 
 
@@ -3933,6 +3878,8 @@ document.getElementById("cropZoom").addEventListener("input", function() {
 
     function onUp() {
         cropState.dragging = false;
+        clampCropOffset();
+        renderCrop();
     }
 
     canvas.addEventListener("mousedown", onDown);
