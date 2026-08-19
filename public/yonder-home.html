@@ -2612,14 +2612,48 @@ function applyBackgroundImageFit() {
     const region =
         cachedBackgroundRegion;
 
-    const scale = Math.max(
-        viewW /
-            (region.w *
-                image.naturalWidth),
-        viewH /
-            (region.h *
-                image.naturalHeight)
-    );
+    // 区域宽高比（近似 16:9）与视口宽高比对比：
+    // 竖屏（视口比区域更窄）→ 完整显示所选区域（等比缩小、留边，不放大裁切）
+    // 横屏（视口等于或宽于区域）→ 铺满（cover）
+    const regionAspect =
+        (region.w *
+            image.naturalWidth) /
+        (region.h *
+            image.naturalHeight);
+
+    const viewAspect =
+        viewW / viewH;
+
+    let scale;
+
+    if (
+        viewAspect <
+        regionAspect
+    ) {
+
+        scale = Math.min(
+            viewW /
+                (region.w *
+                    image.naturalWidth),
+            viewH /
+                (region.h *
+                    image.naturalHeight)
+        );
+
+    }
+
+    else {
+
+        scale = Math.max(
+            viewW /
+                (region.w *
+                    image.naturalWidth),
+            viewH /
+                (region.h *
+                    image.naturalHeight)
+        );
+
+    }
 
     const cx =
         (region.x + region.w / 2) *
