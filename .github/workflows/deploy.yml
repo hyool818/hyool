@@ -1,0 +1,33 @@
+# 自动部署：push 到 main 即自动执行 wrangler deploy 上线
+#
+# 首次配置（一次性）：
+#   1. Cloudflare 控制台 → My Profile → API Tokens → Create Token
+#      → 用 "Edit Cloudflare Workers" 模板（权限：Account > Cloudflare Workers
+#      Scripts > Edit；Account > Account Settings > Read）
+#   2. GitHub 仓库 Settings → Secrets and variables → Actions → New repository secret
+#      → 名称 CLOUDFLARE_API_TOKEN，值粘贴刚创建的 Token
+#   3. push 到 main（或在 Actions 页手动 Run workflow）即可自动部署
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # account_id 已在 wrangler.toml 中，无需重复传入
+          command: deploy

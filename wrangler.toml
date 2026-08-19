@@ -1,6 +1,7 @@
 name = "hyool"
 main = "src/index.js"
 compatibility_date = "2026-08-15"
+account_id = "6f39e97c5df21fb0de0a5a0df79d2e94"
 
 [assets]
 directory = "./public"

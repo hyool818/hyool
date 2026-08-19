@@ -4,6 +4,10 @@
  * 通过出站 WebSocket 直连微软 Edge 在线 TTS 服务，无需任何 API Key。
  * 协议细节逆向自开源项目 edge-tts (https://github.com/rany2/edge-tts)。
  *
+ * 实测结论：Edge readaloud 端点不支持 <mstts:express-as> 情感风格与
+ * <break> 标签（会导致合成无响应超时），故仅使用 prosody 的
+ * rate / pitch / volume，配合朗读前文本清洗提升自然度。
+ *
  * 接口（登录与限流在 index.js 中处理）：
  *   POST /api/tts             { text, voice?, rate?, pitch?, volume? } → audio/mpeg
  *   GET  /api/tts?text=...    （同 POST，参数走 query）
@@ -140,6 +144,48 @@ function normalizeVoice(voice) {
     return `Microsoft Server Speech Text to Speech Voice (${m[1]}-${region}, ${name})`;
 }
 
+/** 朗读前文本清理：去掉 markdown / emoji / 剧本动作描写，归一化标点，
+ * 避免 TTS 把“*咧嘴一笑*”“😊”这类内容读出来，听感更接近真人说话。
+ */
+function cleanTextForSpeech(raw) {
+    let t = String(raw || "");
+    t = t
+        // 代码块 / 行内代码 / 加粗 / 斜体 / markdown 链接 / 标题 / 引用
+        .replace(/```[\s\S]*?```/g, " ")
+        .replace(/`([^`]*)`/g, "$1")
+        .replace(/\*\*([^*]*)\*\*/g, "$1")
+        .replace(/\*([^*]*)\*/g, "$1")
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+        .replace(/^#{1,6}\s+/gm, "")
+        .replace(/^>\s?/gm, "")
+        // 剧本动作：*轻笑*、（笑）、[笑]、【笑】
+        .replace(/\*[^*\n]{1,24}\*/g, "")
+        .replace(/[（(][^）)\n]{1,12}[)）]/g, "")
+        .replace(/[\[【][^\]】\n]{1,12}[\]】]/g, "")
+        // emoji（含肤色修饰、ZWJ 序列、旗帜、©️®️）
+        .replace(
+            /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{1F1E6}-\u{1F1FF}\u{200D}\u{20E3}\u{00A9}\u{00AE}]/gu,
+            ""
+        )
+        // 连续感叹/问号/句号/逗号/分号 → 单一标点
+        .replace(/[！!]{2,}/g, "！")
+        .replace(/[？?]{2,}/g, "？")
+        .replace(/[。.]{3,}/g, "。")
+        .replace(/[。.]{2,}/g, "。")
+        .replace(/[，,]{2,}/g, "，")
+        .replace(/[；;]{2,}/g, "；")
+        // 省略号与波浪号归一
+        .replace(/\.{2,}/g, "……")
+        .replace(/…+/g, "……")
+        .replace(/[~～]{1,}/g, "～")
+        // 多余空白与换行
+        .replace(/[ \t]+/g, " ")
+        .replace(/\s*\n\s*/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+    return t;
+}
+
 /** 长文本按句子边界切分，避免超出单次 SSML 上限 */
 function splitText(text, limit = CHUNK_LIMIT) {
     if (text.length <= limit) return [text];
@@ -180,11 +226,13 @@ function buildSpeechConfigMessage() {
 
 function buildSsmlMessage(voice, text, rate, pitch, volume) {
     const ssml =
-        "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
+        "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' " +
+        "xml:lang='en-US'>" +
         `<voice name='${normalizeVoice(voice)}'>` +
         `<prosody pitch='${pitch}' rate='${rate}' volume='${volume}'>` +
         escapeXml(text) +
-        "</prosody></voice></speak>";
+        "</prosody>" +
+        "</voice></speak>";
     return (
         `X-RequestId:${connectId()}\r\n` +
         "Content-Type:application/ssml+xml\r\n" +
@@ -304,6 +352,9 @@ function collectAudio(ws) {
                 if (sep === -1) return;
                 const path = parsePath(data.slice(0, sep));
                 if (path === "turn.end") finish();
+                if (path === "turn.error") {
+                    fail(new Error("语音服务拒绝了本次合成，请重试。"));
+                }
                 return;
             }
             // 二进制帧：前 2 字节为大端 header 长度，之后是音频数据
@@ -368,9 +419,9 @@ export async function synthesizeEdgeTts({
     pitch = "+0Hz",
     volume = "+0%"
 }) {
-    const cleaned = String(text || "")
-        .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ")
-        .trim();
+    const cleaned = cleanTextForSpeech(
+        String(text || "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, " ")
+    ).trim();
     if (!cleaned) throw new Error("没有可合成的文本。");
 
     const parts = splitText(cleaned, CHUNK_LIMIT);

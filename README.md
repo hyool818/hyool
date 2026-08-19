@@ -58,16 +58,16 @@ git push origin main
 
 ## 自动部署（GitHub Actions）
 
-推送到 `main` 分支后会自动执行 `wrangler deploy`。
+推送到 `main` 分支后会自动执行 `wrangler deploy`（也可在 Actions 页手动 Run workflow）。
 
 首次使用前，在 GitHub 仓库 **Settings → Secrets and variables → Actions** 中添加：
 
 | Secret | 说明 |
 |--------|------|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API Token（需 Workers 编辑权限） |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare 账号 ID |
 
-Token 创建路径：Cloudflare Dashboard → My Profile → API Tokens → Create Token → Edit Cloudflare Workers 模板。
+> `account_id` 已写在 `wrangler.toml`，无需单独配置。
+> Token 创建路径：Cloudflare Dashboard → My Profile → API Tokens → Create Token → **Edit Cloudflare Workers** 模板（权限：Account > Cloudflare Workers Scripts > Edit；Account > Account Settings > Read）。
 
 ## 注意事项
 

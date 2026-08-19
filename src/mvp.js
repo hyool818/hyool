@@ -119,6 +119,7 @@ export async function handleMvpRoutes(
                 temperature: 0.9,
                 max_tokens: 150,
                 proactivity: "balanced",
+                rate: 0,
                 ...(voice ? { voice } : {})
             });
 
@@ -371,6 +372,7 @@ export async function handleMvpRoutes(
                 temperature: 0.9,
                 max_tokens: 150,
                 proactivity: "balanced",
+                rate: 0,
                 ...(voice ? { voice } : {})
             });
 
@@ -986,7 +988,12 @@ export async function handleMvpRoutes(
                 ? body.voice
                 : (existing.voice || "");
 
-            const newConfig = JSON.stringify({ temperature, max_tokens, proactivity, voice });
+            // 语速：整数偏移 -50 ~ +50（对应 Edge rate 的 -50% ~ +50%）
+            const rate = typeof body.rate === "number"
+                ? Math.min(50, Math.max(-50, Math.round(body.rate)))
+                : (existing.rate ?? 0);
+
+            const newConfig = JSON.stringify({ temperature, max_tokens, proactivity, voice, rate });
 
             await env.DB.prepare(
                 "UPDATE characters SET chat_config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
@@ -994,7 +1001,7 @@ export async function handleMvpRoutes(
 
             return json({
                 success: true,
-                chat_config: { temperature, max_tokens, proactivity, voice }
+                chat_config: { temperature, max_tokens, proactivity, voice, rate }
             });
 
         } catch (error) {
