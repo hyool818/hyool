@@ -8,14 +8,24 @@ Cloudflare Workers + D1 + Static Assets 项目。
 
 ```
 hyool/
-├── src/index.js        # Worker API（注册、登录、彼岸数据）
-├── wrangler.toml       # Workers / D1 / Assets 配置
-├── index.html          # 入口页
-├── yonder.html         # 彼岸登录 / 注册
-├── yonder-home.html    # 个人彼岸主页（通过 /@username 访问）
-├── logo1.png
-├── logo.png
-└── life.mp4
+├── public/                # 静态资源（通过 /public 目录部署，其余目录不暴露）
+│   ├── index.html         # 入口页
+│   ├── yonder.html        # 彼岸登录 / 注册
+│   ├── yonder-home.html   # 个人彼岸主页（通过 /@username 访问）
+│   ├── hub.html           # 数字生命列表
+│   ├── create.html        # 快速创角
+│   ├── create-character.html  # 高级创角（8 步 + 语音选择）
+│   ├── buddy.html         # 角色对话页
+│   ├── share.html
+│   ├── logo1.png
+│   ├── logo.png
+│   └── life.mp4
+├── src/index.js           # Worker API（注册、登录、彼岸数据）
+├── src/mvp.js             # 创角 / 对话 / 语音路由
+├── src/ai/gateway.js      # AI 网关（聊天 / 图片）
+├── src/tts.js             # TTS 语音
+├── schema/                # D1 数据库迁移 SQL
+└── wrangler.toml          # Workers / D1 / Assets 配置
 ```
 
 数据库表（`profiles`、`sessions`、`yonder_posts`、`yonder_settings`）在 Cloudflare D1 中维护，不在本仓库。

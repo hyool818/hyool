@@ -389,7 +389,7 @@ a { color: inherit; text-decoration: none; }
   <div class="result-page" id="resultPage">
     <div class="result-loading" id="resultLoading">
       <div class="spinner"></div>
-      <div class="text">角色正在从幻想中降临...</div>
+      <div class="text">正在生成角色，通常需要 10~30 秒，请稍候…</div>
     </div>
     <div class="result-img-wrap" id="resultImgWrap" style="display:none">
       <img id="resultImg" alt="角色立绘">
@@ -409,7 +409,13 @@ const api = (p, o = {}) => {
   const t = localStorage.getItem("hyool_token");
   const h = { "Content-Type": "application/json", ...(o.headers || {}) };
   if (t) h["Authorization"] = "Bearer " + t;
-  return fetch(p, { credentials: "include", ...o, headers: h }).then(async r => { let d; try { d = await r.json(); } catch { d = { success:false, error:"服务器异常。" }; } if (!r.ok) throw new Error(d.error || "请求失败。"); return d; });
+  const timeout = o.timeout || 120000;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeout);
+  return fetch(p, { credentials: "include", ...o, headers: h, signal: ctrl.signal })
+    .then(async r => { let d; try { d = await r.json(); } catch { d = { success:false, error:"服务器异常。" }; } if (!r.ok) throw new Error(d.error || "请求失败。"); return d; })
+    .catch(e => { if (e.name === "AbortError") throw new Error("请求超时，请稍后重试。"); throw e; })
+    .finally(() => clearTimeout(timer));
 };
 
 const $ = id => document.getElementById(id);
@@ -715,7 +721,8 @@ async function generateCharacter() {
     $("resultActions").style.display = "flex";
     window.currentCharId = char.id;
   } catch (e) {
-    $("resultLoading").innerHTML = `<div class="text" style="color:var(--danger)">生成失败：${e.message}</div>`;
+    $("resultLoading").innerHTML = `<div class="text" style="color:var(--danger)">生成失败：${e.message}<br><span style="font-size:12px;opacity:.75">可点击下方按钮重新生成或返回修改。</span></div>`;
+    $("resultActions").style.display = "flex";
   }
 }
 

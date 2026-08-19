@@ -257,11 +257,16 @@ async function chatCompletions(env, messages, modelOverride, temperature = 0.9, 
 
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
-            response = await env.AI.run(model, {
-                messages,
-                max_tokens,
-                temperature
-            });
+            response = await Promise.race([
+                env.AI.run(model, {
+                    messages,
+                    max_tokens,
+                    temperature
+                }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Workers AI 请求超时。")), 25000)
+                )
+            ]);
 
             const text =
                 response?.response ||

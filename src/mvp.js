@@ -331,7 +331,10 @@ export async function handleMvpRoutes(
             for (const model of aiModels) {
                 if (!env.AI) break;
                 try {
-                    const aiResult = await env.AI.run(model.id, model.params);
+                    const aiResult = await Promise.race([
+                        env.AI.run(model.id, model.params),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error("图片生成超时。")), 25000))
+                    ]);
 
                     if (aiResult && aiResult.image) {
                         imageUrl = "data:image/png;base64," + aiResult.image;
