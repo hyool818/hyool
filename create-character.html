@@ -121,6 +121,27 @@ a { color: inherit; text-decoration: none; }
 .option-card .desc { font-size: .72rem; color: var(--muted); line-height: 1.4; }
 .option-card.highlight .name { color: var(--gold); }
 
+/* Voice cards (TA 的声音) */
+.voice-card {
+  cursor: pointer; border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+  background: var(--surface); transition: all .25s; user-select: none;
+  display: flex; align-items: center; gap: 10px; text-align: left;
+}
+@media (hover: hover) { .voice-card:hover { border-color: rgba(167,139,250,.3); background: var(--surface2); } }
+.voice-card.selected { border-color: var(--selected-border); background: var(--selected-bg); box-shadow: 0 0 0 1px rgba(201,168,76,.25); }
+.voice-card .voice-play {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface3); color: var(--gold); font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all .2s;
+}
+.voice-card .voice-play:hover { background: rgba(201,168,76,.15); border-color: var(--selected-border); }
+.voice-card .voice-play.playing { background: var(--gold); color: var(--bg); animation: voicePulse 1s infinite ease-in-out; }
+.voice-card .voice-meta { min-width: 0; }
+.voice-card .voice-name { font-size: .85rem; font-weight: 600; }
+.voice-card .voice-gender { font-size: .7rem; color: var(--muted); }
+.voice-tip { font-size: .75rem; color: var(--muted); margin: -.6rem 0 1.8rem; }
+@keyframes voicePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+
 /* Color swatches */
 .color-grid { display: flex; flex-wrap: wrap; gap: .5rem; }
 .color-swatch {
@@ -271,8 +292,19 @@ a { color: inherit; text-decoration: none; }
     </div>
   </section>
 
-  <!-- Step 4: 面部特征 -->
+  <!-- Step 4: TA 的声音 -->
   <section class="step" data-step="4">
+    <h2 class="step-title">TA 的<span class="accent">声音</span></h2>
+    <p class="step-desc">试听并选择 TA 说话的声音（已按所选性别筛选）。可选，不选则使用系统默认。</p>
+    <div class="subsection">
+      <div class="subsection-label">声音 <span class="opt">可选</span></div>
+      <div class="option-grid cols-2" id="voiceGrid"></div>
+    </div>
+    <div class="voice-tip">🎧 点击卡片上的 🔊 试听，再点一下卡片即可选中。</div>
+  </section>
+
+  <!-- Step 5: 面部特征 -->
+  <section class="step" data-step="5">
     <h2 class="step-title">面部<span class="accent">特征</span></h2>
     <p class="step-desc">TA 的眼睛、发色与发型。</p>
     <div class="subsection">
@@ -289,8 +321,8 @@ a { color: inherit; text-decoration: none; }
     </div>
   </section>
 
-  <!-- Step 5: 体型 -->
-  <section class="step" data-step="5">
+  <!-- Step 6: 体型 -->
+  <section class="step" data-step="6">
     <h2 class="step-title">体型<span class="accent">设定</span></h2>
     <p class="step-desc">TA 的身形与比例。</p>
     <div class="subsection">
@@ -311,8 +343,8 @@ a { color: inherit; text-decoration: none; }
     </div>
   </section>
 
-  <!-- Step 6: 服饰 -->
-  <section class="step" data-step="6">
+  <!-- Step 7: 服饰 -->
+  <section class="step" data-step="7">
     <h2 class="step-title">服饰<span class="accent">搭配</span></h2>
     <p class="step-desc">可选，不选将使用 AI 默认搭配。</p>
     <div class="subsection">
@@ -329,8 +361,8 @@ a { color: inherit; text-decoration: none; }
     </div>
   </section>
 
-  <!-- Step 7: 性格与名字 -->
-  <section class="step" data-step="7">
+  <!-- Step 8: 性格与名字 -->
+  <section class="step" data-step="8">
     <h2 class="step-title">性格与<span class="accent">名字</span></h2>
     <p class="step-desc">可选，未填部分将由 AI 补全。</p>
     <div class="subsection">
@@ -381,7 +413,7 @@ const api = (p, o = {}) => {
 };
 
 const $ = id => document.getElementById(id);
-const state = { step: 1, style: null, styleCustom: "", race: null, raceCustom: "", gender: null, age: null, skin: null, eyeColor: null, hairColor: null, hairstyle: null, bodyType: null, height: null, bust: null, hip: null, outfit: null, outfitColor: null, accessory: null, name: "", personality: [], background: "" };
+const state = { step: 1, style: null, styleCustom: "", race: null, raceCustom: "", gender: null, age: null, skin: null, eyeColor: null, hairColor: null, hairstyle: null, bodyType: null, height: null, bust: null, hip: null, outfit: null, outfitColor: null, accessory: null, voice: "", name: "", personality: [], background: "" };
 
 /* Data */
 const STEP1 = [
@@ -438,6 +470,7 @@ function renderCards(containerId, items, stateKey, isMulti) {
         grid.querySelectorAll(".option-card").forEach(c => c.classList.remove("selected"));
         card.classList.add("selected");
         state[key] = val;
+        if (key === "gender") renderVoiceGrid();
         if (val === "custom") {
           $(containerId.replace("Grid","Custom"))?.classList.add("show");
         } else {
@@ -502,10 +535,97 @@ $("raceCustomInput").addEventListener("input", e => state.raceCustom = e.target.
 $("nameInput").addEventListener("input", e => state.name = e.target.value);
 $("bgInput").addEventListener("input", e => state.background = e.target.value);
 
+/* Voice step (TA 的声音) */
+let VOICES = [];
+let previewAudio = null;
+
+function voicePreviewText(voiceId) {
+  if (voiceId.startsWith("en-")) return "Hi, I'm your digital life. It's so nice to meet you!";
+  if (voiceId.startsWith("ja-")) return "こんにちは、あなたのデジタルライフです。よろしくお願いします。";
+  if (voiceId.startsWith("ko-")) return "안녕하세요, 당신의 디지털 라이프입니다. 만나서 반가워요.";
+  return "你好呀，我是你的数字生命。很高兴能和你相遇，今天想聊点什么？";
+}
+
+async function loadVoices() {
+  try {
+    const res = await api("/api/tts/voices");
+    VOICES = res.voices || [];
+  } catch { VOICES = []; }
+  renderVoiceGrid();
+}
+
+function genderFilteredVoices() {
+  if (state.gender === "male") return VOICES.filter(v => v.gender === "male");
+  if (state.gender === "female") return VOICES.filter(v => v.gender === "female");
+  return VOICES;
+}
+
+function renderVoiceGrid() {
+  const grid = $("voiceGrid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  const buildCard = (voiceId, name, desc) => {
+    const card = document.createElement("div");
+    card.className = "voice-card" + (state.voice === voiceId ? " selected" : "");
+    card.innerHTML = `
+      <div class="voice-play" data-play="${voiceId}" title="试听">🔊</div>
+      <div class="voice-meta">
+        <div class="voice-name">${name}</div>
+        <div class="voice-gender">${desc}</div>
+      </div>`;
+    card.addEventListener("click", (e) => {
+      if (e.target.closest(".voice-play")) { playVoice(voiceId); return; }
+      state.voice = voiceId;
+      renderVoiceGrid();
+      updateNextButton();
+    });
+    grid.appendChild(card);
+  };
+  // “自动（不选）”卡片
+  buildCard("", "自动（默认晓晓）", "不选则使用系统默认声音");
+  // 按性别筛选的声音卡片
+  genderFilteredVoices().forEach(v => {
+    buildCard(v.id, v.name, v.gender === "male" ? "男声" : "女声");
+  });
+}
+
+async function playVoice(voiceId) {
+  if (previewAudio) { try { previewAudio.pause(); } catch {} previewAudio = null; }
+  const btn = document.querySelector(`.voice-play[data-play="${voiceId}"]`);
+  if (btn) { btn.classList.add("playing"); btn.textContent = "⋯"; }
+  try {
+    const text = voicePreviewText(voiceId || "zh-CN-XiaoxiaoNeural");
+    const t = localStorage.getItem("hyool_token");
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...(t ? { Authorization: "Bearer " + t } : {}) },
+      body: JSON.stringify({ text, voice: voiceId })
+    });
+    if (!res.ok) { let d = {}; try { d = await res.json(); } catch {} throw new Error(d.error || "语音合成失败。"); }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    previewAudio = audio;
+    if (btn) { btn.classList.add("playing"); btn.textContent = "⏹"; }
+    const done = () => {
+      URL.revokeObjectURL(url);
+      if (btn) { btn.classList.remove("playing"); btn.textContent = "🔊"; }
+      if (previewAudio === audio) previewAudio = null;
+    };
+    audio.addEventListener("ended", done);
+    audio.addEventListener("error", done);
+    await audio.play();
+  } catch (e) {
+    if (btn) { btn.classList.remove("playing"); btn.textContent = "🔊"; }
+    alert(e.message);
+  }
+}
+
 /* Progress dots */
 function renderDots() {
   const dots = $("progressDots");
-  dots.innerHTML = Array.from({length:7}, (_,i) => `<div class="progress-dot ${i < state.step-1 ? 'done' : ''} ${i === state.step-1 ? 'active' : ''}"></div>`).join("");
+  dots.innerHTML = Array.from({length:8}, (_,i) => `<div class="progress-dot ${i < state.step-1 ? 'done' : ''} ${i === state.step-1 ? 'active' : ''}"></div>`).join("");
 }
 renderDots();
 
@@ -515,10 +635,11 @@ function isStepValid(step) {
     case 1: return !!state.style;
     case 2: return !!state.race;
     case 3: return !!state.gender && !!state.age && !!state.skin;
-    case 4: return !!state.eyeColor && !!state.hairColor && !!state.hairstyle;
-    case 5: return !!state.bodyType && !!state.height && !!state.bust && !!state.hip;
-    case 6: return true;
+    case 4: return true;
+    case 5: return !!state.eyeColor && !!state.hairColor && !!state.hairstyle;
+    case 6: return !!state.bodyType && !!state.height && !!state.bust && !!state.hip;
     case 7: return true;
+    case 8: return true;
     default: return true;
   }
 }
@@ -526,7 +647,7 @@ function isStepValid(step) {
 function updateNextButton() {
   const btn = $("nextBtn");
   btn.disabled = !isStepValid(state.step);
-  if (state.step === 7) btn.textContent = "生成角色";
+  if (state.step === 8) btn.textContent = "生成角色";
   else btn.textContent = "下一步";
 }
 
@@ -537,7 +658,7 @@ function goToStep(n) {
   if (target) target.classList.add("active");
   state.step = n;
   $("stepCurrent").textContent = n;
-  $("progressFill").style.width = (n / 7 * 100) + "%";
+  $("progressFill").style.width = (n / 8 * 100) + "%";
   renderDots();
   $("prevBtn").style.visibility = n === 1 ? "hidden" : "visible";
   updateNextButton();
@@ -548,7 +669,7 @@ $("prevBtn").addEventListener("click", () => { if (state.step > 1) goToStep(stat
 
 $("nextBtn").addEventListener("click", () => {
   if (!isStepValid(state.step)) return;
-  if (state.step < 7) { goToStep(state.step + 1); }
+  if (state.step < 8) { goToStep(state.step + 1); }
   else { generateCharacter(); }
 });
 
@@ -610,6 +731,7 @@ $("saveBtn").addEventListener("click", async () => {
 $("regenBtn").addEventListener("click", () => { location.reload(); });
 $("modifyBtn").addEventListener("click", () => { location.reload(); });
 
+loadVoices();
 updateNextButton();
 </script>
 </body>

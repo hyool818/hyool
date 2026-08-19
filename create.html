@@ -94,6 +94,16 @@ a { color: inherit; text-decoration: none; }
 }
 .param-item select:focus { border-color: var(--accent); }
 .param-item select option { background: #11121a; }
+.select-row { display: flex; gap: 6px; align-items: stretch; }
+.select-row select { flex: 1; }
+.param-item .mini-play {
+  flex: 0 0 auto; border: 1px solid rgba(139,139,255,.3); background: rgba(139,139,255,.1); color: var(--accent);
+  border-radius: 10px; padding: 0 12px; font-size: .75rem; cursor: pointer; font-family: inherit;
+  transition: all .2s; white-space: nowrap;
+}
+.param-item .mini-play:hover { background: rgba(139,139,255,.2); border-color: var(--accent); }
+.param-item .mini-play.playing { animation: miniPulse 1s infinite ease-in-out; }
+@keyframes miniPulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 
 /* Form */
 .form-group { margin-bottom: 1.4rem; }
@@ -329,6 +339,15 @@ a { color: inherit; text-decoration: none; }
           <option value="gothic">哥特</option>
         </select>
       </div>
+      <div class="param-item">
+        <label>TA 的声音</label>
+        <div class="select-row">
+          <select id="paramVoice">
+            <option value="">自动</option>
+          </select>
+          <button type="button" class="mini-play" id="voicePlayBtn" title="试听当前声音">🔊 试听</button>
+        </div>
+      </div>
     </div>
 
     <!-- 脑洞描述 -->
@@ -410,8 +429,91 @@ function collectParams() {
     hair: $("paramHair").value,
     eyes: $("paramEyes").value,
     vibe: $("paramVibe").value,
-    outfit: $("paramOutfit").value
+    outfit: $("paramOutfit").value,
+    voice: $("paramVoice").value
   };
+}
+
+/* TA 的声音：按性别筛选 + 试听 */
+let VOICES = [];
+let previewAudio = null;
+
+function voicePreviewText(voiceId) {
+  if (voiceId.startsWith("en-")) return "Hi, I'm your digital life. It's so nice to meet you!";
+  if (voiceId.startsWith("ja-")) return "こんにちは、あなたのデジタルライフです。よろしくお願いします。";
+  if (voiceId.startsWith("ko-")) return "안녕하세요, 당신의 디지털 라이프입니다. 만나서 반가워요.";
+  return "你好呀，我是你的数字生命。很高兴能和你相遇，今天想聊点什么？";
+}
+
+function refreshVoiceSelect() {
+  const sel = $("paramVoice");
+  if (!sel) return;
+  const g = $("paramGender").value;
+  sel.innerHTML = '<option value="">自动</option>';
+  VOICES.filter(v => {
+    if (g === "female") return v.gender === "female";
+    if (g === "male") return v.gender === "male";
+    return true;
+  }).forEach(v => {
+    const o = document.createElement("option");
+    o.value = v.id;
+    o.textContent = v.name;
+    sel.appendChild(o);
+  });
+}
+
+async function loadVoices() {
+  try {
+    const res = await api("/api/tts/voices");
+    VOICES = res.voices || [];
+  } catch { VOICES = []; }
+  refreshVoiceSelect();
+}
+
+async function playVoicePreview() {
+  const btn = $("voicePlayBtn");
+  if (!btn) return;
+  if (previewAudio && !previewAudio.paused) {
+    try { previewAudio.pause(); } catch {}
+    previewAudio = null;
+    btn.classList.remove("playing");
+    btn.textContent = "🔊 试听";
+    return;
+  }
+  if (previewAudio) { try { previewAudio.pause(); } catch {} previewAudio = null; }
+  btn.textContent = "⋯";
+  const g = $("paramGender").value;
+  const voiceId = $("paramVoice").value || (g === "male" ? "zh-CN-YunjianNeural" : "");
+  try {
+    const text = voicePreviewText(voiceId || "zh-CN-XiaoxiaoNeural");
+    const t = localStorage.getItem("hyool_token");
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...(t ? { Authorization: "Bearer " + t } : {}) },
+      body: JSON.stringify({ text, voice: voiceId })
+    });
+    if (!res.ok) { let d = {}; try { d = await res.json(); } catch {} throw new Error(d.error || "语音合成失败。"); }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    previewAudio = audio;
+    btn.textContent = "⏹";
+    btn.classList.add("playing");
+    const done = () => {
+      URL.revokeObjectURL(url);
+      btn.textContent = "🔊 试听";
+      btn.classList.remove("playing");
+      if (previewAudio === audio) previewAudio = null;
+    };
+    audio.addEventListener("ended", done);
+    audio.addEventListener("error", done);
+    await audio.play();
+  } catch (e) {
+    btn.textContent = "🔊 试听";
+    btn.classList.remove("playing");
+    alert(e.message);
+  }
 }
 
 async function checkAuth() {
@@ -461,6 +563,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     try { await api("/api/logout", { method: "POST" }); } catch {}
     location.href = "/yonder";
   });
+
+  $("paramGender").addEventListener("change", refreshVoiceSelect);
+  $("voicePlayBtn").addEventListener("click", playVoicePreview);
+  loadVoices();
 
   $("createBtn").addEventListener("click", async () => {
     const text = idea.value.trim();

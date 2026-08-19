@@ -80,6 +80,16 @@ a { color: inherit; text-decoration: none; }
   color: var(--text); font-size: .82rem; outline: none; cursor: pointer;
 }
 .setting-select option { background: #12131f; color: var(--text); }
+.voice-row { display: flex; gap: 8px; align-items: stretch; }
+.voice-row .setting-select { flex: 1; }
+.voice-preview-btn {
+  flex: 0 0 auto; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border);
+  background: rgba(255,255,255,.06); color: var(--text); font-size: .8rem; cursor: pointer;
+  transition: all .2s; font-family: inherit; white-space: nowrap;
+}
+.voice-preview-btn:hover { background: rgba(139,139,255,.15); border-color: rgba(139,139,255,.4); color: var(--accent); }
+.voice-preview-btn.playing { background: rgba(139,139,255,.15); color: var(--accent); animation: voiceBtnPulse 1s infinite ease-in-out; }
+@keyframes voiceBtnPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 .intimacy-bar { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--muted); }
 .intimacy-fill { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
 .intimacy-fill span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #c084fc); border-radius: 3px; transition: width .4s; }
@@ -375,8 +385,11 @@ a { color: inherit; text-decoration: none; }
 
     <div class="setting-row">
       <div class="setting-label"><span>TA 的声音</span></div>
-      <select class="setting-select" id="voiceSelect"></select>
-      <div style="font-size:.72rem;color:var(--muted);margin-top:4px;">点击回复旁的 🔊 即可朗读 TA 的话语</div>
+      <div class="voice-row">
+        <select class="setting-select" id="voiceSelect"></select>
+        <button type="button" class="voice-preview-btn" id="voicePreviewBtn" title="试听当前声音">🔊 试听</button>
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:4px;">🔊 试听可聆听当前声音；回复旁的 🔊 可朗读 TA 的话语</div>
     </div>
 
     <div class="setting-row">
@@ -412,6 +425,8 @@ let character = null;
 let sending = false;
 let chatConfig = { temperature: 0.9, max_tokens: 150, proactivity: "balanced", voice: "" };
 let currentIntimacy = 0;
+let characterGender = "";
+let previewAudio = null;
 
 function scrollBottom() { const a = $("chatArea"); a.scrollTop = a.scrollHeight; }
 if (window.visualViewport) window.visualViewport.addEventListener("resize", scrollBottom);
@@ -480,6 +495,7 @@ function renderCharacter(c) {
     img.style.display = "none";
   }
   if (c.share_url) $("shareLink").href = c.share_url;
+  characterGender = c.gender || "";
   if (c.chat_config) {
     try { chatConfig = { ...chatConfig, ...(typeof c.chat_config === "string" ? JSON.parse(c.chat_config) : c.chat_config) }; } catch {}
   }
@@ -532,6 +548,69 @@ function setSpeaking(on) {
 let ttsAudio = null;
 let ttsPlayingBtn = null;
 
+/* 实际朗读用的声音：已选声音，否则按性别给默认（男 → 云健，其余 → 晓晓） */
+function effectiveVoice() {
+  if (chatConfig.voice) return chatConfig.voice;
+  return characterGender === "male" ? "zh-CN-YunjianNeural" : "";
+}
+
+function voicePreviewText(voiceId) {
+  if (voiceId.startsWith("en-")) return "Hi, I'm your digital life. It's so nice to meet you!";
+  if (voiceId.startsWith("ja-")) return "こんにちは、あなたのデジタルライフです。よろしくお願いします。";
+  if (voiceId.startsWith("ko-")) return "안녕하세요, 당신의 디지털 라이프입니다. 만나서 반가워요.";
+  return "你好呀，我是你的数字生命。很高兴能和你相遇，今天想聊点什么？";
+}
+
+async function playVoicePreview(voiceId) {
+  const btn = $("voicePreviewBtn");
+  if (!btn) return;
+  if (previewAudio && !previewAudio.paused) {
+    try { previewAudio.pause(); } catch {}
+    previewAudio = null;
+    btn.classList.remove("playing");
+    btn.textContent = "🔊 试听";
+    return;
+  }
+  if (previewAudio) { try { previewAudio.pause(); } catch {} previewAudio = null; }
+  btn.textContent = "合成中…";
+  try {
+    const text = voicePreviewText(voiceId || "zh-CN-XiaoxiaoNeural");
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(localStorage.getItem("hyool_token") ? { Authorization: "Bearer " + localStorage.getItem("hyool_token") } : {})
+      },
+      body: JSON.stringify({ text, voice: voiceId })
+    });
+    if (!res.ok) {
+      let d = {};
+      try { d = await res.json(); } catch {}
+      throw new Error(d.error || "语音合成失败。");
+    }
+    const blob = await res.blob();
+    const audioUrl = URL.createObjectURL(blob);
+    const audio = new Audio(audioUrl);
+    previewAudio = audio;
+    btn.textContent = "⏹ 停止";
+    btn.classList.add("playing");
+    const done = () => {
+      URL.revokeObjectURL(audioUrl);
+      btn.textContent = "🔊 试听";
+      btn.classList.remove("playing");
+      if (previewAudio === audio) previewAudio = null;
+    };
+    audio.addEventListener("ended", done);
+    audio.addEventListener("error", done);
+    await audio.play();
+  } catch (e) {
+    btn.textContent = "🔊 试听";
+    btn.classList.remove("playing");
+    alert(e.message);
+  }
+}
+
 function setBtnState(btn, state) {
   if (!btn) return;
   btn.disabled = state === "loading";
@@ -552,7 +631,7 @@ async function speakText(text, btn) {
   ttsPlayingBtn = null;
   setBtnState(btn, "loading");
   try {
-    const voice = chatConfig.voice || "";
+    const voice = effectiveVoice();
     const res = await fetch("/api/tts", {
       method: "POST",
       credentials: "include",
@@ -594,9 +673,21 @@ async function loadVoices() {
     const res = await api("/api/tts/voices");
     const auto = document.createElement("option");
     auto.value = "";
-    auto.textContent = "自动（默认晓晓）";
+    auto.textContent = characterGender === "male" ? "自动（云健）" : "自动（默认晓晓）";
     sel.appendChild(auto);
-    (res.voices || []).forEach(v => {
+    const list = res.voices || [];
+    // 按角色性别筛选：男角色只列男声、女角色只列女声、中性/未知列出全部
+    const filtered = list.filter(v => {
+      if (!characterGender || characterGender === "neutral") return true;
+      return v.gender === characterGender;
+    });
+    // 若已保存的声音不在筛选列表（如性别不符），仍保留该选项，避免静默丢失
+    const savedVoice = chatConfig.voice || "";
+    if (savedVoice && !filtered.some(v => v.id === savedVoice)) {
+      const saved = list.find(v => v.id === savedVoice);
+      if (saved) filtered.push(saved);
+    }
+    filtered.forEach(v => {
       const o = document.createElement("option");
       o.value = v.id;
       o.textContent = v.name;
@@ -729,6 +820,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("voiceSelect").addEventListener("change", (e) => {
     chatConfig.voice = e.target.value;
     saveConfig();
+  });
+  $("voicePreviewBtn").addEventListener("click", () => {
+    playVoicePreview(effectiveVoice());
   });
   loadVoices();
 

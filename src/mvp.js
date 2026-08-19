@@ -5,6 +5,10 @@
     regenerateCharacterImage,
     buildPortraitSvg
 } from "./ai/gateway.js";
+import { TTS_VOICES } from "./tts.js";
+
+// 所有可用语音 id（创建/保存角色时校验 voice）
+const KNOWN_VOICE_IDS = new Set(TTS_VOICES.map(v => v.id));
 
 export async function handleMvpRoutes(
     request,
@@ -108,12 +112,22 @@ export async function handleMvpRoutes(
                 params
             );
 
+            // 保存性别与初始语音（声音可选，按性别筛选）
+            const gender = params.gender === "female" || params.gender === "male" ? params.gender : "";
+            const voice = typeof params.voice === "string" && KNOWN_VOICE_IDS.has(params.voice) ? params.voice : "";
+            const chatConfigJson = JSON.stringify({
+                temperature: 0.9,
+                max_tokens: 150,
+                proactivity: "balanced",
+                ...(voice ? { voice } : {})
+            });
+
             await env.DB.prepare(
                 `INSERT INTO characters (
                     id, owner_id, name, appearance, personality, background,
                     speech_style, world_name, world_description, story_hook,
-                    source_idea, image_url, share_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+                    source_idea, image_url, share_id, gender, chat_config, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
             ).bind(
                 characterId,
                 user.id,
@@ -127,7 +141,9 @@ export async function handleMvpRoutes(
                 generated.story_hook,
                 idea,
                 imageResult.url,
-                shareId
+                shareId,
+                gender,
+                chatConfigJson
             ).run();
 
             if (imageResult.url && imageResult.provider !== "mock") {
@@ -346,12 +362,21 @@ export async function handleMvpRoutes(
                 imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=768&height=1024&nologo=true&model=flux&seed=${seed}`;
             }
 
+            const gender = ["female", "male", "neutral"].includes(s.gender) ? s.gender : "";
+            const voice = typeof s.voice === "string" && KNOWN_VOICE_IDS.has(s.voice) ? s.voice : "";
+            const chatConfigJson = JSON.stringify({
+                temperature: 0.9,
+                max_tokens: 150,
+                proactivity: "balanced",
+                ...(voice ? { voice } : {})
+            });
+
             await env.DB.prepare(
                 `INSERT INTO characters (
                     id, owner_id, name, appearance, personality, background,
                     speech_style, world_name, world_description, story_hook,
-                    source_idea, image_url, share_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+                    source_idea, image_url, share_id, gender, chat_config, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
             ).bind(
                 characterId,
                 user.id,
@@ -365,7 +390,9 @@ export async function handleMvpRoutes(
                 generated.story_hook,
                 ideaForAI.slice(0, 500),
                 imageUrl,
-                shareId
+                shareId,
+                gender,
+                chatConfigJson
             ).run();
 
             return json({
@@ -950,7 +977,13 @@ export async function handleMvpRoutes(
                 ? body.proactivity
                 : (existing.proactivity ?? "balanced");
 
-            const newConfig = JSON.stringify({ temperature, max_tokens, proactivity });
+            // 语音：只接受已知声音 id 或空字符串（空 = 自动默认）
+            const voice = typeof body.voice === "string" &&
+                (body.voice === "" || KNOWN_VOICE_IDS.has(body.voice))
+                ? body.voice
+                : (existing.voice || "");
+
+            const newConfig = JSON.stringify({ temperature, max_tokens, proactivity, voice });
 
             await env.DB.prepare(
                 "UPDATE characters SET chat_config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
@@ -958,7 +991,7 @@ export async function handleMvpRoutes(
 
             return json({
                 success: true,
-                chat_config: { temperature, max_tokens, proactivity }
+                chat_config: { temperature, max_tokens, proactivity, voice }
             });
 
         } catch (error) {
@@ -1008,6 +1041,7 @@ function formatCharacter(row) {
         share_id: row.share_id,
         share_url: row.share_id ? `/s/${row.share_id}` : null,
         buddy_url: `/buddy/${row.id}`,
+        gender: row.gender || "",
         intimacy: row.intimacy ?? 0,
         chat_config: (() => {
             try { return JSON.parse(row.chat_config || "{}"); } catch { return {}; }
