@@ -127,6 +127,14 @@ a { color: inherit; text-decoration: none; }
   animation: portraitBreathe 5s ease-in-out infinite;
   position: relative; z-index: 2;
 }
+/* 同图模糊放大铺满背景：主体 contain 完整显示，边缘由模糊层填充，实现“铺满不留白” */
+.portrait-blur {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center top;
+  filter: blur(28px) brightness(.45) saturate(1.15);
+  transform: scale(1.15);
+  z-index: 0; pointer-events: none;
+}
 .portrait-glow {
   position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 60%; height: 40%; pointer-events: none; z-index: 1;
@@ -390,6 +398,7 @@ a { color: inherit; text-decoration: none; }
     <!-- Portrait Panel -->
     <aside class="portrait-panel" id="portraitPanel">
       <div class="portrait-stage" id="portraitStage">
+        <img class="portrait-blur" id="portraitBlur" alt="" src="" aria-hidden="true">
         <div class="portrait-ripple"></div>
         <div class="portrait-glow"></div>
         <img class="portrait-img" id="portraitImg" alt="" src="">
@@ -647,11 +656,15 @@ function renderCharacter(c) {
   $("charName").textContent = c.name || "TA";
   $("charWorld").textContent = c.world_name || "";
   const img = $("portraitImg");
+  const blur = $("portraitBlur");
   if (c.image_url) {
     img.src = c.image_url;
+    if (blur) blur.src = c.image_url;
     img.style.display = "";
+    if (blur) blur.style.display = "";
   } else {
     img.style.display = "none";
+    if (blur) blur.style.display = "none";
   }
   if (c.share_url) $("shareLink").href = c.share_url;
   characterGender = c.gender || "";
@@ -967,6 +980,8 @@ async function uploadPortrait(blob) {
     character.image_url = data.url;
     const img = $("portraitImg");
     img.src = data.url;
+    const blur = $("portraitBlur");
+    if (blur) { blur.src = data.url; blur.style.display = ""; }
     img.style.display = "";
     $("portraitPanel").classList.remove("mobile-show");
   } catch (e) {
