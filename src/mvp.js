@@ -919,7 +919,8 @@ export async function handleMvpRoutes(
                     recentMessages,
                     userMessage: aiUserMessage,
                     intimacy,
-                    chatConfig
+                    chatConfig,
+                    userName: user.username
                 },
                 env
             );
