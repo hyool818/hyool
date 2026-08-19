@@ -34,39 +34,25 @@ const CHUNK_LIMIT = 1000; // 单次 SSML 合成上限（字符），超长自动
  * name 采用「音色标签 · 源声人名」格式：标签描述听感（普通/元气/稚嫩/温柔/沉稳/阳光…），
  * 人名是实际发声的 AI 声源角色（微软 Edge 神经语音）。
  *
- * 注意：所有 id 均已对照微软 Edge readaloud 官方 voice list 端点核验，
- * 端点仅开放 34 个中英日韩语音（无专属御姐/诱惑声线，可用语速滑块辅助调节）。
+ * 仅保留中文声源（普通话 / 粤语 / 台湾腔）：角色形象为中文场景，
+ * 非中文声源（英日韩）已按需求移除，全部 id 均有效可合成。
  */
 export const TTS_VOICES = [
-    /* ----- 女声 ----- */
+    /* ----- 女声（6）----- */
     { id: "zh-CN-XiaoxiaoNeural", name: "普通 · 晓晓", gender: "female" },
     { id: "zh-CN-XiaoyiNeural", name: "元气 · 晓伊", gender: "female" },
     { id: "zh-HK-HiuGaaiNeural", name: "粤语 · 曉佳", gender: "female" },
     { id: "zh-HK-HiuMaanNeural", name: "粤语 · 曉曼", gender: "female" },
     { id: "zh-TW-HsiaoChenNeural", name: "台湾腔 · 曉臻", gender: "female" },
     { id: "zh-TW-HsiaoYuNeural", name: "台湾腔 · 曉雨", gender: "female" },
-    { id: "ja-JP-NanamiNeural", name: "日系 · 七海", gender: "female" },
-    { id: "ko-KR-SunHiNeural", name: "韩系 · 瑟喜", gender: "female" },
-    { id: "en-US-EmmaMultilingualNeural", name: "英伦 · 艾玛", gender: "female" },
-    { id: "en-US-AnaNeural", name: "稚嫩 · 安娜", gender: "female" },
-    { id: "en-US-JennyNeural", name: "温柔 · 珍妮", gender: "female" },
-    { id: "en-US-AvaMultilingualNeural", name: "治愈 · 艾娃", gender: "female" },
-    { id: "en-US-AriaNeural", name: "知性 · 阿丽亚", gender: "female" },
-    { id: "en-US-MichelleNeural", name: "甜润 · 米歇尔", gender: "female" },
 
-    /* ----- 男声 ----- */
+    /* ----- 男声（6）----- */
     { id: "zh-CN-YunjianNeural", name: "沉稳 · 云健", gender: "male" },
     { id: "zh-CN-YunxiNeural", name: "阳光 · 云希", gender: "male" },
     { id: "zh-CN-YunxiaNeural", name: "少年 · 云夏", gender: "male" },
     { id: "zh-CN-YunyangNeural", name: "磁性 · 云扬", gender: "male" },
     { id: "zh-HK-WanLungNeural", name: "粤语 · 雲龍", gender: "male" },
-    { id: "zh-TW-YunJheNeural", name: "台湾腔 · 雲哲", gender: "male" },
-    { id: "ja-JP-KeitaNeural", name: "日系 · 庆太", gender: "male" },
-    { id: "ko-KR-InJoonNeural", name: "韩系 · 仁俊", gender: "male" },
-    { id: "ko-KR-HyunsuMultilingualNeural", name: "韩系 · 贤秀", gender: "male" },
-    { id: "en-US-ChristopherNeural", name: "英文 · 克里斯", gender: "male" },
-    { id: "en-US-GuyNeural", name: "激情 · 盖伊", gender: "male" },
-    { id: "en-US-RogerNeural", name: "活力 · 罗杰", gender: "male" }
+    { id: "zh-TW-YunJheNeural", name: "台湾腔 · 雲哲", gender: "male" }
 ];
 
 const KNOWN_VOICES = new Set(TTS_VOICES.map((v) => v.id));

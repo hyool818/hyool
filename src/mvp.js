@@ -1060,6 +1060,50 @@ export async function handleMvpRoutes(
         }
     }
 
+    /* ----- BUDDY portrait (image) update ----- */
+
+    const buddyImageMatch = pathname.match(
+        /^\/api\/buddy\/(char_[a-z0-9]+)\/image$/
+    );
+
+    if (buddyImageMatch && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const characterId = buddyImageMatch[1];
+            const character = await getCharacterById(env, characterId);
+
+            if (!character) {
+                return json({ success: false, error: "角色不存在。" }, 404);
+            }
+
+            if (character.owner_id !== user.id) {
+                return json({ success: false, error: "无权修改。" }, 403);
+            }
+
+            const body = await request.json();
+            const imageUrl = String(body.image_url || "").trim();
+
+            // 只接受本站上传的图片地址（/img/img_xxx），防止写入任意外链
+            if (!/^\/img\/img_[a-z0-9]+$/.test(imageUrl)) {
+                return json({ success: false, error: "图片地址无效。" }, 400);
+            }
+
+            await env.DB.prepare(
+                "UPDATE characters SET image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            ).bind(imageUrl, characterId).run();
+
+            return json({ success: true, image_url: imageUrl });
+
+        } catch (error) {
+            console.error("BUDDY IMAGE ERROR:", error);
+            return json({ success: false, error: "保存失败。" }, 500);
+        }
+    }
+
     /* ----- AI status (for debugging / UI badge) ----- */
 
     if (pathname === "/api/ai/status" && method === "GET") {

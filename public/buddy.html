@@ -239,7 +239,7 @@ a { color: inherit; text-decoration: none; }
 }
 .mem-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 
-/* Message media (聊天图片 / 视频) */
+/* Message media (历史消息中已存的图片/视频，兼容渲染) */
 .msg-media { margin-top: 8px; border-radius: 14px; overflow: hidden; }
 .msg-media:first-child { margin-top: 0; }
 .msg-media img, .msg-media video {
@@ -249,35 +249,15 @@ a { color: inherit; text-decoration: none; }
 .msg-media img { cursor: zoom-in; }
 .msg-text + .msg-media, .msg-media + .msg-media { margin-top: 8px; }
 
-/* 附件预览条 */
-.attach-bar {
-  display: flex; flex-wrap: wrap; gap: 8px; max-width: 680px; margin: 0 auto 8px;
+/* 更换形象按钮（角色肖像面板） */
+.change-portrait-btn {
+  flex: 0 0 auto; padding: 8px 14px; border: 1px solid rgba(139,139,255,.35);
+  border-radius: 999px; background: rgba(139,139,255,.10); color: var(--accent);
+  font-size: 12px; cursor: pointer; transition: all .2s;
 }
-.attach-chip {
-  position: relative; width: 72px; height: 72px; border-radius: 12px; overflow: hidden;
-  border: 1px solid var(--glass-border); background: rgba(255,255,255,.05);
-}
-.attach-chip img, .attach-chip video {
-  width: 100%; height: 100%; object-fit: cover; display: block;
-}
-.attach-chip .chip-tag {
-  position: absolute; left: 4px; bottom: 4px; font-size: 9px; padding: 1px 5px;
-  border-radius: 4px; background: rgba(0,0,0,.55); color: #fff;
-}
-.attach-chip .chip-remove {
-  position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%;
-  border: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 11px; line-height: 1;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-}
-.attach-chip .chip-remove:hover { background: #e5484d; }
-.attach-btn {
-  flex: 0 0 auto; height: 48px; padding: 0 12px; border: 1px solid rgba(255,255,255,.10);
-  border-radius: 16px; background: rgba(255,255,255,.06); color: var(--muted);
-  font-size: 18px; cursor: pointer; transition: all .2s; line-height: 1;
-}
-.attach-btn:hover { color: var(--accent); border-color: rgba(139,139,255,.4); background: rgba(139,139,255,.12); }
+.change-portrait-btn:hover { background: rgba(139,139,255,.22); border-color: rgba(139,139,255,.6); }
 
-/* Crop modal (聊天图片裁剪) */
+/* 形象裁剪弹窗（竖版 3:4，输出 720×960） */
 .crop-backdrop {
   position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.65);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
@@ -285,18 +265,19 @@ a { color: inherit; text-decoration: none; }
 }
 .crop-backdrop.active { display: flex; }
 .crop-modal {
-  width: 100%; max-width: 360px; padding: 24px;
+  width: 100%; max-width: 320px; padding: 24px;
   border: 1px solid var(--glass-border); border-radius: 20px;
   background: linear-gradient(145deg, #1a1b2e, #12131f);
   box-shadow: 0 30px 80px rgba(0,0,0,.5);
 }
 .crop-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .crop-header h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.crop-header .crop-hint { font-size: 11px; color: var(--muted); font-weight: 400; }
 .crop-stage {
-  position: relative; width: 280px; height: 280px; margin: 0 auto 20px;
+  position: relative; width: 210px; height: 280px; margin: 0 auto 20px;
   border-radius: 14px; overflow: hidden; background: #0a0a12;
 }
-#cropCanvas { display: block; width: 280px; height: 280px; touch-action: none; cursor: grab; }
+#cropCanvas { display: block; width: 210px; height: 280px; touch-action: none; cursor: grab; }
 #cropCanvas:active { cursor: grabbing; }
 .crop-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
 .crop-controls button {
@@ -414,10 +395,12 @@ a { color: inherit; text-decoration: none; }
         <img class="portrait-img" id="portraitImg" alt="" src="">
       </div>
       <div class="portrait-toolbar">
+        <button class="change-portrait-btn" id="changePortraitBtn" type="button">✏️ 更换形象</button>
         <button class="tool-btn" onclick="alert('装扮功能即将上线')">装扮 <span class="badge">soon</span></button>
         <button class="tool-btn" onclick="alert('场景功能即将上线')">场景 <span class="badge">soon</span></button>
         <button class="tool-btn" onclick="alert('天气功能即将上线')">天气 <span class="badge">soon</span></button>
       </div>
+      <input type="file" id="portraitInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
     </aside>
 
     <!-- Chat Panel -->
@@ -426,10 +409,7 @@ a { color: inherit; text-decoration: none; }
         <div class="chat-inner" id="chatInner"></div>
       </div>
       <div class="composer">
-        <div class="attach-bar" id="attachBar" style="display:none;"></div>
         <div class="composer-inner">
-          <button class="attach-btn" id="attachBtn" type="button" title="发送图片 / GIF / 视频">📎</button>
-          <input type="file" id="attachInput" accept="image/*,video/mp4,video/webm,.gif" multiple hidden>
           <textarea id="msgInput" placeholder="对 TA 说点什么……" rows="1"></textarea>
           <button class="send-btn" id="sendBtn">发送</button>
         </div>
@@ -497,7 +477,7 @@ a { color: inherit; text-decoration: none; }
 <!-- Image crop modal -->
 <div class="crop-backdrop" id="cropBackdrop">
   <div class="crop-modal">
-    <div class="crop-header"><h2>裁剪图片</h2></div>
+    <div class="crop-header"><h2>裁剪形象</h2><span class="crop-hint">竖版 3:4 · 720×960</span></div>
     <div class="crop-stage">
       <canvas id="cropCanvas" width="280" height="280"></canvas>
     </div>
@@ -685,6 +665,8 @@ function renderCharacter(c) {
   if (!["passive","balanced","active"].includes(chatConfig.proactivity)) chatConfig.proactivity = "balanced";
   currentIntimacy = c.intimacy || 0;
   updateSettingsUI();
+  // 角色性别与已保存配置都确认后再加载声音列表，保证严格按性别过滤（去掉男女混杂）
+  loadVoices();
 }
 
 function updateSettingsUI() {
@@ -857,6 +839,7 @@ async function speakText(text, btn) {
 async function loadVoices() {
   const sel = $("voiceSelect");
   if (!sel) return;
+  sel.innerHTML = ""; // 每次都重建选项：须在角色性别已知后调用，否则会列出全部（男女混杂）
   try {
     const res = await api("/api/tts/voices");
     const auto = document.createElement("option");
@@ -907,125 +890,100 @@ async function loadMessages() {
   }
 }
 
-/* ---------- 聊天图片 / 视频上传 ---------- */
-const ATTACH_LIMIT = 4;
-const ATTACH_MAX_BYTES = 5 * 1024 * 1024;
-let pendingAttachments = []; // { file: Blob/File, kind: "image"|"video", label: string }
+/* ---------- 更换角色形象（本地上传 → 竖版裁剪 → 更新形象） ---------- */
+const PORTRAIT_MAX_BYTES = 5 * 1024 * 1024; // 单文件 5MB
+let portraitCropCb = null; // 裁剪完成回调（收到裁剪后的 Blob）
 let cropState = {
-  img: null, stageSize: 280, cropSize: 240, baseScale: 1,
+  img: null, viewW: 210, viewH: 280, baseScale: 1,
   zoom: 1, offsetX: 0, offsetY: 0, drag: false, dragStartX: 0, dragStartY: 0
 };
 
-function isStaticImage(type) {
-  return ["image/jpeg", "image/png", "image/webp", "image/bmp", "image/avif"].includes(type);
-}
-function isDirectMedia(type) {
-  return type === "image/gif" || type === "image/svg+xml" ||
-    type === "video/mp4" || type === "video/webm" || type === "video/ogg";
+function isStaticPortrait(type) {
+  return ["image/jpeg", "image/png", "image/webp"].includes(type);
 }
 
-function renderAttachBar() {
-  const bar = $("attachBar");
-  if (!bar) return;
-  bar.innerHTML = "";
-  if (pendingAttachments.length === 0) { bar.style.display = "none"; return; }
-  bar.style.display = "flex";
-  pendingAttachments.forEach((a, i) => {
-    const chip = document.createElement("div");
-    chip.className = "attach-chip";
-    const objUrl = URL.createObjectURL(a.file);
-    if (a.kind === "video") {
-      const v = document.createElement("video");
-      v.src = objUrl; v.muted = true; v.playsInline = true; v.preload = "metadata";
-      chip.appendChild(v);
-    } else {
-      const img = document.createElement("img");
-      img.src = objUrl; img.alt = "";
-      chip.appendChild(img);
-    }
-    const tag = document.createElement("span");
-    tag.className = "chip-tag";
-    tag.textContent = a.kind === "video" ? "视频" : (a.file.type === "image/gif" ? "GIF" : "图片");
-    chip.appendChild(tag);
-    const rm = document.createElement("button");
-    rm.className = "chip-remove";
-    rm.type = "button";
-    rm.textContent = "×";
-    rm.addEventListener("click", () => {
-      pendingAttachments.splice(i, 1);
-      URL.revokeObjectURL(objUrl);
-      renderAttachBar();
+/* 选择文件后的入口：静态图走竖版裁剪，GIF 直接上传 */
+function handlePortraitFile(file) {
+  if (!file) return;
+  if (file.size > PORTRAIT_MAX_BYTES) {
+    alert("「" + (file.name || "图片") + "」超过 5MB 限制。");
+    return;
+  }
+  if (isStaticPortrait(file.type)) { openCropModal(file, uploadPortrait); return; }
+  if (file.type === "image/gif") { uploadPortrait(file); return; }
+  alert("仅支持 JPG/PNG/WebP 静态图或 GIF 动图。");
+}
+
+/* 上传形象图片并更新角色的形象（image_url） */
+async function uploadPortrait(blob) {
+  const btn = $("cropConfirm");
+  const formData = new FormData();
+  formData.append("file", blob, blob.type === "image/gif" ? "portrait.gif" : "portrait.png");
+  try {
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      credentials: "include",
+      headers: (() => { const h = {}; const t = localStorage.getItem("hyool_token"); if (t) h["Authorization"] = "Bearer " + t; return h; })(),
+      body: formData
     });
-    chip.appendChild(rm);
-    bar.appendChild(chip);
-  });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || "上传失败。");
+    const r = await api("/api/buddy/" + getCharId() + "/image", {
+      method: "POST", body: JSON.stringify({ image_url: data.url })
+    });
+    if (!r.success) throw new Error(r.error || "更新形象失败。");
+    character.image_url = data.url;
+    const img = $("portraitImg");
+    img.src = data.url;
+    img.style.display = "";
+    $("portraitPanel").classList.remove("mobile-show");
+  } catch (e) {
+    alert("更换形象失败：" + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
-function clearAttachments() {
-  pendingAttachments = [];
-  renderAttachBar();
-}
-
-function handleAttachFiles(files) {
-  const arr = Array.from(files || []);
-  arr.forEach(f => {
-    if (pendingAttachments.length >= ATTACH_LIMIT) {
-      alert("一次最多发送 " + ATTACH_LIMIT + " 个附件。");
-      return;
-    }
-    if (f.size > ATTACH_MAX_BYTES) {
-      alert("「" + (f.name || "附件") + "」超过 5MB 限制。");
-      return;
-    }
-    if (isStaticImage(f.type)) { openCropModal(f); return; }
-    if (isDirectMedia(f.type)) {
-      pendingAttachments.push({
-        file: f,
-        kind: f.type.indexOf("video/") === 0 ? "video" : "image",
-        label: f.name
-      });
-      renderAttachBar();
-      return;
-    }
-    alert("暂不支持该格式，仅支持 JPG/PNG/WebP/GIF/SVG 图片与 MP4/WebM 视频。");
-  });
-}
-
-/* ---- 图片裁剪（方形 512×512） ---- */
-function renderCrop() {
-  const canvas = $("cropCanvas");
-  const ctx = canvas.getContext("2d");
-  const S = cropState.stageSize;
-  const C = cropState.cropSize;
-  ctx.fillStyle = "#0a0a12";
-  ctx.fillRect(0, 0, S, S);
-  if (!cropState.img) return;
+/* ---- 竖版 3:4 形象裁剪 ---- */
+function clampCropOffset() {
   const scale = cropState.baseScale * cropState.zoom;
   const sw = cropState.img.width * scale;
   const sh = cropState.img.height * scale;
-  const drawX = S / 2 - sw / 2 + cropState.offsetX;
-  const drawY = S / 2 - sh / 2 + cropState.offsetY;
-  ctx.drawImage(cropState.img, drawX, drawY, sw, sh);
-  const cropX = (S - C) / 2;
-  const cropY = (S - C) / 2;
-  ctx.fillStyle = "rgba(0,0,0,.6)";
-  ctx.fillRect(0, 0, S, cropY);
-  ctx.fillRect(0, cropY + C, S, cropY);
-  ctx.fillRect(0, cropY, cropX, C);
-  ctx.fillRect(cropX + C, cropY, cropX, C);
-  ctx.strokeStyle = "rgba(255,255,255,.7)";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(cropX, cropY, C, C);
+  const maxOX = Math.max(0, (sw - cropState.viewW) / 2);
+  const maxOY = Math.max(0, (sh - cropState.viewH) / 2);
+  cropState.offsetX = Math.min(maxOX, Math.max(-maxOX, cropState.offsetX));
+  cropState.offsetY = Math.min(maxOY, Math.max(-maxOY, cropState.offsetY));
 }
 
-function openCropModal(file) {
+function renderCrop() {
+  const canvas = $("cropCanvas");
+  const ctx = canvas.getContext("2d");
+  const W = cropState.viewW, H = cropState.viewH;
+  ctx.fillStyle = "#0a0a12";
+  ctx.fillRect(0, 0, W, H);
+  if (!cropState.img) return;
+  clampCropOffset();
+  const scale = cropState.baseScale * cropState.zoom;
+  const sw = cropState.img.width * scale;
+  const sh = cropState.img.height * scale;
+  const drawX = W / 2 - sw / 2 + cropState.offsetX;
+  const drawY = H / 2 - sh / 2 + cropState.offsetY;
+  ctx.drawImage(cropState.img, drawX, drawY, sw, sh);
+  ctx.strokeStyle = "rgba(139,139,255,.6)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, W - 2, H - 2);
+}
+
+function openCropModal(file, cb) {
+  portraitCropCb = cb;
+  const btn = $("cropConfirm");
+  if (btn) btn.disabled = false;
   const reader = new FileReader();
   reader.onload = function(e) {
     const img = new Image();
     img.onload = function() {
       cropState.img = img;
-      const minDim = Math.min(img.width, img.height);
-      cropState.baseScale = cropState.cropSize / minDim;
+      cropState.baseScale = Math.max(cropState.viewW / img.width, cropState.viewH / img.height);
       cropState.zoom = 1;
       cropState.offsetX = 0;
       cropState.offsetY = 0;
@@ -1048,83 +1006,45 @@ function confirmCrop() {
   if (!cropState.img) return;
   const btn = $("cropConfirm");
   if (btn) btn.disabled = true;
-  const S = cropState.stageSize;
-  const C = cropState.cropSize;
+  const W = cropState.viewW, H = cropState.viewH;
   const scale = cropState.baseScale * cropState.zoom;
   const sw = cropState.img.width * scale;
   const sh = cropState.img.height * scale;
-  const imgStartX = S / 2 - sw / 2 + cropState.offsetX;
-  const imgStartY = S / 2 - sh / 2 + cropState.offsetY;
-  const cropX = (S - C) / 2;
-  const cropY = (S - C) / 2;
-  const srcX = (cropX - imgStartX) / scale;
-  const srcY = (cropY - imgStartY) / scale;
-  const srcSize = C / scale;
+  const drawX = W / 2 - sw / 2 + cropState.offsetX;
+  const drawY = H / 2 - sh / 2 + cropState.offsetY;
+  const srcX = -drawX / scale;
+  const srcY = -drawY / scale;
+  const srcW = W / scale;
+  const srcH = H / scale;
   const out = document.createElement("canvas");
-  out.width = 512;
-  out.height = 512;
+  out.width = 720;
+  out.height = 960;
   const octx = out.getContext("2d");
-  octx.drawImage(cropState.img, srcX, srcY, srcSize, srcSize, 0, 0, 512, 512);
+  octx.drawImage(cropState.img, srcX, srcY, srcW, srcH, 0, 0, 720, 960);
+  const cb = portraitCropCb;
+  portraitCropCb = null;
   closeCropModal();
   out.toBlob(function(blob) {
-    if (btn) btn.disabled = false;
-    if (!blob) { alert("裁剪失败，请重试。"); return; }
-    if (pendingAttachments.length >= ATTACH_LIMIT) { alert("一次最多发送 " + ATTACH_LIMIT + " 个附件。"); return; }
-    pendingAttachments.push({ file: blob, kind: "image", label: "crop.png" });
-    renderAttachBar();
+    if (!blob) { if (btn) btn.disabled = false; alert("裁剪失败，请重试。"); return; }
+    if (cb) cb(blob);
   }, "image/png");
-}
-
-/* 上传单个附件 */
-async function uploadOne(a) {
-  const formData = new FormData();
-  const fname = (a.label && /\.\w+$/.test(a.label)) ? a.label : (a.kind === "video" ? "media.mp4" : "image.png");
-  formData.append("file", a.file, fname);
-  const res = await fetch("/api/upload", {
-    method: "POST",
-    credentials: "include",
-    headers: (() => { const h = {}; const t = localStorage.getItem("hyool_token"); if (t) h["Authorization"] = "Bearer " + t; return h; })(),
-    body: formData
-  });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.error || "上传失败。");
-  return { url: data.url, kind: a.kind };
-}
-
-async function uploadPending() {
-  const results = [];
-  for (const a of pendingAttachments) {
-    results.push(await uploadOne(a));
-  }
-  return results;
 }
 
 async function sendMessage() {
   if (sending) return;
   const input = $("msgInput");
   const text = input.value.trim();
-  if (!text && pendingAttachments.length === 0) return;
+  if (!text) return;
   sending = true;
   $("sendBtn").disabled = true;
-  // 先上传待发附件（裁剪后的图片 / GIF / 视频），失败则中断发送
-  let attachments = [];
-  try {
-    attachments = pendingAttachments.length ? await uploadPending() : [];
-  } catch (e) {
-    alert("附件上传失败：" + e.message);
-    sending = false;
-    $("sendBtn").disabled = false;
-    return;
-  }
   input.value = "";
   input.style.height = "auto";
-  clearAttachments();
-  addMessage("user", { text, images: attachments }, false);
+  addMessage("user", text, false);
   const typingRow = addMessage("assistant", "", true);
   setSpeaking(true);
   try {
     const res = await api("/api/buddy/" + getCharId() + "/chat", {
-      method: "POST", body: JSON.stringify({ message: text, images: attachments })
+      method: "POST", body: JSON.stringify({ message: text })
     });
     if (!res.success) throw new Error(res.error || "对话失败。");
     setSpeaking(false);
@@ -1218,7 +1138,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("voicePreviewBtn").addEventListener("click", () => {
     playVoicePreview(effectiveVoice());
   });
-  loadVoices();
+  // 声音列表在 loadMessages()（renderCharacter）拿到角色性别后重建，保证严格按性别过滤
 
   const input = $("msgInput");
   input.addEventListener("input", () => {
@@ -1230,12 +1150,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   $("sendBtn").addEventListener("click", sendMessage);
 
-  // 附件上传与裁剪
-  $("attachBtn").addEventListener("click", () => $("attachInput").click());
-  $("attachInput").addEventListener("change", (e) => {
-    handleAttachFiles(e.target.files);
+  // 更换形象（本地上传 → 竖版裁剪 → 更新角色形象）
+  $("changePortraitBtn").addEventListener("click", () => $("portraitInput").click());
+  $("portraitInput").addEventListener("change", (e) => {
+    handlePortraitFile(e.target.files && e.target.files[0]);
     e.target.value = "";
   });
+
+  // 形象裁剪
   $("cropCancel").addEventListener("click", closeCropModal);
   $("cropConfirm").addEventListener("click", confirmCrop);
   $("cropZoomOut").addEventListener("click", () => {
