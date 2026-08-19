@@ -100,6 +100,28 @@ body {
         background .4s ease;
 }
 
+#background-blur {
+
+    position: absolute;
+
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    filter: blur(24px);
+
+    transform: scale(1.15);
+
+    opacity: 0;
+
+    transition:
+        opacity .4s ease;
+
+}
+
 #background-image {
 
     position: absolute;
@@ -1520,6 +1542,11 @@ body {
 <div id="background-layer">
 
     <img
+        id="background-blur"
+        alt=""
+    >
+
+    <img
         id="background-image"
         alt=""
     >
@@ -2579,7 +2606,12 @@ function applyBackgroundImageFit() {
             "background-image"
         );
 
-    if (!image) return;
+    const blur =
+        document.getElementById(
+            "background-blur"
+        );
+
+    if (!image || !blur) return;
 
     if (
         !cachedBackgroundRegion ||
@@ -2598,6 +2630,9 @@ function applyBackgroundImageFit() {
 
         image.style.transform =
             "";
+
+        blur.style.opacity =
+            "0";
 
         return;
 
@@ -2640,6 +2675,10 @@ function applyBackgroundImageFit() {
                     image.naturalHeight)
         );
 
+        // 竖屏完整显示：留边用同一张图的模糊放大版铺满全屏
+        blur.style.opacity =
+            "1";
+
     }
 
     else {
@@ -2652,6 +2691,9 @@ function applyBackgroundImageFit() {
                 (region.h *
                     image.naturalHeight)
         );
+
+        blur.style.opacity =
+            "0";
 
     }
 
@@ -2729,11 +2771,19 @@ function applySettings(
             "background-image"
         );
 
+    const blur =
+        document.getElementById(
+            "background-blur"
+        );
+
 
     image.style.display =
         "none";
 
     image.style.opacity =
+        "0";
+
+    blur.style.opacity =
         "0";
 
 
@@ -2785,6 +2835,9 @@ function applySettings(
 
 
             image.src =
+                backgroundValue;
+
+            blur.src =
                 backgroundValue;
 
             image.style.display =
