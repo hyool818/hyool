@@ -75,7 +75,7 @@ async function main() {
       await sleep(250);
     }
     ok(loaded, '图片载入');
-    ok(f().eval(`!document.getElementById('topExportBtn').classList.contains('hidden')`), '导入后顶栏「保存/导出」按钮可见');
+    ok(f().eval(`!document.getElementById('topExportBtn').classList.contains('hidden')`), '导入后顶栏「导出素材」按钮可见');
     // 布局诊断：确认 mosaicLayer 在 iframe 里的实际布局尺寸（此前 stagePoint 拿到 NaN 疑似 rect.width=0）
     const layoutDiag = f().eval(`(() => {
       const l = document.getElementById('mosaicLayer');

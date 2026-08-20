@@ -187,7 +187,7 @@
   </div>
   <div class="topbar-right">
     <span id="assetBadge" class="asset-badge hidden"></span>
-    <button id="topExportBtn" class="btn primary hidden">↓ 保存 / 导出</button>
+    <button id="topExportBtn" class="btn primary hidden">↓ 导出素材</button>
     <button id="importBtn" class="btn primary">＋ 导入素材</button>
     <input type="file" id="fileInput" multiple hidden
       accept="image/png,image/jpeg,image/webp,image/avif,image/gif,image/apng,video/mp4,video/webm,video/ogg">
@@ -237,6 +237,7 @@
       <button class="tab active" data-tab="transform">处理</button>
       <button class="tab" data-tab="compress">压缩</button>
       <button class="tab" data-tab="mosaic">打码</button>
+      <button class="tab" data-tab="patch">补丁</button>
       <button class="tab" data-tab="ai">AI</button>
       <button class="tab anim-only hidden" data-tab="anim">动画</button>
       <button class="tab video-only hidden" data-tab="video">视频</button>
@@ -335,6 +336,54 @@
         </div>
         <button id="addRegionBtn" class="btn small">＋ 在预览区拖拽添加区域</button>
         <div class="region-list" id="regionList"></div>
+      </section>
+
+      <!-- 补丁 / 仿制图章 -->
+      <section class="tab-panel" data-panel="patch">
+        <div class="seg" id="patchToolSeg">
+          <button class="seg-btn active" data-tool="patch">跨图补丁</button>
+          <button class="seg-btn" data-tool="stamp">仿制图章</button>
+        </div>
+
+        <div id="patchPanel">
+          <div class="field">
+            <label>补丁来源（另一张图）</label>
+            <div class="row wrap">
+              <button id="patchPickBtn" class="btn small">＋ 选择补丁图</button>
+            </div>
+            <input type="file" id="patchFileInput" hidden multiple accept="image/*">
+            <p class="hint small">选图后自动放到预览中央，可整框拖动、拖四角缩放（保持比例）；透明度 / 羽化作用于当前选中的补丁，导出时自动合成。</p>
+          </div>
+          <div class="field">
+            <label>透明度 <span id="patchOpacityVal" class="mono">100</span>%</label>
+            <input type="range" id="patchOpacity" min="10" max="100" value="100">
+          </div>
+          <div class="field">
+            <label>边缘羽化 <span id="patchFeatherVal" class="mono">0</span>%（占补丁短边）</label>
+            <input type="range" id="patchFeather" min="0" max="100" value="0">
+          </div>
+          <div class="region-list" id="patchList"></div>
+        </div>
+
+        <div id="stampPanel" class="hidden">
+          <div class="field">
+            <label>笔刷大小 <span id="stampSizeVal" class="mono">40</span> px</label>
+            <input type="range" id="stampSize" min="6" max="240" value="40">
+          </div>
+          <div class="field">
+            <label>边缘柔和 <span id="stampSoftVal" class="mono">60</span>%</label>
+            <input type="range" id="stampSoft" min="0" max="100" value="60">
+          </div>
+          <div class="field">
+            <label>操作</label>
+            <div class="row wrap">
+              <button id="stampSampleBtn" class="btn small">📍 设置取样点</button>
+              <button id="stampUndoBtn" class="btn small ghost" disabled>↩ 撤销笔触</button>
+              <button id="stampDoneBtn" class="btn small primary hidden">✓ 完成合并</button>
+            </div>
+            <p class="hint small">先「设置取样点」在干净处单击，再按住瑕疵处涂抹即可用干净纹理覆盖。<br>「完成合并」会把当前画面（含裁剪/缩放等）固化到图片，之后可继续编辑。<br>仅支持静态图片。</p>
+          </div>
+        </div>
       </section>
 
       <!-- AI -->

@@ -1,6 +1,6 @@
 // app.js — 无限世界 · FastEdit 图片工作台主入口
 import { $, $$, toast, fmtBytes, fmtTime, downloadBlob, copyBlob, setStatus, debounce, el, baseName, escapeHtml } from './ui.js';
-import { loadAsset, sourceFrame, processImageData, videoOutputDims, drawVideoFrameToCanvas, makeCanvas } from './engine.js';
+import { loadAsset, sourceFrame, processImageData, videoOutputDims, drawVideoFrameToCanvas, makeCanvas, decodeImageBlob, canvasToImageData, drawPatchedImage } from './engine.js';
 import { encodeImage, FORMATS, warmUp } from './codecs.js';
 import { encodeGif, encodeApng, frameToBlobUrl } from './anim.js';
 import { sampleVideoFrames, grabVideoFrame, exportVideoLive } from './video.js';
@@ -29,6 +29,14 @@ const R = {
   exportBtn: $('#exportBtn'), copyBtn: $('#copyBtn'), compareToggle: $('#compareToggle'),
   regionTypeSeg: $('#regionTypeSeg'), regionStrength: $('#regionStrength'), regionStrengthVal: $('#regionStrengthVal'),
   addRegionBtn: $('#addRegionBtn'), regionList: $('#regionList'),
+  patchToolSeg: $('#patchToolSeg'), patchPanel: $('#patchPanel'), stampPanel: $('#stampPanel'),
+  patchPickBtn: $('#patchPickBtn'), patchFileInput: $('#patchFileInput'),
+  patchOpacity: $('#patchOpacity'), patchOpacityVal: $('#patchOpacityVal'),
+  patchFeather: $('#patchFeather'), patchFeatherVal: $('#patchFeatherVal'),
+  patchList: $('#patchList'),
+  stampSize: $('#stampSize'), stampSizeVal: $('#stampSizeVal'),
+  stampSoft: $('#stampSoft'), stampSoftVal: $('#stampSoftVal'),
+  stampSampleBtn: $('#stampSampleBtn'), stampUndoBtn: $('#stampUndoBtn'), stampDoneBtn: $('#stampDoneBtn'),
   aiRemoveBtn: $('#aiRemoveBtn'), aiUndoBtn: $('#aiUndoBtn'), aiProgress: $('#aiProgress'),
   aiProgressBar: $('#aiProgressBar'), aiProgressText: $('#aiProgressText'),
   applyToAll: $('#applyToAll'), animLoop: $('#animLoop'), delayRange: $('#delayRange'), delayVal: $('#delayVal'),
@@ -50,6 +58,7 @@ const state = {
     rotate: 0, flipH: false, flipV: false,
     resize: { enabled: true, width: 0, height: 0, method: 'lanczos3' },
     regions: [],
+    patches: [],
     pad: null,
   },
   format: 'webp',
@@ -58,9 +67,12 @@ const state = {
   video: { start: 0, end: 0, fps: 12, format: 'webm' },
   regionType: 'mosaic',
   regionStrength: 16,
-  dragMode: null,       // null | 'region' | 'crop'
-  drag: null,           // 拖拽状态：{x0,y0,x1,y1}（打码）或 {kind,...}（裁剪）
+  dragMode: null,       // null | 'region' | 'crop' | 'patch' | 'stamp'
+  drag: null,           // 拖拽状态：{x0,y0,x1,y1}（打码）或 {kind,...}（裁剪/补丁/图章）
   cropDraft: null,      // 裁剪模式中的框选草稿（确认前不应用，保持完整预览）
+  patch: { tool: 'patch', selectedId: null },
+  stamp: null,          // 仿制图章工作区：{base, overlay, size, soft, sample, pickSample, undoStack}
+  baseCache: null,      // 预览用「不含补丁」的管线结果缓存（补丁在预览层实时合成）
   compareOn: false,
   aiBackup: null,       // AI 抠图前的原帧备份
   batch: [],
@@ -76,6 +88,7 @@ function init() {
   buildPresetGrid();
   bindEvents();
   bindMosaicVideoEvents();
+  bindPatchEvents();
   bindAnimVideoBatchEvents();
   warmUp().then(() => setStatus('就绪 · 编解码器预热完成')).catch(() => setStatus('就绪'));
   setStatus('就绪');
@@ -166,6 +179,96 @@ function bindMosaicVideoEvents() {
   R.copyBtn.addEventListener('click', copyStatic);
 }
 
+function bindPatchEvents() {
+  // 工具切换：跨图补丁 / 仿制图章
+  R.patchToolSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('.seg-btn');
+    if (!b) return;
+    state.patch.tool = b.dataset.tool;
+    $$('.seg-btn', R.patchToolSeg).forEach(x => x.classList.toggle('active', x === b));
+    R.patchPanel.classList.toggle('hidden', state.patch.tool !== 'patch');
+    R.stampPanel.classList.toggle('hidden', state.patch.tool !== 'stamp');
+    if (state.asset && document.querySelector('.tab[data-tab="patch"]').classList.contains('active')) {
+      state.dragMode = state.patch.tool === 'stamp' ? 'stamp' : 'patch';
+      drawOverlay();
+    }
+  });
+
+  // 跨图补丁：选择补丁图
+  R.patchPickBtn.addEventListener('click', () => R.patchFileInput.click());
+  R.patchFileInput.addEventListener('change', async (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (!files.length) return;
+    if (!state.asset) { toast('请先导入主图', true); return; }
+    if (state.busy) { toast('正在处理中，请稍候', true); return; }
+    setBusy(true);
+    try {
+      for (const f of files) {
+        const img = await decodeImageBlob(f);
+        addPatchFromImage(img, baseName(f.name));
+      }
+      toast(`已添加 ${files.length} 个补丁，拖到瑕疵上方即可`, false, 3000);
+    } catch (err) {
+      toast('补丁图读取失败：' + err.message, true);
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  // 透明度 / 羽化：作用于当前选中补丁
+  R.patchOpacity.addEventListener('input', () => {
+    R.patchOpacityVal.textContent = R.patchOpacity.value;
+    const p = selectedPatch();
+    if (p) { p.opacity = +R.patchOpacity.value / 100; refreshPatchPreview(); }
+  });
+  R.patchFeather.addEventListener('input', () => {
+    R.patchFeatherVal.textContent = R.patchFeather.value;
+    const p = selectedPatch();
+    if (p) { p.feather = +R.patchFeather.value / 100; refreshPatchPreview(); }
+  });
+  R.patchList.addEventListener('click', (e) => {
+    const del = e.target.closest('[data-del]');
+    if (del) {
+      state.edits.patches = state.edits.patches.filter(p => p.id !== del.dataset.del);
+      if (state.patch.selectedId === del.dataset.del) state.patch.selectedId = null;
+      renderPatchList();
+      syncPatchSliders();
+      refreshPatchPreview();
+      return;
+    }
+    const sel = e.target.closest('[data-select]');
+    if (sel) {
+      state.patch.selectedId = sel.dataset.select;
+      renderPatchList();
+      syncPatchSliders();
+      drawOverlay();
+    }
+  });
+
+  // 仿制图章
+  R.stampSampleBtn.addEventListener('click', () => {
+    if (!state.asset) { toast('请先导入图片', true); return; }
+    if (state.asset.kind !== 'image') { toast('仿制图章仅支持静态图片', true); return; }
+    if (!state.stamp) { enterStampMode(); return; }
+    state.stamp.pickSample = true;
+    toast('在预览区单击选择取样点', false, 2500);
+  });
+  R.stampUndoBtn.addEventListener('click', undoStroke);
+  R.stampDoneBtn.addEventListener('click', finishStamp);
+  R.stampSize.addEventListener('input', () => {
+    if (!state.stamp) return;
+    state.stamp.size = +R.stampSize.value;
+    R.stampSizeVal.textContent = state.stamp.size;
+    drawOverlay();
+  });
+  R.stampSoft.addEventListener('input', () => {
+    if (!state.stamp) return;
+    state.stamp.soft = +R.stampSoft.value / 100;
+    R.stampSoftVal.textContent = R.stampSoft.value;
+  });
+}
+
 function bindAnimVideoBatchEvents() {
   // 动画
   R.applyToAll.addEventListener('change', () => { state.anim.applyToAll = R.applyToAll.checked; rerender(); });
@@ -239,9 +342,26 @@ function bindAnimVideoBatchEvents() {
 function switchTab(name) {
   $$('.tab', R.tabs).forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   $$('.tab-panel', R.tabBody).forEach(p => p.classList.toggle('active', p.dataset.panel === name));
+  // 补丁 tab：按所选工具进入对应指针模式；离开时退出（裁剪模式切换过来先退出，避免模式冲突）
+  if (name === 'patch') {
+    if (state.asset) {
+      if (state.dragMode === 'crop') exitCropMode();
+      state.dragMode = state.patch.tool === 'stamp' ? 'stamp' : 'patch';
+      drawOverlay();
+    }
+  } else if (state.dragMode === 'patch' || state.dragMode === 'stamp') {
+    state.dragMode = null;
+    if (state.stamp) state.stamp.brushPos = null;
+    drawOverlay();
+  }
 }
 
 /* ================= 素材导入 ================= */
+
+/** 默认编辑参数（含补丁列表），保证各处重置一致 */
+function defaultEdits() {
+  return { crop: null, rotate: 0, flipH: false, flipV: false, resize: { enabled: true, width: 0, height: 0, method: 'lanczos3' }, regions: [], patches: [], pad: null };
+}
 
 async function handleFiles(files) {
   if (!files.length) return;
@@ -257,9 +377,13 @@ async function handleFiles(files) {
     stopVideoPreview();
     state.asset = null;
     state.aiBackup = null;
-    state.edits = { crop: null, rotate: 0, flipH: false, flipV: false, resize: { enabled: true, width: 0, height: 0, method: 'lanczos3' }, regions: [], pad: null };
+    state.edits = defaultEdits();
     state.cropDraft = null;
     state.drag = null;
+    state.patch = { tool: state.patch.tool, selectedId: null };
+    state.stamp = null;
+    state.baseCache = null;
+    state.dragMode = null;
     exitCropMode();
     state.anim.selectedFrame = 0;
     state.appliedPreset = null;
@@ -370,9 +494,13 @@ function removeAsset() {
   stopVideoPreview();
   state.asset = null;
   state.aiBackup = null;
-  state.edits = { crop: null, rotate: 0, flipH: false, flipV: false, resize: { enabled: true, width: 0, height: 0, method: 'lanczos3' }, regions: [], pad: null };
+  state.edits = defaultEdits();
   state.cropDraft = null;
   state.drag = null;
+  state.patch = { tool: state.patch.tool, selectedId: null };
+  state.stamp = null;
+  state.baseCache = null;
+  state.dragMode = null;
   state.compareOn = false;
   state.anim.selectedFrame = 0;
   state.appliedPreset = null;
@@ -385,6 +513,10 @@ function removeAsset() {
   R.frameStrip.classList.add('hidden');
   R.videoBar.classList.add('hidden');
   R.aiUndoBtn.classList.add('hidden');
+  renderPatchList();
+  syncPatchSliders();
+  R.stampUndoBtn.disabled = true;
+  R.stampDoneBtn.classList.add('hidden');
   R.resizeW.value = ''; R.resizeH.value = '';
   R.compareSlider.value = 50;
   R.compareToggle.classList.remove('active');
@@ -437,33 +569,46 @@ function imgToCanvas(img) {
 
 function renderImage() {
   const a = state.asset;
+  if (state.stamp) { drawStampPreview(); return; }
   layoutStage(a.width, a.height);
   const octx = R.canvasOrig.getContext('2d');
-  const octx2 = R.canvasOut.getContext('2d');
   const outW = R.canvasOut.width, outH = R.canvasOut.height;
   octx.clearRect(0, 0, outW, outH);
-  octx2.clearRect(0, 0, outW, outH);
   octx.drawImage(assetToCanvas(a), 0, 0, outW, outH);
-  processImageData(sourceFrame(a), state.edits).then((img) => {
-    octx2.drawImage(imgToCanvas(img), 0, 0, outW, outH);
-    drawOverlay();
+  // 管线缓存不含补丁：补丁在 drawPreviewComposite 里实时合成（拖动/调参不重跑 wasm 管线）
+  processImageData(sourceFrame(a), { ...state.edits, patches: [] }).then((img) => {
+    state.baseCache = img;
+    drawPreviewComposite();
   }).catch((e) => toast('处理失败：' + e.message, true));
   scheduleEstimate();
 }
 
+/** 预览合成：管线底图 + 补丁（同步 2D 绘制，拖动补丁时秒级响应） */
+function drawPreviewComposite() {
+  if (!state.baseCache || state.stamp) return;
+  const octx2 = R.canvasOut.getContext('2d');
+  const outW = R.canvasOut.width, outH = R.canvasOut.height;
+  octx2.clearRect(0, 0, outW, outH);
+  octx2.drawImage(imgToCanvas(state.baseCache), 0, 0, outW, outH);
+  for (const p of state.edits.patches) {
+    const x = p.x * outW, y = p.y * outH, rw = p.w * outW, rh = p.h * outH;
+    drawPatchedImage(octx2, p.img, x, y, rw, rh, p.opacity, p.feather * Math.min(rw, rh));
+  }
+  drawOverlay();
+}
+
 function renderAnim() {
   const a = state.asset;
+  if (state.stamp) { drawStampPreview(); return; }
   const idx = Math.min(state.anim.selectedFrame, a.frames.length - 1);
   layoutStage(a.width, a.height);
   const octx = R.canvasOrig.getContext('2d');
-  const octx2 = R.canvasOut.getContext('2d');
   const outW = R.canvasOut.width, outH = R.canvasOut.height;
   octx.clearRect(0, 0, outW, outH);
-  octx2.clearRect(0, 0, outW, outH);
   octx.drawImage(imgToCanvas(a.frames[idx].data), 0, 0, outW, outH);
-  processImageData(a.frames[idx].data, frameEditsFor(idx)).then((img) => {
-    octx2.drawImage(imgToCanvas(img), 0, 0, outW, outH);
-    drawOverlay();
+  processImageData(a.frames[idx].data, { ...frameEditsFor(idx), patches: [] }).then((img) => {
+    state.baseCache = img;
+    drawPreviewComposite();
   }).catch((e) => toast('处理失败：' + e.message, true));
   renderFrameStrip();
 }
@@ -479,6 +624,7 @@ function frameEditsFor(idx) {
     resize: state.edits.resize,
     pad: state.edits.pad,
     regions: useRegions ? state.edits.regions : [],
+    patches: state.edits.patches,
   };
 }
 
@@ -515,6 +661,49 @@ function drawOverlay() {
       ctx.fillStyle = 'rgba(80,220,160,1)';
       for (const [hx, hy] of [[x, y], [x + rw, y], [x, y + rh], [x + rw, y + rh]]) {
         ctx.fillRect(hx - 4, hy - 4, 8, 8);
+      }
+    }
+  }
+
+  // 补丁边框 / 手柄（内容已由 drawPreviewComposite 合成进 canvasOut，这里只画引导）
+  for (const p of state.edits.patches) {
+    const x = p.x * W, y = p.y * H, rw = p.w * W, rh = p.h * H;
+    const sel = state.patch.selectedId === p.id;
+    ctx.strokeStyle = sel ? 'rgba(80,220,160,.95)' : 'rgba(255,255,255,.65)';
+    ctx.lineWidth = sel ? 2 : 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, rw - 1, rh - 1);
+    if (sel) {
+      ctx.fillStyle = 'rgba(80,220,160,1)';
+      for (const [hx, hy] of [[x, y], [x + rw, y], [x, y + rh], [x + rw, y + rh]]) {
+        ctx.fillRect(hx - 4, hy - 4, 8, 8);
+      }
+    }
+  }
+
+  // 仿制图章：取样点标记 + 笔刷光标
+  if (state.dragMode === 'stamp' && state.stamp) {
+    if (state.stamp.sample) {
+      const sx = state.stamp.sample.x * W, sy = state.stamp.sample.y * H;
+      ctx.strokeStyle = 'rgba(0,190,255,.95)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx - 11, sy); ctx.lineTo(sx + 11, sy); ctx.moveTo(sx, sy - 11); ctx.lineTo(sx, sy + 11); ctx.stroke();
+    }
+    if (state.stamp.brushPos) {
+      const rPx = Math.max(2, state.stamp.size / 2);
+      const bx = state.stamp.brushPos.x * W, by = state.stamp.brushPos.y * H;
+      ctx.strokeStyle = 'rgba(255,255,255,.9)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.arc(bx, by, rPx, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      // 拖动时显示取样源位置（sample + 当前点相对笔触起点的偏移）
+      if (state.drag && state.drag.kind === 'stamp') {
+        const offX = state.drag.start.x - state.stamp.sample.x;
+        const offY = state.drag.start.y - state.stamp.sample.y;
+        const gx = (state.stamp.brushPos.x - offX) * W, gy = (state.stamp.brushPos.y - offY) * H;
+        ctx.strokeStyle = 'rgba(255,200,80,.85)';
+        ctx.beginPath(); ctx.arc(gx, gy, rPx, 0, Math.PI * 2); ctx.stroke();
       }
     }
   }
@@ -606,6 +795,47 @@ function cropHitTest(p) {
   return null;
 }
 
+/** 补丁命中检测：选中态四角手柄 → 角名；框内 → 'move'；其余 → null（返回 {id, hit}） */
+function patchHitTest(p) {
+  const W = R.mosaicLayer.width, H = R.mosaicLayer.height;
+  const px = p.x * W, py = p.y * H;
+  const list = state.edits.patches;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const b = list[i];
+    const x = b.x * W, y = b.y * H, rw = b.w * W, rh = b.h * H;
+    if (rw < HANDLE_PX * 2 || rh < HANDLE_PX * 2) continue;
+    const near = (cx, cy) => Math.hypot(px - cx, py - cy) <= HANDLE_PX;
+    if (state.patch.selectedId === b.id) {
+      if (near(x, y)) return { id: b.id, hit: 'nw' };
+      if (near(x + rw, y)) return { id: b.id, hit: 'ne' };
+      if (near(x, y + rh)) return { id: b.id, hit: 'sw' };
+      if (near(x + rw, y + rh)) return { id: b.id, hit: 'se' };
+    }
+    if (px >= x - 4 && px <= x + rw + 4 && py >= y - 4 && py <= y + rh + 4) return { id: b.id, hit: 'move' };
+  }
+  return null;
+}
+
+/** 补丁拖角缩放（保持原宽高比），以对角为固定点，多次迭代收敛到边界内 */
+function resizePatchBox(b, corner, px, py) {
+  const ar = b.w / b.h;
+  const PAD = 0.02;
+  const c = (v, a, z) => Math.min(z, Math.max(a, v));
+  let x = b.x, y = b.y, w = b.w, h = b.h;
+  for (let i = 0; i < 3; i++) {
+    if (corner === 'se') {
+      w = c(px - x, PAD, 1 - x); h = w / ar; h = c(h, PAD, 1 - y); w = h * ar; w = c(w, PAD, 1 - x); h = w / ar;
+    } else if (corner === 'sw') {
+      const R = x + w; w = c(R - px, PAD, R); h = w / ar; h = c(h, PAD, 1 - y); w = h * ar; w = c(w, PAD, R); x = R - w;
+    } else if (corner === 'ne') {
+      const B = y + h; w = c(px - x, PAD, 1 - x); h = w / ar; h = c(h, PAD, B); w = h * ar; w = c(w, PAD, 1 - x); h = w / ar; y = B - h;
+    } else {
+      const R = x + w, B = y + h; w = c(R - px, PAD, R); h = w / ar; h = c(h, PAD, B); w = h * ar; w = c(w, PAD, R); x = R - w; y = B - h;
+    }
+  }
+  return { x, y, w, h };
+}
+
 function onStagePointerDown(e) {
   if (!state.asset || !state.dragMode) return;
   if (e.button !== 0) return; // 仅左键拖拽
@@ -640,14 +870,61 @@ function onStagePointerDown(e) {
     return;
   }
 
+  // 补丁：点中→选中并拖拽（整框移动 / 四角缩放）；空白→取消选中
+  if (state.dragMode === 'patch') {
+    const hit = patchHitTest(p);
+    if (hit) {
+      state.patch.selectedId = hit.id;
+      const b = state.edits.patches.find(x => x.id === hit.id);
+      if (hit.hit === 'move') {
+        state.drag = { kind: 'patch-move', id: hit.id, box: { ...b }, dx: p.x - b.x, dy: p.y - b.y };
+      } else {
+        state.drag = { kind: 'patch-resize', id: hit.id, corner: hit.hit };
+      }
+    } else {
+      state.patch.selectedId = null;
+    }
+    renderPatchList();
+    syncPatchSliders();
+    drawOverlay();
+    return;
+  }
+
+  // 仿制图章
+  if (state.dragMode === 'stamp') {
+    if (!state.stamp) { enterStampMode(); return; }
+    if (state.stamp.pickSample) {
+      state.stamp.sample = { x: p.x, y: p.y };
+      state.stamp.pickSample = false;
+      toast('取样点已设置（蓝圈标记），按住瑕疵处涂抹即可', false, 3000);
+      drawOverlay();
+      return;
+    }
+    if (!state.stamp.sample) {
+      toast('请先点「设置取样点」并在预览区单击选择干净位置', true);
+      return;
+    }
+    state.drag = { kind: 'stamp', start: { x: p.x, y: p.y }, points: [{ x: p.x, y: p.y }] };
+    state.stamp.brushPos = { x: p.x, y: p.y };
+    drawOverlay();
+    return;
+  }
+
   // 打码区域：保持原拖拽画框行为
   state.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
   drawOverlay();
 }
 
 function onStagePointerMove(e) {
-  if (!state.drag) return;
   const p = stagePoint(e);
+
+  // 图章模式：无拖拽时也跟踪笔刷光标（画虚线圆预览）
+  if (state.dragMode === 'stamp' && state.stamp && !state.drag) {
+    state.stamp.brushPos = { x: p.x, y: p.y };
+    drawOverlay();
+    return;
+  }
+  if (!state.drag) return;
   const d = state.drag;
 
   if (d.kind === 'crop-draw') {
@@ -668,11 +945,41 @@ function onStagePointerMove(e) {
     if (w < 0.01) w = 0.01;
     if (h < 0.01) h = 0.01;
     state.cropDraft = { x, y, w, h };
+  } else if (d.kind === 'patch-move') {
+    const b = d.box;
+    const nx = clamp(p.x - d.dx, 0, 1 - b.w);
+    const ny = clamp(p.y - d.dy, 0, 1 - b.h);
+    const patch = state.edits.patches.find(x => x.id === d.id);
+    if (patch) { patch.x = nx; patch.y = ny; }
+    renderPatchList();
+    refreshPatchPreview();
+  } else if (d.kind === 'patch-resize') {
+    const patch = state.edits.patches.find(x => x.id === d.id);
+    if (patch) {
+      const nb = resizePatchBox(patch, d.corner, clamp(p.x, 0, 1), clamp(p.y, 0, 1));
+      patch.x = nb.x; patch.y = nb.y; patch.w = nb.w; patch.h = nb.h;
+    }
+    renderPatchList();
+    refreshPatchPreview();
+  } else if (d.kind === 'stamp') {
+    // 按间隔采样路径点，避免笔触过密
+    const last = d.points[d.points.length - 1];
+    if (Math.hypot(p.x - last.x, p.y - last.y) > 0.006) d.points.push({ x: p.x, y: p.y });
+    state.stamp.brushPos = { x: p.x, y: p.y };
+    drawOverlay();
+    return;
   } else {
     // 打码拖拽
     state.drag.x1 = p.x; state.drag.y1 = p.y;
   }
   drawOverlay();
+}
+
+/** 补丁拖动/缩放后的即时预览刷新（视频走帧绘制，静态/动图走缓存合成） */
+function refreshPatchPreview() {
+  if (!state.asset) return;
+  if (state.asset.kind === 'video') drawVideoPreview();
+  else drawPreviewComposite();
 }
 
 function onStagePointerUp(e) {
@@ -687,6 +994,19 @@ function onStagePointerUp(e) {
       state.cropDraft = d.prev ? { ...d.prev } : null; // 太小：还原
     }
     drawOverlay();
+    return;
+  }
+
+  // 补丁：松手即完成本次移动/缩放
+  if (d.kind === 'patch-move' || d.kind === 'patch-resize') {
+    refreshPatchPreview();
+    return;
+  }
+
+  // 图章：松手时把整段笔触栅格化到工作区
+  if (d.kind === 'stamp') {
+    state.stamp.activeStroke = d.points;
+    rasterizeStroke();
     return;
   }
 
@@ -716,6 +1036,235 @@ function renderRegionList() {
       <span class="region-pos">${Math.round(r.x * 100)}%,${Math.round(r.y * 100)}%</span>
       <button class="mini-btn danger" data-del="${r.id}" title="删除">×</button>`;
     R.regionList.appendChild(row);
+  }
+}
+
+/** 当前选中的补丁对象 */
+function selectedPatch() {
+  return state.edits.patches.find(p => p.id === state.patch.selectedId) || null;
+}
+
+/** 把一个补丁图加入编辑：默认居中、宽 40%，保持原宽高比 */
+function addPatchFromImage(img, name) {
+  const d = outputDims();
+  if (!d.w || !d.h) return;
+  const ar = (img.width / img.height) * (d.h / d.w); // 归一化坐标系下的宽高比
+  let w = 0.4;
+  let h = w / ar;
+  const maxH = 0.9;
+  if (h > maxH) { h = maxH; w = h * ar; }
+  const p = {
+    id: 'p' + Date.now() + Math.random().toString(16).slice(2, 6),
+    img, name: name || '补丁',
+    x: 0.5 - w / 2, y: 0.5 - h / 2, w, h,
+    opacity: 1, feather: 0,
+  };
+  state.edits.patches.push(p);
+  state.patch.selectedId = p.id;
+  renderPatchList();
+  syncPatchSliders();
+  if (state.asset && document.querySelector('.tab[data-tab="patch"]').classList.contains('active')) {
+    state.dragMode = 'patch';
+  }
+  refreshPatchPreview();
+}
+
+function renderPatchList() {
+  const list = state.edits.patches;
+  R.patchList.innerHTML = '';
+  if (!list.length) {
+    R.patchList.innerHTML = '<div class="empty-note">还没有补丁<br>点击「选择补丁图」添加</div>';
+    return;
+  }
+  for (const p of list) {
+    const row = el('div', { className: 'region-row' + (p.id === state.patch.selectedId ? ' active' : ''), dataset: { select: p.id } });
+    row.innerHTML = `<span class="region-tag patch">补丁</span>
+      <span class="region-pos">${Math.round(p.x * 100)}%,${Math.round(p.y * 100)}% · ${Math.round(p.w * 100)}×${Math.round(p.h * 100)}%</span>
+      <button class="mini-btn danger" data-del="${p.id}" title="删除">×</button>`;
+    R.patchList.appendChild(row);
+  }
+}
+
+/** 滑块同步到当前选中补丁 */
+function syncPatchSliders() {
+  const p = selectedPatch();
+  if (!p) { R.patchOpacity.value = 100; R.patchOpacityVal.textContent = '100'; R.patchFeather.value = 0; R.patchFeatherVal.textContent = '0'; return; }
+  R.patchOpacity.value = Math.round(p.opacity * 100);
+  R.patchOpacityVal.textContent = R.patchOpacity.value;
+  R.patchFeather.value = Math.round(p.feather * 100);
+  R.patchFeatherVal.textContent = R.patchFeather.value;
+}
+
+/* ================= 仿制图章 ================= */
+
+/** 进入图章工作区：把当前画面（含所有编辑）合并为工作底图，笔触写入独立 overlay */
+async function enterStampMode() {
+  const a = state.asset;
+  if (!a || a.kind !== 'image') { toast('仿制图章仅支持静态图片', true); return; }
+  if (state.stamp) return;
+  if (state.busy) { toast('正在处理中，请稍候', true); return; }
+  setBusy(true);
+  try {
+    setStatus('正在生成图章工作底图…');
+    const base = await processImageData(sourceFrame(a), { ...state.edits, patches: [] });
+    state.stamp = {
+      base,
+      overlay: new ImageData(base.width, base.height),
+      size: +R.stampSize.value, soft: +R.stampSoft.value / 100,
+      sample: null, pickSample: true, undoStack: [],
+      brushPos: null,
+    };
+    state.dragMode = 'stamp';
+    R.stampDoneBtn.classList.remove('hidden');
+    drawStampPreview();
+    toast('已生成工作底图：先单击预览区选择干净取样点，再按住瑕疵处涂抹', false, 4000);
+  } catch (e) {
+    toast('图章工作底图生成失败：' + e.message, true);
+  } finally {
+    setBusy(false);
+    setStatus('就绪');
+  }
+}
+
+/** 图章预览：canvasOut 显示 base + overlay（不经过 wasm 管线） */
+function drawStampPreview() {
+  const a = state.asset, s = state.stamp;
+  if (!a || !s) return;
+  layoutStage(s.base.width, s.base.height);
+  const W = R.canvasOut.width, H = R.canvasOut.height;
+  const octx = R.canvasOrig.getContext('2d');
+  octx.clearRect(0, 0, W, H);
+  octx.drawImage(imgToCanvas(sourceFrame(a)), 0, 0, W, H);
+  const o2 = R.canvasOut.getContext('2d');
+  o2.clearRect(0, 0, W, H);
+  o2.drawImage(imgToCanvas(s.base), 0, 0, W, H);
+  o2.drawImage(imgToCanvas(s.overlay), 0, 0, W, H);
+  drawOverlay();
+}
+
+/** 输出像素里笔刷半径（把预览 px 换算到工作底图分辨率） */
+function stampRadiusOut() {
+  const s = state.stamp;
+  const scale = s.base.width / Math.max(1, R.canvasOut.width);
+  return Math.max(1, (s.size / 2) * scale);
+}
+
+/** 松手时把整段笔触栅格化到 overlay（从 base+overlay 取样，软边蒙版融合） */
+function rasterizeStroke() {
+  const s = state.stamp;
+  const pts = s.activeStroke;
+  s.activeStroke = null;
+  if (!pts || !pts.length) return;
+  const W = s.base.width, H = s.base.height;
+  const r = stampRadiusOut();
+  // 笔触包围盒（输出像素）
+  let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
+  for (const p of pts) {
+    const px = p.x * W, py = p.y * H;
+    if (px < minX) minX = px; if (px > maxX) maxX = px;
+    if (py < minY) minY = py; if (py > maxY) maxY = py;
+  }
+  const bx = Math.max(0, Math.floor(minX - r) - 1), by = Math.max(0, Math.floor(minY - r) - 1);
+  const bw = Math.min(W - bx, Math.ceil(maxX + r) + 1 - bx);
+  const bh = Math.min(H - by, Math.ceil(maxY + r) + 1 - by);
+  if (bw <= 0 || bh <= 0) return;
+
+  // 取样源 = base + 已提交的 overlay
+  const srcC = makeCanvas(W, H);
+  const sctx = srcC.getContext('2d');
+  sctx.drawImage(imgToCanvas(s.base), 0, 0);
+  const ovC = imgToCanvas(s.overlay);
+  sctx.drawImage(ovC, 0, 0);
+
+  const offX = pts[0].x * W - s.sample.x * W;
+  const offY = pts[0].y * H - s.sample.y * H;
+
+  // 笔触画布（仅包围盒）
+  const strokeC = makeCanvas(bw, bh);
+  const stx = strokeC.getContext('2d');
+  stx.imageSmoothingQuality = 'high';
+  for (const p of pts) {
+    const tx = p.x * W, ty = p.y * H;
+    const sx = tx - offX, sy = ty - offY;
+    stx.drawImage(srcC, sx - r, sy - r, r * 2, r * 2, tx - bx - r, ty - by - r, r * 2, r * 2);
+  }
+
+  // 软边蒙版：白圆 + 高斯模糊，destination-in 裁出柔和边缘
+  if (s.soft > 0.02) {
+    const maskC = makeCanvas(bw, bh);
+    const mx = maskC.getContext('2d');
+    mx.fillStyle = '#fff';
+    for (const p of pts) {
+      mx.beginPath();
+      mx.arc(p.x * W - bx, p.y * H - by, r, 0, Math.PI * 2);
+      mx.fill();
+    }
+    mx.filter = 'blur(' + Math.max(0.5, r * s.soft) + 'px)';
+    for (const p of pts) {
+      mx.beginPath();
+      mx.arc(p.x * W - bx, p.y * H - by, r, 0, Math.PI * 2);
+      mx.fill();
+    }
+    stx.globalCompositeOperation = 'destination-in';
+    stx.drawImage(maskC, 0, 0);
+    stx.globalCompositeOperation = 'source-over';
+  }
+
+  // 撤销快照（包围盒区域）
+  s.undoStack.push(ovC.getContext('2d').getImageData(bx, by, bw, bh));
+  ovC.getContext('2d').drawImage(strokeC, bx, by);
+  s.overlay = canvasToImageData(ovC);
+  R.stampUndoBtn.disabled = s.undoStack.length === 0;
+  drawStampPreview();
+}
+
+function undoStroke() {
+  const s = state.stamp;
+  if (!s || !s.undoStack.length) return;
+  const snap = s.undoStack.pop();
+  const ovC = imgToCanvas(s.overlay);
+  ovC.getContext('2d').putImageData(snap, 0, 0);
+  s.overlay = canvasToImageData(ovC);
+  R.stampUndoBtn.disabled = s.undoStack.length === 0;
+  drawStampPreview();
+}
+
+/** 完成合并：把 base+overlay 固化到素材，重置编辑参数（几何已含在底图里） */
+async function finishStamp() {
+  const a = state.asset, s = state.stamp;
+  if (!a || !s) return;
+  if (state.busy) { toast('正在处理中，请稍候', true); return; }
+  setBusy(true);
+  try {
+    const c = makeCanvas(s.base.width, s.base.height);
+    const ctx = c.getContext('2d');
+    ctx.drawImage(imgToCanvas(s.base), 0, 0);
+    ctx.drawImage(imgToCanvas(s.overlay), 0, 0);
+    a.imageData = canvasToImageData(c);
+    a.width = c.width;
+    a.height = c.height;
+    R.assetBadge.textContent = `${a.kind === 'video' ? 'VIDEO' : a.kind === 'animated' ? 'GIF/动图' : 'IMAGE'} · ${a.name} · ${a.width}×${a.height}`;
+    // 几何变换已合入底图，重置编辑（补丁/打码也被合入）
+    state.edits = defaultEdits();
+    state.patch = { tool: state.patch.tool, selectedId: null };
+    state.stamp = null;
+    state.baseCache = null;
+    state.drag = null;
+    state.dragMode = null;
+    R.stampUndoBtn.disabled = true;
+    R.stampDoneBtn.classList.add('hidden');
+    R.cropClearBtn.classList.add('hidden');
+    R.resizeW.value = ''; R.resizeH.value = '';
+    renderPatchList();
+    syncPatchSliders();
+    drawOverlay();
+    rerender();
+    toast('图章已合并到图片（裁剪/缩放等已合入底图），可继续编辑', false, 3200);
+  } catch (e) {
+    toast('合并失败：' + e.message, true);
+  } finally {
+    setBusy(false);
+    setStatus('就绪');
   }
 }
 

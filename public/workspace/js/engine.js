@@ -154,7 +154,56 @@ export function applyMosaicRegions(img, regions) {
 }
 
 /**
- * 主处理管线：输入源帧 → 裁剪 → 旋转/翻转 → 缩放 → 打码 → pad(contain)
+ * 绘制一个「补丁」：把补丁图（ImageData）缩放到 (x,y,w,h) 并合成到 ctx 上。
+ * opacity 0-1；featherPx > 0 时用「白底+高斯模糊」的 alpha 蒙版做边缘羽化（destination-in），
+ * 让补丁边缘自然融入底图。x/y/w/h 为像素坐标。
+ */
+export function drawPatchedImage(ctx, img, x, y, w, h, opacity = 1, featherPx = 0) {
+  if (w <= 0 || h <= 0 || !img) return;
+  const dw = Math.max(1, Math.round(w)), dh = Math.max(1, Math.round(h));
+  const patchC = makeCanvas(dw, dh);
+  const pctx = patchC.getContext('2d', { willReadFrequently: true });
+  pctx.drawImage(imageDataToCanvas(img), 0, 0, dw, dh);
+  if (featherPx > 0.5) {
+    const maskC = makeCanvas(dw, dh);
+    const mctx = maskC.getContext('2d');
+    mctx.fillStyle = '#fff';
+    mctx.fillRect(0, 0, dw, dh);
+    mctx.filter = 'blur(' + featherPx + 'px)';
+    mctx.fillRect(0, 0, dw, dh);
+    pctx.globalCompositeOperation = 'destination-in';
+    pctx.drawImage(maskC, 0, 0);
+    pctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.drawImage(patchC, Math.round(x), Math.round(y), dw, dh);
+  ctx.restore();
+}
+
+/**
+ * 把补丁列表合成到画布上。patches: [{x,y,w,h,img,opacity,feather}] 归一化坐标。
+ * 支持视频逐帧 / 静态图 / 动图（动图由 processImageData 走 applyPatches）。
+ */
+export function applyPatchesToCanvas(canvas, patches) {
+  if (!patches || !patches.length) return canvas;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  for (const p of patches) {
+    const dw = p.w * canvas.width, dh = p.h * canvas.height;
+    if (dw < 1 || dh < 1) continue;
+    const featherPx = (p.feather || 0) * Math.min(dw, dh);
+    drawPatchedImage(ctx, p.img, p.x * canvas.width, p.y * canvas.height, dw, dh, p.opacity, featherPx);
+  }
+  return canvas;
+}
+
+export function applyPatches(img, patches) {
+  if (!patches || !patches.length) return img;
+  return canvasToImageData(applyPatchesToCanvas(imageDataToCanvas(img), patches));
+}
+
+/**
+ * 主处理管线：输入源帧 → 裁剪 → 旋转/翻转 → 缩放 → 打码 → 补丁 → pad(contain)
  */
 export async function processImageData(src, edits) {
   let img = src;
@@ -178,6 +227,9 @@ export async function processImageData(src, edits) {
   }
   if (edits.regions && edits.regions.length) {
     img = applyMosaicRegions(img, edits.regions);
+  }
+  if (edits.patches && edits.patches.length) {
+    img = applyPatches(img, edits.patches);
   }
   if (edits.pad) {
     const { w, h, color = 'transparent' } = edits.pad;
@@ -236,6 +288,7 @@ export function drawVideoFrameToCanvas(canvas, video, workW, workH, edits) {
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
   ctx.restore();
   applyMosaicToCanvas(canvas, edits.regions);
+  applyPatchesToCanvas(canvas, edits.patches || []);
   return canvas;
 }
 

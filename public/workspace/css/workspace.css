@@ -182,11 +182,14 @@ input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer;height:20
 /* 打码区域列表 */
 .region-list{margin-top:10px;display:flex;flex-direction:column;gap:6px}
 .region-row{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--line);
-  border-radius:8px;padding:6px 10px;font-size:12px}
+  border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}
+.region-row:hover{border-color:var(--line2)}
+.region-row.active{border-color:var(--good);box-shadow:0 0 0 2px rgba(80,220,160,.25)}
 .region-row .region-pos{flex:1;color:var(--muted)}
 .region-tag{font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap}
 .region-tag.mosaic{background:rgba(139,123,255,.15);color:var(--accent)}
 .region-tag.blur{background:rgba(95,200,255,.12);color:var(--accent2)}
+.region-tag.patch{background:rgba(80,220,160,.14);color:var(--good)}
 .mini-btn{background:transparent;border:1px solid var(--line2);color:var(--accent2);border-radius:6px;
   font-size:11px;padding:2px 8px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .mini-btn:hover{border-color:var(--accent2);background:rgba(95,200,255,.08)}

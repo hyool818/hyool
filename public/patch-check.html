@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>patch-stamp check</title>
+<style>
+  body { font-family: ui-monospace, monospace; font-size: 13px; background: #12121c; color: #e6e6f0; padding: 16px; }
+  #results { white-space: pre-wrap; line-height: 1.7; }
+  iframe { position: fixed; left: -9999px; top: -9999px; width: 800px; height: 600px; border: 0; }
+</style>
+</head>
+<body>
+<pre id="results">RUNNING…</pre>
+<iframe id="w" src="/workspace.html" title="workspace"></iframe>
+<script>
+const results = [];
+function line(s) {
+  results.push(s);
+  const el = document.getElementById('results');
+  if (el) el.textContent = results.join('\n');
+}
+function ok(cond, name, extra = '') { line((cond ? 'PASS' : 'FAIL') + '  ' + name + (extra ? '  ' + extra : '')); }
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+/** 轮询等待条件成立（无头虚拟时间下固定 sleep 不可靠，异步解码需真实时间） */
+const waitFor = async (fn, tries = 60, ms = 150) => {
+  for (let i = 0; i < tries; i++) {
+    try { const v = fn(); if (v) return v; } catch (e) { /* iframe 尚未就绪 */ }
+    await sleep(ms);
+  }
+  return fn();
+};
+const f = () => document.getElementById('w').contentWindow;
+
+/** 合成指针事件（button 默认 0=左键） */
+function mk(type, id, x, y) {
+  return new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: id, clientX: x, clientY: y });
+}
+/** 预览区中心坐标 → 屏幕坐标 */
+const center = () => {
+  const r = f().eval(`(() => { const l = document.getElementById('mosaicLayer'); const b = l.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; })()`);
+  return { left: r[0], top: r[1], w: r[2], h: r[3] };
+};
+
+async function main() {
+  try {
+    let ready = false;
+    for (let i = 0; i < 80; i++) {
+      try { ready = f().eval('typeof window.enterWorkspaceTab === "function"'); } catch (e) { }
+      if (ready) break;
+      await sleep(250);
+    }
+    ok(ready, 'workspace.html 加载完成');
+    if (!ready) throw new Error('iframe 未就绪');
+    // 注入错误捕获，方便回归时暴露隐藏异常
+    f().eval(`(() => {
+      if (!window.__testErr) {
+        window.__testErr = [];
+        window.addEventListener('error', e => window.__testErr.push('error: ' + e.message));
+        window.addEventListener('unhandledrejection', e => window.__testErr.push('rejection: ' + ((e.reason && e.reason.message) || e.reason)));
+      }
+      if (!window.mk) {
+        window.mk = (id, type, x, y) => new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: id, clientX: x, clientY: y });
+      }
+      return true;
+    })()`);
+    await sleep(800);
+
+    // 进入编辑器视图
+    f().eval(`document.querySelector('.tool-cta[data-go="editor"]').click()`);
+    await sleep(400);
+
+    // 载入主图：64×48 暗红底 + 白色矩形（供图章取样/覆盖）
+    await f().eval(`(async () => {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 48;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#e05'; ctx.fillRect(0, 0, 64, 48);
+      ctx.fillStyle = '#fff'; ctx.fillRect(8, 8, 24, 32);
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      const file = new File([blob], 't.png', { type: 'image/png' });
+      const dt = new DataTransfer(); dt.items.add(file);
+      const inp = document.getElementById('fileInput');
+      inp.files = dt.files;
+      inp.dispatchEvent(new Event('change'));
+      return true;
+    })()`);
+    await sleep(400);
+
+    let loaded = false;
+    for (let i = 0; i < 60; i++) {
+      loaded = f().eval(`(() => {
+        const w = document.getElementById('compareWrap');
+        const o = document.getElementById('canvasOut');
+        return !w.classList.contains('hidden') && o.width > 0;
+      })()`);
+      if (loaded) break;
+      await sleep(250);
+    }
+    ok(loaded, '图片载入');
+    await sleep(800); // 等 renderImage 完成、baseCache 就绪
+
+    const snap = () => f().eval(`(() => {
+      const o = document.getElementById('canvasOut');
+      const d = o.getContext('2d').getImageData(0, 0, o.width, o.height).data;
+      let sum = 0; for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i+1] + d[i+2];
+      return { w: o.width, h: o.height, sum };
+    })()`);
+    const pxAt = (x, y) => f().eval(`(() => {
+      const o = document.getElementById('canvasOut');
+      const d = o.getContext('2d').getImageData(Math.round(${x} * o.width), Math.round(${y} * o.height), 1, 1).data;
+      return [d[0], d[1], d[2], d[3]];
+    })()`);
+
+    /* ============ 跨图补丁 ============ */
+    ok(f().eval(`!!document.querySelector('.tab[data-tab="patch"]')`), '补丁 tab 存在');
+    f().eval(`document.querySelector('.tab[data-tab="patch"]').click()`);
+    await sleep(300);
+    ok(f().eval(`document.querySelector('.tab-panel[data-panel="patch"]').classList.contains('active')`), '补丁面板激活');
+
+    // 添加一个 32×32 青绿色补丁图
+    const baseBefore = snap();
+    await f().eval(`(async () => {
+      const c = document.createElement('canvas');
+      c.width = 32; c.height = 32;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#0c8'; ctx.fillRect(0, 0, 32, 32);
+      ctx.fillStyle = '#ff0'; ctx.fillRect(6, 6, 8, 8);
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      const file = new File([blob], 'patch.png', { type: 'image/png' });
+      const dt = new DataTransfer(); dt.items.add(file);
+      const inp = document.getElementById('patchFileInput');
+      inp.files = dt.files;
+      inp.dispatchEvent(new Event('change'));
+      return true;
+    })()`);
+    const patchCount = await waitFor(() => f().eval(`document.querySelectorAll('#patchList .region-row').length`), 60, 150);
+    ok(patchCount === 1, '添加补丁后列表出现 1 项', 'count=' + patchCount);
+    ok(f().eval(`document.getElementById('patchList').innerText.includes('补丁')`), '补丁列表标签显示「补丁」');
+
+    const afterPatch = await waitFor(() => { const s = snap(); return s.sum !== baseBefore.sum ? s : null; }, 60, 200);
+    ok(!!afterPatch, '补丁已合成到预览画布（canvasOut 变化）', afterPatch ? 'sum ' + baseBefore.sum + ' → ' + afterPatch.sum : 'sum 未变化 ' + baseBefore.sum);
+    const beforeMove = f().eval(`document.getElementById('patchList').querySelector('.region-pos').innerText`);
+
+    // 拖动补丁：从中心按住，向右下移动 20%/10%
+    f().eval(`document.getElementById('mosaicLayer').setPointerCapture = () => {};`);
+    const c0 = center();
+    const sx0 = c0.left + c0.w * 0.5, sy0 = c0.top + c0.h * 0.5;
+    const layer = 'document.getElementById("mosaicLayer")';
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointerdown', ${sx0}, ${sy0}))`);
+    await sleep(80);
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointermove', ${sx0 + c0.w * 0.2}, ${sy0 + c0.h * 0.1}))`);
+    await sleep(80);
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointerup', ${sx0 + c0.w * 0.2}, ${sy0 + c0.h * 0.1}))`);
+    await sleep(120);
+    const afterMove = f().eval(`document.getElementById('patchList').querySelector('.region-pos').innerText`);
+    ok(afterMove !== beforeMove, '补丁可整框拖动（列表坐标更新）', beforeMove + ' → ' + afterMove);
+
+    // 拖四角缩放（选中态，右下角手柄）
+    const pr = f().eval(`document.getElementById('patchList').querySelector('.region-pos').innerText`);
+    // 确认选中该补丁行，然后读取其坐标解析出右下角手柄位置
+    f().eval(`document.getElementById('patchList').querySelector('.region-row').click()`);
+    await sleep(80);
+    const m = pr.match(/(\d+)%,(\d+)% · (\d+)×(\d+)%/);
+    const px = (+m[1]) / 100, py = (+m[2]) / 100, pw = (+m[3]) / 100, ph = (+m[4]) / 100;
+    const hx = c0.left + (px + pw) * c0.w, hy = c0.top + (py + ph) * c0.h;
+    const sizeBefore = f().eval(`document.getElementById('patchList').querySelector('.region-pos').innerText`);
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointerdown', ${hx}, ${hy}))`);
+    await sleep(80);
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointermove', ${hx + c0.w * 0.1}, ${hy + c0.h * 0.1}))`);
+    await sleep(80);
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointerup', ${hx + c0.w * 0.1}, ${hy + c0.h * 0.1}))`);
+    await sleep(120);
+    const sizeAfter = f().eval(`document.getElementById('patchList').querySelector('.region-pos').innerText`);
+    ok(sizeAfter !== sizeBefore, '补丁可拖四角缩放（列表坐标更新）', sizeBefore + ' → ' + sizeAfter);
+
+    // 透明度滑杆作用于当前选中补丁（与 feather 共用 drawPatchedImage 合成路径）
+    const sumBeforeOpacity = snap().sum;
+    f().eval(`(() => { const o = document.getElementById('patchOpacity'); o.value = 50; o.dispatchEvent(new Event('input')); return true; })()`);
+    const withOpacity = await waitFor(() => { const s = snap(); return s.sum !== sumBeforeOpacity ? s : null; }, 40, 150);
+    ok(!!withOpacity, '透明度滑杆作用于当前补丁（合成变化）', withOpacity ? 'sum ' + sumBeforeOpacity + ' → ' + withOpacity.sum : 'sum 未变化 ' + sumBeforeOpacity);
+
+    // 删除补丁
+    f().eval(`document.getElementById('patchList').querySelector('[data-del]').click()`);
+    const delCount = await waitFor(() => f().eval(`document.querySelectorAll('#patchList .region-row').length`) === 0, 40, 150);
+    ok(delCount, '删除补丁后列表清空', 'count=' + f().eval(`document.querySelectorAll('#patchList .region-row').length`));
+    const afterDel = await waitFor(() => { const s = snap(); return Math.abs(s.sum - baseBefore.sum) < Math.max(1, baseBefore.sum * 0.001) ? s : null; }, 40, 150);
+    ok(!!afterDel, '删除补丁后画布恢复原样', afterDel ? 'sum ' + afterDel.sum : 'sum=' + snap().sum + ' base=' + baseBefore.sum);
+
+    /* ============ 仿制图章 ============ */
+    f().eval(`document.querySelector('#patchToolSeg [data-tool="stamp"]').click()`);
+    await sleep(300);
+    ok(f().eval(`!document.getElementById('stampPanel').classList.contains('hidden')`), '切到图章显示图章面板');
+    ok(f().eval(`document.getElementById('patchPanel').classList.contains('hidden')`), '切到图章隐藏补丁面板');
+
+    // 进入图章工作区
+    f().eval(`document.getElementById('stampSampleBtn').click()`);
+    await sleep(400);
+    let stampReady = false;
+    for (let i = 0; i < 40; i++) {
+      stampReady = f().eval(`!document.getElementById('stampDoneBtn').classList.contains('hidden')`);
+      if (stampReady) break;
+      await sleep(200);
+    }
+    ok(stampReady, '图章工作底图生成完成（完成合并按钮出现）');
+
+    // 第一次点击 → 设置取样点（暗红区域）
+    const c1 = center();
+    const sx = c1.left + c1.w * 0.8, sy = c1.top + c1.h * 0.1;
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointerdown', ${sx}, ${sy}))`);
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointerup', ${sx}, ${sy}))`);
+    await sleep(200);
+
+    // 在白色区域涂抹一笔
+    const whiteBefore = pxAt(0.3, 0.3);
+    const c2 = center();
+    const tx0 = c2.left + c2.w * 0.3, ty0 = c2.top + c2.h * 0.3;
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointerdown', ${tx0}, ${ty0}))`);
+    for (let i = 1; i <= 6; i++) {
+      f().eval(`${layer}.dispatchEvent(mk(0, 'pointermove', ${tx0 + i * 2}, ${ty0 + i * 2}))`);
+      await sleep(16);
+    }
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointerup', ${tx0 + 12}, ${ty0 + 12}))`);
+    await sleep(500);
+    const whiteAfter = pxAt(0.3, 0.3);
+    const stampChanged = whiteAfter[0] + whiteAfter[1] + whiteAfter[2] !== whiteBefore[0] + whiteBefore[1] + whiteBefore[2];
+    ok(stampChanged, '图章笔触把白色区域覆盖为取样点颜色', 'before=[' + whiteBefore + '] after=[' + whiteAfter + ']');
+    ok(f().eval(`!document.getElementById('stampUndoBtn').disabled`), '笔触后撤销按钮可用');
+
+    // 撤销
+    f().eval(`document.getElementById('stampUndoBtn').click()`);
+    await sleep(400);
+    const whiteUndo = pxAt(0.3, 0.3);
+    const undoOK = whiteUndo[0] + whiteUndo[1] + whiteUndo[2] === whiteBefore[0] + whiteBefore[1] + whiteBefore[2];
+    ok(undoOK, '撤销笔触恢复原色', 'undo=[' + whiteUndo + ']');
+
+    // 再涂一笔后完成合并
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointerdown', ${tx0}, ${ty0}))`);
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointermove', ${tx0 + 8}, ${ty0 + 8}))`);
+    f().eval(`${layer}.dispatchEvent(mk(0, 'pointerup', ${tx0 + 8}, ${ty0 + 8}))`);
+    await sleep(400);
+    f().eval(`document.getElementById('stampDoneBtn').click()`);
+    await sleep(600);
+    const doneHidden = f().eval(`document.getElementById('stampDoneBtn').classList.contains('hidden')`);
+    const assetInfo = f().eval(`document.getElementById('assetBadge').innerText`);
+    ok(doneHidden, '完成合并后退出图章模式（按钮隐藏）');
+    ok(String(assetInfo).includes('64×48'), '合并后素材尺寸保持 64×48', assetInfo);
+
+    // 顶栏导出按钮文案
+    ok(f().eval(`document.getElementById('topExportBtn').innerText.includes('导出素材')`), '顶栏按钮文案为「导出素材」', f().eval(`document.getElementById('topExportBtn').innerText.trim()`));
+
+    // 回归期间 iframe 内不应有未捕获异常
+    const errs = f().eval(`window.__testErr || []`);
+    ok(errs.length === 0, 'iframe 内无未捕获异常', errs.join(' | '));
+
+    line('');
+    line('DONE  pass=' + results.filter(r => r.startsWith('PASS')).length + ' fail=' + results.filter(r => r.startsWith('FAIL')).length);
+    document.title = results.some(r => r.startsWith('FAIL')) ? 'SMOKE-FAIL' : 'SMOKE-OK';
+  } catch (e) {
+    line('ERROR  ' + (e && e.stack || e));
+    document.title = 'SMOKE-FAIL';
+  }
+}
+main();
+</script>
+</body>
+</html>
