@@ -134,7 +134,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **game-workshop.html（新建）**：三态播放器（narration / dialogue / choice，上一幕/下一步/选项跳转、剧终页、空剧本提示）。
 - **入口**：workspace/fantasy「生命」→ `/hub`；index 生命 650ms 后跳 /hub；yonder-home 新增 WORLDS section（`loadWorlds()/renderWorlds()`，卡片直达 `/hub?world=`）。
 
-## 已完成的「生命世界」多角色自主共存（本会话，待部署）
+## 已完成的「生命世界」多角色自主共存（本会话，已部署）
 
 用户对「自定义世界」的想象是**多 AI 角色自主共存的动态世界**，而非剧本容器。新增 `type="life"` 世界形态：
 
@@ -170,7 +170,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 ## 待办状态
 
 - 首批剩余项 #3「游戏工坊」**已完成**：`game-studio.html` + `game-studio.js` + `game-studio-check.html`（28 断言 SMOKE-OK）+ fantasy 卡片激活 + 本文件同步。
-- **生命世界（type="life"，多角色自主共存）已完成**：后端全链路 + 模型路由 + `world.html` 直播间 + hub 向导第 4 形态 + 三运转模式（watch/hybrid/always + cron）+ 31 断言冒烟 PASS。**待 commit + push main 触发 CI 部署**，部署后访问 `https://hyool.w910227a.workers.dev/hub` →「＋ 创造」→ 自定义世界 → 选「生命世界」体验。
+- **生命世界（type="life"，多角色自主共存）已完成**：后端全链路 + 模型路由 + `world.html` 直播间 + hub 向导第 4 形态 + 三运转模式（watch/hybrid/always + cron）+ 31 断言冒烟 PASS。**已 commit + push（1ab7f51），线上部署确认**：`https://hyool.w910227a.workers.dev/world.html` 与 `/api/models` 均 200。体验路径：`/hub` →「＋ 创造」→ 自定义世界 → 选「生命世界」。
 - 后续可做（用户主动提出再推进）：关系自动演化（随剧情变化）、世界消息清洗/归档（保留最近 N 条）、「沉淀为剧场回放」把世界历史转剧本、GPU 后端上线后启用 dsv4pro / XVERSE-Ent-25B / Qwen3-27B-Instruct（配置 `GPU_BASE_URL` + `GPU_API_KEY` 即可，代码已就绪）。
 - 注意：本地 dev 的 Workers AI 远程绑定当前可能因代理挂起（60s 超时）；冒烟测试已走 `mock:true` 钩子，不受影响。
 
