@@ -8,6 +8,7 @@
 # Browser-test output logs
 .test-crop.log
 .test-ui.log
+test-out-*.txt
 
 # Dependencies
 node_modules/
