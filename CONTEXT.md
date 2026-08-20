@@ -3,6 +3,16 @@
 > 用途：跨窗口/跨会话继续开发时，新 AI 会话先读本文件 + `git log --oneline -10`，
 > 即可恢复上下文并继续编码。所有已确认的架构决策都在这里，不要推翻。
 
+## 会话工作约定（每个接手本项目的 AI 会话必须遵守）
+
+1. **开工前**：读本文件 + `git log --oneline -15` + 相关源码，不要只凭文档就改代码
+2. **收尾时**：每次完成任务并 commit 后，必须同步把本次改动摘要更新到本文件对应章节（已完成改造 / 架构决策 / 待办状态），保持文档与代码一致
+3. **决策红线**：已确认的架构决策不得推翻；需要调整必须先问用户
+4. **验证闭环**：代码改动必须经过 `node --check` + `npx wrangler deploy --dry-run`（涉及 DB 的改动用 `wrangler d1 execute --remote` 验证），再 commit + push main
+5. **临时验证脚本**：放在 `.wrangler/` 下，测完即删，不提交
+
+用户换窗口时只需说一句：读 `d:\hyool\CONTEXT.md` 和 git log，按文档约定继续。
+
 ## 项目一句话
 
 HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞生成角色（创建页 create.html）、与角色实时聊天（buddy.html）、主页（yonder.html）。AI 对话能力集中在 LLM 网关模块。
