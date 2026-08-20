@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AUDIO-CHECK</title>
+</head>
+<body>
+<pre id="results">RUNNING…</pre>
+<iframe id="au" src="audio.html" style="width:1280px;height:800px;border:1px solid #333"></iframe>
+<script>
+const results = [];
+function line(s){ results.push(s); document.getElementById('results').textContent = results.join('\n'); }
+function ok(cond, name, extra=''){ line((cond?'PASS':'FAIL')+'  '+name+(extra?'  '+extra:'')); }
+function waitFrame(){
+  return new Promise((resolve, reject) => {
+    const f = document.getElementById('au');
+    const to = setTimeout(() => reject(new Error('iframe load timeout')), 60000);
+    f.addEventListener('load', () => { clearTimeout(to); resolve(); }, { once: true });
+  });
+}
+async function main(){
+  try {
+    await waitFrame();
+    await new Promise(r => setTimeout(r, 2500)); // wait audio.js module
+    const doc = document.getElementById('au').contentDocument;
+    const win = document.getElementById('au').contentWindow;
+    const q = (s) => doc.querySelector(s);
+    const visible = (el) => el && !el.classList.contains('hidden') && win.getComputedStyle(el).display !== 'none';
+
+    ok(q('.brand-name') && q('.brand-name').textContent.includes('音频工坊'), 'brand shows 音频工坊');
+    ok(visible(q('#empty')), 'empty state visible on load');
+    ok(!visible(q('#clipList')), 'clip list hidden on load');
+    ok(!visible(q('#transport')), 'transport hidden on load');
+    ok(!!q('#importBtn') && !!q('#exportBtn'), 'import & export buttons present');
+    ok(q('#exportFormat') && q('#exportFormat').value === 'wav', 'export defaults to WAV');
+    ok(!!q('#effectPanel [data-eq="low"]') && !!q('#compOn'), 'EQ sliders + compressor present');
+    ok(!!q('#toast') && !!q('#statusText'), 'toast & statusbar elements present');
+    ok(typeof win.AudioContext === 'function' || typeof win.webkitAudioContext === 'function', 'AudioContext available');
+
+    document.title = 'SMOKE-OK';
+  } catch (e) {
+    line('FATAL: ' + (e && e.stack || e && e.message || e));
+    document.title = 'SMOKE-FAIL';
+  }
+}
+main();
+</script>
+</body>
+</html>

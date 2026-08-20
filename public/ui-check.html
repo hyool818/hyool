@@ -38,7 +38,12 @@ async function main(){
     const feats = qa('.tool-card.featured .tool-feats li').length;
     ok(feats === 10, 'featured card has 10 detailed feature bullets', 'got ' + feats);
     const toolCards = qa('.tool-card').length;
-    ok(toolCards === 5, 'tool grid has 5 tool cards', 'got ' + toolCards);
+    ok(toolCards === 6, 'tool grid has 6 tool cards', 'got ' + toolCards);
+    const cardNames = qa('.tool-card h3').map(h => h.textContent);
+    ok(cardNames.includes('音频工坊'), 'audio workshop card present');
+    ok(!!qa('.tool-card').some(c => (c.querySelector('.tool-cta').getAttribute('onclick') || '').includes('audio.html')), 'audio card links to /audio.html');
+    const fantasyLink = q('.world-link[href="fantasy.html"]');
+    ok(!!fantasyLink, 'fantasy world link points to fantasy.html');
 
     // 3) hidden editor still boots app.js
     ok(q('#presetGrid') && q('#presetGrid').children.length === 10, 'preset grid built (10)', 'got ' + (q('#presetGrid') ? q('#presetGrid').children.length : 'none'));

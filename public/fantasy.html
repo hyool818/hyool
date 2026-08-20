@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>幻想世界 · 制作 · HYOOL</title>
+<link rel="stylesheet" href="/workspace/css/workspace.css">
+</head>
+<body>
+
+<!-- ============================================================
+     幻想世界 · 制作总览（入口首页）
+     「工具类」归无限世界（workspace.html），「制作类」归这里。
+============================================================ -->
+<div class="hub">
+
+  <header class="hub-topbar">
+    <a class="back" href="/">← 返回</a>
+    <div class="hub-brand">
+      <span class="hub-brand-name">幻想世界</span>
+      <span class="hub-brand-en">FANTASY · HYOOL REALM</span>
+    </div>
+  </header>
+
+  <main class="hub-main">
+
+    <section class="hub-hero">
+      <div class="hub-hero-kicker">FANTASY WORLD</div>
+      <h1 class="hub-hero-name">幻想</h1>
+      <p class="hub-hero-meaning">让想象成为作品。</p>
+      <p class="hub-hero-tags">音乐 · 游戏 · 故事 · 动画 · 声音</p>
+    </section>
+
+    <section class="hub-section">
+      <h2 class="hub-sec-title">制作工坊 <span>创作产出的地方</span></h2>
+
+      <div class="tool-grid">
+
+        <!-- 游戏工坊（第一批，PixiJS B 路线） -->
+        <article class="tool-card featured">
+          <div class="tool-head">
+            <div class="tool-icon">◈</div>
+            <div class="tool-title">
+              <h3>游戏工坊</h3>
+              <p class="tool-sub">H5 小游戏 · PixiJS 轻量路线，浏览器直接玩</p>
+            </div>
+            <span class="tool-badge partial">第一批</span>
+          </div>
+          <ul class="tool-feats">
+            <li><b>制作</b>轻量 H5 小游戏，PixiJS 浏览器内运行，无需安装</li>
+            <li><b>游玩</b>第一件作品正在生长，完成后可嵌入站点/页面互动</li>
+            <li><b>路线</b>B 路线（现有项目内直接写）；A 路线（Cocos 独立工程）已存档</li>
+          </ul>
+          <button class="tool-cta" data-go="soon">敬请期待</button>
+        </article>
+
+        <!-- 音乐工作室（第一批） -->
+        <article class="tool-card">
+          <div class="tool-head">
+            <div class="tool-icon">♪</div>
+            <div class="tool-title">
+              <h3>音乐工作室</h3>
+              <p class="tool-sub">MIDI 编曲 · 虚拟乐器</p>
+            </div>
+            <span class="tool-badge partial">第一批</span>
+          </div>
+          <ul class="tool-feats">
+            <li><b>MIDI 编曲</b>钢琴卷帘编辑音符，导出标准 .mid 文件</li>
+            <li><b>虚拟乐器</b>Web Audio 合成 + 采样音源，实时回放</li>
+            <li><b>MIDI 输入</b>支持外接 MIDI 键盘（Chrome/Edge）</li>
+          </ul>
+          <button class="tool-cta" data-go="soon">敬请期待</button>
+        </article>
+
+        <!-- VN 编辑器（规划中 · 必做） -->
+        <article class="tool-card soon">
+          <div class="tool-head">
+            <div class="tool-icon">▤</div>
+            <div class="tool-title">
+              <h3>VN 编辑器</h3>
+              <p class="tool-sub">自研视觉小说 · Ren'Py 替代方案</p>
+            </div>
+            <span class="tool-badge">规划中</span>
+          </div>
+          <ul class="tool-feats">
+            <li>剧本 JSON + Canvas/PixiJS 渲染，复用无限世界素材管线</li>
+            <li>不引入 Ren'Py 本体（Python 引擎，无官方 Web 导出）</li>
+          </ul>
+          <button class="tool-cta disabled" data-go="soon">敬请期待</button>
+        </article>
+
+        <!-- Live2D（规划中 · 等模型资产） -->
+        <article class="tool-card soon">
+          <div class="tool-head">
+            <div class="tool-icon">◉</div>
+            <div class="tool-title">
+              <h3>Live2D</h3>
+              <p class="tool-sub">角色动态 · 呼吸 / 说话动画</p>
+            </div>
+            <span class="tool-badge">规划中</span>
+          </div>
+          <ul class="tool-feats">
+            <li>Cubism SDK for Web（纯前端 WebGL），技术可行</li>
+            <li>等待模型资产（Editor 制作 / nizima 购买 / 官方样例）</li>
+          </ul>
+          <button class="tool-cta disabled" data-go="soon">敬请期待</button>
+        </article>
+
+        <!-- TTS（存档 · 需 GPU） -->
+        <article class="tool-card soon">
+          <div class="tool-head">
+            <div class="tool-icon">≋</div>
+            <div class="tool-title">
+              <h3>TTS 声音</h3>
+              <p class="tool-sub">文字转语音 · GPT-SoVITS</p>
+            </div>
+            <span class="tool-badge">存档</span>
+          </div>
+          <ul class="tool-feats">
+            <li>目标 GPT-SoVITS 高质克隆音色，需 GPU 推理栈（另行规划）</li>
+            <li>归入「另起 GPU 推理栈」后做，暂不接 Edge TTS</li>
+          </ul>
+          <button class="tool-cta disabled" data-go="soon">敬请期待</button>
+        </article>
+
+      </div>
+    </section>
+
+    <section class="hub-section">
+      <h2 class="hub-sec-title">其他世界</h2>
+      <div class="world-links">
+        <a class="world-link" href="yonder.html"><span class="world-link-name">彼岸</span><span class="world-link-mean">让作品抵达彼岸 · 展示 / 分享 / 发现</span></a>
+        <a class="world-link" href="workspace.html"><span class="world-link-name">无限</span><span class="world-link-mean">让创造拥有无限可能 · 工具 / 素材 / 工作流</span></a>
+        <div class="world-link dim"><span class="world-link-name">生命</span><span class="world-link-mean">让创造拥有真正的存在 · 建设中</span></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+<script>
+  // 敬请期待 / 建设中按钮提示
+  document.querySelectorAll('.tool-cta[data-go="soon"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const t = document.getElementById('toast');
+      t.textContent = '该板块正在生长中，敬请期待';
+      t.classList.add('show');
+      clearTimeout(btn._t);
+      btn._t = setTimeout(() => t.classList.remove('show'), 2400);
+    });
+  });
+</script>
+</body>
+</html>

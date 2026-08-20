@@ -2152,12 +2152,40 @@ document.querySelectorAll(".core-entry").forEach(
 
 
                 /* =========================================
-                   幻想 / 生命
+                   幻想：进入制作世界
+                ========================================= */
+
+                if(
+                    worldName === "fantasy"
+                ){
+
+                    world.classList.add(
+                        "entering-world"
+                    );
+
+
+                    setTimeout(
+                        () => {
+
+                            window.location.href =
+                                "fantasy.html";
+
+                        },
+                        650
+                    );
+
+
+                    return;
+
+                }
+
+
+                /* =========================================
+                   生命
                    暂未开放
                 ========================================= */
 
                 if(
-                    worldName === "fantasy" ||
                     worldName === "life"
                 ){
 

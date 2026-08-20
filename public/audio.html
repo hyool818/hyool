@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>音频工坊 · 无限世界 · HYOOL</title>
+<link rel="stylesheet" href="/workspace/css/workspace.css">
+<style>
+/* ---------- 音频工坊专用 ---------- */
+.audio-stage{position:relative;flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:12px;
+  padding:16px;overflow-y:auto;
+  background:
+    radial-gradient(1200px 600px at 20% 0%,rgba(139,123,255,.06),transparent 60%),
+    radial-gradient(900px 500px at 90% 100%,rgba(95,200,255,.05),transparent 60%),
+    var(--bg)}
+.audio-panel{flex:0 0 300px;border-left:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:18px;
+  overflow-y:auto;background:var(--bg2)}
+.audio-panel h3{font-size:12px;letter-spacing:.12em;color:var(--muted);margin-bottom:10px;font-weight:600}
+.clip{background:var(--bg3);border:1px solid var(--line2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:9px}
+.clip-head{display:flex;align-items:center;gap:9px}
+.clip-idx{flex:0 0 22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+  color:#fff;background:linear-gradient(120deg,var(--accent),#6a5ae0);border-radius:6px}
+.clip-name{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clip-dur{font-size:11px;color:var(--muted)}
+.clip-wave{width:100%;height:64px;background:#0a0a12;border:1px solid var(--line);border-radius:7px;cursor:pointer}
+.clip-rows{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px}
+.field{display:flex;flex-direction:column;gap:3px}
+.field>span{font-size:11px;color:var(--muted)}
+.field .val{font-size:11px;color:var(--accent2);font-variant-numeric:tabular-nums}
+.check-field{flex-direction:row;align-items:center;gap:7px;font-size:12px;color:#c2c2d2;cursor:pointer}
+.check-field input{accent-color:var(--accent)}
+.transport{flex:0 0 auto;display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--line2);
+  border-radius:10px;padding:10px 14px}
+.transport-progress{flex:1;height:6px;background:var(--line);border-radius:3px;position:relative;cursor:pointer}
+.transport-fill{position:absolute;left:0;top:0;bottom:0;width:0%;border-radius:3px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));pointer-events:none}
+.export-progress{display:none;height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:8px}
+.export-progress.active{display:block}
+.export-progress .bar{height:100%;width:40%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));
+  animation:exportScan 1.1s ease-in-out infinite}
+@keyframes exportScan{0%{margin-left:-40%}100%{margin-left:100%}}
+@media (max-width:760px){
+  .layout{flex-direction:column}
+  .audio-stage{flex:1 1 55%;min-height:260px}
+  .audio-panel{flex:1 1 45%;max-width:none;border-left:none;border-top:1px solid var(--line)}
+  .clip-rows{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="back" href="/workspace.html">← 返回</a>
+  <div class="brand">
+    <span class="brand-name">音频工坊</span>
+    <span class="brand-sub">AUDIO LAB · 本地处理</span>
+  </div>
+  <div class="topbar-right"><span class="asset-badge hidden" id="assetBadge"></span></div>
+</header>
+
+<div class="layout">
+
+  <div class="audio-stage">
+    <div id="empty" class="empty">
+      <div class="empty-icon">♪</div>
+      <p>导入音频文件开始剪辑</p>
+      <p style="font-size:12px;color:var(--muted)">支持多文件拼接 · 全程本地处理，不上传</p>
+    </div>
+
+    <div id="clipList" class="hidden" style="display:flex;flex-direction:column;gap:12px"></div>
+
+    <div id="transport" class="transport hidden">
+      <button class="btn primary" id="playBtn">▶ 播放</button>
+      <div class="transport-progress" id="progressBar">
+        <div class="transport-fill" id="progressFill"></div>
+      </div>
+      <span class="mono" id="timeLabel" style="font-size:12px;color:var(--muted)">0.0s / 0.0s</span>
+    </div>
+  </div>
+
+  <aside class="audio-panel">
+
+    <section>
+      <h3>导入</h3>
+      <input type="file" id="fileInput" accept="audio/*" multiple class="hidden">
+      <button class="btn primary wide" id="importBtn">＋ 导入音频</button>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">可拖入 mp3 / wav / ogg / m4a / flac 等；多个文件按顺序拼接导出。</p>
+    </section>
+
+    <section id="effectPanel">
+      <h3>整体音效</h3>
+      <div class="field" style="margin-bottom:10px">
+        <span>低频 <b class="val mono" style="color:var(--accent2)">0 dB</b></span>
+        <input type="range" min="-12" max="12" step="1" value="0" data-eq="low">
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <span>中频 <b class="val mono" style="color:var(--accent2)">0 dB</b></span>
+        <input type="range" min="-12" max="12" step="1" value="0" data-eq="mid">
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <span>高频 <b class="val mono" style="color:var(--accent2)">0 dB</b></span>
+        <input type="range" min="-12" max="12" step="1" value="0" data-eq="high">
+      </div>
+      <label class="check-field"><input type="checkbox" id="compOn"> 压缩器（提升响度稳定）</label>
+    </section>
+
+    <section>
+      <h3>导出</h3>
+      <div class="field" style="margin-bottom:10px">
+        <span>格式</span>
+        <select id="exportFormat" class="btn" style="appearance:auto">
+          <option value="wav">WAV（无损）</option>
+          <option value="mp3">MP3（192kbps）</option>
+        </select>
+      </div>
+      <button class="btn primary wide" id="exportBtn">导出音频</button>
+      <div class="export-progress" id="exportProgress"><div class="bar"></div></div>
+    </section>
+
+    <section style="font-size:11px;color:var(--muted);line-height:1.7">
+      隐私说明：所有音频在浏览器本地解码与处理，不上传任何服务器。MP3 编码由浏览器内的 lamejs（JS）完成。
+    </section>
+
+  </aside>
+</div>
+
+<footer class="statusbar">
+  <span id="statusText">就绪</span>
+  <span>本地处理 · 隐私安全</span>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="/workspace/js/audio.js"></script>
+</body>
+</html>
