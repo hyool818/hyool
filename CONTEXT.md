@@ -59,14 +59,15 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 ### 入口划分（工具类 → 无限，制作类 → 幻想）——2026-08-20 追加拍板
 - **无限入口**（`index.html` 无限世界 → `workspace.html` 工具箱）：处理素材的「工具类」——FastEdit 图片工作台（已上线）、音频工坊 `audio.html`、视频剪辑升级、图像超分、去水印、AI 扩图
-- **幻想入口**（`index.html` 幻想世界 → `fantasy.html`，2026-08-20 激活）：创作产出的「制作类」——音乐工作室（MIDI+虚拟乐器）、H5 游戏（PixiJS B 路线）、自研 VN 编辑器、Live2D、TTS（GPT-SoVITS）
-- **H5 游戏路线**：先走 B（PixiJS 在现有项目内写轻量小游戏，无构建、与工作台同构）；A（Cocos Creator 独立源工程 → Web 产物 → iframe+postMessage 嵌入）暂存档
-- **速度优先级（哪些快做哪些）**：音频工坊（最快，纯前端）→ 幻想入口骨架 + 首款 PixiJS 小游戏 → 音乐工作室 → 视频剪辑升级 → 图像超分 → 其余按档
+- **幻想入口**（`index.html` 幻想世界 → `fantasy.html`，2026-08-20 激活）：创作产出的「制作类」——音乐工作室（MIDI+虚拟乐器）、游戏工坊（用户自建 H5 游戏，PixiJS B 路线）、自研 VN 编辑器、Live2D、TTS（GPT-SoVITS）
+- **H5 游戏路线**：先走 B（PixiJS 做「游戏工坊」——用户在浏览器内自建轻量小游戏，无构建、与工作台同构）；A（Cocos Creator 独立源工程 → Web 产物 → iframe+postMessage 嵌入）暂存档
+- **游戏工坊定位（2026-08-20 补正）**：工坊 = 用户自己完成游戏的制作工具（与音乐工作室 / VN 编辑器同性质），不是我们交付现成游戏；首版做模板化生成器（选模板 → 配置角色/背景/难度/音效 → 即时试玩 → 存档），跑通后升级更自由的编辑能力
+- **速度优先级（哪些快做哪些）**：音频工坊（最快，纯前端）→ 幻想入口骨架 + 首款 PixiJS 游戏工坊 → 音乐工作室 → 视频剪辑升级 → 图像超分 → 其余按档
 
 ### ✅ 第一批（现在做，纯前端低风险）
 1. **音频工坊 `public/audio.html`**：Web Audio API + Canvas 波形 + 裁剪/拼接/音量/淡入淡出/三频均衡/压缩器/反向 + 导出 WAV（原生 PCM）/ MP3（lamejs CDN 懒加载）；无限入口 hub 卡片直链
 2. **幻想入口 `public/fantasy.html`**：制作类 hub 页，激活 index.html 幻想世界跳转 + workspace 世界链接
-3. **首款 PixiJS H5 小游戏**（幻想入口第一件制作类作品，B 路线，PixiJS CDN 懒加载）
+3. **首款 PixiJS 游戏工坊**（模板化小游戏生成器：用户选模板→配置角色/背景/难度/音效→即时试玩→存档；B 路线，PixiJS CDN 懒加载）
 
 ### ✅ 第二批（现在做，投入较大）
 4. **音乐工作室（MIDI 编曲 + 虚拟乐器）**：@tonejs/midi 解析/生成 .mid + 自绘钢琴卷帘 + tone.js 回放；虚拟乐器用 Web Audio 合成 + WebAudioFonts 采样 + WebMIDI 输入（WebMIDI 仅 Chrome/Edge 且需用户手势，无 MIDI 设备时鼠标点卷帘兜底）
