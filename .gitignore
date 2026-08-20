@@ -1,6 +1,9 @@
 # Wrangler local state
 .wrangler/
 .dev.vars
+.dev-pid.txt
+.wrangler-dev.log
+.wrangler-dev.err.log
 
 # Dependencies
 node_modules/

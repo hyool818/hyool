@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>crop-compare check</title>
+<style>
+  body { font-family: ui-monospace, monospace; font-size: 13px; background: #12121c; color: #e6e6f0; padding: 16px; }
+  #results { white-space: pre-wrap; line-height: 1.7; }
+  iframe { position: fixed; left: -9999px; top: -9999px; width: 800px; height: 600px; border: 0; }
+</style>
+</head>
+<body>
+<pre id="results">RUNNING…</pre>
+<iframe id="w" src="/workspace.html" title="workspace"></iframe>
+<script>
+const results = [];
+function line(s) {
+  results.push(s);
+  const el = document.getElementById('results');
+  if (el) el.textContent = results.join('\n');
+}
+function ok(cond, name, extra = '') { line((cond ? 'PASS' : 'FAIL') + '  ' + name + (extra ? '  ' + extra : '')); }
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const f = () => document.getElementById('w').contentWindow;
+
+async function main() {
+  try {
+    // 等待 workspace app 初始化完成（app.js 末尾挂出 enterWorkspaceTab）
+    let ready = false;
+    for (let i = 0; i < 80; i++) {
+      try {
+        ready = f().eval('typeof window.enterWorkspaceTab === "function"');
+      } catch (e) { /* 跨文档读取窗口，尚未就绪 */ }
+      if (ready) break;
+      await sleep(250);
+    }
+    ok(ready, 'workspace.html 加载完成');
+    if (!ready) throw new Error('iframe 未就绪');
+    await sleep(800); // 等模块 + 编解码器预热
+
+    // 进入编辑器视图（否则 #editorView 保持 display:none，画布布局尺寸为 0）
+    f().eval(`document.querySelector('.tool-cta[data-go="editor"]').click()`);
+    await sleep(400);
+
+    // 注入一个小 PNG 触发 handleFiles → renderImage → layoutStage
+    const png = await f().eval(`
+      (async () => {
+        const c = document.createElement('canvas');
+        c.width = 64; c.height = 48;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#e05'; ctx.fillRect(0, 0, 64, 48);
+        ctx.fillStyle = '#fff'; ctx.fillRect(8, 8, 24, 32);
+        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        const file = new File([blob], 't.png', { type: 'image/png' });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        const inp = document.getElementById('fileInput');
+        inp.files = dt.files;
+        inp.dispatchEvent(new Event('change'));
+        return true;
+      })()
+    `);
+    await png;
+
+    // 等待图片载入完成（compareWrap 取消 hidden 且 canvasOut 有尺寸）
+    let loaded = false;
+    for (let i = 0; i < 60; i++) {
+      loaded = f().eval(`(() => {
+        const w = document.getElementById('compareWrap');
+        const o = document.getElementById('canvasOut');
+        return !w.classList.contains('hidden') && o.width > 0;
+      })()`);
+      if (loaded) break;
+      await sleep(250);
+    }
+    ok(loaded, '图片载入');
+    // 布局诊断：确认 mosaicLayer 在 iframe 里的实际布局尺寸（此前 stagePoint 拿到 NaN 疑似 rect.width=0）
+    const layoutDiag = f().eval(`(() => {
+      const l = document.getElementById('mosaicLayer');
+      const w = document.getElementById('compareWrap');
+      const lr = l.getBoundingClientRect();
+      const wr = w.getBoundingClientRect();
+      const body = document.body.getBoundingClientRect();
+      return JSON.stringify({
+        layer: { w: lr.width, h: lr.height, left: lr.left, top: lr.top },
+        wrap: { w: wr.width, h: wr.height },
+        body: { w: body.width, h: body.height },
+        iw: innerWidth, ih: innerHeight,
+        attr: { w: l.width, h: l.height },
+      });
+    })()`);
+    line('DIAG  layout=' + layoutDiag);
+
+    // 1) 对比关闭：重渲染后 canvasOut 不应有 clip-path（回归点：旧代码在 layoutStage 里无条件套 clip）
+    let clip = f().eval(`document.getElementById('canvasOut').style.clipPath`);
+    ok(clip === '', '关闭对比时 canvasOut 无 clip-path', 'clipPath=' + JSON.stringify(clip));
+
+    // 2) 开启对比：clip-path 应为 inset
+    f().eval(`document.getElementById('compareToggle').click()`);
+    await sleep(120);
+    clip = f().eval(`document.getElementById('canvasOut').style.clipPath`);
+    ok(String(clip).indexOf('inset') === 0, '开启对比时 canvasOut 有 clip-path', 'clipPath=' + JSON.stringify(clip));
+
+    // 3) 关闭对比：clip-path 清空
+    f().eval(`document.getElementById('compareToggle').click()`);
+    await sleep(120);
+    clip = f().eval(`document.getElementById('canvasOut').style.clipPath`);
+    ok(clip === '', '再次关闭对比后 clip-path 清空', 'clipPath=' + JSON.stringify(clip));
+
+    // 记录裁剪前的画布内容，供步骤 6 对比「裁剪放大已生效」
+    f().eval(`(() => {
+      const o = document.getElementById('canvasOut');
+      window.__beforeCrop = o.getContext('2d').getImageData(0, 0, o.width, o.height).data;
+      return true;
+    })()`);
+
+    // 4) 拖拽裁剪（回归点：旧代码裁剪后 canvasOut 左右分离）
+    f().eval(`(() => {
+      document.getElementById('mosaicLayer').setPointerCapture = () => {}; // 合成事件没有真实 pointer 捕获
+      document.getElementById('cropModeBtn').click();
+      const layer = document.getElementById('mosaicLayer');
+      const r = layer.getBoundingClientRect();
+      const mk = (type, x, y) => new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1, clientX: x, clientY: y });
+      layer.dispatchEvent(mk('pointerdown', r.left + r.width * 0.2, r.top + r.height * 0.2));
+      window.dispatchEvent(mk('pointermove', r.left + r.width * 0.7, r.top + r.height * 0.8));
+      window.dispatchEvent(mk('pointerup', r.left + r.width * 0.7, r.top + r.height * 0.8));
+      return true;
+    })()`);
+    await sleep(900); // 等 processImageData 异步完成后 drawOverlay
+    clip = f().eval(`document.getElementById('canvasOut').style.clipPath`);
+    ok(clip === '', '裁剪后（对比仍关）canvasOut 无 clip-path', 'clipPath=' + JSON.stringify(clip));
+
+    // 5) 裁剪已生效：清除按钮可见 + 画布内容已变为裁剪放大结果（预览保持原画布尺寸，把裁剪区拉伸铺满）
+    const cropState = f().eval(`(() => {
+      const clearBtn = document.getElementById('cropClearBtn');
+      const out = document.getElementById('canvasOut');
+      const overlay = document.getElementById('mosaicLayer');
+      const octx = out.getContext('2d');
+      const lctx = overlay.getContext('2d');
+      let overlayPainted = false;
+      const id = lctx.getImageData(0, 0, overlay.width, overlay.height).data;
+      for (let i = 3; i < id.length; i += 4) { if (id[i] > 0) { overlayPainted = true; break; } }
+      return JSON.stringify({
+        clearVisible: !clearBtn.classList.contains('hidden'),
+        nowHash: octx.getImageData(0, 0, out.width, out.height).data.length,
+        overlayPainted,
+        overlayW: overlay.width, overlayH: overlay.height,
+        outW: out.width, outH: out.height,
+      });
+    })()`);
+    const cs = JSON.parse(cropState);
+    ok(cs.clearVisible && cs.overlayPainted, '裁剪已生效（清除按钮可见 + 裁剪遮罩已绘制）', 'crop=' + JSON.stringify(cs));
+
+    // 6) 裁剪内容确实改变：与步骤 3 后（未裁剪）的画布内容对比
+    const differ = f().eval(`(() => {
+      const o = document.getElementById('canvasOut');
+      const a = o.getContext('2d').getImageData(0, 0, o.width, o.height).data;
+      const before = window.__beforeCrop;
+      if (!before || before.length !== a.length) return true;
+      let diff = 0;
+      for (let i = 0; i < a.length; i += 4) {
+        if (Math.abs(before[i] - a[i]) + Math.abs(before[i+1] - a[i+1]) + Math.abs(before[i+2] - a[i+2]) > 12) { diff++; if (diff > 10) break; }
+      }
+      return diff > 0;
+    })()`);
+    ok(differ, '裁剪后画布内容已改变（裁剪放大生效）');
+
+    line('');
+    line('--- console/errors ---');
+    document.title = results.some(r => r.startsWith('FAIL') || r.startsWith('FATAL')) ? 'SMOKE-FAIL' : 'SMOKE-OK';
+  } catch (e) {
+    line('FAIL  异常：' + e.message);
+    document.title = 'SMOKE-FAIL';
+  }
+}
+
+main();
+</script>
+</body>
+</html>

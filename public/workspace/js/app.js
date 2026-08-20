@@ -406,6 +406,14 @@ function drawOverlay() {
 }
 
 function applyCompareClip() {
+  // 对比开关关闭时禁止裁剪 canvasOut，否则会把 canvasOut 左半截裁掉、露出
+  // 底下的原图画布，造成「图片左右分离」的错觉（未编辑时两层内容一致看不出来，
+  // 一旦裁剪/旋转等编辑触发重排版就会现形）。
+  if (!state.compareOn) {
+    R.canvasOut.style.clipPath = '';
+    R.canvasOut.style.WebkitClipPath = '';
+    return;
+  }
   const pct = +R.compareSlider.value;
   R.canvasOut.style.clipPath = `inset(0 0 0 ${pct}%)`;
   R.canvasOut.style.WebkitClipPath = `inset(0 0 0 ${pct}%)`;
@@ -415,7 +423,7 @@ function toggleCompare() {
   state.compareOn = !state.compareOn;
   R.compareToggle.classList.toggle('active', state.compareOn);
   R.compareWrap.classList.toggle('compare-on', state.compareOn);
-  if (!state.compareOn) { R.canvasOut.style.clipPath = ''; R.canvasOut.style.WebkitClipPath = ''; }
+  applyCompareClip();
 }
 
 /** 全量重渲染（编辑参数变化后） */

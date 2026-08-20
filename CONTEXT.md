@@ -37,12 +37,13 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 1. **1cce3c0** — FastEdit 图片工作台上线：`public/workspace.html` + `public/workspace/js/*`。纯前端本地处理（压缩/转换/动图/视频/打码/抠图/批量），vendored jsquash WASM 编解码（webp/avif/jpeg/png/oxipng/gif），修复 15 处 vendored import 路径错误；`public/index.html` 无限世界入口跳转 `/workspace.html`
 2. **2d8991c** — 无限世界·工具总览入口页（hub）：`workspace.html` 新增 hub 首页（hero + 工具卡片 + 世界入口），新增 `hub.js`（hub/编辑器视图切换、`?tool=editor|ai|presets` 直达、返回按钮）；`app.js` 暴露 `window.enterWorkspaceTab`；修复 `switchTab('edit')` 无对应面板导致导入图片后控制面板空白
+3. **（未提交）裁剪后「图片左右分离」bug 修复**：对比模式关闭时 `applyCompareClip()` 不再给 `canvasOut` 套 `clipPath`（旧代码在 layoutStage 无条件按 slider 裁掉左半、露出底下原图画布，一旦裁剪/旋转触发重排版即现形）；开关/滑块/重渲染统一走 `applyCompareClip()`。回归测试 `public/crop-compare-check.html`（8 断言：对比开关 clip-path 清空/生效 + 裁剪后仍无 clip + 裁剪放大生效），本地冒烟 SMOKE-OK
 
 前端架构要点（勿推翻）：
 
 - **编解码全部浏览器本地 WASM**（jsquash + pako/UPNG/omggif），图片不上传服务器（隐私卖点）
 - **无构建步骤**：`public/workspace/vendor/` 全是 ESM/WASM 静态文件；`pako/UPNG/omggif` 为经典脚本须先于 app.js 加载，`wasm-feature-detect` 裸导入靠 importmap 解析到 `/workspace/vendor/wasm-feature-detect/index.js`
-- **冒烟测试**：`public/smoke-test.html`（编解码/动图/批量/视频）、`public/ui-check.html`（hub/编辑器切换 17 项）；本地起静态服务 + headless Chrome `--dump-dom` 验证（注：视频 roundtrip 在 headless 下会 FAIL，属环境限制非代码 bug）
+- **冒烟测试**：`public/smoke-test.html`（编解码/动图/批量/视频）、`public/ui-check.html`（hub/编辑器切换 17 项）、`public/crop-compare-check.html`（对比+裁剪回归）；本地起静态服务 + headless Chrome `--dump-dom` 验证（注：视频 roundtrip 在 headless 下会 FAIL，属环境限制非代码 bug）
 
 ## 已确认的架构决策（用户拍板，不要推翻）
 
@@ -100,7 +101,8 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 ## 常用命令
 
-- 语法检查：`node --check src/xxx.js`
+- 语法检查：`node --check src/xxx.js`（ESM 前端文件先复制成 `.mjs` 再 `node --check`）
+- 前端冒烟：`powershell -File .\run-browser-test.ps1 -Url http://127.0.0.1:8787/ui-check.html -OutFile test-out-ui.txt`（需先 `.\start-dev.ps1` 起本地 dev）
 - dry-run：`npx wrangler deploy --dry-run`
 - D1 迁移（远程）：`npx wrangler d1 execute hyool-db --remote --file schema/xxx.sql`
 - 部署：commit + push main（CI 自动）
