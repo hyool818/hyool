@@ -33,6 +33,17 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 2. **4dd0099** — emoji 低频化：默认无 emoji，每 3~4 条最多一次
 3. **78d53a2** — 扣子式对话流程（共情优先→澄清梳理→客观拆解→分层方案→边界提醒+危机引导）；方案模式 max_tokens 默认 200；**超长对话自动摘要**（conversations 新增 summary / summarized_upto，增量合并压缩，最近 12 条永不摘要）
 
+## 已完成的前端改造（无限世界 · 图片工作台，均已部署）
+
+1. **1cce3c0** — FastEdit 图片工作台上线：`public/workspace.html` + `public/workspace/js/*`。纯前端本地处理（压缩/转换/动图/视频/打码/抠图/批量），vendored jsquash WASM 编解码（webp/avif/jpeg/png/oxipng/gif），修复 15 处 vendored import 路径错误；`public/index.html` 无限世界入口跳转 `/workspace.html`
+2. **2d8991c** — 无限世界·工具总览入口页（hub）：`workspace.html` 新增 hub 首页（hero + 工具卡片 + 世界入口），新增 `hub.js`（hub/编辑器视图切换、`?tool=editor|ai|presets` 直达、返回按钮）；`app.js` 暴露 `window.enterWorkspaceTab`；修复 `switchTab('edit')` 无对应面板导致导入图片后控制面板空白
+
+前端架构要点（勿推翻）：
+
+- **编解码全部浏览器本地 WASM**（jsquash + pako/UPNG/omggif），图片不上传服务器（隐私卖点）
+- **无构建步骤**：`public/workspace/vendor/` 全是 ESM/WASM 静态文件；`pako/UPNG/omggif` 为经典脚本须先于 app.js 加载，`wasm-feature-detect` 裸导入靠 importmap 解析到 `/workspace/vendor/wasm-feature-detect/index.js`
+- **冒烟测试**：`public/smoke-test.html`（编解码/动图/批量/视频）、`public/ui-check.html`（hub/编辑器切换 17 项）；本地起静态服务 + headless Chrome `--dump-dom` 验证（注：视频 roundtrip 在 headless 下会 FAIL，属环境限制非代码 bug）
+
 ## 已确认的架构决策（用户拍板，不要推翻）
 
 - **三层分层**：内核层（后端固定 prompt，前端不可覆盖——防 prompt injection 绕过安全规则）/ 内容层（角色字段 + story_hook）/ 参数层（temperature/max_tokens/proactivity 由后端 clamp）
