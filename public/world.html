@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>HYOOL · 生命世界</title>
+<style>
+:root {
+  --accent: #8b8bff;
+  --text: rgba(255,255,255,.94);
+  --muted: rgba(255,255,255,.55);
+  --border: rgba(255,255,255,.11);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(100,100,180,.18), transparent 42%),
+    linear-gradient(135deg, #11121a, #090a10 55%, #050507);
+  background-attachment: fixed; min-height: 100vh; overflow-x: hidden; line-height: 1.7;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; }
+input, textarea, select { font: inherit; }
+
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 40; height: 64px;
+  display: flex; align-items: center; gap: 12px; padding: 0 18px;
+  background: linear-gradient(to bottom, rgba(5,5,8,.6), transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.tbtn {
+  border: 1px solid var(--border); background: rgba(255,255,255,.06); color: rgba(255,255,255,.82);
+  padding: 8px 12px; border-radius: 10px; font-size: 13px; transition: background .2s, transform .2s;
+}
+.tbtn:hover { background: rgba(255,255,255,.13); transform: translateY(-1px); }
+.tbtn.accent { background: var(--accent); color: #0a0a12; font-weight: 600; border-color: transparent; }
+.tbtn.accent:hover { opacity: .88; }
+.tbtn:disabled { opacity: .4; cursor: wait; }
+.tt { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.tt h1 { font-size: 1.05rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge {
+  font-size: .66rem; padding: 2px 9px; border-radius: 999px; letter-spacing: .02em;
+  background: rgba(139,139,255,.16); color: #b7b7ff; white-space: nowrap;
+}
+.badge.pause { background: rgba(255,190,90,.16); color: #f0c37f; }
+.tr { display: flex; align-items: center; gap: 8px; }
+.tr select.tbtn { max-width: 180px; }
+
+.wrap { max-width: 860px; margin: 0 auto; padding: 86px 16px 40px; display: flex; flex-direction: column; min-height: 100vh; }
+.threads { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 10px; }
+.tchip {
+  border: 1px solid var(--border); background: rgba(255,255,255,.05); color: var(--muted);
+  padding: 6px 14px; border-radius: 999px; font-size: 12px; white-space: nowrap; transition: all .2s;
+}
+.tchip:hover { color: #fff; }
+.tchip.active { background: var(--accent); color: #0a0a12; font-weight: 600; border-color: transparent; }
+.tchip.add { border-style: dashed; }
+
+.stage {
+  flex: 1; display: flex; flex-direction: column; gap: 14px;
+  padding: 14px 2px 110px; overflow-y: auto; min-height: 420px;
+}
+.msg { display: flex; gap: 10px; align-items: flex-start; animation: pop .25s ease; }
+@keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.msg.self { flex-direction: row-reverse; }
+.msg.self .bub { background: rgba(139,139,255,.22); border-color: rgba(139,139,255,.4); }
+.msg .av {
+  width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  background: #15161f; border: 1px solid var(--border);
+}
+.msg .col { min-width: 0; max-width: 78%; }
+.msg .who { font-size: .72rem; color: var(--muted); margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
+.msg .who b { color: var(--text); }
+.msg .time { font-size: .64rem; color: rgba(255,255,255,.3); }
+.bub {
+  display: inline-block; padding: 9px 13px; border-radius: 14px 14px 14px 4px;
+  background: rgba(255,255,255,.06); border: 1px solid var(--border); font-size: .9rem; line-height: 1.65;
+  white-space: pre-wrap; word-break: break-word;
+}
+.narrator {
+  text-align: center; font-size: .76rem; color: rgba(255,255,255,.45);
+  background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.10);
+  border-radius: 12px; padding: 8px 14px; margin: 2px auto; max-width: 92%;
+}
+
+.composer {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: flex; gap: 10px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, rgba(5,5,8,.92), rgba(5,5,8,.4));
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.composer textarea {
+  flex: 1; min-height: 44px; max-height: 130px; resize: none; outline: none;
+  border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.07);
+  color: #fff; padding: 10px 14px; font-size: .92rem; line-height: 1.5;
+}
+.composer textarea:focus { border-color: var(--accent); }
+.composer .send {
+  border: 0; border-radius: 12px; padding: 0 22px; background: var(--accent);
+  color: #0a0a12; font-weight: 700; font-size: 14px; transition: opacity .2s;
+}
+.composer .send:hover { opacity: .88; }
+.composer .send:disabled { opacity: .4; cursor: wait; }
+
+/* 侧栏 */
+.side {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 60; width: min(400px, 94vw);
+  background: linear-gradient(160deg, #161722, #0c0d14);
+  border-left: 1px solid var(--border); transform: translateX(100%); transition: transform .3s cubic-bezier(.2,.8,.2,1);
+  display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(0,0,0,.45);
+}
+.side.open { transform: translateX(0); }
+.side-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; font-weight: 700; }
+.side-head button { border: 0; background: rgba(255,255,255,.08); color: #fff; width: 28px; height: 28px; border-radius: 8px; }
+.side-tabs { display: flex; gap: 6px; padding: 0 14px 10px; flex-wrap: wrap; }
+.side-tabs button {
+  border: 1px solid var(--border); background: rgba(255,255,255,.05); color: var(--muted);
+  padding: 5px 12px; border-radius: 999px; font-size: 12px;
+}
+.side-tabs button.active { background: var(--accent); color: #0a0a12; font-weight: 600; border-color: transparent; }
+.side-body { flex: 1; overflow-y: auto; padding: 4px 16px 40px; }
+.side-body section { display: none; }
+.side-body section.active { display: block; }
+.panel h3 { font-size: .95rem; margin: 6px 0 12px; font-weight: 700; }
+.fg { margin-bottom: 10px; }
+.fg label { display: block; font-size: .72rem; color: var(--muted); margin-bottom: 4px; }
+.fg input, .fg textarea, .fg select {
+  width: 100%; border: 1px solid rgba(255,255,255,.10); border-radius: 10px;
+  padding: 8px 12px; background: rgba(255,255,255,.05); color: #fff; outline: none; font-size: .85rem;
+}
+.fg input:focus, .fg textarea:focus, .fg select:focus { border-color: var(--accent); }
+.fg textarea { min-height: 64px; resize: vertical; line-height: 1.55; }
+.btn {
+  border: 0; border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 600; transition: opacity .2s;
+}
+.btn.sav { background: var(--accent); color: #0a0a12; }
+.btn.ghost { background: rgba(255,255,255,.08); color: #fff; }
+.btn.del { background: rgba(255,80,80,.18); color: #ffb3b3; }
+.btn:hover { opacity: .85; }
+.btn:disabled { opacity: .4; cursor: wait; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row .btn { flex-shrink: 0; }
+
+.cast-card { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; background: rgba(255,255,255,.04); }
+.cast-card img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #15161f; }
+.cast-card .cc { flex: 1; min-width: 0; }
+.cast-card .cc b { font-size: .88rem; }
+.cast-card .cc p { font-size: .72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cast-card .cc small { font-size: .64rem; color: rgba(120,220,170,.8); }
+
+.rel-row { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; font-size: .8rem; background: rgba(255,255,255,.04); }
+.rel-row .rk { padding: 1px 8px; border-radius: 999px; font-size: .66rem; background: rgba(139,139,255,.16); color: #b7b7ff; white-space: nowrap; }
+
+.scene-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; background: rgba(255,255,255,.04); }
+.scene-card b { font-size: .9rem; }
+.scene-card p { font-size: .78rem; color: var(--muted); margin: 4px 0; }
+.scene-card .rc { font-size: .68rem; color: rgba(255,255,255,.4); }
+
+.opt-radio { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: border .2s; }
+.opt-radio.active { border-color: var(--accent); background: rgba(139,139,255,.08); }
+.opt-radio b { font-size: .86rem; }
+.opt-radio p { font-size: .74rem; color: var(--muted); margin-top: 2px; }
+.opt-radio input { accent-color: var(--accent); margin-right: 8px; }
+
+.model-hint { font-size: .74rem; color: var(--muted); border: 1px dashed var(--border); border-radius: 10px; padding: 8px 10px; margin-top: 6px; }
+#toast {
+  position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 100;
+  background: rgba(20,22,32,.95); border: 1px solid var(--border); border-radius: 999px;
+  padding: 10px 20px; font-size: 13px; opacity: 0; visibility: hidden; transition: opacity .25s;
+  max-width: 86vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#toast.show { opacity: 1; visibility: visible; }
+@media (max-width: 720px) {
+  .tr select.tbtn { max-width: 110px; }
+  .msg .col { max-width: 84%; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <button class="tbtn" onclick="location.href='/hub'">← 工坊</button>
+  <div class="tt">
+    <h1 id="wName">世界</h1>
+    <span class="badge" id="wMode"></span>
+    <span class="badge pause" id="wPause" style="display:none">已暂停</span>
+  </div>
+  <div class="tr">
+    <select class="tbtn" id="modelSel" title="对话模型"></select>
+    <button class="tbtn" id="pauseBtn">⏸ 暂停</button>
+    <button class="tbtn accent" id="openSide">⚙ 世界后台</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="threads" id="threadBar"></div>
+  <div class="stage" id="feed"></div>
+</div>
+
+<div class="composer">
+  <textarea id="msgInput" placeholder="插句话，加入这个世界…（Enter 发送 / Shift+Enter 换行）"></textarea>
+  <button class="send" id="sendBtn">发言</button>
+</div>
+
+<!-- 世界后台侧栏 -->
+<div class="side" id="side">
+  <div class="side-head">⚙ 世界后台
+    <button id="closeSide">✕</button>
+  </div>
+  <div class="side-tabs">
+    <button data-panel="bg">背景</button>
+    <button data-panel="cast">原住民</button>
+    <button data-panel="rel">关系</button>
+    <button data-panel="scene">场景</button>
+    <button data-panel="run">运转</button>
+  </div>
+  <div class="side-body">
+
+    <section class="panel" id="panel-bg">
+      <h3>世界背景</h3>
+      <div class="fg"><label>时代</label><input id="bgEra" maxlength="80" placeholder="如：蒸汽时代 / 灵气复苏初期"></div>
+      <div class="fg"><label>地点</label><input id="bgPlace" maxlength="80" placeholder="如：临海小城「雾港」"></div>
+      <div class="fg"><label>氛围</label><input id="bgTone" maxlength="120" placeholder="如：潮湿、怀旧、暗流涌动"></div>
+      <div class="fg"><label>世界规则 / 特殊设定</label><textarea id="bgRule" maxlength="400" placeholder="如：这里的人不会真正死去，只会在雾中重生…"></textarea></div>
+      <div class="fg"><label>补充说明</label><textarea id="bgNote" maxlength="800"></textarea></div>
+      <button class="btn sav" id="bgSave">保存背景</button>
+    </section>
+
+    <section class="panel" id="panel-cast">
+      <h3>世界原住民</h3>
+      <div class="fg"><label>用一句话描述你想生成的原住民</label>
+        <textarea id="natIdea" maxlength="2000" placeholder="如：在码头修船的老渔夫，话少，见过雾里的怪物"></textarea>
+      </div>
+      <button class="btn sav" id="natGen">✨ AI 生成原住民</button>
+      <div class="fg" style="margin-top:12px"><label>或手动填写</label>
+        <input id="natName" maxlength="40" placeholder="名字">
+        <input id="natAvatar" maxlength="2000" placeholder="头像 URL（可选）" style="margin-top:6px">
+        <textarea id="natPersona" maxlength="2000" placeholder="外貌 / 性格 / 背景 / 说话风格，一行一个字段" style="margin-top:6px"></textarea>
+      </div>
+      <button class="btn ghost" id="natAdd">手动添加</button>
+      <div id="castList" style="margin-top:14px"></div>
+    </section>
+
+    <section class="panel" id="panel-rel">
+      <h3>角色关系</h3>
+      <div class="fg"><label>角色 A</label><select id="relA"></select></div>
+      <div class="fg"><label>角色 B</label><select id="relB"></select></div>
+      <div class="fg"><label>关系</label><select id="relKind">
+        <option value="friend">好友</option>
+        <option value="rival">对手</option>
+        <option value="enemy">宿敌</option>
+        <option value="family">亲人</option>
+        <option value="lover">恋人</option>
+        <option value="mentor">师徒</option>
+        <option value="neutral">中立</option>
+      </select></div>
+      <div class="fg"><label>备注（可选）</label><input id="relNote" maxlength="200" placeholder="如：从小一起长大，最近闹翻了"></div>
+      <button class="btn sav" id="relAdd">建立关系</button>
+      <div id="relList" style="margin-top:14px"></div>
+    </section>
+
+    <section class="panel" id="panel-scene">
+      <h3>自定义场景</h3>
+      <div class="fg"><label>场景名</label><input id="scName" maxlength="60" placeholder="如：雾港码头的深夜"></div>
+      <div class="fg"><label>地点</label><input id="scLocation" maxlength="80"></div>
+      <div class="fg"><label>背景描述</label><textarea id="scDesc" maxlength="600" placeholder="设定这个场景里正在发生的事…"></textarea></div>
+      <div class="fg"><label>开场台词（可选）</label><input id="scOpening" maxlength="300"></div>
+      <div class="fg"><label>在场角色（可多选，默认全部）</label><div id="scPresent"></div></div>
+      <button class="btn sav" id="scSave">创建场景</button>
+      <div id="sceneList" style="margin-top:14px"></div>
+    </section>
+
+    <section class="panel" id="panel-run">
+      <h3>世界运转</h3>
+      <div class="fg"><label>运转模式</label></div>
+      <div class="opt-radio" data-mode="watch" onclick="pickMode('watch')">
+        <input type="radio" name="mode" value="watch"><b>🌱 在线运转</b>
+        <p>你打开世界页面时角色们自主聊天，离开即暂停。成本最省。</p>
+      </div>
+      <div class="opt-radio" data-mode="hybrid" onclick="pickMode('hybrid')">
+        <input type="radio" name="mode" value="hybrid"><b>⚡ 混合运转</b>
+        <p>在线实时聊天 + 离开后按较慢节奏补播代表剧情，回来时告诉你错过了什么。</p>
+      </div>
+      <div class="opt-radio" data-mode="always" onclick="pickMode('always')">
+        <input type="radio" name="mode" value="always"><b>🌌 24h 后台</b>
+        <p>即使你不在线，世界也持续运转，随时回来翻看完整历史。消耗更多 token。</p>
+      </div>
+      <div class="fg" style="margin-top:10px"><label>对话模型</label><select id="runModel"></select>
+        <div class="model-hint" id="runModelHint"></div>
+      </div>
+      <div class="fg"><label>在线 tick 间隔（秒，15~120）</label><input id="runTickSec" type="number" min="15" max="120"></div>
+      <button class="btn sav" id="runSave">保存运转设置</button>
+      <div style="height:14px"></div>
+      <button class="btn del" id="runPauseBtn">暂停运转</button>
+    </section>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const S = { world: null, models: [], threadId: null, lastSeq: 0, msgs: [], timer: null, pollTimer: null, editingNative: null };
+
+const $ = id => document.getElementById(id);
+const api = (p, o = {}) => {
+  const t = localStorage.getItem("hyool_token");
+  const h = { "Content-Type": "application/json", ...(o.headers || {}) };
+  if (t) h["Authorization"] = "Bearer " + t;
+  return fetch(p, { credentials: "include", ...o, headers: h }).then(async r => {
+    let d; try { d = await r.json(); } catch { d = { success: false, error: "服务器返回异常。" }; }
+    if (!r.ok) throw new Error(d.error || "请求失败。");
+    return d;
+  });
+};
+const escapeHtml = s => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+let toastTimer = null;
+function toast(msg){ const el=$("toast"); el.textContent=msg; el.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove("show"), 2600); }
+function hashHue(s){ let h=0; for(let i=0;i<s.length;i++) h=s.charCodeAt(i)+((h<<5)-h); return Math.abs(h)%360; }
+
+const MODE_LABEL = { watch: "🌱 在线运转", hybrid: "⚡ 混合运转", always: "🌌 24h 后台" };
+const REL_LABEL = { friend:"好友", rival:"对手", enemy:"宿敌", family:"亲人", lover:"恋人", mentor:"师徒", neutral:"中立" };
+
+const worldId = new URLSearchParams(location.search).get("world") || "";
+
+function castMap(){ const m={}; (S.world.cast||[]).forEach(c=>m[c.id]=c); return m; }
+function avatarOf(actor){ const c=castMap()[actor]; return c && c.avatar ? c.avatar : ""; }
+
+function updateHeader(){
+  const life = S.world.life || {};
+  $("wMode").textContent = MODE_LABEL[life.mode] || life.mode || "";
+  $("wPause").style.display = life.paused ? "" : "none";
+  $("pauseBtn").textContent = life.paused ? "▶ 恢复" : "⏸ 暂停";
+  const sel = $("modelSel");
+  sel.value = life.model || "llama3-70b";
+  const mi = (S.models||[]).find(m=>m.id===sel.value);
+  sel.title = mi ? (mi.label + " — " + mi.advice) : "";
+}
+
+function fillModelSelects(){
+  const opts = (S.models||[]).map(m =>
+    `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}${m.status==="coming"?"（待上线）":""}</option>`).join("");
+  $("modelSel").innerHTML = opts || '<option value="llama3-70b">llama3.3-70B</option>';
+  $("runModel").innerHTML = opts || '<option value="llama3-70b">llama3.3-70B</option>';
+  updateHeader();
+  const mi = (S.models||[]).find(m=>m.id===(S.world.life||{}).model);
+  $("runModelHint").textContent = mi ? ("擅长：" + mi.advice) : "";
+}
+
+function renderThreads(){
+  const list = S.world.threads || [];
+  const cur = S.threadId;
+  let html = "";
+  list.forEach(t => {
+    html += `<button class="tchip${t.id===cur?" active":""}" onclick="switchThread('${t.id}')">${escapeHtml(t.title || "日常")}</button>`;
+  });
+  html += `<button class="tchip add" onclick="newThread()">＋ 新线程</button>`;
+  $("threadBar").innerHTML = html;
+}
+
+function renderFeed(){
+  const feed = $("feed");
+  feed.innerHTML = "";
+  S.msgs.forEach(m => feed.appendChild(bubble(m)));
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function bubble(m){
+  const wrap = document.createElement("div");
+  const self = m.actor === "user";
+  if (m.actor === "narrator" || m.actor === "narration") {
+    wrap.className = "narrator";
+    wrap.textContent = String(m.content || "");
+    return wrap;
+  }
+  wrap.className = "msg" + (self ? " self" : "");
+  const av = avatarOf(m.actor);
+  const hue = hashHue(m.name || m.actor || "?");
+  const t = document.createElement("div");
+  t.className = "col";
+  t.innerHTML =
+    `<div class="who" style="color:hsl(${hue},60%,72%)"><b>${escapeHtml(m.name || "某人")}</b>` +
+    (av ? `<img class="av" src="${escapeHtml(av)}" onerror="this.style.opacity=.2">` : `<div class="av" style="background:hsl(${hue},40%,22%)"></div>`) +
+    `<span class="time">${(m.created_at||"").slice(11,16)}</span></div>` +
+    `<div class="bub">${escapeHtml(m.content||"")}</div>`;
+  wrap.appendChild(t);
+  return wrap;
+}
+
+async function loadWorld(){
+  if (!worldId) {
+    $("feed").innerHTML = '<div class="narrator">缺少世界参数，<a href="/hub" style="color:#b7b7ff">返回工坊</a>。</div>';
+    return;
+  }
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life");
+    S.world = d.world;
+    document.title = S.world.name + " · HYOOL";
+    $("wName").textContent = S.world.name;
+    const md = await api("/api/models");
+    S.models = md.models || [];
+    fillModelSelects();
+    const cur = S.world.currentThread || (S.world.threads && S.world.threads[0]);
+    S.threadId = cur ? cur.id : "";
+    S.msgs = S.world.messages || [];
+    S.lastSeq = S.msgs.length ? S.msgs[S.msgs.length - 1].seq : 0;
+    renderThreads();
+    renderFeed();
+    renderSide();
+    updateHeader();
+    startLoop();
+    maybeGapSummary();
+  } catch (e) {
+    $("feed").innerHTML = '<div class="narrator">加载失败：' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function startLoop(){
+  stopLoop();
+  const life = S.world.life || {};
+  if (life.mode === "always") {
+    S.pollTimer = setInterval(poll, 15000);
+  } else {
+    const iv = Math.max(15, Number(life.tickIntervalSec) || 25) * 1000;
+    setTimeout(runTick, 1200);
+    S.timer = setInterval(runTick, iv);
+    S.pollTimer = setInterval(poll, 8000);
+  }
+}
+function stopLoop(){
+  if (S.timer) { clearInterval(S.timer); S.timer = null; }
+  if (S.pollTimer) { clearInterval(S.pollTimer); S.pollTimer = null; }
+}
+let ticking = false;
+async function runTick(){
+  if (ticking || !S.threadId) return;
+  const life = S.world.life || {};
+  if (life.paused) return;
+  ticking = true;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/tick", { method: "POST", body: JSON.stringify({ thread_id: S.threadId }) });
+    if (d.messages) appendMessages(d.messages);
+  } catch (e) { /* 抖动忽略 */ }
+  finally { ticking = false; }
+}
+async function poll(){
+  if (!S.threadId) return;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/messages?thread=" + encodeURIComponent(S.threadId) + "&after=" + S.lastSeq);
+    if (d.messages) appendMessages(d.messages);
+  } catch (e) { /* 抖动忽略 */ }
+}
+function switchThread(id){
+  S.threadId = id;
+  S.msgs = []; S.lastSeq = 0;
+  renderThreads();
+  $("feed").innerHTML = "";
+  loadMessages(id);
+}
+async function loadMessages(id){
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/messages?thread=" + encodeURIComponent(id) + "&after=0");
+    S.msgs = d.messages || [];
+    S.lastSeq = S.msgs.length ? S.msgs[S.msgs.length - 1].seq : 0;
+    renderFeed();
+  } catch (e) { toast(e.message); }
+}
+async function newThread(){
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/threads", { method: "POST", body: JSON.stringify({ kind: "auto", title: "日常" }) });
+    S.world.threads = d.threads || S.world.threads;
+    S.threadId = d.thread.id;
+    S.world.life.currentThreadId = d.thread.id;
+    S.msgs = []; S.lastSeq = 0;
+    renderThreads(); renderFeed();
+    toast("已开启新线程。");
+  } catch (e) { toast(e.message); }
+}
+async function send(){
+  const el = $("msgInput");
+  const msg = el.value.trim();
+  if (!msg || !S.threadId) return;
+  const btn = $("sendBtn");
+  btn.disabled = true;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/chat", { method: "POST", body: JSON.stringify({ thread_id: S.threadId, message: msg }) });
+    el.value = "";
+    appendMessages(d.messages || []);
+  } catch (e) { toast(e.message); }
+  finally { btn.disabled = false; el.focus(); }
+}
+async function togglePause(){
+  const life = S.world.life || {};
+  const paused = !life.paused;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/settings", { method: "POST", body: JSON.stringify({ life: { paused } }) });
+    S.world.life = d.life || { ...life, paused };
+    updateHeader();
+    if (paused) stopLoop(); else startLoop();
+    toast(paused ? "世界已暂停。" : "世界继续运转。");
+  } catch (e) { toast(e.message); }
+}
+async function maybeGapSummary(){
+  const life = S.world.life || {};
+  if (life.mode === "watch" || !S.msgs.length) return;
+  const last = new Date(S.msgs[S.msgs.length - 1].created_at).getTime();
+  if (!last) return;
+  const gapMin = (Date.now() - last) / 60000;
+  if (gapMin < 30) return;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/summary", { method: "POST", body: JSON.stringify({ thread_id: S.threadId }) });
+    if (d.summary) {
+      const el = document.createElement("div");
+      el.className = "narrator";
+      el.textContent = "📌 你不在的这段时间：" + d.summary;
+      $("feed").insertBefore(el, $("feed").firstChild);
+    }
+  } catch (e) {}
+}
+
+function appendMessages(list){
+  if (!list || !list.length) return;
+  const feed = $("feed");
+  let added = false;
+  list.forEach(m => {
+    if (m.seq > S.lastSeq) {
+      S.msgs.push(m);
+      feed.appendChild(bubble(m));
+      S.lastSeq = m.seq;
+      added = true;
+    }
+  });
+  if (added) feed.scrollTop = feed.scrollHeight;
+}
+
+function renderSide(){
+  const bg = S.world.background || {};
+  $("bgEra").value = bg.era || "";
+  $("bgPlace").value = bg.place || "";
+  $("bgTone").value = bg.tone || "";
+  $("bgRule").value = bg.rule || "";
+  $("bgNote").value = bg.note || "";
+  renderCastList();
+  renderRelForm();
+  renderRelList();
+  renderScenePresent();
+  renderSceneList();
+  const life = S.world.life || {};
+  document.querySelectorAll("#panel-run .opt-radio").forEach(el => el.classList.toggle("active", el.dataset.mode === life.mode));
+  document.querySelectorAll('input[name="mode"]').forEach(r => { r.checked = r.value === life.mode; });
+  $("runModel").value = life.model || "llama3-70b";
+  $("runTickSec").value = life.tickIntervalSec || 25;
+  $("runPauseBtn").textContent = life.paused ? "▶ 恢复运转" : "暂停运转";
+}
+
+/* ---- 原住民 ---- */
+function renderCastList(){
+  const list = S.world.natives || [];
+  $("castList").innerHTML = list.length ? list.map(n => `
+    <div class="cast-card">
+      ${n.avatar ? `<img src="${escapeHtml(n.avatar)}" onerror="this.style.opacity=.2">` : `<div style="width:36px;height:36px;border-radius:50%;background:hsl(${hashHue(n.id)},40%,22%);flex-shrink:0"></div>`}
+      <div class="cc"><b>${escapeHtml(n.name)}</b><small>世界原住民</small><p>${escapeHtml((n.personality || n.background || "").slice(0, 30))}</p></div>
+      <div class="row">
+        <button class="btn ghost" onclick="editNative('${escapeHtml(n.id)}')">✏️</button>
+        <button class="btn del" onclick="delNative('${escapeHtml(n.id)}')">🗑️</button>
+      </div>
+    </div>`).join("")
+    : '<p style="color:var(--muted);font-size:.8rem">还没有原住民。先 AI 生成或手动添加一位吧。</p>';
+}
+function editNative(id){
+  const n = (S.world.natives || []).find(x => x.id === id);
+  if (!n) return;
+  S.editingNative = n;
+  $("natName").value = n.name || "";
+  $("natAvatar").value = n.avatar || "";
+  $("natPersona").value = [n.appearance, n.personality, n.background, n.speech_style].filter(Boolean).join("\n");
+  $("natAdd").textContent = "保存修改";
+  toast("正在编辑「" + n.name + "」，改完点保存修改。");
+}
+async function genNative(){
+  const idea = $("natIdea").value.trim();
+  if (!idea) { toast("先写一句描述。"); return; }
+  const btn = $("natGen"); btn.disabled = true; btn.textContent = "生成中…";
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/natives", { method: "POST", body: JSON.stringify({ idea }) });
+    S.world.natives = (S.world.natives || []).concat([d.native]);
+    renderSide();
+    toast("「" + d.native.name + "」出生了 🌱");
+  } catch (e) { toast(e.message); }
+  finally { btn.disabled = false; btn.textContent = "✨ AI 生成原住民"; }
+}
+async function addOrUpdateNative(){
+  const name = $("natName").value.trim();
+  const avatar = $("natAvatar").value.trim();
+  const persona = $("natPersona").value.trim().split(/\n+/).map(s => s.trim());
+  const [appearance = "", personality = "", background = "", speech_style = ""] = persona;
+  if (!name) { toast("请填写名字。"); return; }
+  if (S.editingNative) {
+    try {
+      const d = await api("/api/worlds/" + worldId + "/life/natives/" + S.editingNative.id + "/update", { method: "POST", body: JSON.stringify({ name, avatar, appearance, personality, background, speech_style }) });
+      S.world.natives = d.natives || S.world.natives;
+      S.editingNative = null;
+      $("natAdd").textContent = "手动添加";
+      renderSide();
+      toast("原住民已更新。");
+    } catch (e) { toast(e.message); }
+    return;
+  }
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/natives", { method: "POST", body: JSON.stringify({ native: { name, appearance, personality, background, speech_style }, avatar }) });
+    S.world.natives = (S.world.natives || []).concat([d.native]);
+    renderSide();
+    toast("已添加「" + d.native.name + "」。");
+    $("natName").value = ""; $("natPersona").value = ""; $("natAvatar").value = "";
+  } catch (e) { toast(e.message); }
+}
+async function delNative(id){
+  if (!confirm("删除这位原住民？相关关系与场景出场也会一并清理。")) return;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/natives/" + id + "/delete", { method: "POST" });
+    S.world.natives = d.natives || S.world.natives;
+    renderSide();
+    toast("原住民已离开这个世界。");
+  } catch (e) { toast(e.message); }
+}
+
+/* ---- 关系 ---- */
+function renderRelForm(){
+  const cast = S.world.cast || [];
+  const opts = cast.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
+  $("relA").innerHTML = opts;
+  $("relB").innerHTML = opts;
+}
+function renderRelList(){
+  const rels = S.world.relations || [];
+  const cm = castMap();
+  $("relList").innerHTML = rels.length ? rels.map(r => {
+    const na = cm[r.a], nb = cm[r.b];
+    return `<div class="rel-row"><span>${escapeHtml(na ? na.name : r.a)}</span><span class="rk">${REL_LABEL[r.kind] || r.kind}</span><span>${escapeHtml(nb ? nb.name : r.b)}</span>${r.note ? `<small style="color:var(--muted)">${escapeHtml(r.note)}</small>` : ""}<button class="btn del" style="margin-left:auto;padding:4px 8px" onclick="delRel('${escapeHtml(r.a)}','${escapeHtml(r.b)}')">✕</button></div>`;
+  }).join("") : '<p style="color:var(--muted);font-size:.8rem">还没有角色关系。建立好友、宿敌或亲人关系，世界会更立体。</p>';
+}
+async function addRel(){
+  const a = $("relA").value, b = $("relB").value, kind = $("relKind").value, note = $("relNote").value.trim();
+  if (!a || !b || a === b) { toast("请选择两个不同的角色。"); return; }
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/relations", { method: "POST", body: JSON.stringify({ a, b, kind, note }) });
+    S.world.relations = d.relations || S.world.relations;
+    renderRelList();
+    toast("关系已建立。");
+  } catch (e) { toast(e.message); }
+}
+async function delRel(a, b){
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/relations", { method: "POST", body: JSON.stringify({ delete: { a, b } }) });
+    S.world.relations = d.relations || S.world.relations;
+    renderRelList();
+  } catch (e) { toast(e.message); }
+}
+
+/* ---- 场景 ---- */
+function renderScenePresent(){
+  const cast = S.world.cast || [];
+  $("scPresent").innerHTML = cast.map(c => `<label style="display:inline-flex;align-items:center;gap:6px;margin:0 10px 6px 0;font-size:.8rem"><input type="checkbox" class="scp" value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</label>`).join("") || '<span style="color:var(--muted);font-size:.78rem">暂无角色</span>';
+}
+function renderSceneList(){
+  const scenes = S.world.scenes || [];
+  const cm = castMap();
+  $("sceneList").innerHTML = scenes.length ? scenes.map(s => `
+    <div class="scene-card">
+      <b>${escapeHtml(s.name)}</b>${s.location ? ` <span style="color:var(--muted);font-size:.75rem">@ ${escapeHtml(s.location)}</span>` : ""}
+      <p>${escapeHtml(s.desc || "")}</p>
+      <div class="rc">在场：${(s.present || []).map(p => escapeHtml(cm[p] ? cm[p].name : p)).join("、") || "全部"}</div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sav" onclick="enterScene('${escapeHtml(s.id)}')">进入场景</button>
+        <button class="btn del" onclick="delScene('${escapeHtml(s.id)}')">删除</button>
+      </div>
+    </div>`).join("") : '<p style="color:var(--muted);font-size:.8rem">还没有场景。设定背景，让角色们在特定现场展开剧情。</p>';
+}
+async function createScene(){
+  const name = $("scName").value.trim();
+  if (!name) { toast("请给场景起个名字。"); return; }
+  const present = [...document.querySelectorAll(".scp:checked")].map(c => c.value);
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/scenes", { method: "POST", body: JSON.stringify({ scene: { name, location: $("scLocation").value.trim(), desc: $("scDesc").value.trim(), present, opening: $("scOpening").value.trim() } }) });
+    S.world.scenes = d.scenes || S.world.scenes;
+    renderSceneList();
+    $("scName").value = ""; $("scLocation").value = ""; $("scDesc").value = ""; $("scOpening").value = "";
+    document.querySelectorAll(".scp").forEach(c => c.checked = false);
+    toast("场景「" + name + "」已创建。");
+  } catch (e) { toast(e.message); }
+}
+async function enterScene(id){
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/threads", { method: "POST", body: JSON.stringify({ kind: "scene", scene_id: id }) });
+    S.world.threads = d.threads || S.world.threads;
+    S.threadId = d.thread.id;
+    S.world.life.currentThreadId = d.thread.id;
+    S.msgs = []; S.lastSeq = 0;
+    renderThreads(); renderFeed();
+    loadMessages(d.thread.id);
+    toast("已进入场景线程。");
+  } catch (e) { toast(e.message); }
+}
+async function delScene(id){
+  if (!confirm("删除这个场景？关联的场景线程将被关闭。")) return;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/scenes", { method: "POST", body: JSON.stringify({ deleteScene: id }) });
+    S.world.scenes = d.scenes || S.world.scenes;
+    renderSceneList();
+    toast("场景已删除。");
+  } catch (e) { toast(e.message); }
+}
+
+/* ---- 运转 / 背景 / 模型 ---- */
+let pendingMode = null;
+function pickMode(m){
+  pendingMode = m;
+  document.querySelectorAll("#panel-run .opt-radio").forEach(el => el.classList.toggle("active", el.dataset.mode === m));
+  document.querySelectorAll('input[name="mode"]').forEach(r => { r.checked = r.value === m; });
+}
+async function saveRun(){
+  const mode = pendingMode || (S.world.life || {}).mode;
+  const model = $("runModel").value;
+  const tickIntervalSec = parseInt($("runTickSec").value, 10) || 25;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/settings", { method: "POST", body: JSON.stringify({ life: { mode, model, tickIntervalSec } }) });
+    S.world.life = d.life || S.world.life;
+    pendingMode = null;
+    updateHeader(); fillModelSelects();
+    startLoop();
+    toast("运转设置已保存。");
+  } catch (e) { toast(e.message); }
+}
+async function saveBg(){
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/background", { method: "POST", body: JSON.stringify({ background: { era: $("bgEra").value.trim(), place: $("bgPlace").value.trim(), tone: $("bgTone").value.trim(), rule: $("bgRule").value.trim(), note: $("bgNote").value.trim() } }) });
+    S.world.background = d.background || S.world.background;
+    toast("世界背景已保存。");
+  } catch (e) { toast(e.message); }
+}
+async function onModelChange(){
+  const model = $("modelSel").value;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/settings", { method: "POST", body: JSON.stringify({ life: { model } }) });
+    S.world.life = d.life || S.world.life;
+    updateHeader(); fillModelSelects();
+    toast("对话模型已切换。");
+  } catch (e) { toast(e.message); }
+}
+
+/* ---- 侧栏 ---- */
+function openPanel(p){
+  $("side").classList.add("open");
+  document.querySelectorAll(".side-tabs button").forEach(b => b.classList.toggle("active", b.dataset.panel === p));
+  document.querySelectorAll(".side-body section").forEach(s => s.classList.toggle("active", s.id === "panel-" + p));
+}
+function closeSide(){ $("side").classList.remove("open"); }
+
+/* ---- 事件绑定 ---- */
+document.addEventListener("DOMContentLoaded", () => {
+  $("sendBtn").addEventListener("click", send);
+  $("msgInput").addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  $("pauseBtn").addEventListener("click", togglePause);
+  $("openSide").addEventListener("click", () => openPanel("bg"));
+  $("closeSide").addEventListener("click", closeSide);
+  document.querySelectorAll(".side-tabs button").forEach(b => b.addEventListener("click", () => openPanel(b.dataset.panel)));
+  $("bgSave").addEventListener("click", saveBg);
+  $("natGen").addEventListener("click", genNative);
+  $("natAdd").addEventListener("click", addOrUpdateNative);
+  $("relAdd").addEventListener("click", addRel);
+  $("scSave").addEventListener("click", createScene);
+  $("runSave").addEventListener("click", saveRun);
+  $("runPauseBtn").addEventListener("click", togglePause);
+  $("modelSel").addEventListener("change", onModelChange);
+  $("runModel").addEventListener("change", () => {
+    const mi = (S.models || []).find(m => m.id === $("runModel").value);
+    $("runModelHint").textContent = mi ? ("擅长：" + mi.advice) : "";
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!S.world) return;
+    if (document.hidden) stopLoop();
+    else { startLoop(); poll(); }
+  });
+  loadWorld();
+});
+</script>
+</body>
+</html>
+
+
+
+
+

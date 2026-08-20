@@ -1,4 +1,4 @@
-import { handleMvpRoutes } from "./mvp.js";
+import { handleMvpRoutes, handleWorldCron } from "./mvp.js";
 import { handleTtsRequest, TTS_VOICES } from "./tts.js";
 
 
@@ -1601,6 +1601,11 @@ export default {
         ===================================================== */
 
         return env.ASSETS.fetch(request);
+    },
+
+    /** 生命世界 24h 后台 / 混合模式自主运转（每 15 分钟触发一次，按各世界冷却间隔收敛） */
+    async scheduled(event, env, ctx) {
+        ctx.waitUntil(handleWorldCron(env));
     }
 };
 

@@ -18,3 +18,7 @@ database_id = "86e8193a-c300-4d58-9fed-c3d7b9e98af2"
 [[vectorize]]
 binding = "VECTORIZE"
 index_name = "hyool-memory"
+
+[triggers]
+# 生命世界后台自主运转（watch 模式仅在线运转，不依赖 cron）
+crons = ["*/15 * * * *"]

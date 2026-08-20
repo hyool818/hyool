@@ -5,8 +5,14 @@
     generateCharacterImage,
     regenerateCharacterImage,
     buildPortraitSvg,
-    generateScriptFromConversation
+    generateScriptFromConversation,
+    generateNativeCharacter,
+    generateWorldLine,
+    pickNextSpeakers,
+    summarizeWorldGap,
+    normalizeModelId
 } from "./ai/gateway.js";
+import { listModelInfos } from "./ai/models.js";
 import { TTS_VOICES } from "./tts.js";
 
 // 所有可用语音 id（创建/保存角色时校验 voice）
@@ -529,6 +535,10 @@ export async function handleMvpRoutes(
 
     /* ----- WORLDS (自定义世界) ----- */
 
+    if (pathname === "/api/models" && method === "GET") {
+        return json({ success: true, models: listModelInfos() });
+    }
+
     if (pathname === "/api/worlds" && method === "GET") {
         try {
             const user = await getAuthenticatedUser(request);
@@ -575,7 +585,7 @@ export async function handleMvpRoutes(
             }
 
             const description = String(body.description || "").trim().slice(0, 1200);
-            const type = ["story", "vn", "game", "mixed"].includes(body.type) ? body.type : "story";
+            const type = ["story", "vn", "game", "mixed", "life"].includes(body.type) ? body.type : "story";
             const castRaw = Array.isArray(body.cast_ids) ? body.cast_ids.map(String) : [];
             const castIds = [...new Set(castRaw)].slice(0, 12);
             const coverImage = String(body.cover_image || "").trim().slice(0, 2000);
@@ -600,16 +610,54 @@ export async function handleMvpRoutes(
             const worldId = "world_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
             const shareId = "w" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
 
+            // 生命世界：初始化 world_json（背景 / 原住民 / 关系 / 场景 / 运转配置）
+            let worldJson = null;
+            if (type === "life") {
+                const rawWj = (body.world_json && typeof body.world_json === "object" && !Array.isArray(body.world_json))
+                    ? body.world_json
+                    : {};
+                worldJson = {
+                    background: sanitizeBackground(rawWj.background),
+                    natives: [],
+                    relations: [],
+                    scenes: [],
+                    life: { ...LIFE_DEFAULTS, ...sanitizeLifeSettings(rawWj.life) }
+                };
+                if (!worldJson.background.note && description) {
+                    worldJson.background.note = description;
+                }
+                if (rawWj.background && typeof rawWj.background === "object") {
+                    // 允许向导把简单描述映射进 note
+                    if (!worldJson.background.note && String(rawWj.background.note || "").trim()) {
+                        worldJson.background.note = String(rawWj.background.note).trim().slice(0, 800);
+                    }
+                }
+            }
+
             await env.DB.prepare(
                 `INSERT INTO worlds
-                 (id, owner_id, name, description, type, cover_image, script_json, cast_ids, settings, source_conversation, status, share_id, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+                 (id, owner_id, name, description, type, cover_image, script_json, cast_ids, settings, source_conversation, status, share_id, world_json, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
             ).bind(
                 worldId, user.id, name, description, type, coverImage,
                 JSON.stringify([]), JSON.stringify(castIds), JSON.stringify(settings),
                 String(body.source_conversation || "").trim().slice(0, 60),
-                "draft", shareId
+                "draft", shareId,
+                JSON.stringify(worldJson || {})
             ).run();
+
+            // 生命世界：创建初始「日常」线程并指向它
+            if (type === "life" && worldJson) {
+                const threadId = "wt_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+                await env.DB.prepare(
+                    `INSERT INTO world_threads (id, world_id, kind, scene_id, title, status, turn, created_at, updated_at)
+                     VALUES (?, ?, 'auto', '', '日常', 'active', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+                ).bind(threadId, worldId).run();
+                worldJson.life.currentThreadId = threadId;
+                await env.DB.prepare(
+                    "UPDATE worlds SET world_json = ? WHERE id = ?"
+                ).bind(JSON.stringify(worldJson), worldId).run();
+            }
 
             const created = await getWorldById(env, worldId);
             return json({ success: true, world: await formatWorld(env, created) });
@@ -686,6 +734,10 @@ export async function handleMvpRoutes(
                 sets.push("settings = ?");
                 vals.push(JSON.stringify(body.settings));
             }
+            if (body.world_json !== undefined && body.world_json && typeof body.world_json === "object" && !Array.isArray(body.world_json)) {
+                sets.push("world_json = ?");
+                vals.push(JSON.stringify(body.world_json));
+            }
             if (typeof body.status === "string" && ["draft", "published"].includes(body.status)) {
                 sets.push("status = ?");
                 vals.push(body.status);
@@ -725,6 +777,402 @@ export async function handleMvpRoutes(
         } catch (error) {
             console.error("WORLD DELETE ERROR:", error);
             return json({ success: false, error: "删除失败。" }, 500);
+        }
+    }
+
+    /* ----- LIFE WORLD (生命世界) ----- */
+
+    const lifeMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life$/);
+    const lifeNativesMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/natives$/);
+    const lifeNativeMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/natives\/(wc_[a-z0-9]+)\/(update|delete)$/);
+    const lifeBackgroundMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/background$/);
+    const lifeRelationsMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/relations$/);
+    const lifeScenesMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/scenes$/);
+    const lifeThreadsMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/threads$/);
+    const lifeChatMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/chat$/);
+    const lifeTickMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/tick$/);
+    const lifeMessagesMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/messages$/);
+    const lifeSettingsMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/settings$/);
+    const lifeSummaryMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/summary$/);
+
+    // 校验生命世界归属；返回 { user, world } 或直接返回错误 Response
+    async function requireOwnedLifeWorld(id) {
+        const user = await getAuthenticatedUser(request);
+        if (!user) {
+            return json({ success: false, error: "请先登录。" }, 401);
+        }
+        const world = await getWorldById(env, id);
+        if (!world) {
+            return json({ success: false, error: "世界不存在。" }, 404);
+        }
+        if (world.owner_id !== user.id) {
+            return json({ success: false, error: "无权操作这个世界。" }, 403);
+        }
+        if (world.type !== "life") {
+            return json({ success: false, error: "这个世界不是生命世界。" }, 400);
+        }
+        return { user, world };
+    }
+
+    if (lifeMatch && method === "GET") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeMatch[1]);
+            if (!auth.world) return auth;
+            return json(await formatLifeWorld(env, auth.world));
+        } catch (error) {
+            console.error("LIFE GET ERROR:", error);
+            return json({ success: false, error: "世界加载失败。" }, 500);
+        }
+    }
+
+    if (lifeNativesMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeNativesMatch[1]);
+            if (!auth.world) return auth;
+            const { world } = auth;
+            const body = await request.json();
+            const idea = String(body.idea || "").trim().slice(0, 2000);
+            const mock = body.mock === true;
+            let native = null;
+
+            if (idea) {
+                native = await generateNativeCharacter({ idea, world, env, mock });
+            } else if (body.native && typeof body.native === "object") {
+                const n = body.native;
+                native = {
+                    name: String(n.name || "").trim().slice(0, 40),
+                    appearance: String(n.appearance || "").trim().slice(0, 800),
+                    personality: String(n.personality || "").trim().slice(0, 800),
+                    background: String(n.background || "").trim().slice(0, 2000),
+                    speech_style: String(n.speech_style || "").trim().slice(0, 400)
+                };
+            }
+
+            if (!native || !native.name) {
+                return json({ success: false, error: "请输入描述，或填写名字与人设。" }, 400);
+            }
+
+            const wj = await loadWorldJson(env, world.id);
+            const full = {
+                id: "wc_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                ...native,
+                avatar: String(body.avatar || "").slice(0, 2000)
+            };
+            wj.natives.push(full);
+            await saveWorldJson(env, world.id, wj);
+            return json({ success: true, native: full, world_json: wj });
+        } catch (error) {
+            console.error("LIFE NATIVE CREATE ERROR:", error);
+            return json({ success: false, error: "原住民生成失败，请稍后再试。" }, 500);
+        }
+    }
+
+    /* __LIFE_P2__ */
+
+    if (lifeNativeMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeNativeMatch[1]);
+            if (!auth.world) return auth;
+            const nativeId = lifeNativeMatch[2];
+            const action = lifeNativeMatch[3];
+            const wj = await loadWorldJson(env, auth.world.id);
+            const idx = wj.natives.findIndex((n) => n.id === nativeId);
+            if (idx < 0) {
+                return json({ success: false, error: "原住民不存在。" }, 404);
+            }
+
+            if (action === "delete") {
+                wj.natives.splice(idx, 1);
+                wj.relations = (wj.relations || []).filter((r) => r.a !== nativeId && r.b !== nativeId);
+                (wj.scenes || []).forEach((s) => {
+                    if (Array.isArray(s.present)) s.present = s.present.filter((p) => p !== nativeId);
+                });
+            } else {
+                const body = await request.json();
+                const n = wj.natives[idx];
+                if (typeof body.name === "string" && body.name.trim()) n.name = body.name.trim().slice(0, 40);
+                if (typeof body.appearance === "string") n.appearance = body.appearance.slice(0, 800);
+                if (typeof body.personality === "string") n.personality = body.personality.slice(0, 800);
+                if (typeof body.background === "string") n.background = body.background.slice(0, 2000);
+                if (typeof body.speech_style === "string") n.speech_style = body.speech_style.slice(0, 400);
+                if (typeof body.avatar === "string") n.avatar = body.avatar.slice(0, 2000);
+            }
+
+            await saveWorldJson(env, auth.world.id, wj);
+            return json({ success: true, natives: wj.natives });
+        } catch (error) {
+            console.error("LIFE NATIVE UPDATE ERROR:", error);
+            return json({ success: false, error: "操作失败。" }, 500);
+        }
+    }
+
+    if (lifeBackgroundMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeBackgroundMatch[1]);
+            if (!auth.world) return auth;
+            const body = await request.json();
+            const wj = await loadWorldJson(env, auth.world.id);
+            wj.background = sanitizeBackground(body.background || {});
+            await saveWorldJson(env, auth.world.id, wj);
+            return json({ success: true, background: wj.background });
+        } catch (error) {
+            console.error("LIFE BACKGROUND ERROR:", error);
+            return json({ success: false, error: "保存失败。" }, 500);
+        }
+    }
+
+    if (lifeRelationsMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeRelationsMatch[1]);
+            if (!auth.world) return auth;
+            const body = await request.json();
+            const wj = await loadWorldJson(env, auth.world.id);
+
+            if (body.delete && body.delete.a && body.delete.b) {
+                wj.relations = (wj.relations || []).filter((r) =>
+                    !(r.a === body.delete.a && r.b === body.delete.b) &&
+                    !(r.a === body.delete.b && r.b === body.delete.a)
+                );
+                await saveWorldJson(env, auth.world.id, wj);
+                return json({ success: true, relations: wj.relations });
+            }
+
+            const a = String(body.a || "").slice(0, 40);
+            const b = String(body.b || "").slice(0, 40);
+            if (!a || !b || a === b) {
+                return json({ success: false, error: "请选择两个不同的角色。" }, 400);
+            }
+            const kind = LIFE_RELATION_KINDS.has(body.kind) ? body.kind : "neutral";
+            const note = String(body.note || "").trim().slice(0, 200);
+
+            const castIds = new Set((await resolveWorldCast(env, auth.world, wj)).map((c) => c.id));
+            if (!castIds.has(a) || !castIds.has(b)) {
+                return json({ success: false, error: "关系双方必须是这个世界里的角色。" }, 400);
+            }
+
+            wj.relations = (wj.relations || []).filter((r) =>
+                !(r.a === a && r.b === b) && !(r.a === b && r.b === a)
+            );
+            wj.relations.push({ a, b, kind, note });
+            await saveWorldJson(env, auth.world.id, wj);
+            return json({ success: true, relations: wj.relations });
+        } catch (error) {
+            console.error("LIFE RELATION ERROR:", error);
+            return json({ success: false, error: "保存失败。" }, 500);
+        }
+    }
+
+    /* __LIFE_P3__ */
+
+    if (lifeScenesMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeScenesMatch[1]);
+            if (!auth.world) return auth;
+            const body = await request.json();
+            const wj = await loadWorldJson(env, auth.world.id);
+
+            if (body.deleteScene) {
+                const sid = String(body.deleteScene).slice(0, 40);
+                wj.scenes = (wj.scenes || []).filter((s) => s.id !== sid);
+                await env.DB.prepare(
+                    "UPDATE world_threads SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE world_id = ? AND scene_id = ?"
+                ).bind(auth.world.id, sid).run();
+                await saveWorldJson(env, auth.world.id, wj);
+                return json({ success: true, scenes: wj.scenes });
+            }
+
+            const sc = (body.scene && typeof body.scene === "object") ? body.scene : {};
+            const name = String(sc.name || "").trim().slice(0, 60);
+            if (!name) {
+                return json({ success: false, error: "请给场景起个名字。" }, 400);
+            }
+            const present = Array.isArray(sc.present)
+                ? [...new Set(sc.present.map(String).filter(Boolean))].slice(0, 12)
+                : [];
+            const sceneObj = {
+                id: sc.id ? String(sc.id).slice(0, 40) : ("sc_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12)),
+                name,
+                location: String(sc.location || "").trim().slice(0, 80),
+                desc: String(sc.desc || "").trim().slice(0, 600),
+                present,
+                opening: String(sc.opening || "").trim().slice(0, 300)
+            };
+
+            const idx = (wj.scenes || []).findIndex((s) => s.id === sceneObj.id);
+            if (idx >= 0) wj.scenes[idx] = sceneObj;
+            else wj.scenes.push(sceneObj);
+
+            await saveWorldJson(env, auth.world.id, wj);
+            return json({ success: true, scenes: wj.scenes });
+        } catch (error) {
+            console.error("LIFE SCENE ERROR:", error);
+            return json({ success: false, error: "保存失败。" }, 500);
+        }
+    }
+
+    if (lifeThreadsMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeThreadsMatch[1]);
+            if (!auth.world) return auth;
+            const body = await request.json();
+            const kind = ["auto", "scene", "main"].includes(body.kind) ? body.kind : "auto";
+            const sceneId = String(body.scene_id || "").slice(0, 40);
+            const wj = await loadWorldJson(env, auth.world.id);
+
+            let thread = null;
+            if (kind === "scene" && sceneId) {
+                const exist = await env.DB.prepare(
+                    `SELECT * FROM world_threads WHERE world_id = ? AND kind = 'scene' AND scene_id = ? AND status = 'active' LIMIT 1`
+                ).bind(auth.world.id, sceneId).first();
+                if (exist) thread = exist;
+            }
+
+            if (!thread) {
+                const title = (kind === "scene" && sceneId)
+                    ? ((wj.scenes || []).find((s) => s.id === sceneId)?.name || "场景")
+                    : (String(body.title || "").trim().slice(0, 60) || (kind === "auto" ? "日常" : "主线"));
+                const id = "wt_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+                await env.DB.prepare(
+                    `INSERT INTO world_threads (id, world_id, kind, scene_id, title, status, turn, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, 'active', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+                ).bind(id, auth.world.id, kind, sceneId, title).run();
+                thread = { id, world_id: auth.world.id, kind, scene_id: sceneId, title, status: "active", turn: 0 };
+            }
+
+            wj.life.currentThreadId = thread.id;
+            await saveWorldJson(env, auth.world.id, wj);
+
+            const threads = await loadWorldThreads(env, auth.world.id);
+            return json({ success: true, thread: formatThread(thread), threads });
+        } catch (error) {
+            console.error("LIFE THREAD ERROR:", error);
+            return json({ success: false, error: "创建失败。" }, 500);
+        }
+    }
+
+    /* __LIFE_P4__ */
+
+    if (lifeChatMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeChatMatch[1]);
+            if (!auth.world) return auth;
+            const { user, world } = auth;
+            const body = await request.json();
+            const message = String(body.message || "").trim().slice(0, 2000);
+            if (!message) {
+                return json({ success: false, error: "请输入消息。" }, 400);
+            }
+
+            const wj = await loadWorldJson(env, world.id);
+            const thread = await pickLifeThread(env, world.id, wj, String(body.thread_id || ""));
+            if (!thread) {
+                return json({ success: false, error: "还没有可用线程，请先创建线程。" }, 400);
+            }
+
+            // 用户发言
+            const userMsg = await appendWorldMessages(env, thread.id, [
+                { actor: "user", name: user.username, content: message }
+            ]);
+
+            // 在场角色回应 1~2 名
+            let recent = await loadThreadMessages(env, thread.id, 24);
+            const activeCast = await activeCastForThread(env, world, wj, thread);
+            const speakers = pickNextSpeakers(activeCast, recent, activeCast.length >= 3 ? 2 : 1);
+            const replies = speakers.length
+                ? await runWorldTurn({ env, world, wj, thread, cast: activeCast, recent, speakers, userName: user.username, opening: false, mock: body.mock === true })
+                : [];
+
+            return json({ success: true, messages: [...userMsg, ...replies] });
+        } catch (error) {
+            console.error("LIFE CHAT ERROR:", error);
+            return json({ success: false, error: "发言失败，请稍后再试。" }, 500);
+        }
+    }
+
+    if (lifeTickMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeTickMatch[1]);
+            if (!auth.world) return auth;
+            const { user, world } = auth;
+            const body = await request.json();
+            const wj = await loadWorldJson(env, world.id);
+            if (wj.life.paused) {
+                return json({ success: true, skipped: true, reason: "paused", messages: [] });
+            }
+
+            const result = await runWorldTickCore(
+                env,
+                world,
+                wj,
+                2,
+                String(body.thread_id || ""),
+                user.username,
+                body.mock === true
+            );
+            return json({ success: true, ...result });
+        } catch (error) {
+            console.error("LIFE TICK ERROR:", error);
+            return json({ success: false, error: "世界运转出错了，请稍后再试。" }, 500);
+        }
+    }
+
+    if (lifeMessagesMatch && method === "GET") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeMessagesMatch[1]);
+            if (!auth.world) return auth;
+            const url = new URL(request.url);
+            const threadId = url.searchParams.get("thread") || "";
+            const after = parseInt(url.searchParams.get("after"), 10) || 0;
+            const wj = await loadWorldJson(env, auth.world.id);
+            const thread = await pickLifeThread(env, auth.world.id, wj, threadId);
+            if (!thread) {
+                return json({ success: true, thread: null, messages: [] });
+            }
+            const result = await env.DB.prepare(
+                `SELECT id, seq, actor, name, content, created_at
+                 FROM world_messages
+                 WHERE thread_id = ? AND seq > ?
+                 ORDER BY seq ASC LIMIT 100`
+            ).bind(thread.id, after).all();
+            return json({ success: true, thread: formatThread(thread), messages: result.results || [] });
+        } catch (error) {
+            console.error("LIFE MESSAGES ERROR:", error);
+            return json({ success: false, error: "消息加载失败。" }, 500);
+        }
+    }
+
+    if (lifeSettingsMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeSettingsMatch[1]);
+            if (!auth.world) return auth;
+            const body = await request.json();
+            const wj = await loadWorldJson(env, auth.world.id);
+            const life = (body.life && typeof body.life === "object") ? body.life : {};
+            wj.life = { ...wj.life, ...sanitizeLifeSettings(life) };
+            await saveWorldJson(env, auth.world.id, wj);
+            return json({ success: true, life: wj.life });
+        } catch (error) {
+            console.error("LIFE SETTINGS ERROR:", error);
+            return json({ success: false, error: "保存失败。" }, 500);
+        }
+    }
+
+    if (lifeSummaryMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeSummaryMatch[1]);
+            if (!auth.world) return auth;
+            const body = await request.json();
+            const wj = await loadWorldJson(env, auth.world.id);
+            const thread = await pickLifeThread(env, auth.world.id, wj, String(body.thread_id || ""));
+            if (!thread) {
+                return json({ success: true, summary: "" });
+            }
+            const messages = await loadThreadMessages(env, thread.id, 60);
+            const summary = await summarizeWorldGap({ world: auth.world, messages, modelId: wj.life.model, env });
+            return json({ success: true, summary });
+        } catch (error) {
+            console.error("LIFE SUMMARY ERROR:", error);
+            return json({ success: false, error: "摘要生成失败。" }, 500);
         }
     }
 
@@ -1566,6 +2014,8 @@ async function formatWorld(env, row) {
         } catch { /* 角色可能已删除，忽略 */ }
     }
 
+    const worldJson = row.type === "life" ? parseWorldJson(row) : null;
+
     return {
         id: row.id,
         owner_id: row.owner_id,
@@ -1580,10 +2030,346 @@ async function formatWorld(env, row) {
         source_conversation: row.source_conversation,
         status: row.status,
         share_id: row.share_id,
-        play_url: (row.type === "game" || row.type === "mixed") ? `/game-workshop?world=${row.id}` : null,
+        play_url: (row.type === "game" || row.type === "mixed")
+            ? `/game-workshop?world=${row.id}`
+            : (row.type === "life" ? `/world?world=${row.id}` : null),
+        world_json: worldJson,
+        life_mode: worldJson ? worldJson.life.mode : null,
+        life_paused: worldJson ? worldJson.life.paused : null,
+        natives_count: worldJson ? (worldJson.natives || []).length : 0,
+        relations_count: worldJson ? (worldJson.relations || []).length : 0,
+        scenes_count: worldJson ? (worldJson.scenes || []).length : 0,
         created_at: row.created_at,
         updated_at: row.updated_at
     };
+}
+
+/* ----- LIFE WORLD helpers ----- */
+
+const LIFE_DEFAULTS = {
+    mode: "watch",               // watch（在线运转）| hybrid（混合）| always（24h 后台）
+    paused: false,
+    model: "llama3-70b",         // 对话模型 id（见 src/ai/models.js）
+    tickIntervalSec: 25,
+    cronIntervalMin: 40,
+    cronIntervalMinAway: 90,
+    lastTickAt: 0,
+    ticksToday: 0,
+    tickDay: "",
+    currentThreadId: ""
+};
+
+const LIFE_RELATION_KINDS = new Set(["friend", "rival", "enemy", "family", "lover", "mentor", "neutral"]);
+
+function sanitizeBackground(bg) {
+    const o = (bg && typeof bg === "object" && !Array.isArray(bg)) ? bg : {};
+    return {
+        era: String(o.era || "").slice(0, 80),
+        place: String(o.place || "").slice(0, 80),
+        tone: String(o.tone || "").slice(0, 120),
+        rule: String(o.rule || "").slice(0, 400),
+        note: String(o.note || "").slice(0, 800)
+    };
+}
+
+function sanitizeLifeSettings(life) {
+    const o = (life && typeof life === "object" && !Array.isArray(life)) ? life : {};
+    const mode = ["watch", "hybrid", "always"].includes(o.mode) ? o.mode : LIFE_DEFAULTS.mode;
+    return {
+        mode,
+        paused: !!o.paused,
+        model: normalizeModelId(o.model),
+        tickIntervalSec: Math.min(120, Math.max(15, parseInt(o.tickIntervalSec, 10) || LIFE_DEFAULTS.tickIntervalSec)),
+        cronIntervalMin: Math.min(480, Math.max(15, parseInt(o.cronIntervalMin, 10) || LIFE_DEFAULTS.cronIntervalMin)),
+        cronIntervalMinAway: Math.min(720, Math.max(30, parseInt(o.cronIntervalMinAway, 10) || LIFE_DEFAULTS.cronIntervalMinAway))
+    };
+}
+
+function parseWorldJson(row) {
+    let wj = {};
+    try { wj = JSON.parse(row?.world_json || "{}"); } catch { wj = {}; }
+    if (!wj || typeof wj !== "object" || Array.isArray(wj)) wj = {};
+    wj.background = sanitizeBackground(wj.background);
+    wj.natives = Array.isArray(wj.natives) ? wj.natives : [];
+    wj.relations = Array.isArray(wj.relations) ? wj.relations : [];
+    wj.scenes = Array.isArray(wj.scenes) ? wj.scenes : [];
+    wj.life = { ...LIFE_DEFAULTS, ...sanitizeLifeSettings(wj.life) };
+    wj.life.lastTickAt = Number(wj.life.lastTickAt) || 0;
+    wj.life.ticksToday = Number(wj.life.ticksToday) || 0;
+    wj.life.currentThreadId = String(wj.life.currentThreadId || "");
+    return wj;
+}
+
+async function loadWorldJson(env, worldId) {
+    const row = await env.DB.prepare("SELECT world_json FROM worlds WHERE id = ?").bind(worldId).first();
+    return parseWorldJson(row);
+}
+
+async function saveWorldJson(env, worldId, wj) {
+    await env.DB.prepare(
+        "UPDATE worlds SET world_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).bind(JSON.stringify(wj), worldId).run();
+}
+
+/** 世界全体角色：原住民（wc_）+ 邀请的公共角色（char_） */
+async function resolveWorldCast(env, world, wj) {
+    const cast = [];
+    (wj.natives || []).forEach((n) => {
+        cast.push({
+            id: n.id,
+            name: n.name || "未名",
+            appearance: n.appearance || "",
+            personality: n.personality || "",
+            background: n.background || "",
+            speech_style: n.speech_style || "",
+            avatar: n.avatar || "",
+            source: "native"
+        });
+    });
+
+    let castIds = [];
+    try { castIds = JSON.parse(world.cast_ids || "[]"); } catch { castIds = []; }
+    const ids = castIds.map(String).filter(Boolean).slice(0, 12);
+    if (ids.length) {
+        const placeholders = ids.map(() => "?").join(",");
+        const rows = await env.DB.prepare(
+            `SELECT id, name, appearance, personality, background, speech_style, image_url
+             FROM characters WHERE id IN (${placeholders})`
+        ).bind(...ids).all();
+        const byId = new Map((rows.results || []).map((r) => [r.id, r]));
+        ids.forEach((id) => {
+            const r = byId.get(id);
+            if (r) {
+                cast.push({
+                    id: r.id,
+                    name: r.name || "未名",
+                    appearance: r.appearance || "",
+                    personality: r.personality || "",
+                    background: r.background || "",
+                    speech_style: r.speech_style || "",
+                    avatar: r.image_url || "",
+                    source: "global"
+                });
+            }
+        });
+    }
+    return cast;
+}
+
+async function loadWorldThreads(env, worldId) {
+    const result = await env.DB.prepare(
+        "SELECT id, world_id, kind, scene_id, title, status, turn, created_at, updated_at FROM world_threads WHERE world_id = ? AND status = 'active' ORDER BY updated_at DESC"
+    ).bind(worldId).all();
+    return (result.results || []).map(formatThread);
+}
+
+function formatThread(t) {
+    return {
+        id: t.id,
+        kind: t.kind,
+        scene_id: t.scene_id || "",
+        title: t.title || "",
+        status: t.status || "active",
+        turn: Number(t.turn) || 0,
+        created_at: t.created_at,
+        updated_at: t.updated_at
+    };
+}
+
+async function loadThreadMessages(env, threadId, limit) {
+    const result = await env.DB.prepare(
+        `SELECT id, seq, actor, name, content, created_at
+         FROM world_messages
+         WHERE thread_id = ?
+         ORDER BY seq DESC LIMIT ?`
+    ).bind(threadId, limit || 60).all();
+    return (result.results || []).reverse();
+}
+
+async function appendWorldMessages(env, threadId, items) {
+    if (!Array.isArray(items) || !items.length) return [];
+    const lastRow = await env.DB.prepare(
+        "SELECT COALESCE(MAX(seq), 0) AS m FROM world_messages WHERE thread_id = ?"
+    ).bind(threadId).first();
+    let seq = Number(lastRow?.m) || 0;
+
+    const inserts = items.map((item) => {
+        seq += 1;
+        const id = "wm_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+        return env.DB.prepare(
+            "INSERT INTO world_messages (id, thread_id, seq, actor, name, content, created_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+        ).bind(id, threadId, seq, String(item.actor || "narrator"), String(item.name || "").slice(0, 40), String(item.content || "").slice(0, 4000));
+    });
+
+    await env.DB.batch(inserts);
+    await env.DB.prepare(
+        "UPDATE world_threads SET turn = turn + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).bind(inserts.length, threadId).run();
+
+    const res = await env.DB.prepare(
+        `SELECT id, seq, actor, name, content, created_at
+         FROM world_messages
+         WHERE thread_id = ? AND seq > ?
+         ORDER BY seq ASC`
+    ).bind(threadId, seq - items.length).all();
+    return res.results || [];
+}
+
+/** 选定线程：优先指定 id，否则当前线程，否则最新活跃线程 */
+async function pickLifeThread(env, worldId, wj, threadId) {
+    const rows = await env.DB.prepare(
+        "SELECT * FROM world_threads WHERE world_id = ? AND status = 'active' ORDER BY updated_at DESC"
+    ).bind(worldId).all();
+    const list = rows.results || [];
+    if (!list.length) return null;
+
+    if (threadId) {
+        const hit = list.find((t) => t.id === threadId);
+        if (hit) return hit;
+    }
+    if (wj.life.currentThreadId) {
+        const cur = list.find((t) => t.id === wj.life.currentThreadId);
+        if (cur) return cur;
+    }
+    return list[0];
+}
+
+/** 线程限定在场角色（场景线程按 scene.present 过滤） */
+async function activeCastForThread(env, world, wj, thread) {
+    const cast = await resolveWorldCast(env, world, wj);
+    if (thread.kind === "scene" && thread.scene_id) {
+        const scene = (wj.scenes || []).find((s) => s.id === thread.scene_id);
+        if (scene && Array.isArray(scene.present) && scene.present.length) {
+            const filtered = cast.filter((c) => scene.present.includes(c.id));
+            if (filtered.length) return filtered;
+        }
+    }
+    return cast;
+}
+
+/** 让 1~2 名角色在给定线程里各说一句（共享：chat 回应 / tick / cron） */
+async function runWorldTurn({ env, world, wj, thread, cast, recent, speakers, userName, opening, mock }) {
+    const scene = (thread.kind === "scene" && thread.scene_id)
+        ? (wj.scenes || []).find((s) => s.id === thread.scene_id) || null
+        : null;
+    const newMessages = [];
+    for (const sp of speakers) {
+        const line = await generateWorldLine({
+            character: sp,
+            world: { name: world.name, background: wj.background, description: world.description },
+            scene,
+            relations: wj.relations || [],
+            recent: [...recent, ...newMessages],
+            userName,
+            modelId: wj.life.model,
+            env,
+            mock
+        });
+        if (line) {
+            newMessages.push({ actor: sp.id, name: sp.name, content: line });
+        }
+    }
+
+    const inserted = await appendWorldMessages(env, thread.id, newMessages);
+    if (inserted.length) {
+        const now = Date.now();
+        const day = new Date().toISOString().slice(0, 10);
+        if (wj.life.tickDay !== day) {
+            wj.life.tickDay = day;
+            wj.life.ticksToday = 0;
+        }
+        wj.life.lastTickAt = now;
+        wj.life.ticksToday = (wj.life.ticksToday || 0) + 1;
+        await saveWorldJson(env, world.id, wj);
+    }
+    return inserted;
+}
+
+/** 世界运转核心：tick（在线/cron 共用）。返回 { skipped, reason, messages } */
+async function runWorldTickCore(env, world, wj, speakerCount, threadId, userName, mock) {
+    const now = Date.now();
+    if (now - (Number(wj.life.lastTickAt) || 0) < 10000) {
+        return { skipped: true, reason: "cooldown", messages: [] };
+    }
+    const cast = await resolveWorldCast(env, world, wj);
+    if (!cast.length) {
+        return { skipped: true, reason: "no-cast", messages: [] };
+    }
+    const thread = await pickLifeThread(env, world.id, wj, threadId);
+    if (!thread) {
+        return { skipped: true, reason: "no-thread", messages: [] };
+    }
+    const activeCast = await activeCastForThread(env, world, wj, thread);
+    const recent = await loadThreadMessages(env, thread.id, 24);
+    const speakers = pickNextSpeakers(activeCast, recent, speakerCount || 1);
+    if (!speakers.length) {
+        return { skipped: true, reason: "no-speaker", messages: [] };
+    }
+    const opening = !recent.length;
+    const inserted = await runWorldTurn({
+        env, world, wj, thread, cast: activeCast, recent, speakers,
+        userName: userName || "TA", opening, mock
+    });
+    return { skipped: !inserted.length, reason: inserted.length ? "" : "no-line", messages: inserted };
+}
+
+/** 生命世界完整视图（world.html 首次加载用） */
+async function formatLifeWorld(env, world) {
+    const wj = parseWorldJson(world);
+    const cast = await resolveWorldCast(env, world, wj);
+    const threads = await loadWorldThreads(env, world.id);
+    let thread = threads.find((t) => t.id === wj.life.currentThreadId) || threads[0] || null;
+    const messages = thread ? await loadThreadMessages(env, thread.id, 60) : [];
+    return {
+        success: true,
+        world: {
+            id: world.id,
+            name: world.name,
+            description: world.description,
+            cover_image: world.cover_image,
+            status: world.status,
+            type: world.type,
+            background: wj.background,
+            natives: wj.natives,
+            relations: wj.relations,
+            scenes: wj.scenes,
+            life: wj.life,
+            cast,
+            threads,
+            currentThread: thread,
+            messages
+        }
+    };
+}
+
+/** Cron 触发器：24h 后台 / 混合模式的世界按各自间隔自主运转 */
+export async function handleWorldCron(env) {
+    const result = await env.DB.prepare(
+        "SELECT * FROM worlds WHERE type = 'life' ORDER BY updated_at DESC LIMIT 500"
+    ).all();
+    const now = Date.now();
+    let ticked = 0;
+    const errors = [];
+    for (const world of (result.results || [])) {
+        if (ticked >= 20) break; // 单次运行成本上限
+        const wj = parseWorldJson(world);
+        const life = wj.life;
+        if (life.paused) continue;
+        if (life.mode !== "always" && life.mode !== "hybrid") continue;
+        const intervalMin = life.mode === "always" ? life.cronIntervalMin : life.cronIntervalMinAway;
+        if (now - life.lastTickAt < intervalMin * 60000) continue;
+        const day = new Date().toISOString().slice(0, 10);
+        const ticksToday = (life.tickDay === day ? life.ticksToday : 0);
+        if (ticksToday >= 60) continue; // 每日上限，控制成本
+        try {
+            const owner = await env.DB.prepare("SELECT username FROM profiles WHERE id = ?").bind(world.owner_id).first();
+            await runWorldTickCore(env, world, wj, 1, "", owner?.username || "TA");
+            ticked += 1;
+        } catch (e) {
+            errors.push(world.id + ": " + String(e?.message || e));
+        }
+    }
+    return { success: true, ticked, errors };
 }
 
 async function ensureConversation(env, characterId, userId) {

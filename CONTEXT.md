@@ -134,6 +134,21 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **game-workshop.html（新建）**：三态播放器（narration / dialogue / choice，上一幕/下一步/选项跳转、剧终页、空剧本提示）。
 - **入口**：workspace/fantasy「生命」→ `/hub`；index 生命 650ms 后跳 /hub；yonder-home 新增 WORLDS section（`loadWorlds()/renderWorlds()`，卡片直达 `/hub?world=`）。
 
+## 已完成的「生命世界」多角色自主共存（本会话，待部署）
+
+用户对「自定义世界」的想象是**多 AI 角色自主共存的动态世界**，而非剧本容器。新增 `type="life"` 世界形态：
+
+- **数据**（`schema/migrate_life_worlds.sql`，已对 remote + local 执行）：
+  - `worlds` 加 `world_json` 列（背景 / 原住民 natives[] / 关系 relations[] / 场景 scenes[] / 运转 life{...}）
+  - 新表 `world_threads`（线程：auto/scene/main，`scene_id` 关联场景）与 `world_messages`（多角色消息流，`actor` 归属 + 线程内 `seq` 递增序号用于增量拉取）
+- **模型路由**（`src/ai/models.js` 新建）：四个可选对话模型 llama3-70B（现网）/ dsv4pro / XVERSE-Ent-25B / Qwen3-27B-Instruct（GPU 后端待上线）。`chatCompletions` 支持注册表 id 与原始 workers-ai id；provider `gpu` 走 OpenAI 兼容 `/chat/completions`，配置 `GPU_BASE_URL` + `GPU_API_KEY` 即启用，未配置自动回退 llama3-70B。前端选择器标注各模型「擅长领域建议」（`GET /api/models`）。
+- **gateway.js**：`generateNativeCharacter`（原住民生成）、`buildLifeSystemPrompt`（身份=世界原住民+世界观+现场+关系+发言规则）、`generateWorldLine`（单角色发言）、`pickNextSpeakers`（启发式挑发言人）、`summarizeWorldGap`（离开期间摘要）；全部带 mock 降级 + `mock` 参数（冒烟测试钩子）。
+- **mvp.js** `/api/worlds/:id/life/*`：`GET`（完整视图）/ `natives` 增改删 / `background` / `relations` / `scenes` / `threads` / `chat`（用户插话+回应）/ `tick`（自主运转，10s 冷却）/ `messages?after=`（增量拉取）/ `settings` / `summary`（补播摘要）。`POST /api/worlds` 放行 `life` 类型并初始化 world_json+初始线程；`formatWorld` 返回 `world_json`/`life_mode`/各计数，`play_url` → `/world?world=id`。
+- **运转三模式**（创建时可选，后台可切换）：watch=在线运转（页面开着才 tick）、hybrid=在线实时+离线补播（cron 慢节奏 + 打开时「期间摘要」）、always=24h 后台（cron 持续）。Cron：`wrangler.toml [triggers] crons = ["*/15 * * * *"]`，`index.js` 新增 `scheduled` → `handleWorldCron(env)`（按各世界冷却间隔+每日 60 次上限+单次最多 20 世界收敛成本）。
+- **前端**：`public/world.html`（新建）世界直播间——顶栏模式徽章/暂停/模型选择（带擅长领域提示）、线程栏、角色彩色气泡对话流、插话框（Enter 发送）、侧栏世界后台（背景/原住民 AI 生成+手动/关系/场景/运转设置）、watch/hybrid 在线 tick 循环 + visibilitychange 暂停 + 8s 轮询增量、always 仅轮询、hybrid 打开时补播摘要。
+- **hub.html**：载体新增「🌱 生命世界」；向导第 3 步在 life 形态显示「运转模式+对话模型」（标注建议）；卡片/详情徽章显示模式；详情「进入世界」→ `/world?world=id`。
+- **冒烟测试**：`public/world-check.html`（CDP，31 断言）：创建 life 世界→原住民 AI/手动→背景→关系→场景→场景线程→tick 自主发言→用户插话→增量拉取→运转设置切换→world.html 页面渲染（模式徽章/线程栏/消息流/侧栏/模型选择器）→清理，**全部 PASS**（走 `mock:true` 测试钩子，不依赖真实 LLM）。
+
 ## 本会话修复（均已部署 + live 验证）
 
 1. worlds 路由正则放行下划线：`/^\/api\/worlds\/(world_[a-z0-9_]+)$/`（GET/DELETE）—— 手动/演示 id 含下划线不再 404。
@@ -150,10 +165,12 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - `public/workshop-smoke-check.html`（CDP，30 断言）：A 三态播放 / B `?world=` 直达 + 剧本计数 + 进入工坊 / C buddy 沉淀按钮 + toast 跳转 / D choice 选项跳转 / E yonder-home 世界卡片 —— 全部 PASS，console 无错误。
 - 回归：patch-check / crop-compare-check（复跑后 OK）/ ui-check / hub-check / fantasy-check 全部 SMOKE-OK。
 - Live：`https://hyool.w910227a.workers.dev`（v c63e567e）注册→建 mixed 世界→列表→详情→`/game-workshop?world=` 200 全通。
+- **生命世界（本会话）**：`public/world-check.html`（CDP，31 断言）全部 PASS；回归 hub-check 34 断言 PASS、game-studio-check 29 断言 PASS；`/cdn-cgi/local/scheduled` 触发 200；`npx wrangler deploy --dry-run` 通过；`schema/migrate_life_worlds.sql` 已对 remote（22 表）+ local 执行成功。
 
 ## 待办状态
 
 - 首批剩余项 #3「游戏工坊」**已完成**：`game-studio.html` + `game-studio.js` + `game-studio-check.html`（28 断言 SMOKE-OK）+ fantasy 卡片激活 + 本文件同步。
-- 本地 dev 正常（AI 绑定已恢复）；`wrangler.toml` 无残留测试改动。
-- 本次改动（3 个新文件 + fantasy.html/fantasy-check.html/CONTEXT.md 修改）待 commit + push main 触发 CI 部署。
+- **生命世界（type="life"，多角色自主共存）已完成**：后端全链路 + 模型路由 + `world.html` 直播间 + hub 向导第 4 形态 + 三运转模式（watch/hybrid/always + cron）+ 31 断言冒烟 PASS。**待 commit + push main 触发 CI 部署**，部署后访问 `https://hyool.w910227a.workers.dev/hub` →「＋ 创造」→ 自定义世界 → 选「生命世界」体验。
+- 后续可做（用户主动提出再推进）：关系自动演化（随剧情变化）、世界消息清洗/归档（保留最近 N 条）、「沉淀为剧场回放」把世界历史转剧本、GPU 后端上线后启用 dsv4pro / XVERSE-Ent-25B / Qwen3-27B-Instruct（配置 `GPU_BASE_URL` + `GPU_API_KEY` 即可，代码已就绪）。
+- 注意：本地 dev 的 Workers AI 远程绑定当前可能因代理挂起（60s 超时）；冒烟测试已走 `mock:true` 钩子，不受影响。
 

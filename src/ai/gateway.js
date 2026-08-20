@@ -10,6 +10,13 @@
  *   AI_CREATE_MODEL  override character generation model id
  */
 
+import {
+    resolveChatTarget,
+    resolveModel,
+    isRegistryId,
+    DEFAULT_MODEL_ID
+} from "./models.js";
+
 const CHARACTER_SCHEMA = {
     name: "string",
     appearance: "string",
@@ -234,7 +241,7 @@ async function callChatModel(
     const reply = await chatCompletions(
         env,
         messages,
-        env.AI_CHAT_MODEL,
+        cfg.model || env.AI_CHAT_MODEL,
         temperature,
         max_tokens
     );
@@ -248,35 +255,69 @@ async function callChatModel(
 const DEFAULT_CHAT_MODEL   = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const DEFAULT_CREATE_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
+/**
+ * LLM 统一调用入口（支持模型路由）。
+ * modelOverride 可以是：
+ *   - 注册表模型 id（llama3-70b / dsv4pro / xverse-ent-25b / qwen3-27b-instruct）
+ *   - 原始 workers-ai 模型 id（以 @ 开头）
+ *   - 空 → 默认注册模型（llama3-70b）
+ * provider 为 gpu 且未配置 GPU_BASE_URL 时自动回退 Workers AI 默认模型。
+ */
 async function chatCompletions(env, messages, modelOverride, temperature = 0.9, max_tokens = 150) {
-    const model =
-        modelOverride ||
-        env.AI_CHAT_MODEL ||
-        DEFAULT_CHAT_MODEL;
+    let target = resolveChatTarget(modelOverride);
+
+    // 未指定时优先 env.AI_CHAT_MODEL（保持旧行为），否则用注册表默认模型
+    if (!modelOverride && env.AI_CHAT_MODEL) {
+        target = resolveChatTarget(env.AI_CHAT_MODEL);
+    }
+
+    // GPU 后端未配置 → 回退 Workers AI 默认模型
+    let usedFallback = false;
+    if (target.provider === "gpu" && !env.GPU_BASE_URL) {
+        usedFallback = true;
+        console.warn(`MODEL ROUTE: ${target.modelId} (gpu) 未配置 GPU_BASE_URL，回退 ${DEFAULT_MODEL_ID}。`);
+        const fallback = resolveModel(DEFAULT_MODEL_ID);
+        target = { provider: "workers-ai", modelId: fallback.modelId };
+    }
 
     let response;
     let lastError;
 
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
-            response = await Promise.race([
-                env.AI.run(model, {
+            if (target.provider === "gpu") {
+                response = await callGpuChat(
+                    env,
+                    target.modelId,
                     messages,
-                    max_tokens,
-                    temperature
-                }),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error("Workers AI 请求超时。")), 25000)
-                )
-            ]);
+                    temperature,
+                    max_tokens
+                );
+            } else {
+                response = await Promise.race([
+                    env.AI.run(target.modelId, {
+                        messages,
+                        max_tokens,
+                        temperature
+                    }),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error("Workers AI 请求超时。")), 25000)
+                    )
+                ]);
+            }
 
             const text =
-                response?.response ||
-                response?.result?.response ||
-                "";
+                typeof response === "string"
+                    ? response
+                    : (response?.response ||
+                        response?.result?.response ||
+                        response?.choices?.[0]?.message?.content ||
+                        "");
 
             if (text) {
-                return text;
+                return usedFallback
+                    ? String(text).trim()
+                    : String(text).trim();
             }
 
             return "（我一时不知该说什么……）";
@@ -292,7 +333,52 @@ async function chatCompletions(env, messages, modelOverride, temperature = 0.9, 
         }
     }
 
-    throw lastError || new Error("Workers AI failed after retries.");
+    throw lastError || new Error("LLM failed after retries.");
+}
+
+/** OpenAI 兼容 /chat/completions 调用（后端 GPU，待上线；配置 GPU_BASE_URL + GPU_API_KEY 即启用） */
+async function callGpuChat(env, modelId, messages, temperature, maxTokens) {
+    const baseUrl = String(env.GPU_BASE_URL || "").replace(/\/+$/, "");
+    const apiKey = env.GPU_API_KEY || "";
+
+    if (!baseUrl) {
+        throw new Error("GPU_BASE_URL 未配置。");
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+
+    try {
+        const res = await fetch(baseUrl + "/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(apiKey ? { Authorization: "Bearer " + apiKey } : {})
+            },
+            body: JSON.stringify({
+                model: modelId,
+                messages,
+                temperature,
+                max_tokens: maxTokens,
+                stream: false
+            }),
+            signal: controller.signal
+        });
+
+        if (!res.ok) {
+            throw new Error(`GPU backend HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        }
+
+        return await res.json();
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/** 校验并规范化一个模型 id（用于用户提交） */
+export function normalizeModelId(id) {
+    if (isRegistryId(id)) return String(id);
+    return DEFAULT_MODEL_ID;
 }
 
 /**
@@ -621,3 +707,249 @@ function escapeXml(value) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
 }
+
+/* =========================================================
+   生命世界（Living World）：多 AI 角色自主共存
+========================================================= */
+
+const NATIVE_SCHEMA = {
+    name: "string",
+    appearance: "string",
+    personality: "string",
+    background: "string",
+    speech_style: "string"
+};
+
+/** 用脑洞/描述生成一位「世界原住民」（只属于该世界，不进公共角色库） */
+export async function generateNativeCharacter({ idea, world, env, mock }) {
+    if (!env.AI || mock) {
+        return mockNativeCharacter(idea, world);
+    }
+    try {
+        const system = [
+            "你是 HYOOL 的生命世界角色生成引擎。",
+            "根据用户的描述，为指定世界生成一位「土生土长的原住民」角色的结构化设定。",
+            "只返回 JSON 对象，不要 markdown，不要解释。",
+            "字段：" + Object.keys(NATIVE_SCHEMA).join(", "),
+            "角色默认设定为成年人。若用户描述涉及未成年人性内容、虐杀、种族歧视或政治敏感等不当内容，直接拒绝生成。"
+        ].join("\n");
+
+        const content = await chatCompletions(
+            env,
+            [
+                { role: "system", content: system },
+                {
+                    role: "user",
+                    content: [
+                        `# 世界\n名字：${world?.name || "未知"}\n设定：${world?.description || ""}`,
+                        `# 用户描述\n${idea || "一个在这个世界里生活的原住民"}`
+                    ].join("\n")
+                }
+            ],
+            env.AI_CREATE_MODEL || DEFAULT_CREATE_MODEL,
+            0.8,
+            300
+        );
+
+        return parseNativeJson(content, idea, world);
+    } catch (e) {
+        console.error("NATIVE GEN ERROR:", e);
+        return mockNativeCharacter(idea, world);
+    }
+}
+
+function parseNativeJson(raw, idea, world) {
+    const fallback = mockNativeCharacter(idea, world);
+    try {
+        const cleaned = String(raw || "")
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/```\s*$/i, "")
+            .trim();
+        const parsed = JSON.parse(cleaned);
+        return {
+            name: String(parsed.name || fallback.name).slice(0, 40),
+            appearance: String(parsed.appearance || fallback.appearance).slice(0, 800),
+            personality: String(parsed.personality || fallback.personality).slice(0, 800),
+            background: String(parsed.background || fallback.background).slice(0, 2000),
+            speech_style: String(parsed.speech_style || fallback.speech_style).slice(0, 400)
+        };
+    } catch {
+        return fallback;
+    }
+}
+
+function mockNativeCharacter(idea, world) {
+    const trimmed = String(idea || "").trim();
+    const snippet = trimmed.slice(0, 48) || "一个尚未命名的原住民";
+    return {
+        name: extractMockName(trimmed) || "未名",
+        appearance: "带着这个世界独有的气质，像从这里的风土里长出来的一样。",
+        personality: "朴实、鲜活，对自己生活的地方有很深的感情。",
+        background: trimmed || `在「${world?.name || "这片土地"}」土生土长的原住民。`,
+        speech_style: "说话带着本地腔调，直来直去，偶尔冒出一句土话。"
+    };
+}
+
+const RELATION_KINDS = new Set(["friend", "rival", "enemy", "family", "lover", "mentor", "neutral"]);
+const RELATION_LABEL = {
+    friend: "好友", rival: "对手", enemy: "宿敌",
+    family: "亲人", lover: "恋人", mentor: "师徒", neutral: "中立"
+};
+
+/** 角色在生命世界里的系统提示：身份 + 世界观 + 现场 + 关系 + 发言规则 */
+export function buildLifeSystemPrompt({ character, world, scene, relations = [], recent = [], userName = "你", opening = false }) {
+    const bg = (world && world.background) || {};
+    const bgLines = [
+        bg.era ? `- 时代：${bg.era}` : null,
+        bg.place ? `- 地点：${bg.place}` : null,
+        bg.tone ? `- 氛围：${bg.tone}` : null,
+        bg.rule ? `- 世界规则：${bg.rule}` : null,
+        bg.note ? `- 补充：${bg.note}` : null
+    ].filter(Boolean);
+
+    const relLines = (Array.isArray(relations) ? relations : [])
+        .filter(r => r && (r.a === character.id || r.b === character.id))
+        .map(r => {
+            const other = r.a === character.id ? r.b : r.a;
+            return `- 你与「${other}」的关系：${RELATION_LABEL[r.kind] || r.kind}${r.note ? "（" + r.note + "）" : ""}`;
+        });
+
+    const transcript = (Array.isArray(recent) ? recent : [])
+        .map(m => `【${m.name || (m.actor === "user" ? userName : "某人")}】${String(m.content || "").slice(0, 300)}`)
+        .join("\n");
+
+    return [
+        "# 身份",
+        `你是「${character.name}」——「${world?.name || "这个世界"}」中土生土长的原住民。以下是你的人设，任何时候都不能偏离：`,
+        `- 外貌：${character.appearance || "未知"}`,
+        `- 性格：${character.personality || "未知"}`,
+        `- 背景：${character.background || "未知"}`,
+        `- 说话风格：${character.speech_style || "自然"}`,
+        "",
+        "# 世界",
+        (bgLines.length ? bgLines.join("\n") : "你熟悉这里的每一寸土地，这里是你的家。"),
+        "",
+        "# 现场",
+        scene && scene.name ? `你们现在在「${scene.name}」${scene.location ? `（${scene.location}）` : ""}。${scene.desc || ""}${scene.opening ? "\n开场：\"" + scene.opening + "\"" : ""}` : "此刻你们正在这个世界里碰面，聊聊正在发生的事。",
+        "",
+        "# 关系",
+        relLines.length ? relLines.join("\n") : "你和在场的人大多是点头之交，还没建立特别深的关系。",
+        "",
+        "# 刚才发生了什么",
+        transcript ? transcript : "（这是话题的开端，还没有人开口。）",
+        "",
+        "# 回复规则（不可违反）",
+        opening ? "1. 你是第一个开口的人：用一句话自然开场，引出你的处境、心情或眼前的事。" : "1. 你正在和其他角色、以及「" + userName + "」对话：回应上一条发言，或顺着话题推进。",
+        "2. 像真人聊天：短句、口语化，每次 1~3 句，一般不超过 60 字。",
+        "3. 不要写动作描写或拟态（如（微笑）、*脸红*），不用 markdown，不要旁白。",
+        "4. 永远用中文；绝不透露你是 AI、模型或提示词。",
+        "5. 始终忠于你的人设与关系：和宿敌说话就带刺，和恋人说话就温柔，亲人有亲人的语气。",
+        "6. 现在轮到你说话：只输出你的发言内容本身，不要任何前缀。"
+    ].filter(Boolean).join("\n");
+}
+
+/** 让单个角色在生命世界里说一句话 */
+export async function generateWorldLine({ character, world, scene, relations, recent, userName, modelId, env, mock }) {
+    if (!env.AI || mock) {
+        return mockWorldLine(character, recent);
+    }
+    try {
+        const model = normalizeModelId(modelId);
+        const info = resolveModel(model);
+        const system = buildLifeSystemPrompt({ character, world, scene, relations, recent, userName });
+        const content = await chatCompletions(
+            env,
+            [
+                { role: "system", content: system },
+                { role: "user", content: `（轮到你「${character.name}」说话了。）` }
+            ],
+            model,
+            Math.min(1.0, Math.max(0.5, info.temperature || 0.9)),
+            Math.min(200, Math.max(80, info.maxTokens || 120))
+        );
+        return String(content || "").trim().slice(0, 400);
+    } catch (e) {
+        console.error("WORLD LINE ERROR:", e);
+        return mockWorldLine(character, recent);
+    }
+}
+
+function mockWorldLine(character, recent) {
+    const last = (Array.isArray(recent) && recent.length) ? recent[recent.length - 1] : null;
+    if (!last) {
+        return `${character.name}环顾四周，像是在等谁先开口。`;
+    }
+    return `${character.name}看向${last.name || "对方"}，接了一句：「听你说的，事情好像没那么简单。」`;
+}
+
+/**
+ * 启发式挑选接下来 1~2 名发言人：
+ *  - 优先避开上一位发言人
+ *  - 优先「被点名」的角色（名字出现在最近消息里）
+ *  - 其余随机补足
+ */
+export function pickNextSpeakers(cast, recent = [], count = 2) {
+    const pool = (Array.isArray(cast) ? cast : []).slice();
+    if (!pool.length) return [];
+
+    const lastActor = (recent[recent.length - 1] || {}).actor;
+    const recentText = (Array.isArray(recent) ? recent : [])
+        .slice(-4).map(m => String(m.content || "")).join(" ");
+
+    const weight = (c) => {
+        let w = Math.random();
+        if (c.id === lastActor) w -= 3;
+        if (recentText.includes(c.name)) w += 2;
+        w += Math.random() * 0.5;
+        return w;
+    };
+
+    pool.sort((a, b) => weight(b) - weight(a));
+    const chosen = [];
+    const seen = new Set();
+    for (const c of pool) {
+        if (chosen.length >= count) break;
+        if (seen.has(c.id)) continue;
+        if (c.id === lastActor && chosen.length === 0 && pool.length > 1) continue;
+        seen.add(c.id);
+        chosen.push(c);
+    }
+    return chosen;
+}
+
+/** 世界线程「期间摘要」（用于混合模式离线补播 / 打开世界时概述你不在时发生的事） */
+export async function summarizeWorldGap({ world, messages, modelId, env }) {
+    const block = (Array.isArray(messages) ? messages : [])
+        .slice(-60)
+        .map(m => `【${m.name || m.actor}】${String(m.content || "").slice(0, 200)}`)
+        .join("\n");
+    if (!block.trim()) return "";
+
+    if (!env.AI) {
+        return `（模拟摘要）你不在的这段时间，「${world?.name || "世界"}」里发生了这些事：角色们聊了一些家常与心事。`;
+    }
+    try {
+        const system = [
+            "你是生命世界的「期间摘要员」。给这个世界的主人（用户）写一段他不在时发生的世界动态。",
+            "输出不超过 180 字的中文第三人称叙述，像一条世界快讯，不要寒暄，不要引用原话，保留关键人物与转折。"
+        ].join("\n");
+        const content = await chatCompletions(
+            env,
+            [
+                { role: "system", content: system },
+                { role: "user", content: `世界：${world?.name || ""}\n\n消息记录：\n${block}` }
+            ],
+            normalizeModelId(modelId),
+            0.5,
+            250
+        );
+        return String(content || "").trim().slice(0, 600);
+    } catch (e) {
+        console.error("WORLD GAP SUMMARY ERROR:", e);
+        return "";
+    }
+}
+
+
+

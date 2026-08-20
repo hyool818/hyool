@@ -357,6 +357,15 @@ a { color: inherit; text-decoration: none; }
       <div class="wstep-title">选择<span style="color:#c9a84c;">角色</span></div>
       <div class="wstep-desc">从你的角色工坊里挑选世界的演员（可多选，也可跳过稍后补充）。</div>
       <div class="char-select-grid" id="wCastGrid"></div>
+      <div id="lifePanel" style="display:none;">
+        <div class="wstep-title" style="font-size:.95rem;margin:.4rem 0 .6rem;">世界如何<span style="color:#c9a84c;">运转</span>？</div>
+        <div class="wstep-desc">三种运转方式，创建后在世界后台随时可切换。</div>
+        <div class="option-grid" id="lifeModeGrid"></div>
+        <div class="wstep-title" style="font-size:.95rem;margin:1rem 0 .6rem;">对话<span style="color:#c9a84c;">模型</span></div>
+        <div class="wstep-desc">为这个世界里的角色们选择对话大脑。</div>
+        <div class="form-grid" id="lifeModelGrid"></div>
+        <div class="hint-line" id="lifeModelAdvice" style="margin-top:.4rem;"></div>
+      </div>
     </div>
 
     <div class="wstep" data-wstep="4">
@@ -495,9 +504,17 @@ const GENRE_LABEL = Object.fromEntries(GENRES.map(g => [g.id, g.name]));
 const FORMS = [
   { id: "story", emoji: "📜", name: "故事剧本", desc: "VN / 叙事向" },
   { id: "game", emoji: "🎮", name: "H5 小游戏", desc: "可玩的游戏" },
-  { id: "mixed", emoji: "🌍", name: "故事 + 游戏", desc: "两者兼顾" }
+  { id: "mixed", emoji: "🌍", name: "故事 + 游戏", desc: "两者兼顾" },
+  { id: "life", emoji: "🌱", name: "生命世界", desc: "多角色自主共存" }
 ];
-const FORM_LABEL = { story: "故事剧本", game: "H5 小游戏", mixed: "故事 + 游戏" };
+const FORM_LABEL = { story: "故事剧本", game: "H5 小游戏", mixed: "故事 + 游戏", life: "生命世界" };
+const LIFE_MODE_LABEL = { watch: "🌱 在线运转", hybrid: "⚡ 混合运转", always: "🌌 24h 后台" };
+const LIFE_MODELS = [
+  { id: "llama3-70b", label: "llama3.3-70B", advice: "综合对话能力均衡，中英文稳定，现网可用" },
+  { id: "dsv4pro", label: "DSV4 Pro", advice: "复杂推理与长篇剧情推演更强" },
+  { id: "xverse-ent-25b", label: "XVERSE-Ent-25B", advice: "中文语境更自然，古风/架空表现出色" },
+  { id: "qwen3-27b-instruct", label: "Qwen3-27B-Instruct", advice: "多轮指令跟随与多角色调度稳定" }
+];
 
 /* Tabs */
 function switchTab(tab) {
@@ -682,6 +699,7 @@ function renderWorlds(worlds) {
         <div class="badges">
           <span class="badge">${escapeHtml(genreLabel)}</span>
           <span class="badge form">${escapeHtml(formLabel)}</span>
+          ${w.type === "life" && w.life_mode ? `<span class="badge">${escapeHtml(LIFE_MODE_LABEL[w.life_mode] || w.life_mode)}</span>` : ""}
           <span class="badge status">${statusLabel}</span>
         </div>
         <div class="hook">${escapeHtml(w.description || '')}</div>
@@ -707,25 +725,40 @@ function openWorldDetail(idx) {
   $("detailBadges").innerHTML =
     `<span class="badge">${escapeHtml(genreLabel)}</span>` +
     `<span class="badge form">${escapeHtml(formLabel)}</span>` +
+    (w.type === "life" && w.life_mode ? `<span class="badge">${escapeHtml(LIFE_MODE_LABEL[w.life_mode] || w.life_mode)}</span>` : "") +
     `<span class="badge status">${statusLabel}</span>`;
 
   const cast = w.cast || [];
-  $("detailCast").innerHTML = cast.length
+  let castHtml = cast.length
     ? cast.map(c => `<span class="dc" onclick="location.href='/buddy/${escapeHtml(c.id)}'">
         <img src="${escapeHtml(c.image_url || '')}" alt="" onerror="this.style.opacity=.2">${escapeHtml(c.name)}</span>`).join("")
-    : `<span class="hint-line">还没有演员，可稍后在工坊中补充。</span>`;
+    : "";
+  if (w.type === "life" && w.world_json && Array.isArray(w.world_json.natives) && w.world_json.natives.length) {
+    const natives = w.world_json.natives.map(n => `<span class="dc" title="世界原住民">
+        ${n.avatar ? `<img src="${escapeHtml(n.avatar)}" alt="" onerror="this.style.opacity=.2">` : `<img src="" alt="" style="opacity:.15">`}${escapeHtml(n.name)}</span>`).join("");
+    castHtml = (castHtml ? castHtml : "") + natives;
+  }
+  $("detailCast").innerHTML = castHtml || `<span class="hint-line">还没有角色，可稍后在世界后台生成原住民或补充演员。</span>`;
 
-  const rawScript = w.script_json;
-  const scenes = Array.isArray(rawScript) ? rawScript : (rawScript && Array.isArray(rawScript.scenes) ? rawScript.scenes : []);
-  $("detailScript").innerHTML = scenes.length > 0
-    ? `<span class="hint-line">已有 ${scenes.length} 幕剧本${w.source_conversation ? "（沉淀自日常对话）" : ""}。</span>`
-    : `<span class="hint-line">剧本尚未生成。在角色对话页「沉淀为剧本」，或稍后在 VN 编辑器中编写。</span>`;
+  if (w.type === "life" && w.world_json) {
+    const wj = w.world_json;
+    $("detailScript").innerHTML =
+      `<span class="hint-line">生命世界 · ${wj.natives.length} 位原住民 · ${wj.relations.length} 段关系 · ${wj.scenes.length} 个场景。</span>`;
+  } else {
+    const rawScript = w.script_json;
+    const scenes = Array.isArray(rawScript) ? rawScript : (rawScript && Array.isArray(rawScript.scenes) ? rawScript.scenes : []);
+    $("detailScript").innerHTML = scenes.length > 0
+      ? `<span class="hint-line">已有 ${scenes.length} 幕剧本${w.source_conversation ? "（沉淀自日常对话）" : ""}。</span>`
+      : `<span class="hint-line">剧本尚未生成。在角色对话页「沉淀为剧本」，或稍后在 VN 编辑器中编写。</span>`;
+  }
 
   $("detailDelete").onclick = () => openWorldDelete(idx);
-  $("detailPlay").textContent = "进入工坊";
+  $("detailPlay").textContent = w.type === "life" ? "进入世界" : "进入工坊";
   $("detailPlay").onclick = () => {
     if (w.type === "game" || w.type === "mixed") {
       location.href = w.play_url || "/game-workshop?world=" + w.id;
+    } else if (w.type === "life") {
+      location.href = w.play_url || "/world?world=" + w.id;
     } else {
       toast("VN 编辑器即将开放，先试试「沉淀为剧本」吧。");
     }
@@ -781,14 +814,24 @@ function wizardGo(step) {
     el.classList.toggle("active", Number(el.dataset.wstep) === step);
   });
   const next = $("wizardNext");
+  if (step === 3) {
+    const isLife = wizard.form === "life";
+    $("wCastGrid").style.display = isLife ? "none" : "";
+    $("lifePanel").style.display = isLife ? "" : "none";
+  }
   if (step === 5) {
     next.textContent = "创建世界";
     const castNames = (allChars.filter(c => wizard.castIds.includes(c.id)) || []).map(c => c.name).join("、");
+    let extra = "";
+    if (wizard.form === "life") {
+      extra = `<br>运转：${LIFE_MODE_LABEL[wizard.mode] || wizard.mode || "—"}` +
+              `<br>模型：${(LIFE_MODELS.find(m => m.id === wizard.model) || {}).label || wizard.model || "—"}`;
+    }
     $("wSummary").innerHTML =
       `题材：${GENRE_LABEL[wizard.genre] || "—"}　载体：${FORM_LABEL[wizard.form] || "—"}<br>` +
       `名称：${escapeHtml(wizard.name)}<br>` +
       (wizard.desc ? `设定：${escapeHtml(wizard.desc)}<br>` : "") +
-      `演员：${castNames || "（暂无，稍后补充）"}`;
+      `演员：${castNames || "（暂无，稍后补充）"}${extra}`;
   } else {
     next.textContent = "下一步";
   }
@@ -797,7 +840,7 @@ function wizardGo(step) {
 }
 
 function wizardInit() {
-  wizard = { step: 1, genre: null, form: "story", name: "", desc: "", castIds: [], cover: "", seed: 0 };
+  wizard = { step: 1, genre: null, form: "story", name: "", desc: "", castIds: [], cover: "", seed: 0, mode: "watch", model: "llama3-70b" };
   $("wName").value = "";
   $("wDesc").value = "";
 
@@ -823,6 +866,24 @@ function wizardInit() {
         </div>`).join("")
     : `<span class="hint-line" style="grid-column:1/-1;">还没有角色。可以先跳过，稍后在工坊中补充演员。</span>`;
 
+  $("lifeModeGrid").innerHTML = [
+    { id: "watch", emoji: "🌱", name: "在线运转", desc: "你看着它们聊，离开即暂停" },
+    { id: "hybrid", emoji: "⚡", name: "混合运转", desc: "在线实时 + 离线补播代表剧情" },
+    { id: "always", emoji: "🌌", name: "24h 后台", desc: "后台持续运转，随时翻看历史" }
+  ].map(m => `
+    <div class="option-card" data-lmode="${m.id}" onclick="pickLifeMode('${m.id}')">
+      <span class="check">✓</span><span class="emoji">${m.emoji}</span>
+      <span class="name">${m.name}</span><span class="desc">${m.desc}</span>
+    </div>`).join("");
+
+  $("lifeModelGrid").innerHTML = LIFE_MODELS.map(m => `
+    <div class="option-card" data-lmodel="${m.id}" onclick="pickLifeModel('${m.id}')">
+      <span class="check">✓</span><span class="emoji">🧠</span>
+      <span class="name">${m.label}</span><span class="desc">${m.advice}</span>
+    </div>`).join("");
+
+  pickLifeMode("watch");
+  pickLifeModel("llama3-70b");
   wizardGo(1);
 }
 
@@ -837,6 +898,27 @@ function pickForm(id) {
   document.querySelectorAll("#formGrid .option-card").forEach(el => {
     el.classList.toggle("selected", el.dataset.form === id);
   });
+  if (id === "life") {
+    $("wCastGrid").style.display = "none";
+    $("lifePanel").style.display = "";
+  } else {
+    $("wCastGrid").style.display = "";
+    $("lifePanel").style.display = "none";
+  }
+}
+function pickLifeMode(id) {
+  wizard.mode = id;
+  document.querySelectorAll("#lifeModeGrid .option-card").forEach(el => {
+    el.classList.toggle("selected", el.dataset.lmode === id);
+  });
+}
+function pickLifeModel(id) {
+  wizard.model = id;
+  document.querySelectorAll("#lifeModelGrid .option-card").forEach(el => {
+    el.classList.toggle("selected", el.dataset.lmodel === id);
+  });
+  const mi = LIFE_MODELS.find(m => m.id === id);
+  $("lifeModelAdvice").textContent = mi ? `建议：${mi.advice}` : "";
 }
 function toggleCast(id, el) {
   const idx = wizard.castIds.indexOf(id);
@@ -876,16 +958,23 @@ async function wizardCreate() {
   const btn = $("wizardNext");
   btn.disabled = true; btn.textContent = "创建中…";
   try {
+    const payload = {
+      name: wizard.name,
+      description: wizard.desc,
+      type: wizard.form,
+      cast_ids: wizard.castIds,
+      cover_image: wizard.cover,
+      settings: { genre: wizard.genre, genreLabel: GENRE_LABEL[wizard.genre] }
+    };
+    if (wizard.form === "life") {
+      payload.world_json = {
+        background: { note: wizard.desc },
+        life: { mode: wizard.mode, model: wizard.model }
+      };
+    }
     const res = await api("/api/worlds", {
       method: "POST",
-      body: JSON.stringify({
-        name: wizard.name,
-        description: wizard.desc,
-        type: wizard.form,
-        cast_ids: wizard.castIds,
-        cover_image: wizard.cover,
-        settings: { genre: wizard.genre, genreLabel: GENRE_LABEL[wizard.genre] }
-      })
+      body: JSON.stringify(payload)
     });
     if (!res.success) throw new Error(res.error || "创建失败。");
     showModal("wizardModal", false);
