@@ -1,4 +1,4 @@
-// app.js — 幻想工作区主入口
+// app.js — 无限世界 · FastEdit 图片工作台主入口
 import { $, $$, toast, fmtBytes, fmtTime, downloadBlob, copyBlob, setStatus, debounce, el, baseName, escapeHtml } from './ui.js';
 import { loadAsset, sourceFrame, processImageData, videoOutputDims, drawVideoFrameToCanvas, makeCanvas } from './engine.js';
 import { encodeImage, FORMATS, warmUp } from './codecs.js';
@@ -267,7 +267,7 @@ async function handleFiles(files) {
     } else {
       renderImage();
     }
-    switchTab('edit');
+    switchTab('transform');
     setStatus(`已载入 ${asset.name}（${asset.kind}）`);
   } catch (e) {
     console.error(e);
@@ -1001,6 +1001,9 @@ function downloadAllBatch() {
 /* ================= 启动 ================= */
 
 init();
+
+/* 供 hub.js 从「无限世界 · 工具总览」直达指定面板 */
+window.enterWorkspaceTab = switchTab;
 
 
 

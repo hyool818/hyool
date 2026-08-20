@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>幻想工作区 · HYOOL</title>
+<title>无限世界 · 工具箱 · HYOOL</title>
 <link rel="stylesheet" href="/workspace/css/workspace.css">
 <!--
   本地 vendored 依赖（全部来自 ESM/WASM 包，无构建步骤）：
@@ -23,11 +23,149 @@
 </head>
 <body>
 
+<!-- ============================================================
+     无限世界 · 工具总览（入口首页）
+============================================================ -->
+<div id="hubView" class="hub">
+  <header class="hub-topbar">
+    <a class="back" href="/">← 返回</a>
+    <div class="hub-brand">
+      <span class="hub-brand-name">无限世界</span>
+      <span class="hub-brand-en">INFINITE · HYOOL REALM</span>
+    </div>
+  </header>
+
+  <main class="hub-main">
+
+    <section class="hub-hero">
+      <div class="hub-hero-kicker">INFINITE WORLD</div>
+      <h1 class="hub-hero-name">无限</h1>
+      <p class="hub-hero-meaning">让创造拥有无限可能。</p>
+      <p class="hub-hero-tags">AI 模型 · 工具 · 素材 · 工作流 · 实验</p>
+    </section>
+
+    <section class="hub-section">
+      <h2 class="hub-sec-title">工具箱 <span>选择一个入口开始创造</span></h2>
+
+      <div class="tool-grid">
+
+        <!-- FastEdit 图片工作台（已上线） -->
+        <article class="tool-card featured">
+          <div class="tool-head">
+            <div class="tool-icon">✦</div>
+            <div class="tool-title">
+              <h3>FastEdit 图片工作台</h3>
+              <p class="tool-sub">压缩 · 转换 · 动图 · 视频 · 打码 · 抠图 · 批量，全部在浏览器本地完成</p>
+            </div>
+            <span class="tool-badge live">已上线</span>
+          </div>
+          <ul class="tool-feats">
+            <li><b>压缩</b>WebP / AVIF / JPEG / PNG 有损与无损；质量 1–100、压缩力度 0–6 可调；实时显示原图 → 输出大小与节省比例</li>
+            <li><b>转换</b>四种格式任意互转；动图导出 APNG（无损透明）或 GIF（256 色）；视频导出 WebM</li>
+            <li><b>动图</b>GIF / APNG 帧级编辑：帧条缩略图、选中 / 复制 / 删除帧、帧间隔 20–2000ms、无限循环；裁剪 / 缩放 / 打码可一键应用到全部帧</li>
+            <li><b>视频</b>裁剪区间与采样帧率 4–30fps 可调；打码、裁剪、旋转实时合成到输出；可导出 WebM 或采样 GIF，也可截取当前帧</li>
+            <li><b>处理</b>缩放（可保持宽高比）、90° 旋转、水平 / 垂直翻转、预览区拖拽裁剪</li>
+            <li><b>打码</b>马赛克 / 高斯模糊，强度可调，多区域列表管理；静态图、动图、视频全支持</li>
+            <li><b>AI 抠图</b>浏览器本地 ONNX 推理，一键移除背景，可撤销；首次加载模型约 40MB，之后由浏览器缓存</li>
+            <li><b>预设</b>HYOOL 头像 / 背景、微信、公众号、抖音、B 站、小红书、淘宝、通用头像、网页横幅等平台尺寸一键套用</li>
+            <li><b>批量</b>多文件统一压缩 / 缩放 / 转换，逐个或一键下载全部</li>
+            <li><b>隐私</b>编解码均为本地 WASM，图片不会上传任何服务器</li>
+          </ul>
+          <button class="tool-cta" data-go="editor">进入工具 →</button>
+        </article>
+
+        <!-- AI 模型（部分可用） -->
+        <article class="tool-card">
+          <div class="tool-head">
+            <div class="tool-icon">◉</div>
+            <div class="tool-title">
+              <h3>AI 模型</h3>
+              <p class="tool-sub">浏览器端本地推理，数据不出设备</p>
+            </div>
+            <span class="tool-badge partial">部分可用</span>
+          </div>
+          <ul class="tool-feats">
+            <li><b>AI 抠图</b>已上线：基于 ONNX Runtime 的一键背景移除，纯本地执行，支持撤销</li>
+            <li><b>模型扩展</b>规划中：超分辨率、降噪、去水印、上色、风格迁移等</li>
+          </ul>
+          <button class="tool-cta" data-go="ai">打开 AI 抠图 →</button>
+        </article>
+
+        <!-- 素材（规划中） -->
+        <article class="tool-card soon">
+          <div class="tool-head">
+            <div class="tool-icon">▣</div>
+            <div class="tool-title">
+              <h3>素材</h3>
+              <p class="tool-sub">素材库 · 模板 · 预设资产</p>
+            </div>
+            <span class="tool-badge">规划中</span>
+          </div>
+          <ul class="tool-feats">
+            <li>分类素材库：常用元素、纹理、边框、贴纸，可直接拖入工作台</li>
+            <li>可复用模板与预制效果，一键套用快速出图</li>
+          </ul>
+          <button class="tool-cta disabled" data-go="soon">敬请期待</button>
+        </article>
+
+        <!-- 工作流（部分可用） -->
+        <article class="tool-card">
+          <div class="tool-head">
+            <div class="tool-icon">⇄</div>
+            <div class="tool-title">
+              <h3>工作流</h3>
+              <p class="tool-sub">批量处理 · 平台预设 · 流程复用</p>
+            </div>
+            <span class="tool-badge partial">部分可用</span>
+          </div>
+          <ul class="tool-feats">
+            <li><b>批量处理</b>已上线：同一组压缩 / 缩放 / 转换设置应用到多个文件，一键下载全部</li>
+            <li><b>平台预设</b>已上线：10 种平台尺寸与格式一键套用，选择后即时预览</li>
+            <li><b>流程保存</b>规划中：自定义处理流程的保存、分享与复用</li>
+          </ul>
+          <button class="tool-cta" data-go="presets">打开预设 / 批量 →</button>
+        </article>
+
+        <!-- 实验（规划中） -->
+        <article class="tool-card soon">
+          <div class="tool-head">
+            <div class="tool-icon">⌬</div>
+            <div class="tool-title">
+              <h3>实验</h3>
+              <p class="tool-sub">新格式 · 新算法 · 新交互</p>
+            </div>
+            <span class="tool-badge">规划中</span>
+          </div>
+          <ul class="tool-feats">
+            <li>新编码格式与算法的先行试验地，优先尝鲜新效果</li>
+            <li>实验性创作交互的测试场，反馈直接影响下一批工具</li>
+          </ul>
+          <button class="tool-cta disabled" data-go="soon">敬请期待</button>
+        </article>
+
+      </div>
+    </section>
+
+    <section class="hub-section">
+      <h2 class="hub-sec-title">其他世界</h2>
+      <div class="world-links">
+        <a class="world-link" href="yonder.html"><span class="world-link-name">彼岸</span><span class="world-link-mean">让作品抵达彼岸 · 展示 / 分享 / 发现</span></a>
+        <div class="world-link dim"><span class="world-link-name">生命</span><span class="world-link-mean">让创造拥有真正的存在 · 建设中</span></div>
+        <div class="world-link dim"><span class="world-link-name">幻想</span><span class="world-link-mean">让想象成为作品 · 建设中</span></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============ 无限世界 · FastEdit 工作台（编辑器视图） ============ -->
+<div id="editorView" class="hidden">
+
 <header class="topbar">
-  <a class="back" href="/">← 返回</a>
+  <a class="back" id="backToHubBtn" href="#">↺ 返回总览</a>
   <div class="brand">
-    <span class="brand-name">幻想工作区</span>
-    <span class="brand-sub">FastEdit · 压缩 / 格式转换 / 动图 / 视频 / 打码 / 抠图</span>
+    <span class="brand-name">FastEdit 图片工作台</span>
+    <span class="brand-sub">本地压缩 / 格式转换 / 动图 / 视频 / 打码 / AI 抠图 / 批量 · 图片永不上传</span>
   </div>
   <div class="topbar-right">
     <span id="assetBadge" class="asset-badge hidden"></span>
@@ -265,8 +403,11 @@
   <span id="statusRight"></span>
 </footer>
 
+</div><!-- /#editorView -->
+
 <div id="toast" class="toast"></div>
 
 <script type="module" src="/workspace/js/app.js"></script>
+<script type="module" src="/workspace/js/hub.js"></script>
 </body>
 </html>
