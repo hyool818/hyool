@@ -1,6 +1,7 @@
 ﻿import {
     generateCharacterFromIdea,
     chatWithCharacter,
+    compressHistory,
     generateCharacterImage,
     regenerateCharacterImage,
     buildPortraitSvg
@@ -891,8 +892,50 @@ export async function handleMvpRoutes(
                 aiUserMessage,
                 5
             );
+            // ---- 超长历史自动摘要：防止上下文膨胀（conversations.summary / summarized_upto）----
+            let summary = conversation.summary || "";
+            const summarizedUpto = Number(conversation.summarized_upto) || 0;
+
+            if (env.AI) {
+                try {
+                    const oldResult = await env.DB.prepare(
+                        `SELECT role, content
+                         FROM messages
+                         WHERE conversation_id = ?
+                         ORDER BY created_at DESC
+                         LIMIT 500 OFFSET 12`
+                    ).bind(conversation.id).all();
+
+                    const oldMessages = (oldResult.results || [])
+                        .reverse()
+                        .map(m => ({ role: m.role, content: messageToPlainText(m.content) }));
+
+                    const newUnsummarized = oldMessages.slice(summarizedUpto);
+                    const newChars = newUnsummarized.reduce((s, m) => s + m.content.length, 0);
+
+                    if (newUnsummarized.length > 0 && newChars > 20000) {
+                        const merged = await compressHistory(env, {
+                            existingSummary: summary,
+                            newMessages: newUnsummarized
+                        });
+
+                        if (merged && merged !== summary) {
+                            summary = merged;
+                            await env.DB.prepare(
+                                "UPDATE conversations SET summary = ?, summarized_upto = ? WHERE id = ?"
+                            ).bind(merged, summarizedUpto + newUnsummarized.length, conversation.id).run();
+                        }
+                    }
+                } catch (error) {
+                    console.error("CONVERSATION SUMMARY ERROR:", error);
+                }
+            }
+
+
 
             const memories = [
+                ...(summary ? [{ content: "【过往对话摘要】" + summary, importance: 3 }] : []),
+
                 ...vectorMemories.map(m => ({
                     content: m.content,
                     importance: 2

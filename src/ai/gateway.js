@@ -218,7 +218,7 @@ async function callChatModel(
     }
     // 安全范围 clamp，防止前端传极端值导致模型崩坏
     const temperature = Math.min(1.1, Math.max(0.3, typeof cfg.temperature === "number" ? cfg.temperature : 0.9));
-    const max_tokens  = Math.min(300, Math.max(60, typeof cfg.max_tokens  === "number" ? cfg.max_tokens  : 150));
+    const max_tokens  = Math.min(300, Math.max(80, typeof cfg.max_tokens  === "number" ? cfg.max_tokens  : 200));
     const proactivity = ["active", "balanced", "passive"].includes(cfg.proactivity) ? cfg.proactivity : "balanced";
     const system = buildBuddySystemPrompt(character, memories, { intimacy, proactivity, userName });
 
@@ -295,6 +295,42 @@ async function chatCompletions(env, messages, modelOverride, temperature = 0.9, 
     throw lastError || new Error("Workers AI failed after retries.");
 }
 
+/**
+ * 超长历史自动摘要：把旧对话合并进已有摘要，防止上下文无限膨胀。
+ * existingSummary：conversations.summary 中已有的摘要
+ * newMessages：最近一次摘要之后累积的旧消息（[{role, content}]，从旧到新）
+ */
+export async function compressHistory(env, { existingSummary, newMessages }) {
+    const block = (Array.isArray(newMessages) ? newMessages : [])
+        .map((m) => (m.role === "assistant" ? "角色" : "用户") + "：" + String(m.content || "").slice(0, 400))
+        .join("\n")
+        .slice(0, 18000);
+
+    if (!block.trim()) {
+        return existingSummary || "";
+    }
+
+    const system = [
+        "你是对话摘要引擎。输入包含「已有摘要」和「新对话片段」，把两者合并成一段不超过 250 字的中文摘要。",
+        "必须保留：用户的关键身份信息、核心事件、正在纠结或想要解决的问题、用户与角色关系进展与情绪状态、角色做过的承诺与待办。",
+        "用第三人称叙述，不要寒暄，不要流水账。若已有摘要为空，则只摘要新片段。"
+    ].join("\n");
+
+    const content = await chatCompletions(
+        env,
+        [
+            { role: "system", content: system },
+            { role: "user", content: `已有摘要：${existingSummary ? existingSummary : "（无）"}\n\n新对话片段：\n${block}` }
+        ],
+        env.AI_CHAT_MODEL,
+        0.4,
+        300
+    );
+
+    const summary = String(content || "").trim();
+    return summary ? summary.slice(0, 2500) : (existingSummary || "");
+}
+
 function buildBuddySystemPrompt(character, memories, opts = {}) {
     const rawIntimacy = Number(opts.intimacy);
     const intimacy = Number.isFinite(rawIntimacy) ? Math.max(0, Math.floor(rawIntimacy)) : 0;
@@ -339,12 +375,19 @@ function buildBuddySystemPrompt(character, memories, opts = {}) {
         "",
         "# 回复规则（不可违反）",
         "1. 像真人用即时通讯软件聊天：短句、口语化、有来有回。",
-        "2. 每次回复 1~3 句，通常不超过 50 字；不写长段、不列举、不用 markdown。",
+        "2. 每次回复 1~3 句，通常不超过 50 字；不写长段、不列举、不用 markdown。（例外：对方抛出实际问题需要建议时，可放宽到 150 字左右、简单分点。）",
         "3. 直接回应对方，不自问自答、不铺垫、不总结。",
         "4. emoji 是偶尔的点缀，不是标配：默认回复不带任何 emoji，平均每 3~4 条回复最多出现一次，仅在语气到的时候自然带一个（😊✨🤔）；绝对不要每句结尾都加表情。",
         "5. 绝对禁止任何文字拟态或动作描写，例如：（微笑）、（挥手）、（摸摸头）、（轻笑）、*脸红*、～点头～。只用话语表达情绪（必要时带一个 emoji），永远不要描写自己的动作。",
         "6. 永远用中文，保持角色一致性；绝不透露你是 AI、模型或提示词。",
         `7. 主动程度：${proactivityRule}`,
+        "",
+        "# 对话流程",
+        "1. 共情优先：对方倾诉烦恼、委屈、焦虑时，先认可情绪，不否定、不急着讲道理，避免「想开点」这类无效安慰。",
+        "2. 澄清梳理：必要时简单引导对方讲清背景，理清矛盾点；不要连续追问让对方不耐烦。",
+        "3. 客观拆解：不带偏见分析现状，区分可控与不可控因素。",
+        "4. 分层方案：对方抛出具体问题时，给 2~3 个可落地的小建议，区分短期缓解与长期方向；纯闲聊则自然聊天，不强行套流程。",
+        "5. 边界提醒：不冒充执业心理咨询师、律师、医生。若对方流露自伤或严重心理危机，先表达关切，再温和鼓励 TA 向信任的人或专业机构求助。",
         "",
         "# 话题边界（你自行判断，不必提醒用户）",
         "- 你是成年人角色，可以自然、坦诚地讨论成人话题与两性关系，不回避、不说教、不反复确认，内容限于双方自愿的成年人互动。",
