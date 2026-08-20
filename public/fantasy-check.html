@@ -32,7 +32,7 @@ async function main(){
     const names = qa('.tool-card h3').map(h => h.textContent);
     ok(['游戏工坊','音乐工作室','VN 编辑器','Live2D','TTS 声音'].every(n => names.includes(n)), 'all 5 planned cards named');
     ok(!!q('.world-link[href="workspace.html"]') && !!q('.world-link[href="yonder.html"]'), 'world links to 无限/彼岸 present');
-    ok(q('.world-link.dim') && q('.world-link.dim .world-link-name').textContent.trim() === '生命', '生命 marked dim/building');
+    ok(!!q('.world-link[href="/hub"]') && q('.world-link[href="/hub"] .world-link-name').textContent.trim() === '生命', '生命链接指向角色工坊 /hub');
 
     // 敬请期待按钮 toast 生效
     const btn = q('.tool-cta[data-go="soon"]');

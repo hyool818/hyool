@@ -95,6 +95,7 @@ async function run() {
   await send('Runtime.enable');
   await send('Log.enable');
   await send('Network.enable');
+  await send('Network.setCacheDisabled', { cacheDisabled: true });
   log('domains enabled, navigating');
   await send('Page.navigate', { url });
   log('navigated');

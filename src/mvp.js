@@ -4,7 +4,8 @@
     compressHistory,
     generateCharacterImage,
     regenerateCharacterImage,
-    buildPortraitSvg
+    buildPortraitSvg,
+    generateScriptFromConversation
 } from "./ai/gateway.js";
 import { TTS_VOICES } from "./tts.js";
 
@@ -526,6 +527,207 @@ export async function handleMvpRoutes(
         }
     }
 
+    /* ----- WORLDS (自定义世界) ----- */
+
+    if (pathname === "/api/worlds" && method === "GET") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const result = await env.DB.prepare(
+                `SELECT id, name, description, type, cover_image, script_json, cast_ids, settings,
+                        source_conversation, status, share_id, created_at, updated_at
+                 FROM worlds
+                 WHERE owner_id = ?
+                 ORDER BY updated_at DESC`
+            ).bind(user.id).all();
+
+            const worlds = [];
+            for (const row of (result.results || [])) {
+                worlds.push(await formatWorld(env, row));
+            }
+
+            return json({ success: true, worlds });
+        } catch (error) {
+            console.error("WORLDS LIST ERROR:", error);
+            return json({
+                success: false,
+                error: isMissingTableError(error)
+                    ? "数据库尚未初始化 worlds 表，请先执行 schema/migrate_worlds.sql。"
+                    : "加载失败。"
+            }, 500);
+        }
+    }
+
+    if (pathname === "/api/worlds" && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const body = await request.json();
+            const name = String(body.name || "").trim().slice(0, 80);
+            if (!name) {
+                return json({ success: false, error: "请给世界一个名字。" }, 400);
+            }
+
+            const description = String(body.description || "").trim().slice(0, 1200);
+            const type = ["story", "vn", "game", "mixed"].includes(body.type) ? body.type : "story";
+            const castRaw = Array.isArray(body.cast_ids) ? body.cast_ids.map(String) : [];
+            const castIds = [...new Set(castRaw)].slice(0, 12);
+            const coverImage = String(body.cover_image || "").trim().slice(0, 2000);
+            const settings = (body.settings && typeof body.settings === "object" && !Array.isArray(body.settings))
+                ? {
+                    genre: String(body.settings.genre || "").trim().slice(0, 40),
+                    genreLabel: String(body.settings.genreLabel || "").trim().slice(0, 40)
+                }
+                : {};
+
+            // 校验 cast 均属于当前用户（防注入他人角色 id）
+            if (castIds.length) {
+                const placeholders = castIds.map(() => "?").join(",");
+                const rows = await env.DB.prepare(
+                    `SELECT id FROM characters WHERE owner_id = ? AND id IN (${placeholders})`
+                ).bind(user.id, ...castIds).all();
+                const valid = new Set((rows.results || []).map(r => r.id));
+                castIds.length = 0;
+                castIds.push(...castRaw.filter(id => valid.has(id)));
+            }
+
+            const worldId = "world_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+            const shareId = "w" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+
+            await env.DB.prepare(
+                `INSERT INTO worlds
+                 (id, owner_id, name, description, type, cover_image, script_json, cast_ids, settings, source_conversation, status, share_id, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+            ).bind(
+                worldId, user.id, name, description, type, coverImage,
+                JSON.stringify([]), JSON.stringify(castIds), JSON.stringify(settings),
+                String(body.source_conversation || "").trim().slice(0, 60),
+                "draft", shareId
+            ).run();
+
+            const created = await getWorldById(env, worldId);
+            return json({ success: true, world: await formatWorld(env, created) });
+        } catch (error) {
+            console.error("WORLD CREATE ERROR:", error);
+            return json({
+                success: false,
+                error: isMissingTableError(error)
+                    ? "数据库尚未初始化 worlds 表，请先执行 schema/migrate_worlds.sql。"
+                    : "创建失败，请稍后再试。"
+            }, 500);
+        }
+    }
+
+    const worldDetailMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)$/);
+    const worldDeleteMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/delete$/);
+
+    if (worldDetailMatch && method === "GET") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            const world = await getWorldById(env, worldDetailMatch[1]);
+            if (!world) {
+                return json({ success: false, error: "世界不存在。" }, 404);
+            }
+            if (!user || world.owner_id !== user.id) {
+                return json({ success: false, error: "无权查看这个世界。" }, 403);
+            }
+            return json({ success: true, world: await formatWorld(env, world) });
+        } catch (error) {
+            console.error("WORLD GET ERROR:", error);
+            return json({ success: false, error: "加载失败。" }, 500);
+        }
+    }
+
+    if (worldDetailMatch && method === "PATCH") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            const world = await getWorldById(env, worldDetailMatch[1]);
+            if (!world) {
+                return json({ success: false, error: "世界不存在。" }, 404);
+            }
+            if (!user || world.owner_id !== user.id) {
+                return json({ success: false, error: "无权修改这个世界。" }, 403);
+            }
+
+            const body = await request.json();
+            const sets = [];
+            const vals = [];
+            if (typeof body.name === "string") {
+                const name = body.name.trim().slice(0, 80);
+                if (name) { sets.push("name = ?"); vals.push(name); }
+            }
+            if (typeof body.description === "string") {
+                sets.push("description = ?");
+                vals.push(body.description.trim().slice(0, 1200));
+            }
+            if (typeof body.cover_image === "string") {
+                sets.push("cover_image = ?");
+                vals.push(body.cover_image.trim().slice(0, 2000));
+            }
+            if (Array.isArray(body.cast_ids)) {
+                const castIds = [...new Set(body.cast_ids.map(String))].slice(0, 12);
+                sets.push("cast_ids = ?");
+                vals.push(JSON.stringify(castIds));
+            }
+            if (body.script_json !== undefined) {
+                if (!Array.isArray(body.script_json) && typeof body.script_json !== "object") {
+                    return json({ success: false, error: "剧本格式错误。" }, 400);
+                }
+                sets.push("script_json = ?");
+                vals.push(JSON.stringify(body.script_json));
+            }
+            if (body.settings !== undefined && body.settings && typeof body.settings === "object") {
+                sets.push("settings = ?");
+                vals.push(JSON.stringify(body.settings));
+            }
+            if (typeof body.status === "string" && ["draft", "published"].includes(body.status)) {
+                sets.push("status = ?");
+                vals.push(body.status);
+            }
+
+            if (sets.length) {
+                sets.push("updated_at = CURRENT_TIMESTAMP");
+                await env.DB.prepare(
+                    `UPDATE worlds SET ${sets.join(", ")} WHERE id = ?`
+                ).bind(...vals, world.id).run();
+            }
+
+            const updated = await getWorldById(env, world.id);
+            return json({ success: true, world: await formatWorld(env, updated) });
+        } catch (error) {
+            console.error("WORLD PATCH ERROR:", error);
+            return json({ success: false, error: "保存失败。" }, 500);
+        }
+    }
+
+    if (worldDeleteMatch && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            const world = await getWorldById(env, worldDeleteMatch[1]);
+            if (!world) {
+                return json({ success: false, error: "世界不存在。" }, 404);
+            }
+            if (!user || world.owner_id !== user.id) {
+                return json({ success: false, error: "无权删除这个世界。" }, 403);
+            }
+
+            await env.DB.prepare(
+                "DELETE FROM worlds WHERE id = ?"
+            ).bind(world.id).run();
+
+            return json({ success: true });
+        } catch (error) {
+            console.error("WORLD DELETE ERROR:", error);
+            return json({ success: false, error: "删除失败。" }, 500);
+        }
+    }
+
     /* ----- CHARACTER detail ----- */
 
     const characterMatch = pathname.match(
@@ -789,6 +991,123 @@ export async function handleMvpRoutes(
                 success: false,
                 error: "加载对话失败，请稍后再试。"
             }, 500);
+        }
+    }
+
+    /* ----- BUDDY 沉淀为剧本（对话 → 剧本 → worlds.script_json） ----- */
+
+    const scriptMatch = pathname.match(/^\/api\/buddy\/(char_[a-z0-9]+)\/script$/);
+
+    if (scriptMatch && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+
+            if (!user) {
+                return json({
+                    success: false,
+                    error: "请先登录。",
+                    login_url: "/yonder.html?next=" + encodeURIComponent("/buddy/" + scriptMatch[1])
+                }, 401);
+            }
+
+            const characterId = scriptMatch[1];
+            const character = await getCharacterById(env, characterId);
+
+            if (!character) {
+                return json({ success: false, error: "角色不存在。" }, 404);
+            }
+
+            if (character.owner_id !== user.id) {
+                return json({ success: false, error: "只能沉淀你自己创造的角色。" }, 403);
+            }
+
+            const conversation = await ensureConversation(env, characterId, user.id);
+            const result = await env.DB.prepare(
+                `SELECT role, content, created_at
+                 FROM messages
+                 WHERE conversation_id = ?
+                 ORDER BY created_at DESC
+                 LIMIT 60`
+            ).bind(conversation.id).all();
+            const rows = (result.results || []).reverse();
+
+            if (!rows.length) {
+                return json({ success: false, error: "还没有对话可以沉淀，先和 TA 聊一会儿吧。" }, 400);
+            }
+
+            const transcript = rows.map(m => ({
+                role: m.role === "assistant" ? "assistant" : "user",
+                content: messageToPlainText(m.content)
+            }));
+
+            // 复用角色已有的世界（cast_ids 含该角色），否则新建一个
+            const existing = await env.DB.prepare(
+                `SELECT * FROM worlds WHERE owner_id = ? AND cast_ids LIKE ? LIMIT 1`
+            ).bind(user.id, `%"${characterId}"%`).first();
+
+            const script = await generateScriptFromConversation({ character, transcript }, env);
+
+            let world;
+            if (existing) {
+                let prevScenes = [];
+                try {
+                    const prev = JSON.parse(existing.script_json || "[]");
+                    prevScenes = Array.isArray(prev)
+                        ? prev
+                        : (prev && Array.isArray(prev.scenes) ? prev.scenes : []);
+                } catch { prevScenes = []; }
+
+                const offset = prevScenes.length;
+                const extra = (Array.isArray(script.scenes) ? script.scenes : [])
+                    .map((s, i) => ({ ...s, id: `scene_${offset + i + 1}` }));
+                const merged = {
+                    title: script.title || existing.name,
+                    summary: script.summary || existing.description,
+                    scenes: [...prevScenes, ...extra]
+                };
+
+                await env.DB.prepare(
+                    "UPDATE worlds SET script_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+                ).bind(JSON.stringify(merged), existing.id).run();
+                world = await getWorldById(env, existing.id);
+            } else {
+                const worldId = "world_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+                const shareId = "w" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+                const worldName = (character.world_name || character.name + "的世界").slice(0, 80);
+
+                await env.DB.prepare(
+                    `INSERT INTO worlds
+                     (id, owner_id, name, description, type, cover_image, script_json, cast_ids, settings, source_conversation, status, share_id, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+                ).bind(
+                    worldId, user.id, worldName,
+                    (character.world_description || `由与「${character.name}」的日常对话沉淀而成。`).slice(0, 1200),
+                    "mixed",
+                    character.image_url || "",
+                    JSON.stringify(script),
+                    JSON.stringify([character.id]),
+                    JSON.stringify({ genre: "custom", genreLabel: "自定义", source: "buddy-script" }),
+                    conversation.id,
+                    "draft",
+                    shareId
+                ).run();
+                world = await getWorldById(env, worldId);
+            }
+
+            let sceneCount = 0;
+            try {
+                const p = JSON.parse(world.script_json || "[]");
+                sceneCount = Array.isArray(p) ? p.length : (Array.isArray(p.scenes) ? p.scenes.length : 0);
+            } catch { sceneCount = 0; }
+
+            return json({
+                success: true,
+                world: await formatWorld(env, world),
+                script_count: sceneCount
+            });
+        } catch (error) {
+            console.error("BUDDY SCRIPT ERROR:", error);
+            return json({ success: false, error: "沉淀失败，请稍后再试。" }, 500);
         }
     }
 
@@ -1198,6 +1517,70 @@ function formatCharacter(row) {
         chat_config: (() => {
             try { return JSON.parse(row.chat_config || "{}"); } catch { return {}; }
         })(),
+        created_at: row.created_at,
+        updated_at: row.updated_at
+    };
+}
+
+async function getWorldById(env, id) {
+    return await env.DB.prepare(
+        "SELECT * FROM worlds WHERE id = ? LIMIT 1"
+    ).bind(id).first();
+}
+
+async function formatWorld(env, row) {
+    if (!row) {
+        return null;
+    }
+
+    let castIds = [];
+    try { castIds = JSON.parse(row.cast_ids || "[]"); } catch { castIds = []; }
+    let scriptJson = [];
+    try { scriptJson = JSON.parse(row.script_json || "[]"); } catch { scriptJson = []; }
+    let settings = {};
+    try { settings = JSON.parse(row.settings || "{}"); } catch { settings = {}; }
+
+    // 解析 cast 角色摘要（角色可能已被删除，过滤即可）
+    let cast = [];
+    if (castIds.length) {
+        const placeholders = castIds.map(() => "?").join(",");
+        try {
+            const rows = await env.DB.prepare(
+                `SELECT id, name, appearance, personality, story_hook, image_url, world_name, share_id, created_at
+                 FROM characters WHERE id IN (${placeholders})`
+            ).bind(...castIds).all();
+            const byId = new Map((rows.results || []).map(r => [r.id, r]));
+            cast = castIds
+                .map(id => byId.get(id))
+                .filter(Boolean)
+                .map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    appearance: r.appearance,
+                    personality: r.personality,
+                    story_hook: r.story_hook,
+                    image_url: r.image_url,
+                    world_name: r.world_name,
+                    share_id: r.share_id
+                }));
+        } catch { /* 角色可能已删除，忽略 */ }
+    }
+
+    return {
+        id: row.id,
+        owner_id: row.owner_id,
+        name: row.name,
+        description: row.description,
+        type: row.type,
+        cover_image: row.cover_image,
+        script_json: scriptJson,
+        cast_ids: castIds,
+        cast,
+        settings,
+        source_conversation: row.source_conversation,
+        status: row.status,
+        share_id: row.share_id,
+        play_url: (row.type === "game" || row.type === "mixed") ? `/game-workshop?world=${row.id}` : null,
         created_at: row.created_at,
         updated_at: row.updated_at
     };

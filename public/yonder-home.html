@@ -1098,6 +1098,34 @@ body {
 .char-card .name { font-size: .88rem; font-weight: 600; }
 .char-card .world { font-size: .72rem; color: rgba(255,255,255,.40); margin-top: 2px; }
 
+.world-card {
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(255,255,255,.05);
+    transition: transform .25s, background .25s;
+    cursor: pointer;
+    display: block;
+    text-decoration: none;
+    color: inherit;
+}
+@media (hover: hover) {
+    .world-card:hover { transform: translateY(-3px); background: rgba(255,255,255,.08); }
+}
+.world-card .thumb {
+    width: 100%;
+    aspect-ratio: 4/3;
+    object-fit: cover;
+    object-position: center;
+    background: #0c0d14;
+    display: block;
+}
+.world-card .info { padding: 12px 14px; }
+.world-card .name { font-size: .88rem; font-weight: 600; }
+.world-card .badges { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+.world-card .badge { font-size: .62rem; padding: 2px 8px; border-radius: 999px; background: rgba(139,139,255,.16); color: #b7b7ff; }
+.world-card .badge.form { background: rgba(120,220,170,.14); color: #9fdcbb; }
+
 .create-card {
     border: 1px dashed rgba(255,255,255,.15);
     border-radius: 16px;
@@ -1668,6 +1696,38 @@ body {
     </section>
 
 
+    <!-- WORLDS -->
+
+    <section
+        id="worldsSection"
+        class="section"
+        style="display:none;"
+    >
+
+        <div class="section-title">
+
+            <h2>
+                世界
+            </h2>
+
+            <span>
+                WORLDS
+            </span>
+
+        </div>
+
+        <div
+            id="worldGrid"
+            class="char-grid"
+        >
+            <div class="empty" style="grid-column:1/-1;">
+                加载中……
+            </div>
+        </div>
+
+    </section>
+
+
     <!-- INFINITE -->
 
     <section
@@ -1710,7 +1770,7 @@ body {
             <path d="M4 4h16"/>
             <path d="M12 19v3"/>
         </svg>
-        数字生命库
+        角色工坊
     </a>
     <button id="navEditBtn" class="nav-edit-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2102,6 +2162,8 @@ const state = {
 
     characters: [],
 
+    worlds: [],
+
     isOwner: false
 
 };
@@ -2384,6 +2446,7 @@ function render() {
     if (state.isOwner) {
         document.getElementById("navEditBtn").addEventListener("click", openEditor);
         loadCharacters();
+        loadWorlds();
     }
 
     document.getElementById("statPosts").textContent = state.posts.length;
@@ -2949,6 +3012,49 @@ function renderCharacters() {
     } else {
         grid.innerHTML = html;
     }
+}
+
+/* =====================================================
+   WORLDS
+===================================================== */
+
+async function loadWorlds() {
+    const section = document.getElementById("worldsSection");
+    if (!state.isOwner) { section.style.display = "none"; return; }
+    try {
+        const headers = {};
+        const t = localStorage.getItem("hyool_token");
+        if (t) headers["Authorization"] = "Bearer " + t;
+        const res = await fetch("/api/worlds", { method: "GET", headers });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "加载失败");
+        state.worlds = data.worlds || [];
+        renderWorlds();
+    } catch (e) {
+        state.worlds = [];
+        renderWorlds();
+    }
+}
+
+function renderWorlds() {
+    const grid = document.getElementById("worldGrid");
+    const worlds = state.worlds || [];
+    const section = document.getElementById("worldsSection");
+    if (worlds.length === 0) { grid.innerHTML = ""; section.style.display = "none"; return; }
+    section.style.display = "";
+    const formLabelOf = ({ story: "故事剧本", game: "H5 小游戏", mixed: "故事 + 游戏" });
+    grid.innerHTML = worlds.slice(0, 6).map(w => `
+        <a class="world-card" href="/hub?world=${encodeURIComponent(w.id)}">
+            <img class="thumb" src="${escapeHtml(w.cover_image || '/placeholder.png')}" alt="${escapeHtml(w.name || '')}" onerror="this.style.opacity=.3">
+            <div class="info">
+                <div class="name">${escapeHtml(w.name || '未命名')}</div>
+                <div class="badges">
+                    <span class="badge">${escapeHtml((w.settings && (w.settings.genreLabel || w.settings.genre)) || '世界')}</span>
+                    <span class="badge form">${formLabelOf[w.type] || w.type}</span>
+                </div>
+            </div>
+        </a>
+    `).join("");
 }
 
 

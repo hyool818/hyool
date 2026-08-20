@@ -331,6 +331,167 @@ export async function compressHistory(env, { existingSummary, newMessages }) {
     return summary ? summary.slice(0, 2500) : (existingSummary || "");
 }
 
+/**
+ * 对话沉淀为剧本：把最近一段对话整理为可游玩的多幕剧本。
+ * 返回 { title, summary, scenes: [{ id, type: narration|dialogue|choice, speaker, text, choices?: [{text,next}] }] }
+ */
+export async function generateScriptFromConversation({ character, transcript, existingScenes = [] }, env) {
+    if (!env.AI) {
+        return mockScriptFromConversation(character, transcript, existingScenes);
+    }
+    try {
+        return await callScriptModel({ character, transcript, existingScenes }, env);
+    } catch (e) {
+        console.error("SCRIPT GEN ERROR:", e);
+        return mockScriptFromConversation(character, transcript, existingScenes);
+    }
+}
+
+const SCRIPT_SCHEMA_HINT =
+    '输出 JSON：{"title":"剧本标题","summary":"一句话梗概","scenes":[{"id":"scene_1","type":"narration|dialogue|choice","speaker":"角色名或空","text":"内容","choices":[{"text":"选项","next":"scene_2"}]}]}';
+
+async function callScriptModel({ character, transcript }, env) {
+    const convText = (Array.isArray(transcript) ? transcript : [])
+        .map(m => (m.role === "assistant" ? `【${character.name}】` : "【你】") + String(m.content || "").slice(0, 200))
+        .join("\n")
+        .slice(0, 12000);
+
+    const system = [
+        "你是剧本编剧。请把用户与数字生命的一段日常对话，沉淀为 3~5 幕可游玩的小剧本（视觉小说/对话游戏）。",
+        "世界设定来自角色资料，剧情必须忠于对话中真实发生的事与情绪。",
+        "幕的类型：narration（旁白叙述）、dialogue（角色台词）、choice（分歧选择，choices 至少 2 个，每个带 next 目标幕 id）。",
+        "最后一幕要自然收尾；线性幕按 scenes 数组顺序播放。",
+        SCRIPT_SCHEMA_HINT,
+        "只输出 JSON，不要 markdown 代码块，不要解释。"
+    ].join("\n");
+
+    const content = await chatCompletions(
+        env,
+        [
+            { role: "system", content: system },
+            {
+                role: "user",
+                content: [
+                    `# 角色\n名字：${character.name}\n世界观：${character.world_name || "未知"} — ${character.world_description || ""}\n背景：${character.background || ""}`,
+                    `# 对话记录（时间从旧到新）\n${convText}`
+                ].join("\n")
+            }
+        ],
+        env.AI_CHAT_MODEL,
+        0.6,
+        600
+    );
+
+    return normalizeScript(content, character, transcript);
+}
+
+/** 从 LLM 文本中提取 JSON 剧本并规范化；失败时降级为 mock */
+function normalizeScript(raw, character, transcript) {
+    let parsed = null;
+    const text = String(raw || "");
+    const candidates = [text.match(/```(?:json)?\s*([\s\S]*?)```/i), text.match(/\{[\s\S]*\}/)];
+    for (const m of candidates) {
+        if (!m) continue;
+        try { parsed = JSON.parse(m[1] || m[0]); break; } catch { /* try next */ }
+    }
+    if (!parsed) return mockScriptFromConversation(character, transcript);
+
+    const scenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
+    const normalized = [];
+    const seen = new Set();
+    scenes.slice(0, 12).forEach((s) => {
+        if (!s || typeof s !== "object") return;
+        const type = ["narration", "dialogue", "choice"].includes(s.type) ? s.type : "narration";
+        let id = String(s.id || "").trim();
+        if (!id || seen.has(id)) id = `scene_${normalized.length + 1}`;
+        seen.add(id);
+        const scene = {
+            id,
+            type,
+            speaker: String(s.speaker || (type === "dialogue" ? (character.name || "角色") : "")).slice(0, 20),
+            text: String(s.text || "").slice(0, 600)
+        };
+        if (type === "choice") {
+            const choices = Array.isArray(s.choices)
+                ? s.choices.slice(0, 4)
+                    .map(c => (c && typeof c === "object")
+                        ? { text: String(c.text || "").slice(0, 40), next: String(c.next || "") }
+                        : null)
+                    .filter(c => c && c.text)
+                : [];
+            scene.choices = choices.length >= 2
+                ? choices
+                : [{ text: "继续", next: "" }, { text: "再说点什么", next: "" }];
+        }
+        normalized.push(scene);
+    });
+    if (!normalized.length) return mockScriptFromConversation(character, transcript);
+
+    return {
+        title: String(parsed.title || (character.world_name ? character.world_name + "·故事" : character.name + "·世界")).slice(0, 40),
+        summary: String(parsed.summary || "").slice(0, 300),
+        scenes: normalized
+    };
+}
+
+function mockScriptFromConversation(character, transcript) {
+    const list = Array.isArray(transcript) ? transcript : [];
+    const name = character.name || "角色";
+    const world = character.world_name || character.world_description || "你们的世界";
+    const hook = character.story_hook || `一段关于「${name}」的故事`;
+
+    const scenes = [];
+    scenes.push({
+        id: "scene_1",
+        type: "narration",
+        speaker: "",
+        text: `${world}。${hook}，一切从一次寻常的对话开始。`
+    });
+
+    let idx = 2;
+    list.filter(m => m && m.content).slice(-8).forEach((m) => {
+        scenes.push({
+            id: `scene_${idx++}`,
+            type: "dialogue",
+            speaker: m.role === "assistant" ? name : "你",
+            text: String(m.content || "").slice(0, 200)
+        });
+    });
+
+    if (scenes.length < 4) {
+        scenes.push({
+            id: `scene_${idx++}`,
+            type: "dialogue",
+            speaker: name,
+            text: "能和你这样聊下去，真好。"
+        });
+    }
+
+    scenes.push({
+        id: `scene_${idx++}`,
+        type: "choice",
+        speaker: "",
+        text: "这段对话被定格成剧本。你希望接下来……",
+        choices: [
+            { text: "继续这个故事", next: "" },
+            { text: "回到角色工坊", next: "" }
+        ]
+    });
+
+    scenes.push({
+        id: `scene_${idx}`,
+        type: "narration",
+        speaker: "",
+        text: `— 剧终 —\n这场相遇被完整地留在了「${world}」里。`
+    });
+
+    return {
+        title: `${world}·日常`,
+        summary: `${name}与你的一段对话，被沉淀成可回放的小剧本。`,
+        scenes
+    };
+}
+
 function buildBuddySystemPrompt(character, memories, opts = {}) {
     const rawIntimacy = Number(opts.intimacy);
     const intimacy = Number.isFinite(rawIntimacy) ? Math.max(0, Math.floor(rawIntimacy)) : 0;

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>WORKSHOP-SMOKE</title>
+</head>
+<body>
+<pre id="results">RUNNING…</pre>
+<iframe id="fa" src="about:blank" style="width:1280px;height:800px;border:1px solid #333"></iframe>
+<script>
+const results = [];
+function line(s){ results.push(s); document.getElementById('results').textContent = results.join('\n'); }
+function ok(cond, name, extra=''){ line((cond?'PASS':'FAIL')+'  '+name+(extra?'  '+extra:'')); }
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+const W1 = 'world_bb122fee2109';
+const W2 = 'world_smoke_choice';
+const CHAR1 = 'char_e2e0001';
+
+function waitFor(fn, timeout, what){
+  return new Promise((resolve, reject) => {
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      let v = null;
+      try { v = fn(); } catch(e) {}
+      if (v) { clearInterval(iv); resolve(v); }
+      else if (Date.now() - t0 > timeout) { clearInterval(iv); reject(new Error('timeout: ' + what)); }
+    }, 150);
+  });
+}
+
+function loadIframe(src){
+  return new Promise((res, rej) => {
+    const f = document.getElementById('fa');
+    const to = setTimeout(() => rej(new Error('iframe load timeout: ' + src)), 45000);
+    f.addEventListener('load', () => { clearTimeout(to); res(); }, { once: true });
+    f.src = src;
+  });
+}
+
+let token = '';
+async function login(){
+  let r = await fetch('/api/login', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username:'smokews', password:'testpass123' }) });
+  let d = await r.json();
+  if (!d.success) {
+    r = await fetch('/api/register', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username:'smokews', password:'testpass123', display_name:'Smoke User', invite_code:'HUBTEST2026' }) });
+    d = await r.json();
+  }
+  if (!d.success) throw new Error('login failed: ' + (d.error || r.status));
+  token = d.token || '';
+  localStorage.setItem('hyool_token', token);
+  return d;
+}
+
+async function fetchWorld(id){
+  const res = await fetch('/api/worlds/' + id, { credentials:'include', headers:{ Authorization:'Bearer ' + token } });
+  const d = await res.json();
+  if (!d.success) throw new Error('world fetch failed: ' + (d.error || res.status));
+  return d.world;
+}
+
+async function clickNextTimes(win, n){
+  for (let i = 0; i < n; i++) { win.document.getElementById('nextBtn').click(); await sleep(60); }
+}
+
+/* ================= Part A: game-workshop 三态播放 (W1 真实沉淀世界) ================= */
+async function partA(){
+  const w = await fetchWorld(W1);
+  const raw = w.script_json;
+  const scenes = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.scenes) ? raw.scenes : []);
+  ok(scenes.length >= 5, 'A: W1 剧本场景数 >= 5', 'got ' + scenes.length);
+  ok(scenes.some(s => s.type === 'narration'), 'A: 含 narration 场景');
+  const diaIdx = scenes.findIndex(s => s.type === 'dialogue');
+  ok(diaIdx >= 0, 'A: 含 dialogue 场景', diaIdx < 0 ? '(无)' : 'idx=' + diaIdx);
+
+  await loadIframe('/game-workshop.html?world=' + W1 + '&v=' + Date.now());
+  const f = document.getElementById('fa');
+  const doc = await waitFor(() => {
+    const d = f.contentDocument;
+    return (d.getElementById('content') && d.getElementById('content').style.display === 'block') ? d : null;
+  }, 20000, 'workshop W1 ready');
+  const win = f.contentWindow;
+  const q = (s) => doc.querySelector(s);
+  ok(!!q('.world-cover'), 'A: 世界头图渲染');
+  ok(q('.cast-chip') && q('.cast-chip').textContent.includes('Star Keeper'), 'A: 角色 chip 渲染', q('.cast-chip') ? q('.cast-chip').textContent : '(none)');
+  ok(q('#typeLabel').textContent.includes('混合世界'), 'A: typeLabel 混合世界');
+  const cnt = () => q('#sceneCount').textContent;
+  ok(/第 1 \/ \d+ 幕/.test(cnt()), 'A: 初始第 1 幕', cnt());
+  ok(!!q('.scene-type-narration'), 'A: 第 1 幕 narration 渲染');
+  win.document.getElementById('nextBtn').click();
+  await sleep(80);
+  ok(/第 2 \/ \d+ 幕/.test(cnt()), 'A: 下一步 -> 第 2 幕', cnt());
+  win.document.getElementById('prevBtn').click();
+  await sleep(80);
+  ok(/第 1 \/ \d+ 幕/.test(cnt()), 'A: 上一幕 -> 第 1 幕', cnt());
+
+  // 跳到 dialogue 场景验证对话态
+  if (diaIdx > 0) {
+    await clickNextTimes(win, diaIdx);
+    await sleep(100);
+    ok(!!q('.scene-dialogue .who') && !!q('.scene-dialogue .what'), 'A: dialogue 渲染（speaker+内容）', diaIdx + '幕 ' + (q('.scene-dialogue .who') ? q('.scene-dialogue .who').textContent : ''));
+    // 一路到剧终
+    for (let i = 0; i < scenes.length && !q('.scene-end'); i++) { win.document.getElementById('nextBtn').click(); await sleep(70); }
+    ok(!!q('.scene-end .end-title'), 'A: 剧终页渲染', q('.scene-end .end-title') ? q('.scene-end .end-title').textContent : '(none)');
+    ok(cnt() === '剧终', 'A: sceneCount = 剧终', cnt());
+  } else {
+    ok(false, 'A: 跳过 dialogue/剧终检查（剧本无 dialogue）');
+  }
+}
+
+/* ================= Part B: hub?world=id 直达世界详情 ================= */
+async function partB(){
+  const w = await fetchWorld(W1);
+  await loadIframe('/hub?world=' + W1 + '&v=' + Date.now());
+  const f = document.getElementById('fa');
+  const doc = await waitFor(() => {
+    const d = f.contentDocument;
+    return (d.getElementById('app') && d.getElementById('app').style.display === 'block') ? d : null;
+  }, 20000, 'hub ready');
+  const q = (s) => doc.querySelector(s);
+  await sleep(300);
+  ok(q('#worldDetailModal') && q('#worldDetailModal').classList.contains('show'), 'B: ?world= 自动打开世界详情弹窗');
+  ok(q('#detailName').textContent === w.name, 'B: 详情显示世界名', q('#detailName').textContent);
+  ok(q('#detailScript').textContent.includes('幕剧本'), 'B: 剧本计数已渲染(对象形态)', q('#detailScript').textContent);
+  ok(q('#detailPlay').textContent.trim() === '进入工坊', 'B: 进入工坊按钮(mixed 放行)');
+  doc.getElementById('detailPlay').click();
+  await sleep(400);
+  ok(f.contentWindow.location.href.indexOf('/game-workshop?world=' + W1) >= 0, 'B: 点击进入工坊 -> game-workshop', f.contentWindow.location.href);
+}
+
+/* ================= Part C: buddy 沉淀为剧本 + toast 跳转 ================= */
+async function partC(){
+  await loadIframe('/buddy/' + CHAR1 + '?v=' + Date.now());
+  const f = document.getElementById('fa');
+  const doc = await waitFor(() => {
+    const d = f.contentDocument;
+    return (d.getElementById('charName') && d.getElementById('charName').textContent.trim()) ? d : null;
+  }, 20000, 'buddy loaded');
+  const win = f.contentWindow;
+  ok(true, 'C: buddy 角色加载', doc.getElementById('charName').textContent);
+  doc.getElementById('scriptBtn').click();
+  await waitFor(() => doc.getElementById('toast').classList.contains('show'), 30000, 'toast show');
+  const toastText = doc.getElementById('toast').textContent;
+  ok(toastText.includes('已沉淀为剧本'), 'C: toast 显示沉淀成功', toastText.slice(0, 60));
+  const act = doc.querySelector('#toast button');
+  ok(!!act && act.textContent.includes('去工坊看看'), 'C: toast 带「去工坊看看 →」', act ? act.textContent : '(none)');
+  const hrefBefore = win.location.href;
+  act.click();
+  await sleep(500);
+  ok(win.location.href.indexOf('/hub?world=' + W1) >= 0, 'C: 点击跳转 /hub?world=id', hrefBefore + ' -> ' + win.location.href);
+}
+
+/* ================= Part D: game-workshop choice 跳转 ================= */
+async function partD(){
+  await loadIframe('/game-workshop.html?world=' + W2 + '&v=' + Date.now());
+  const f = document.getElementById('fa');
+  const doc = await waitFor(() => {
+    const d = f.contentDocument;
+    return (d.getElementById('content') && d.getElementById('content').style.display === 'block') ? d : null;
+  }, 20000, 'workshop W2 ready');
+  const win = f.contentWindow;
+  const q = (s) => doc.querySelector(s);
+  ok(/第 1 \/ 4 幕/.test(q('#sceneCount').textContent), 'D: choice 世界 4 幕', q('#sceneCount').textContent);
+  win.document.getElementById('nextBtn').click();
+  await sleep(120);
+  ok(/第 2 \/ 4 幕/.test(q('#sceneCount').textContent), 'D: 进入 choice 场景', q('#sceneCount').textContent);
+  const choiceBtns = doc.querySelectorAll('.choice-btn');
+  ok(choiceBtns.length === 2, 'D: 2 个选项按钮', 'got ' + choiceBtns.length);
+  ok(q('#nextBtn').style.display === 'none', 'D: choice 态隐藏下一步按钮');
+  // 选第 1 项 -> scene_3 森林
+  choiceBtns[0].click();
+  await sleep(150);
+  ok(q('#sceneBody').textContent.includes('forest'), 'D: 选项1 -> scene_3', q('#sceneBody').textContent.slice(0, 40));
+  ok(/第 3 \/ 4 幕/.test(q('#sceneCount').textContent), 'D: 跳转后第 3 幕', q('#sceneCount').textContent);
+  // 重新加载选第 2 项 -> scene_4 海岸
+  await loadIframe('/game-workshop.html?world=' + W2 + '&v=' + Date.now());
+  const d2 = await waitFor(() => {
+    const d = f.contentDocument;
+    return (d.getElementById('content') && d.getElementById('content').style.display === 'block') ? d : null;
+  }, 20000, 'workshop W2 reload');
+  const win2 = f.contentWindow;
+  const q2 = (s) => d2.querySelector(s);
+  win2.document.getElementById('nextBtn').click();
+  await sleep(120);
+  d2.querySelectorAll('.choice-btn')[1].click();
+  await sleep(150);
+  ok(q2('#sceneBody').textContent.includes('coast'), 'D: 选项2 -> scene_4', q2('#sceneBody').textContent.slice(0, 40));
+  ok(/第 4 \/ 4 幕/.test(q2('#sceneCount').textContent), 'D: 跳转后第 4 幕', q2('#sceneCount').textContent);
+}
+
+/* ================= Part E: yonder-home 世界卡片 ================= */
+async function partE(){
+  await loadIframe('/@smokews?v=' + Date.now());
+  const f = document.getElementById('fa');
+  const doc = await waitFor(() => {
+    const d = f.contentDocument;
+    return (d.querySelector('.world-card')) ? d : null;
+  }, 25000, 'yonder-home world cards');
+  const cards = doc.querySelectorAll('.world-card');
+  ok(cards.length >= 1, 'E: 世界卡片展示', cards.length + ' 张');
+  ok(cards[0].getAttribute('href').indexOf('/hub?world=') >= 0, 'E: 卡片直达 hub?world=', cards[0].getAttribute('href'));
+  ok(doc.getElementById('worldsSection').style.display !== 'none', 'E: 登录态显示 WORLDS section');
+}
+
+(async function main(){
+  try {
+    await login();
+    ok(!!token, '登录 smokews');
+    await partA();
+    await partB();
+    await partC();
+    await partD();
+    await partE();
+    const fails = results.filter(r => r.startsWith('FAIL')).length;
+    document.title = fails ? 'SMOKE-FAIL' : 'SMOKE-OK';
+    line('==== 冒烟结果: ' + (fails ? '失败 ' + fails + ' 项' : '全部通过') + ' ====');
+  } catch (e) {
+    line('FATAL: ' + e.message);
+    document.title = 'SMOKE-FAIL';
+  }
+})();
+</script>
+</body>
+</html>
+
+

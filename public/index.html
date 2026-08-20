@@ -2181,17 +2181,30 @@ document.querySelectorAll(".core-entry").forEach(
 
 
                 /* =========================================
-                   生命
-                   暂未开放
+                   生命：进入角色工坊
                 ========================================= */
 
                 if(
                     worldName === "life"
                 ){
 
-                    openComingSoon(
-                        worldName
+                    world.classList.add(
+                        "entering-world"
                     );
+
+
+                    setTimeout(
+                        () => {
+
+                            window.location.href =
+                                "/hub";
+
+                        },
+                        650
+                    );
+
+
+                    return;
 
                 }
 

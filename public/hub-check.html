@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>HUB-CHECK</title>
+</head>
+<body>
+<pre id="results">RUNNING…</pre>
+<iframe id="fa" src="/hub" style="width:1280px;height:800px;border:1px solid #333"></iframe>
+<script>
+const results = [];
+function line(s){ results.push(s); document.getElementById('results').textContent = results.join('\n'); }
+function ok(cond, name, extra=''){ line((cond?'PASS':'FAIL')+'  '+name+(extra?'  '+extra:'')); }
+
+const u = 'hbtest' + Date.now().toString(36) + Math.floor(Math.random()*1e6).toString(36).slice(0,4);
+let token = '';
+
+async function register(){
+  const r = await fetch('/api/register', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: u, password: 'testpass123', display_name: 'Hub测试', invite_code: 'HUBTEST2026' })
+  });
+  const d = await r.json();
+  if (!d.success) throw new Error('register failed: ' + (d.error || r.status));
+  token = d.token || '';
+  if (token) localStorage.setItem('hyool_token', token);
+  return d;
+}
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+function waitFor(fn, timeout, what){
+  return new Promise((resolve, reject) => {
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      let v = null;
+      try { v = fn(); } catch(e) {}
+      if (v) { clearInterval(iv); resolve(v); }
+      else if (Date.now() - t0 > timeout) { clearInterval(iv); reject(new Error('timeout: ' + what)); }
+    }, 150);
+  });
+}
+
+async function main(){
+  try {
+    await register();
+    ok(!!token, 'register user', u);
+
+    const f = document.getElementById('fa');
+    await new Promise((res, rej) => {
+      const to = setTimeout(() => rej(new Error('iframe load timeout')), 60000);
+      f.addEventListener('load', () => { clearTimeout(to); res(); }, { once: true });
+    });
+
+    // 等待登录态 + 数据加载完成
+    const doc = await waitFor(() => {
+      const d = document.getElementById('fa').contentDocument;
+      return (d.getElementById('app').style.display === 'block') ? d : null;
+    }, 20000, 'hub app ready');
+    const win = f.contentWindow;
+    const q = (s) => doc.querySelector(s);
+    const qa = (s) => [...doc.querySelectorAll(s)];
+    await sleep(300);
+
+    /* ---- 基础 UI ---- */
+    ok(q('h1') && q('h1').textContent.trim() === '角色工坊', 'h1 = 角色工坊');
+    ok(qa('.tab').length === 2 && q('.tab[data-tab="role"]') && q('.tab[data-tab="world"]'), '角色/世界双 tab');
+    ok(q('#createBtn').style.display !== 'none', '登录态显示创造按钮');
+    ok(q('#loginLink').style.display === 'none', '登录态隐藏登录链接');
+    ok(qa('#createMenu button').length === 2, '创造下拉含 2 个入口');
+
+    /* ---- 创造下拉 -> 打开向导 ---- */
+    win.toggleCreateMenu(true);
+    await sleep(150);
+    ok(q('#createMenu').classList.contains('open'), '创造下拉展开');
+    const worldBtn = qa('#createMenu button').find(b => b.dataset.act === 'world');
+    worldBtn.click();
+    await sleep(250);
+    ok(q('#wizardModal').classList.contains('show'), '自定义世界向导打开');
+    ok(qa('#wizardSteps .wizard-step-dot').length === 5, '向导 5 步圆点');
+    ok(q('.wstep.active[data-wstep="1"]') != null, '第 1 步: 题材');
+
+    /* ---- Step1 选题材 ---- */
+    const genreCard = q('#genreGrid .option-card[data-genre="fantasy"]');
+    ok(!!genreCard, '题材卡片存在');
+    genreCard.click();
+    await sleep(80);
+    ok(q('#genreGrid .option-card.selected[data-genre="fantasy"]') != null, '题材选中生效');
+    q('#wizardNext').click();
+    await sleep(200);
+    ok(q('.wstep.active[data-wstep="2"]') != null, '第 2 步: 命名与设定');
+    /* ---- Step2 名称 + 载体(默认 story) ---- */
+    q('#wName').value = '星陨之地';
+    q('#wDesc').value = '被流星撕裂的大陆上，最后一个守夜人苏醒了。';
+    const storyForm = q('#formGrid .option-card[data-form="story"]');
+    ok(!!storyForm, '载体选项存在');
+    storyForm.click();
+    await sleep(80);
+    ok(q('#formGrid .option-card.selected[data-form="story"]') != null, '载体选中生效');
+    q('#wizardNext').click();
+    await sleep(200);
+    ok(q('.wstep.active[data-wstep="3"]') != null, '第 3 步: 选角色');
+
+    /* ---- Step3 角色勾选（注入假演员测试 UI 勾选逻辑） ---- */
+    win.eval('allChars = [{ id: "fake-act-1", name: "测试演员", image_url: "", world_name: "测试世界" }]; wizardInit(); wizard.genre = "fantasy"; wizard.name = "星陨之地"; wizard.desc = "被流星撕裂的大陆上，最后一个守夜人苏醒了。"; wizard.form = "story"; pickGenre("fantasy"); pickForm("story"); wizardGo(3);');
+    await sleep(250);
+    ok(qa('#wCastGrid .char-select').length === 1, '角色格渲染 1 名演员');
+    q('#wCastGrid .char-select').click();
+    await sleep(80);
+    ok(q('#wCastGrid .char-select.selected') != null, '演员勾选生效');
+    q('#wizardNext').click();
+    await sleep(250);
+    ok(q('.wstep.active[data-wstep="4"]') != null, '第 4 步: 生成封面');
+
+    /* ---- Step4 封面（点击下一步时自动生成） ---- */
+    q('#wizardNext').click();
+    await sleep(300);
+    ok(q('.wstep.active[data-wstep="5"]') != null, '第 5 步: 确认创建');
+    ok(q('#coverPreview2').src && q('#coverPreview2').src.includes('image.pollinations.ai'), '封面 URL 已生成', q('#coverPreview2').src.slice(0, 80));
+    ok(q('#wSummary').textContent.includes('星陨之地'), '摘要含世界名');
+
+    /* ---- 创建 ---- */
+    q('#wizardNext').click();
+    await waitFor(() => {
+      const d = document.getElementById('fa').contentDocument;
+      return (d.getElementById('worldGrid').textContent.includes('星陨之地')) ? d : null;
+    }, 15000, 'world card appears');
+    ok(true, '创建世界成功, 卡片出现在世界区');
+
+    /* ---- 世界详情 + 删除 ---- */
+    q('.tab[data-tab="world"]').click();
+    await sleep(150);
+    const wCard = qa('#worldGrid .card').find(c => c.querySelector('.name') && c.querySelector('.name').textContent.includes('星陨之地'));
+    ok(!!wCard, '世界区展示世界卡片');
+    wCard.querySelector('.name').parentElement.click();
+    await sleep(250);
+    ok(q('#worldDetailModal').classList.contains('show'), '世界详情弹窗打开');
+    ok(q('#detailName').textContent === '星陨之地', '详情显示世界名');
+    ok(q('#detailBadges').textContent.includes('奇幻') && q('#detailBadges').textContent.includes('故事剧本'), '详情徽章: 题材/载体');
+    q('#detailDelete').click();
+    await sleep(250);
+    ok(q('#deleteModal').classList.contains('show'), '删除确认弹窗');
+    ok(q('#deleteName').textContent === '星陨之地', '删除确认显示世界名');
+    q('#deleteConfirm').click();
+    await waitFor(() => {
+      const d = document.getElementById('fa').contentDocument;
+      return (!d.getElementById('worldGrid').textContent.includes('星陨之地')) ? d : null;
+    }, 15000, 'world deleted');
+    ok(true, '删除世界成功');
+
+    /* ---- 角色 tab 切换 ---- */
+    q('.tab[data-tab="role"]').click();
+    await sleep(150);
+    ok(q('#roleSection').style.display !== 'none', '切回角色 tab 生效');
+
+    /* ---- 访客态：登出 + 清 token 重载 ---- */
+    await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+    localStorage.removeItem('hyool_token');
+    f.src = '/hub';
+    await new Promise((res, rej) => {
+      const to = setTimeout(() => rej(new Error('iframe reload timeout')), 60000);
+      f.addEventListener('load', () => { clearTimeout(to); res(); }, { once: true });
+    });
+    const gdoc = await waitFor(() => {
+      const d = document.getElementById('fa').contentDocument;
+      return (d.getElementById('app').style.display === 'block') ? d : null;
+    }, 20000, 'hub guest app ready');
+    await sleep(300);
+    ok(gdoc.getElementById('createBtn').style.display === 'none', '访客态隐藏创造按钮');
+    ok(gdoc.getElementById('logoutBtn').style.display === 'none', '访客态隐藏退出');
+    ok(gdoc.getElementById('loginLink').style.display !== 'none', '访客态显示登录链接');
+
+    // 恢复 token（清理用）
+    if (token) localStorage.setItem('hyool_token', token);
+
+    document.title = 'SMOKE-OK';
+  } catch (e) {
+    line('FATAL: ' + (e && e.stack || e && e.message || e));
+    document.title = 'SMOKE-FAIL';
+  }
+}
+main();
+</script>
+</body>
+</html>
+

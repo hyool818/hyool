@@ -111,3 +111,35 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - 部署：commit + push main（CI 自动）
 - 验证 prompt：可在 `.wrangler/` 下写临时脚本 + `node` 运行（用完删除）
 - 注意：PowerShell 读中文文件设 `$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8`；`read_files` 对同一文件多次范围读取有缓存问题，可用 `Get-Content -Encoding UTF8` 绕过
+
+## 已完成的「对话→剧本→世界→工坊」最小闭环（本会话，已部署）
+
+- **gateway.js**：`generateScriptFromConversation({character, transcript, existingScenes}, env)` —— LLM 生成 3~5 幕剧本 + mock 降级 + `normalizeScript`，返回 `{title, summary, scenes:[{id,type,speaker,text,choices}]}`。
+- **mvp.js** `POST /api/buddy/:charId/script`：鉴权 → 最近 60 条消息 → 复用 `cast_ids` 含该角色的 world（追加场景并重排 scene id），否则新建 `type="mixed"` 世界（`settings {genre:"custom", genreLabel:"自定义", source:"buddy-script"}`、`source_conversation` 存 conversation_id、`cast_ids` 含角色）→ 写 `script_json` → 返回 `world + script_count`（实时统计 scenes，无 script_count 列）。
+- **buddy.html**：头部「🎬 沉淀为剧本」按钮；成功后 toast「已沉淀为剧本《…》· N 幕」+「去工坊看看 →」跳 `/hub?world=id`；`.settings-overlay` 与 crop modal 已恢复。
+- **hub.html**：剧本计数兼容 `{title,summary,scenes}` 对象与数组；「进入工坊」放行 `game/mixed` → `/game-workshop?world=id`；`?world=id` 直达世界详情弹窗。
+- **game-workshop.html（新建）**：三态播放器（narration / dialogue / choice，上一幕/下一步/选项跳转、剧终页、空剧本提示）。
+- **入口**：workspace/fantasy「生命」→ `/hub`；index 生命 650ms 后跳 /hub；yonder-home 新增 WORLDS section（`loadWorlds()/renderWorlds()`，卡片直达 `/hub?world=`）。
+
+## 本会话修复（均已部署 + live 验证）
+
+1. worlds 路由正则放行下划线：`/^\/api\/worlds\/(world_[a-z0-9_]+)$/`（GET/DELETE）—— 手动/演示 id 含下划线不再 404。
+2. `formatWorld.play_url` 覆盖 `mixed`，URL 用无扩展名 `/game-workshop?world=id`（Cloudflare Static Assets 会把 `*.html` 301 到无扩展名形式）。
+3. game-workshop「下一步」钳制 `Math.min(scenes.length, cursor+1)`，使剧终页可到达（旧代码钳到 len-1 永远停在最后一幕）。
+4. yonder-home `renderWorlds()` 简化：去掉 `section:` 标签块，改普通 if + 提前 return。
+5. `cdp-driver.js` 增加 `Network.setCacheDisabled`（消除浏览器缓存导致的冒烟误报）。
+6. **远端 D1 worlds 表旧 schema 补列**：`schema/migrate_worlds_v2.sql`（ALTER TABLE ADD COLUMN type/cover_image/script_json/cast_ids/settings/source_conversation/status/share_id）已对 remote 执行成功；`migrate_worlds.sql`（CREATE IF NOT EXISTS）对已存在的旧表无效，勿再依赖。
+7. 远端插入邀请码 `HUBTEST2026`（is_active=1, max_uses=100）供测试/演示注册。
+
+## 验证记录
+
+- `.wrangler/e2e-script-test.ps1`（seed→register→POST script→worlds list）：全绿（mock AI 路径，AI 绑定临时注释）。
+- `public/workshop-smoke-check.html`（CDP，30 断言）：A 三态播放 / B `?world=` 直达 + 剧本计数 + 进入工坊 / C buddy 沉淀按钮 + toast 跳转 / D choice 选项跳转 / E yonder-home 世界卡片 —— 全部 PASS，console 无错误。
+- 回归：patch-check / crop-compare-check（复跑后 OK）/ ui-check / hub-check / fantasy-check 全部 SMOKE-OK。
+- Live：`https://hyool.w910227a.workers.dev`（v c63e567e）注册→建 mixed 世界→列表→详情→`/game-workshop?world=` 200 全通。
+
+## 待办状态
+
+- 本会话所有变更**尚未 commit / push**（需 `git add -A && git commit` 后 push main 触发 CI 部署）。
+- 本地 dev 正常（AI 绑定已恢复）；`wrangler.toml` 无残留测试改动。
+

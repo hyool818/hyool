@@ -55,6 +55,16 @@ a { color: inherit; text-decoration: none; }
   align-items: center; justify-content: center;
 }
 .settings-overlay.show { display: flex; }
+
+/* Toast（沉淀为剧本等提示） */
+#toast {
+  position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(20px);
+  background: rgba(20,22,32,.96); border: 1px solid rgba(139,139,255,.4); color: #fff;
+  padding: 11px 22px; border-radius: 999px; font-size: 13px; z-index: 500;
+  display: flex; align-items: center; gap: 10px; max-width: 90vw; white-space: nowrap;
+  opacity: 0; visibility: hidden; transition: all .3s; pointer-events: none;
+}
+#toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); pointer-events: auto; }
 .settings-panel {
   background: linear-gradient(145deg, #1a1b2e, #12131f);
   border: 1px solid var(--glass-border); border-radius: 16px;
@@ -389,6 +399,7 @@ a { color: inherit; text-decoration: none; }
       </div>
     </div>
     <div style="display:flex;gap:.5rem;">
+      <button class="header-link" id="scriptBtn">🎬 沉淀为剧本</button>
       <button class="header-link" id="settingsBtn">⚙ 设置</button>
       <a class="header-link" id="shareLink" href="#">分享</a>
       <button class="header-link" id="logoutBtn">退出</button>
@@ -484,6 +495,8 @@ a { color: inherit; text-decoration: none; }
   </div>
 </div>
 
+<div id="toast"></div>
+
 <!-- Image crop modal -->
 <div class="crop-backdrop" id="cropBackdrop">
   <div class="crop-modal">
@@ -519,6 +532,21 @@ const api = (p, o = {}) => {
 
 const $ = id => document.getElementById(id);
 const escapeHtml = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+
+/* 沉淀为剧本 toast */
+let toastTimer = null;
+function toast(msg, actionEl) {
+  const el = $("toast");
+  if (!el) return;
+  el.innerHTML = "";
+  const span = document.createElement("span");
+  span.textContent = msg;
+  el.appendChild(span);
+  if (actionEl) el.appendChild(actionEl);
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 5000);
+}
 
 function getCharId() {
   const parts = location.pathname.split("/").filter(Boolean);
@@ -900,7 +928,7 @@ async function loadMessages() {
     $("app").style.display = "flex";
     scrollBottom();
   } catch (e) {
-    $("loading").innerHTML = '<div class="err-screen">加载失败：' + escapeHtml(e.message) + '<br><a href="/hub">返回数字生命库</a></div>';
+    $("loading").innerHTML = '<div class="err-screen">加载失败：' + escapeHtml(e.message) + '<br><a href="/hub">返回角色工坊</a></div>';
   }
 }
 
@@ -1139,6 +1167,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     localStorage.removeItem("hyool_token");
     try { await api("/api/logout", { method: "POST" }); } catch {}
     location.href = "/yonder";
+  });
+
+  // 沉淀为剧本：对话 → LLM → worlds.script_json
+  $("scriptBtn").addEventListener("click", async () => {
+    const btn = $("scriptBtn");
+    btn.disabled = true; btn.textContent = "🎬 沉淀中…";
+    try {
+      const res = await api("/api/buddy/" + getCharId() + "/script", { method: "POST", timeout: 90000 });
+      if (!res.success) throw new Error(res.error || "沉淀失败。");
+      const w = res.world;
+      const act = document.createElement("button");
+      act.type = "button";
+      act.style.cssText = "background:var(--accent);color:#0a0a12;border:0;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;";
+      act.textContent = "去工坊看看 →";
+      act.addEventListener("click", () => { location.href = "/hub?world=" + w.id; });
+      toast("已沉淀为剧本《" + w.name + "》· " + (res.script_count || 0) + " 幕", act);
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = "🎬 沉淀为剧本";
+    }
   });
 
   // Mobile portrait toggle
