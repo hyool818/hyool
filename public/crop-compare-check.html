@@ -126,7 +126,7 @@ async function main() {
       return true;
     })()`);
 
-    // 4) 拖拽裁剪（回归点：裁剪后 canvasOut 被 CSS 裁掉右半 →「左右分离」）
+    // 4) 进入裁剪模式并拖拽框选（新流程：框选后不立即应用，预览保持完整原图）
     f().eval(`(() => {
       document.getElementById('mosaicLayer').setPointerCapture = () => {}; // 合成事件没有真实 pointer 捕获
       document.getElementById('cropModeBtn').click();
@@ -138,30 +138,81 @@ async function main() {
       window.dispatchEvent(mk('pointerup', r.left + r.width * 0.7, r.top + r.height * 0.8));
       return true;
     })()`);
-    await sleep(900); // 等 processImageData 异步完成后 drawOverlay
+    await sleep(150);
     clip = computedClip();
-    ok(clip === 'none', '裁剪后（对比仍关）canvasOut 无 clip-path', 'clipPath=' + JSON.stringify(clip));
+    ok(clip === 'none', '框选后（未确认）canvasOut 无 clip-path', 'clipPath=' + JSON.stringify(clip));
 
-    // 5) 裁剪已生效：清除按钮可见 + 画布内容已变为裁剪放大结果（预览保持原画布尺寸，把裁剪区拉伸铺满）
-    const cropState = f().eval(`(() => {
-      const clearBtn = document.getElementById('cropClearBtn');
+    // 4b) 框选后保持完整预览：画布内容未变 + 裁剪遮罩已绘制 + 确认/取消按钮出现
+    const draftState = f().eval(`(() => {
       const out = document.getElementById('canvasOut');
       const overlay = document.getElementById('mosaicLayer');
-      const octx = out.getContext('2d');
-      const lctx = overlay.getContext('2d');
+      const a = out.getContext('2d').getImageData(0, 0, out.width, out.height).data;
+      const before = window.__beforeCrop;
+      let diff = 0;
+      if (before && before.length === a.length) {
+        for (let i = 0; i < a.length; i += 4) {
+          if (Math.abs(before[i] - a[i]) + Math.abs(before[i+1] - a[i+1]) + Math.abs(before[i+2] - a[i+2]) > 12) { diff++; if (diff > 10) break; }
+        }
+      }
+      const id = overlay.getContext('2d').getImageData(0, 0, overlay.width, overlay.height).data;
       let overlayPainted = false;
-      const id = lctx.getImageData(0, 0, overlay.width, overlay.height).data;
       for (let i = 3; i < id.length; i += 4) { if (id[i] > 0) { overlayPainted = true; break; } }
       return JSON.stringify({
-        clearVisible: !clearBtn.classList.contains('hidden'),
-        nowHash: octx.getImageData(0, 0, out.width, out.height).data.length,
+        diff,
         overlayPainted,
-        overlayW: overlay.width, overlayH: overlay.height,
-        outW: out.width, outH: out.height,
+        applyVisible: !document.getElementById('cropApplyBtn').classList.contains('hidden'),
+        cancelVisible: !document.getElementById('cropCancelBtn').classList.contains('hidden'),
+        clearVisible: !document.getElementById('cropClearBtn').classList.contains('hidden'),
+        modeActive: document.getElementById('cropModeBtn').classList.contains('active'),
+      });
+    })()`);
+    const ds = JSON.parse(draftState);
+    ok(ds.diff === 0 && ds.overlayPainted && ds.applyVisible && ds.cancelVisible && ds.modeActive,
+      '框选后保持完整预览（画布未变）+ 遮罩/确认/取消按钮出现', 'draft=' + JSON.stringify(ds));
+
+    // 4c) 框选后可在图中继续移动裁剪框（原 bug：松手后 dragMode=null 无法再操作）
+    f().eval(`(() => {
+      const layer = document.getElementById('mosaicLayer');
+      const r = layer.getBoundingClientRect();
+      const mk = (type, x, y) => new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 2, clientX: x, clientY: y });
+      layer.dispatchEvent(mk('pointerdown', r.left + r.width * 0.45, r.top + r.height * 0.5));
+      window.dispatchEvent(mk('pointermove', r.left + r.width * 0.55, r.top + r.height * 0.6));
+      window.dispatchEvent(mk('pointerup', r.left + r.width * 0.55, r.top + r.height * 0.6));
+      return true;
+    })()`);
+    await sleep(80);
+    const movedOk = f().eval(`(() => {
+      const out = document.getElementById('canvasOut');
+      const a = out.getContext('2d').getImageData(0, 0, out.width, out.height).data;
+      const before = window.__beforeCrop;
+      let diff = 0;
+      if (before && before.length === a.length) {
+        for (let i = 0; i < a.length; i += 4) {
+          if (Math.abs(before[i] - a[i]) + Math.abs(before[i+1] - a[i+1]) + Math.abs(before[i+2] - a[i+2]) > 12) { diff++; if (diff > 10) break; }
+        }
+      }
+      return diff === 0 && document.getElementById('cropModeBtn').classList.contains('active');
+    })()`);
+    ok(movedOk, '裁剪框可继续移动，预览仍保持完整原图');
+
+    // 5) 确认裁剪：退出裁剪模式 + 清除按钮可见 + 画布内容变为裁剪放大结果
+    f().eval(`document.getElementById('cropApplyBtn').click()`);
+    await sleep(900); // 等 processImageData 异步完成后 drawOverlay
+    clip = computedClip();
+    ok(clip === 'none', '确认裁剪后（对比仍关）canvasOut 无 clip-path', 'clipPath=' + JSON.stringify(clip));
+    const cropState = f().eval(`(() => {
+      const clearBtn = document.getElementById('cropClearBtn');
+      const applyBtn = document.getElementById('cropApplyBtn');
+      const out = document.getElementById('canvasOut');
+      return JSON.stringify({
+        clearVisible: !clearBtn.classList.contains('hidden'),
+        applyHidden: applyBtn.classList.contains('hidden'),
+        modeActive: document.getElementById('cropModeBtn').classList.contains('active'),
+        nowHash: out.getContext('2d').getImageData(0, 0, out.width, out.height).data.length,
       });
     })()`);
     const cs = JSON.parse(cropState);
-    ok(cs.clearVisible && cs.overlayPainted, '裁剪已生效（清除按钮可见 + 裁剪遮罩已绘制）', 'crop=' + JSON.stringify(cs));
+    ok(cs.clearVisible && cs.applyHidden && !cs.modeActive, '确认裁剪后生效（清除按钮可见、裁剪模式已退出）', 'crop=' + JSON.stringify(cs));
 
     // 6) 裁剪内容确实改变：与步骤 3 后（未裁剪）的画布内容对比
     const differ = f().eval(`(() => {
@@ -175,7 +226,7 @@ async function main() {
       }
       return diff > 0;
     })()`);
-    ok(differ, '裁剪后画布内容已改变（裁剪放大生效）');
+    ok(differ, '确认裁剪后画布内容已改变（裁剪放大生效）');
 
     // 7) 裁剪后开启对比仍应正常出分割（裁剪编辑与对比共存），最后恢复关闭
     f().eval(`document.getElementById('compareToggle').click()`);
@@ -184,6 +235,36 @@ async function main() {
     ok(String(clip).indexOf('inset') === 0, '裁剪后开启对比仍有 clip-path', 'clipPath=' + JSON.stringify(clip));
     f().eval(`document.getElementById('compareToggle').click()`);
     await sleep(320);
+
+    // 8) 右键菜单（替代浏览器「检查」）：自定义菜单出现 + 「删除图片」清空舞台
+    const ctxOk = f().eval(`(() => {
+      const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 200, clientY: 150 });
+      document.getElementById('editorView').dispatchEvent(ev);
+      const menu = document.getElementById('stageMenu');
+      const shown = !menu.classList.contains('hidden') && getComputedStyle(menu).display !== 'none';
+      const items = [...menu.querySelectorAll('button')].map(b => b.dataset.act);
+      return JSON.stringify({ shown, items });
+    })()`);
+    const ctx = JSON.parse(ctxOk);
+    ok(ctx.shown && ctx.items.includes('replace') && ctx.items.includes('delete'), '右键显示自定义菜单（更换/删除）', 'menu=' + JSON.stringify(ctx));
+    f().eval(`(() => {
+      document.getElementById('stageMenu').querySelector('[data-act="delete"]').click();
+      return true;
+    })()`);
+    await sleep(120);
+    const afterDelete = f().eval(`(() => {
+      const empty = document.getElementById('empty');
+      const wrap = document.getElementById('compareWrap');
+      const exportBtn = document.getElementById('topExportBtn');
+      return JSON.stringify({
+        emptyShown: !empty.classList.contains('hidden'),
+        wrapHidden: wrap.classList.contains('hidden'),
+        exportHidden: exportBtn.classList.contains('hidden'),
+        menuHidden: document.getElementById('stageMenu').classList.contains('hidden'),
+      });
+    })()`);
+    const ad = JSON.parse(afterDelete);
+    ok(ad.emptyShown && ad.wrapHidden && ad.exportHidden && ad.menuHidden, '「删除图片」清空舞台回到空状态', 'after=' + JSON.stringify(ad));
 
     line('');
     line('--- console/errors ---');

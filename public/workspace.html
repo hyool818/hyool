@@ -269,9 +269,13 @@
         </div>
         <div class="field">
           <label>裁剪</label>
-          <button id="cropModeBtn" class="btn small">✂ 拖拽裁剪</button>
-          <button id="cropClearBtn" class="btn small ghost hidden">清除裁剪</button>
-          <p class="hint small">点击后回到预览区，按住拖出一个矩形作为保留区域。</p>
+          <div class="row wrap">
+            <button id="cropModeBtn" class="btn small">✂ 拖拽裁剪</button>
+            <button id="cropApplyBtn" class="btn small primary hidden">✓ 确认裁剪</button>
+            <button id="cropCancelBtn" class="btn small ghost hidden">✕ 取消</button>
+            <button id="cropClearBtn" class="btn small ghost hidden">清除裁剪</button>
+          </div>
+          <p class="hint small">点「✂ 拖拽裁剪」后在预览区框选；框选后可整框拖动 / 拖四角微调，预览始终是完整原图，点「确认裁剪」才生效。</p>
         </div>
       </section>
 
@@ -422,6 +426,12 @@
   <span id="statusText">就绪</span>
   <span id="statusRight"></span>
 </footer>
+
+  <!-- 右键菜单：更换 / 删除当前素材（替代浏览器「检查」） -->
+  <div id="stageMenu" class="stage-menu hidden">
+    <button type="button" data-act="replace">✎ 更换图片</button>
+    <button type="button" data-act="delete" class="danger">🗑 删除图片</button>
+  </div>
 
 </div><!-- /#editorView -->
 

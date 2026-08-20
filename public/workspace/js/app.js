@@ -12,7 +12,7 @@ const PREVIEW_MAX = 1920; // 预览画布最大边（导出仍为全分辨率）
 
 const R = {
   fileInput: $('#fileInput'), importBtn: $('#importBtn'), topExportBtn: $('#topExportBtn'),
-  empty: $('#empty'), compareWrap: $('#compareWrap'),
+  empty: $('#empty'), compareWrap: $('#compareWrap'), editorView: $('#editorView'), stageMenu: $('#stageMenu'),
   canvasOrig: $('#canvasOrig'), canvasOut: $('#canvasOut'), mosaicLayer: $('#mosaicLayer'),
   compareSlider: $('#compareSlider'), compareDivider: $('#compareDivider'), stageHint: $('#stageHint'),
   videoBar: $('#videoBar'), frameStrip: $('#frameStrip'),
@@ -21,7 +21,7 @@ const R = {
   resizeEnabled: $('#resizeEnabled'), resizeW: $('#resizeW'), resizeH: $('#resizeH'),
   keepRatio: $('#keepRatio'), resetSizeBtn: $('#resetSizeBtn'),
   rotLeft: $('#rotLeft'), rotRight: $('#rotRight'), flipH: $('#flipH'), flipV: $('#flipV'),
-  cropModeBtn: $('#cropModeBtn'), cropClearBtn: $('#cropClearBtn'),
+  cropModeBtn: $('#cropModeBtn'), cropApplyBtn: $('#cropApplyBtn'), cropCancelBtn: $('#cropCancelBtn'), cropClearBtn: $('#cropClearBtn'),
   formatSelect: $('#formatSelect'), qualityRange: $('#qualityRange'), qualityVal: $('#qualityVal'),
   effortRange: $('#effortRange'), effortVal: $('#effortVal'), losslessToggle: $('#losslessToggle'),
   pngOptimise: $('#pngOptimise'), pngOptField: $('#pngOptField'),
@@ -59,7 +59,8 @@ const state = {
   regionType: 'mosaic',
   regionStrength: 16,
   dragMode: null,       // null | 'region' | 'crop'
-  drag: null,           // {x0,y0,x1,y1} 归一化
+  drag: null,           // 拖拽状态：{x0,y0,x1,y1}（打码）或 {kind,...}（裁剪）
+  cropDraft: null,      // 裁剪模式中的框选草稿（确认前不应用，保持完整预览）
   compareOn: false,
   aiBackup: null,       // AI 抠图前的原帧备份
   batch: [],
@@ -119,15 +120,12 @@ function bindEvents() {
   R.flipH.addEventListener('click', () => { state.edits.flipH = !state.edits.flipH; rerender(); scheduleEstimate(); });
   R.flipV.addEventListener('click', () => { state.edits.flipV = !state.edits.flipV; rerender(); scheduleEstimate(); });
   R.cropModeBtn.addEventListener('click', () => {
-    state.dragMode = 'crop';
-    toast('在预览区按住拖拽，选择要保留的裁剪区域', false, 3000);
-    drawOverlay();
+    if (state.dragMode === 'crop') { exitCropMode(); drawOverlay(); return; }
+    enterCropMode();
   });
-  R.cropClearBtn.addEventListener('click', () => {
-    state.edits.crop = null;
-    R.cropClearBtn.classList.add('hidden');
-    rerender(); scheduleEstimate();
-  });
+  R.cropApplyBtn.addEventListener('click', applyCropDraft);
+  R.cropCancelBtn.addEventListener('click', cancelCropDraft);
+  R.cropClearBtn.addEventListener('click', clearCrop);
 }
 
 function bindMosaicVideoEvents() {
@@ -215,6 +213,27 @@ function bindAnimVideoBatchEvents() {
   R.mosaicLayer.addEventListener('pointerdown', onStagePointerDown);
   window.addEventListener('pointermove', onStagePointerMove);
   window.addEventListener('pointerup', onStagePointerUp);
+
+  // 右键菜单（替代浏览器「检查」）：更换 / 删除素材
+  R.editorView.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    showStageMenu(e.clientX, e.clientY);
+  });
+  window.addEventListener('pointerdown', (e) => {
+    if (!R.stageMenu.classList.contains('hidden') && !e.target.closest('#stageMenu')) hideStageMenu();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    hideStageMenu();
+    if (state.dragMode === 'crop') cancelCropDraft();
+  });
+  R.stageMenu.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    hideStageMenu();
+    if (btn.dataset.act === 'replace') { R.fileInput.click(); }
+    else if (btn.dataset.act === 'delete') { removeAsset(); }
+  });
 }
 
 function switchTab(name) {
@@ -239,6 +258,9 @@ async function handleFiles(files) {
     state.asset = null;
     state.aiBackup = null;
     state.edits = { crop: null, rotate: 0, flipH: false, flipV: false, resize: { enabled: true, width: 0, height: 0, method: 'lanczos3' }, regions: [], pad: null };
+    state.cropDraft = null;
+    state.drag = null;
+    exitCropMode();
     state.anim.selectedFrame = 0;
     state.appliedPreset = null;
     R.resizeW.value = ''; R.resizeH.value = '';
@@ -276,6 +298,105 @@ async function handleFiles(files) {
     toast('无法读取该文件：' + e.message, true);
     setStatus('载入失败');
   }
+}
+
+/* ================= 裁剪模式（草稿 → 确认，预览始终保持完整原图） ================= */
+
+function enterCropMode() {
+  state.dragMode = 'crop';
+  state.drag = null;
+  state.cropDraft = state.edits.crop ? { ...state.edits.crop } : null;
+  R.cropModeBtn.classList.add('active');
+  R.cropApplyBtn.classList.remove('hidden');
+  R.cropCancelBtn.classList.remove('hidden');
+  R.mosaicLayer.style.cursor = 'crosshair';
+  toast('在预览区拖拽框选要保留的区域；松开后可整框拖动 / 拖四角微调，最后点「确认裁剪」', false, 4000);
+  drawOverlay();
+}
+
+function exitCropMode() {
+  state.dragMode = null;
+  state.drag = null;
+  R.cropModeBtn.classList.remove('active');
+  R.cropApplyBtn.classList.add('hidden');
+  R.cropCancelBtn.classList.add('hidden');
+  R.mosaicLayer.style.cursor = '';
+}
+
+function applyCropDraft() {
+  if (!state.cropDraft) { toast('请先在预览区框选要保留的区域', true); return; }
+  if (state.cropDraft.w < CROP_MIN || state.cropDraft.h < CROP_MIN) { toast('裁剪区域太小，请重新框选', true); return; }
+  state.edits.crop = { ...state.cropDraft };
+  state.cropDraft = null;
+  R.cropClearBtn.classList.remove('hidden');
+  exitCropMode();
+  drawOverlay();
+  rerender();
+  scheduleEstimate();
+  toast('已应用裁剪，可随时点「清除裁剪」恢复原图', false, 2500);
+}
+
+function cancelCropDraft() {
+  state.cropDraft = null;
+  exitCropMode();
+  drawOverlay();
+  toast('已取消本次裁剪', false, 1500);
+}
+
+function clearCrop() {
+  state.edits.crop = null;
+  state.cropDraft = null;
+  R.cropClearBtn.classList.add('hidden');
+  exitCropMode();
+  drawOverlay();
+  rerender();
+  scheduleEstimate();
+  toast('已清除裁剪', false, 1500);
+}
+
+/* ================= 右键菜单：更换 / 删除素材（替代浏览器「检查」） ================= */
+
+function showStageMenu(x, y) {
+  R.stageMenu.style.left = Math.max(4, Math.min(x, innerWidth - 170)) + 'px';
+  R.stageMenu.style.top = Math.max(4, Math.min(y, innerHeight - 100)) + 'px';
+  R.stageMenu.classList.remove('hidden');
+}
+
+function hideStageMenu() { R.stageMenu.classList.add('hidden'); }
+
+/** 删除当前素材：清空舞台回到空状态 */
+function removeAsset() {
+  if (state.busy) { toast('正在处理中，请稍候', true); return; }
+  stopVideoPreview();
+  state.asset = null;
+  state.aiBackup = null;
+  state.edits = { crop: null, rotate: 0, flipH: false, flipV: false, resize: { enabled: true, width: 0, height: 0, method: 'lanczos3' }, regions: [], pad: null };
+  state.cropDraft = null;
+  state.drag = null;
+  state.compareOn = false;
+  state.anim.selectedFrame = 0;
+  state.appliedPreset = null;
+  exitCropMode();
+  R.empty.classList.remove('hidden');
+  R.compareWrap.classList.add('hidden');
+  R.topExportBtn.classList.add('hidden');
+  R.assetBadge.classList.add('hidden');
+  R.cropClearBtn.classList.add('hidden');
+  R.frameStrip.classList.add('hidden');
+  R.videoBar.classList.add('hidden');
+  R.aiUndoBtn.classList.add('hidden');
+  R.resizeW.value = ''; R.resizeH.value = '';
+  R.compareSlider.value = 50;
+  R.compareToggle.classList.remove('active');
+  R.compareWrap.classList.remove('compare-on');
+  applyCompareClip();
+  const o1 = R.canvasOrig.getContext('2d');
+  const o2 = R.canvasOut.getContext('2d');
+  o1.clearRect(0, 0, R.canvasOrig.width, R.canvasOrig.height);
+  o2.clearRect(0, 0, R.canvasOut.width, R.canvasOut.height);
+  drawOverlay();
+  R.origSize.textContent = ''; R.outSize.textContent = ''; R.savedPct.textContent = '';
+  setStatus('已删除当前素材');
 }
 
 /* ================= 舞台渲染 ================= */
@@ -377,33 +498,40 @@ function drawOverlay() {
     ctx.fillRect(x, y, rw, rh);
   }
 
-  // 拖拽中的选区
-  if (state.drag) {
-    const n = normRect(state.drag);
-    const x = n.x * W, y = n.y * H, rw = n.w * W, rh = n.h * H;
-    if (rw > 3 && rh > 3) {
-      ctx.strokeStyle = state.dragMode === 'crop' ? 'rgba(80,220,160,.95)' : 'rgba(255,160,60,.95)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([6, 4]);
-      ctx.strokeRect(x + 1, y + 1, rw - 2, rh - 2);
-      ctx.setLineDash([]);
-      ctx.fillStyle = state.dragMode === 'crop' ? 'rgba(80,220,160,.1)' : 'rgba(255,160,60,.1)';
-      ctx.fillRect(x, y, rw, rh);
-    }
-  }
-
-  // 裁剪范围（已确定）
-  if (state.edits.crop) {
-    const x = state.edits.crop.x * W, y = state.edits.crop.y * H;
-    const rw = state.edits.crop.w * W, rh = state.edits.crop.h * H;
+  // 裁剪模式中的框选遮罩（仅草稿编辑时显示；确认后不遮挡预览）
+  if (state.dragMode === 'crop' && state.cropDraft && state.cropDraft.w > 0 && state.cropDraft.h > 0) {
+    const x = state.cropDraft.x * W, y = state.cropDraft.y * H;
+    const rw = state.cropDraft.w * W, rh = state.cropDraft.h * H;
     ctx.save();
     ctx.fillStyle = 'rgba(0,0,0,.45)';
     ctx.fillRect(0, 0, W, y); ctx.fillRect(0, y + rh, W, H - y - rh);
     ctx.fillRect(0, y, x, rh); ctx.fillRect(x + rw, y, W - x - rw, rh);
     ctx.strokeStyle = 'rgba(80,220,160,.9)';
     ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, rw, rh);
+    ctx.strokeRect(x + 1, y + 1, rw - 2, rh - 2);
     ctx.restore();
+    // 四角手柄
+    if (rw > 16 && rh > 16) {
+      ctx.fillStyle = 'rgba(80,220,160,1)';
+      for (const [hx, hy] of [[x, y], [x + rw, y], [x, y + rh], [x + rw, y + rh]]) {
+        ctx.fillRect(hx - 4, hy - 4, 8, 8);
+      }
+    }
+  }
+
+  // 打码拖拽中的选区
+  if (state.drag && !state.drag.kind) {
+    const n = normRect(state.drag);
+    const x = n.x * W, y = n.y * H, rw = n.w * W, rh = n.h * H;
+    if (rw > 3 && rh > 3) {
+      ctx.strokeStyle = 'rgba(255,160,60,.95)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(x + 1, y + 1, rw - 2, rh - 2);
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,160,60,.1)';
+      ctx.fillRect(x, y, rw, rh);
+    }
   }
 }
 
@@ -442,6 +570,10 @@ const scheduleRender = debounce(() => rerender(), 120);
 
 /* ================= 打码/裁剪指针交互 ================= */
 
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const CROP_MIN = 0.05;   // 裁剪框最小面积（归一化比例）
+const HANDLE_PX = 12;    // 裁剪框四角手柄命中半径(px)
+
 function stagePoint(e) {
   const rect = R.mosaicLayer.getBoundingClientRect();
   return {
@@ -457,11 +589,58 @@ function normRect(d) {
   };
 }
 
+/** 裁剪框命中检测：四角手柄 → 'nw'|'ne'|'sw'|'se'；框内 → 'move'；其余 → null */
+function cropHitTest(p) {
+  const b = state.cropDraft;
+  if (!b || !b.w || !b.h) return null;
+  const W = R.mosaicLayer.width, H = R.mosaicLayer.height;
+  const x = b.x * W, y = b.y * H, rw = b.w * W, rh = b.h * H;
+  if (rw < HANDLE_PX * 2 || rh < HANDLE_PX * 2) return null;
+  const px = p.x * W, py = p.y * H;
+  const near = (cx, cy) => Math.hypot(px - cx, py - cy) <= HANDLE_PX;
+  if (near(x, y)) return 'nw';
+  if (near(x + rw, y)) return 'ne';
+  if (near(x, y + rh)) return 'sw';
+  if (near(x + rw, y + rh)) return 'se';
+  if (px >= x - 4 && px <= x + rw + 4 && py >= y - 4 && py <= y + rh + 4) return 'move';
+  return null;
+}
+
 function onStagePointerDown(e) {
   if (!state.asset || !state.dragMode) return;
+  if (e.button !== 0) return; // 仅左键拖拽
   e.preventDefault();
   R.mosaicLayer.setPointerCapture?.(e.pointerId);
   const p = stagePoint(e);
+
+  if (state.dragMode === 'crop') {
+    const prev = state.cropDraft ? { ...state.cropDraft } : null;
+    const hit = cropHitTest(p);
+    if (hit && hit !== 'move') {
+      // 拖角缩放：以对角为固定点
+      const b = state.cropDraft;
+      const W = R.mosaicLayer.width, H = R.mosaicLayer.height;
+      const rx = b.x * W, ry = b.y * H, rw = b.w * W, rh = b.h * H;
+      const fx = (hit === 'nw' || hit === 'sw') ? (rx + rw) / W : rx / W;
+      const fy = (hit === 'ne' || hit === 'nw') ? (ry + rh) / H : ry / H;
+      state.drag = { kind: 'crop-resize', corner: hit, fx, fy, prev };
+      drawOverlay();
+      return;
+    }
+    if (hit === 'move') {
+      const b = state.cropDraft;
+      state.drag = { kind: 'crop-move', box: { ...b }, dx: p.x - b.x, dy: p.y - b.y, prev };
+      drawOverlay();
+      return;
+    }
+    // 空白处：重画一个框（替换草稿）
+    state.drag = { kind: 'crop-draw', ax: p.x, ay: p.y, prev };
+    state.cropDraft = { x: p.x, y: p.y, w: 0, h: 0 };
+    drawOverlay();
+    return;
+  }
+
+  // 打码区域：保持原拖拽画框行为
   state.drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
   drawOverlay();
 }
@@ -469,7 +648,30 @@ function onStagePointerDown(e) {
 function onStagePointerMove(e) {
   if (!state.drag) return;
   const p = stagePoint(e);
-  state.drag.x1 = p.x; state.drag.y1 = p.y;
+  const d = state.drag;
+
+  if (d.kind === 'crop-draw') {
+    const n = normRect({ x0: d.ax, y0: d.ay, x1: p.x, y1: p.y });
+    state.cropDraft = { x: n.x, y: n.y, w: n.w, h: n.h };
+  } else if (d.kind === 'crop-move') {
+    const nx = clamp(p.x - d.dx, 0, 1 - d.box.w);
+    const ny = clamp(p.y - d.dy, 0, 1 - d.box.h);
+    state.cropDraft = { x: nx, y: ny, w: d.box.w, h: d.box.h };
+  } else if (d.kind === 'crop-resize') {
+    const b = d.prev || { x: 0, y: 0, w: 1, h: 1 };
+    const px = clamp(p.x, 0, 1), py = clamp(p.y, 0, 1);
+    let x = b.x, y = b.y, w = b.w, h = b.h;
+    if (d.corner === 'nw') { x = clamp(px, 0, d.fx); y = clamp(py, 0, d.fy); w = d.fx - x; h = d.fy - y; }
+    else if (d.corner === 'ne') { x = d.fx; y = clamp(py, 0, d.fy); w = clamp(px, d.fx, 1) - d.fx; h = d.fy - y; }
+    else if (d.corner === 'sw') { x = clamp(px, 0, d.fx); y = d.fy; w = d.fx - x; h = clamp(py, d.fy, 1) - d.fy; }
+    else { x = d.fx; y = d.fy; w = clamp(px, d.fx, 1) - d.fx; h = clamp(py, d.fy, 1) - d.fy; }
+    if (w < 0.01) w = 0.01;
+    if (h < 0.01) h = 0.01;
+    state.cropDraft = { x, y, w, h };
+  } else {
+    // 打码拖拽
+    state.drag.x1 = p.x; state.drag.y1 = p.y;
+  }
   drawOverlay();
 }
 
@@ -477,25 +679,27 @@ function onStagePointerUp(e) {
   if (!state.drag) return;
   const d = state.drag;
   state.drag = null;
+
+  // 裁剪：只更新草稿，不应用、不退出（保持完整预览，可继续拖动 / 缩放微调）
+  if (d.kind === 'crop-draw' || d.kind === 'crop-move' || d.kind === 'crop-resize') {
+    const b = state.cropDraft;
+    if (b && (b.w < CROP_MIN || b.h < CROP_MIN)) {
+      state.cropDraft = d.prev ? { ...d.prev } : null; // 太小：还原
+    }
+    drawOverlay();
+    return;
+  }
+
+  // 打码区域：松开即添加区域
   const n = normRect(d);
   if (n.w < 0.01 || n.h < 0.01) { drawOverlay(); return; }
-  if (state.dragMode === 'region') {
-    state.edits.regions.push({
-      id: 'r' + Date.now() + Math.random().toString(16).slice(2, 6),
-      x: n.x, y: n.y, w: n.w, h: n.h,
-      type: state.regionType, strength: state.regionStrength,
-    });
-    renderRegionList();
-    rerender();
-    drawOverlay();
-  } else if (state.dragMode === 'crop') {
-    // 加一点归一化守卫：至少保留 5% 面积
-    state.edits.crop = { x: n.x, y: n.y, w: n.w, h: n.h };
-    R.cropClearBtn.classList.remove('hidden');
-    rerender();
-    scheduleEstimate();
-  }
-  state.dragMode = null;
+  state.edits.regions.push({
+    id: 'r' + Date.now() + Math.random().toString(16).slice(2, 6),
+    x: n.x, y: n.y, w: n.w, h: n.h,
+    type: state.regionType, strength: state.regionStrength,
+  });
+  renderRegionList();
+  rerender();
   drawOverlay();
 }
 

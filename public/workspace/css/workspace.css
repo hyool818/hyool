@@ -49,9 +49,19 @@ body{display:flex;flex-direction:column}
 .btn.ghost:hover{color:#fff}
 .btn.wide{width:100%;justify-content:center;display:inline-flex}
 .btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.active{background:rgba(80,220,160,.16);border-color:var(--good);color:var(--good)}
 .icon-btn{background:var(--bg3);border:1px solid var(--line2);color:var(--text);border-radius:8px;
   width:30px;height:30px;cursor:pointer;font-size:13px}
 .icon-btn.active{background:rgba(139,123,255,.18);border-color:var(--accent);color:var(--accent2)}
+
+/* ---------- 右键菜单 ---------- */
+.stage-menu{position:fixed;z-index:2000;min-width:152px;background:#14141f;border:1px solid var(--line2);
+  border-radius:10px;padding:5px;box-shadow:0 12px 32px rgba(0,0,0,.5)}
+.stage-menu button{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;
+  color:var(--text);font-size:13px;font-family:inherit;text-align:left;padding:9px 12px;border-radius:7px;cursor:pointer}
+.stage-menu button:hover{background:#1e1e2e}
+.stage-menu button.danger{color:var(--bad)}
+.stage-menu button.danger:hover{background:rgba(248,113,113,.12)}
 
 /* ---------- 主布局 ---------- */
 #editorView{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
