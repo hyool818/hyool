@@ -91,28 +91,34 @@ async function partA(){
   // 完整视图
   const full = await api('/api/worlds/' + WID + '/life');
   ok(full.world.threads.length === 1, 'A: 初始线程 1 个', 'got ' + full.world.threads.length);
+  ok(full.world.threads[0].kind === 'main', 'A: 初始主线线程 kind=main', full.world.threads[0].kind);
+  MTID = full.world.threads[0].id;
   ok(!!full.world.currentThread, 'A: 有当前线程');
   TID = TID || (full.world.currentThread ? full.world.currentThread.id : '');
   ok(full.world.background.era === '蒸汽时代', 'A: 背景 era 生效', full.world.background.era);
 }
 
+let N1 = '', N2 = '', MTID = '';
+
 async function partB(){
   // 原住民生成（AI 生成 1 位 + 手动 1 位，供关系使用）
   const n1 = await api('/api/worlds/' + WID + '/life/natives', { method:'POST', body: JSON.stringify({ idea: '码头修船的老渔夫，话少，见过雾里的怪物', mock: true }) });
   ok(!!n1.native && !!n1.native.id && n1.native.id.startsWith('wc_'), 'B: AI 生成原住民', n1.native ? n1.native.name : '(none)');
-  const n2 = await api('/api/worlds/' + WID + '/life/natives', { method:'POST', body: JSON.stringify({ native: { name:'雾芽', appearance:'苍白短发', personality:'沉默警觉', background:'雾里长大的拾荒少女', speech_style:'话少' } }) });
-  ok(!!n2.native && n2.native.name === '雾芽', 'B: 手动添加原住民', n2.native ? n2.native.id : '');
+  N1 = n1.native.id;
+  const n2 = await api('/api/worlds/' + WID + '/life/natives', { method:'POST', body: JSON.stringify({ native: { name:'雾芽', appearance:'苍白短发', personality:'沉默警觉', background:'雾里长大的拾荒少女', speech_style:'话少', gender:'female', tags:['高冷','坚韧'], chat_config:{ voice:'zh-CN-XiaoxiaoNeural', rate: 10 } } }) });
+  ok(!!n2.native && n2.native.name === '雾芽' && n2.native.gender === 'female' && (n2.native.tags||[]).includes('坚韧') && n2.native.chat_config && n2.native.chat_config.rate === 10, 'B: 手动添加原住民（性别/标签/TTS）');
+  N2 = n2.native.id;
 
   // 背景更新
-  const bg = await api('/api/worlds/' + WID + '/life/background', { method:'POST', body: JSON.stringify({ background:{ era:'蒸汽时代', place:'雾港', tone:'潮湿阴郁', rule:'雾里藏着记忆', note:'测试' } }) });
-  ok(bg.background.rule === '雾里藏着记忆', 'B: 背景规则已保存');
+  const bg = await api('/api/worlds/' + WID + '/life/background', { method:'POST', body: JSON.stringify({ background:{ era:'蒸汽时代', place:'雾港', tone:'潮湿阴郁', rule:'雾里藏着记忆', note:'测试', bg_image:'/img/img_test00000000000000' } }) });
+  ok(bg.background.rule === '雾里藏着记忆' && bg.background.bg_image === '/img/img_test00000000000000', 'B: 背景规则+全局背景图已保存');
 
-  // 关系
-  const rel = await api('/api/worlds/' + WID + '/life/relations', { method:'POST', body: JSON.stringify({ a:n1.native.id, b:n2.native.id, kind:'rival', note:'渔夫怀疑她与雾怪有关' }) });
-  ok(rel.relations.length === 1 && rel.relations[0].kind === 'rival', 'B: 建立敌对关系', rel.relations.length + ' 条');
+  // 关系（初始即羁绊满值）
+  const rel = await api('/api/worlds/' + WID + '/life/relations', { method:'POST', body: JSON.stringify({ a:N1, b:N2, kind:'rival', note:'渔夫怀疑她与雾怪有关' }) });
+  ok(rel.relations.length === 1 && rel.relations[0].kind === 'rival' && rel.relations[0].bond === 100, 'B: 建立敌对关系（羁绊满值）', rel.relations.length + ' 条');
 
   // 场景
-  const sc = await api('/api/worlds/' + WID + '/life/scenes', { method:'POST', body: JSON.stringify({ scene:{ name:'雾港码头', location:'码头', desc:'深夜大雾，灯塔忽明忽灭', present:[n1.native.id, n2.native.id], opening:'雾气里传来脚步声' } }) });
+  const sc = await api('/api/worlds/' + WID + '/life/scenes', { method:'POST', body: JSON.stringify({ scene:{ name:'雾港码头', location:'码头', desc:'深夜大雾，灯塔忽明忽灭', present:[N1, N2], opening:'雾气里传来脚步声' } }) });
   ok(!!sc.scenes && sc.scenes.length === 1, 'B: 创建场景', sc.scenes ? sc.scenes[0].id : '');
 
   // 进入场景线程
@@ -173,24 +179,103 @@ async function partD(){
   ok(!!doc.getElementById('feed'), 'D: world.html 渲染 feed 舞台');
   ok(doc.getElementById('wMode').textContent.includes('混合运转'), 'D: 模式徽章=混合运转', doc.getElementById('wMode').textContent);
   ok((doc.querySelectorAll('#threadBar .tchip').length) >= 2, 'D: 线程栏渲染场景/日常', doc.querySelectorAll('#threadBar .tchip').length + ' 个');
-  ok((doc.querySelectorAll('#feed .msg').length) >= 3, 'D: 对话流已有消息', doc.querySelectorAll('#feed .msg').length + ' 条');
+  const msgCnt = await waitFor(() => {
+    const n = doc.querySelectorAll('#feed .msg').length;
+    return n >= 3 ? n : null;
+  }, 15000, 'world.html 渲染消息');
+  ok(!!msgCnt, 'D: 对话流已有消息', msgCnt ? msgCnt + ' 条' : '0 条');
   win.document.getElementById('openSide').click();
   await sleep(150);
   ok(doc.getElementById('side').classList.contains('open'), 'D: 侧栏可打开');
   ok(q('#panel-cast .cast-card') !== null, 'D: 原住民面板列出角色');
+  ok(!!doc.getElementById('relBond'), 'D: 关系面板有羁绊滑杆');
+  ok(!!doc.getElementById('panel-map'), 'D: 地图面板存在');
+  ok(!!doc.getElementById('castInvite'), 'D: 角色库邀请按钮存在');
+  ok(!!doc.getElementById('natVoice'), 'D: 原住民音色选择存在');
   ok(doc.getElementById('modelSel').options.length === 4, 'D: 模型选择器 4 项', doc.getElementById('modelSel').options.length + ' 项');
+}
+
+async function partF(){
+  // F1: 主线线程不可删除（MTID 为主线线程）
+  try {
+    await api('/api/worlds/' + WID + '/life/threads?thread=' + MTID, { method:'DELETE' });
+    ok(false, 'F: 主线线程删除被拒绝（应 400）');
+  } catch(e) {
+    ok(String(e.message).indexOf('主线程') >= 0, 'F: 主线线程删除被拒绝', e.message);
+  }
+
+  // F2: 创建临时线程并删除
+  const tmp = await api('/api/worlds/' + WID + '/life/threads', { method:'POST', body: JSON.stringify({ kind:'auto', title:'临时线程' }) });
+  const del = await api('/api/worlds/' + WID + '/life/threads?thread=' + tmp.thread.id, { method:'DELETE' });
+  ok(!!del.threads && !del.threads.some(t => t.id === tmp.thread.id), 'F: 临时线程已删除', '剩 ' + del.threads.length + ' 个线程');
+
+  // F3: 关系强干扰（覆盖标签 + 改羁绊值）
+  const fr = await api('/api/worlds/' + WID + '/life/relations', { method:'POST', body: JSON.stringify({ a:N1, b:N2, kind:'hatred', bond: 30, note:'强干扰改写' }) });
+  ok(fr.relations.length === 1 && fr.relations[0].kind === 'hatred' && fr.relations[0].bond === 30, 'F: 强干扰覆盖关系（仇恨/羁绊30）');
+  const fdel = await api('/api/worlds/' + WID + '/life/relations', { method:'POST', body: JSON.stringify({ delete: { a:N1, b:N2 } }) });
+  ok(fdel.relations.length === 0, 'F: 删除关系');
+
+  // F4: 地图区域 + 场景绑定 + 全局背景
+  const ar = await api('/api/worlds/' + WID + '/life/areas', { method:'POST', body: JSON.stringify({ area:{ name:'码头区', desc:'湿滑的木栈道', bg_image:'/img/img_test00000000000000' } }) });
+  ok(!!ar.areas && ar.areas.length === 1 && ar.areas[0].bg_image === '/img/img_test00000000000000', 'F: 创建地图区域');
+  const sc2 = await api('/api/worlds/' + WID + '/life/scenes', { method:'POST', body: JSON.stringify({ scene:{ name:'码头夜谈', location:'码头', desc:'大雾', area_id: ar.areas[0].id } }) });
+  ok(sc2.scenes.some(s => s.area_id === ar.areas[0].id), 'F: 场景绑定区域');
+  const ardel = await api('/api/worlds/' + WID + '/life/areas', { method:'POST', body: JSON.stringify({ deleteArea: ar.areas[0].id }) });
+  ok(ardel.areas.length === 0, 'F: 删除区域');
+
+  // F5: 封面更新
+  const cv = await api('/api/worlds/' + WID + '/cover', { method:'POST', body: JSON.stringify({ cover_image:'https://example.com/cover.png' }) });
+  ok(cv.success && cv.cover_image === 'https://example.com/cover.png', 'F: 封面更新');
+
+  // F6: 角色库互通（创建角色尽力而为，失败则跳过成功路径）
+  let CID = '';
+  try {
+    const c = await Promise.race([
+      api('/api/create', { method:'POST', body: JSON.stringify({ idea:'一个沉默的守塔人', style:'anime' }) }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('create timeout')), 40000))
+    ]);
+    CID = c.character ? c.character.id : '';
+    ok(!!CID, 'F: 创建角色库角色', CID);
+  } catch(e) {
+    line('SKIP  F: 角色创建失败/超时（本地 AI 挂起），跳过邀请成功路径 — ' + e.message);
+  }
+
+  try {
+    await api('/api/worlds/' + WID + '/life/cast', { method:'POST', body: JSON.stringify({ char_id:'char_nonexistent' }) });
+    ok(false, 'F: 邀请不存在角色应 404');
+  } catch(e) { ok(true, 'F: 邀请不存在角色被拒绝', e.message); }
+
+  const rm = await api('/api/worlds/' + WID + '/life/cast/char_nonexistent', { method:'DELETE' });
+  ok(rm.success, 'F: 移出不存在角色幂等成功');
+
+  if (CID) {
+    const inv = await api('/api/worlds/' + WID + '/life/cast', { method:'POST', body: JSON.stringify({ char_id: CID }) });
+    ok(inv.cast.some(c => c.id === CID && c.source === 'global'), 'F: 邀请角色入库（source=global）');
+    const rm2 = await api('/api/worlds/' + WID + '/life/cast/' + CID, { method:'DELETE' });
+    ok(!rm2.cast.some(c => c.id === CID), 'F: 移出角色成功');
+    window.__CID = CID;
+  }
 }
 
 async function partE(){
   const del = await api('/api/worlds/' + WID + '/delete', { method:'POST' });
-  ok(del.success, 'E: 清理删除世界');
+  ok(del.success && del.cast_preserved === true, 'E: 清理删除世界（cast_preserved）');
   try {
     const list = await api('/api/worlds');
     ok(!(list.worlds || []).some(w => w.id === WID), 'E: 世界已从列表移除');
   } catch(e) { ok(false, 'E: 列表校验失败 ' + e.message); }
+  if (window.__CID) {
+    try {
+      const hub = await api('/api/hub');
+      ok((hub.characters || []).some(c => c.id === window.__CID), 'E: 删除世界后角色库角色保留');
+    } catch(e) { ok(false, 'E: 角色库校验失败 ' + e.message); }
+  } else {
+    line('SKIP  E: 无邀请角色，跳过「删除世界后角色保留」断言');
+  }
 }
 
 (async () => {
+  let failed = false;
   try {
     await login();
     ok(!!token, '登录 smokelife');
@@ -198,11 +283,15 @@ async function partE(){
     await partB();
     await partC();
     await partD();
+    await partF();
     await partE();
   } catch (e) {
     line('ERROR  ' + (e && e.message ? e.message : e));
+    failed = true;
   }
   line('DONE');
+  failed = failed || results.some(s => s.startsWith('FAIL') || s.startsWith('ERROR'));
+  document.title = failed ? 'SMOKE-FAIL' : 'SMOKE-OK';
 })();
 </script>
 </body>

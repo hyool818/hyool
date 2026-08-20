@@ -166,6 +166,20 @@ input, textarea, select { font: inherit; }
 .opt-radio input { accent-color: var(--accent); margin-right: 8px; }
 
 .model-hint { font-size: .74rem; color: var(--muted); border: 1px dashed var(--border); border-radius: 10px; padding: 8px 10px; margin-top: 6px; }
+.cover-sq { width: 100%; max-height: 150px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); background: #15161f; }
+.bond-bar { height: 6px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; flex: 1; }
+.bond-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg,#8b8bff,#ff8bd8); }
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; font-size: .7rem; cursor: pointer; margin: 0 6px 6px 0; color: var(--muted); background: rgba(255,255,255,.04); transition: all .15s; user-select: none; }
+.tag-chip.on { background: rgba(139,139,255,.22); border-color: var(--accent); color: #cfcfff; }
+.area-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin-bottom: 10px; background: rgba(255,255,255,.04); }
+.area-card img { width: 100%; max-height: 90px; object-fit: cover; border-radius: 8px; margin-top: 6px; }
+.area-card b { font-size: .88rem; }
+.area-card p { font-size: .74rem; color: var(--muted); margin: 2px 0; }
+.tchip .x { margin-left: 6px; color: rgba(255,255,255,.55); font-size: .8rem; padding: 0 2px; }
+.tchip .x:hover { color: #ffb3b3; }
+.tchip.main { border-style: solid; }
+.gt { font-size: .68rem; padding: 1px 8px; border-radius: 999px; background: rgba(120,220,170,.14); color: #8fe0bb; margin-left: 6px; white-space: nowrap; }
+.small-hint { font-size: .7rem; color: var(--muted); margin: 4px 0 8px; }
 #toast {
   position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 100;
   background: rgba(20,22,32,.95); border: 1px solid var(--border); border-radius: 999px;
@@ -212,15 +226,31 @@ input, textarea, select { font: inherit; }
   </div>
   <div class="side-tabs">
     <button data-panel="bg">背景</button>
-    <button data-panel="cast">原住民</button>
+    <button data-panel="cast">角色</button>
     <button data-panel="rel">关系</button>
     <button data-panel="scene">场景</button>
+    <button data-panel="map">地图</button>
     <button data-panel="run">运转</button>
   </div>
   <div class="side-body">
 
     <section class="panel" id="panel-bg">
       <h3>世界背景</h3>
+      <div class="fg"><label>世界封面</label>
+        <img class="cover-sq" id="bgCover" alt="" onerror="this.style.opacity=.2">
+        <div class="row" style="margin-top:6px">
+          <button class="btn ghost" id="bgCoverRegen">🔄 换一张</button>
+          <button class="btn ghost" id="bgCoverUpload">📤 上传</button>
+          <input type="file" id="bgCoverFile" accept="image/*" style="display:none">
+        </div>
+      </div>
+      <div class="fg"><label>全局背景图（可选）</label>
+        <div class="row">
+          <input id="bgImage" maxlength="2000" placeholder="URL 或上传">
+          <button class="btn ghost" id="bgImageUpload">上传</button>
+          <input type="file" id="bgImageFile" accept="image/*" style="display:none">
+        </div>
+      </div>
       <div class="fg"><label>时代</label><input id="bgEra" maxlength="80" placeholder="如：蒸汽时代 / 灵气复苏初期"></div>
       <div class="fg"><label>地点</label><input id="bgPlace" maxlength="80" placeholder="如：临海小城「雾港」"></div>
       <div class="fg"><label>氛围</label><input id="bgTone" maxlength="120" placeholder="如：潮湿、怀旧、暗流涌动"></div>
@@ -230,47 +260,86 @@ input, textarea, select { font: inherit; }
     </section>
 
     <section class="panel" id="panel-cast">
-      <h3>世界原住民</h3>
+      <h3>世界角色</h3>
       <div class="fg"><label>用一句话描述你想生成的原住民</label>
         <textarea id="natIdea" maxlength="2000" placeholder="如：在码头修船的老渔夫，话少，见过雾里的怪物"></textarea>
       </div>
       <button class="btn sav" id="natGen">✨ AI 生成原住民</button>
-      <div class="fg" style="margin-top:12px"><label>或手动填写</label>
+      <div class="fg" style="margin-top:12px"><label>或手动填写 / 编辑</label>
         <input id="natName" maxlength="40" placeholder="名字">
-        <input id="natAvatar" maxlength="2000" placeholder="头像 URL（可选）" style="margin-top:6px">
+        <select id="natGender" style="margin-top:6px">
+          <option value="">性别（自动）</option>
+          <option value="female">女</option>
+          <option value="male">男</option>
+          <option value="neutral">中性</option>
+        </select>
+        <div class="fg" style="margin-top:8px"><label>性格标签（多选，最多 6 个，影响角色言行）</label>
+          <div id="natTags"></div>
+        </div>
+        <div class="fg"><label>形象</label>
+          <div class="row">
+            <input id="natAvatar" maxlength="2000" placeholder="形象 URL 或上传">
+            <button class="btn ghost" id="natAvatarUpload">上传</button>
+            <input type="file" id="natAvatarFile" accept="image/*" style="display:none">
+          </div>
+        </div>
+        <div class="fg"><label>声音（TTS）</label>
+          <div class="row">
+            <select id="natVoice"></select>
+            <button class="btn ghost" id="natVoicePreview" title="试听">🔊</button>
+          </div>
+        </div>
+        <div class="fg"><label>语速（-50 ~ +50）</label><input id="natRate" type="number" min="-50" max="50" value="0"></div>
         <textarea id="natPersona" maxlength="2000" placeholder="外貌 / 性格 / 背景 / 说话风格，一行一个字段" style="margin-top:6px"></textarea>
       </div>
       <button class="btn ghost" id="natAdd">手动添加</button>
+      <div style="margin-top:12px;border-top:1px dashed var(--border);padding-top:10px">
+        <button class="btn sav" id="castInvite" style="width:100%">＋ 从角色库邀请角色</button>
+        <div class="small-hint">被邀请的角色仍保留在角色库；删除世界时它们会回归角色库。</div>
+      </div>
       <div id="castList" style="margin-top:14px"></div>
     </section>
 
     <section class="panel" id="panel-rel">
-      <h3>角色关系</h3>
+      <h3>角色关系 / 羁绊</h3>
       <div class="fg"><label>角色 A</label><select id="relA"></select></div>
       <div class="fg"><label>角色 B</label><select id="relB"></select></div>
-      <div class="fg"><label>关系</label><select id="relKind">
-        <option value="friend">好友</option>
-        <option value="rival">对手</option>
-        <option value="enemy">宿敌</option>
-        <option value="family">亲人</option>
-        <option value="lover">恋人</option>
-        <option value="mentor">师徒</option>
-        <option value="neutral">中立</option>
-      </select></div>
+      <div class="fg"><label>羁绊标签</label><select id="relKind"></select></div>
+      <div class="fg"><label>羁绊值（初始建立即满值，可随时强干扰调整）</label>
+        <div class="row"><input id="relBond" type="range" min="0" max="100" value="100" style="flex:1">
+        <span id="relBondVal" style="font-size:.8rem;color:var(--muted);width:34px;text-align:right">100</span></div>
+      </div>
       <div class="fg"><label>备注（可选）</label><input id="relNote" maxlength="200" placeholder="如：从小一起长大，最近闹翻了"></div>
-      <button class="btn sav" id="relAdd">建立关系</button>
+      <button class="btn sav" id="relAdd">建立 / 强干扰改写关系</button>
+      <div class="small-hint">再次提交同一对角色会强干扰覆盖他们的关系与羁绊值。</div>
       <div id="relList" style="margin-top:14px"></div>
     </section>
 
     <section class="panel" id="panel-scene">
       <h3>自定义场景</h3>
       <div class="fg"><label>场景名</label><input id="scName" maxlength="60" placeholder="如：雾港码头的深夜"></div>
+      <div class="fg"><label>所属区域</label><select id="scArea"></select></div>
       <div class="fg"><label>地点</label><input id="scLocation" maxlength="80"></div>
       <div class="fg"><label>背景描述</label><textarea id="scDesc" maxlength="600" placeholder="设定这个场景里正在发生的事…"></textarea></div>
       <div class="fg"><label>开场台词（可选）</label><input id="scOpening" maxlength="300"></div>
       <div class="fg"><label>在场角色（可多选，默认全部）</label><div id="scPresent"></div></div>
       <button class="btn sav" id="scSave">创建场景</button>
       <div id="sceneList" style="margin-top:14px"></div>
+    </section>
+
+    <section class="panel" id="panel-map">
+      <h3>地图 / 区域</h3>
+      <div class="fg"><label>区域名</label><input id="arName" maxlength="40" placeholder="如：雾港码头"></div>
+      <div class="fg"><label>描述</label><textarea id="arDesc" maxlength="400" placeholder="这块区域正在发生什么…"></textarea></div>
+      <div class="fg"><label>区域背景图</label>
+        <div class="row">
+          <input id="arBg" maxlength="2000" placeholder="URL 或上传">
+          <button class="btn ghost" id="arBgUpload">上传</button>
+          <input type="file" id="arBgFile" accept="image/*" style="display:none">
+        </div>
+      </div>
+      <button class="btn sav" id="arAdd">添加 / 保存区域</button>
+      <div id="areaList" style="margin-top:14px"></div>
     </section>
 
     <section class="panel" id="panel-run">
@@ -322,7 +391,14 @@ function toast(msg){ const el=$("toast"); el.textContent=msg; el.classList.add("
 function hashHue(s){ let h=0; for(let i=0;i<s.length;i++) h=s.charCodeAt(i)+((h<<5)-h); return Math.abs(h)%360; }
 
 const MODE_LABEL = { watch: "🌱 在线运转", hybrid: "⚡ 混合运转", always: "🌌 24h 后台" };
-const REL_LABEL = { friend:"好友", rival:"对手", enemy:"宿敌", family:"亲人", lover:"恋人", mentor:"师徒", neutral:"中立" };
+const REL_LABEL = {
+  friend:"好友", rival:"对手", enemy:"宿敌", family:"亲人", lover:"恋人", mentor:"师徒", neutral:"中立",
+  crush:"爱慕", soulmate:"挚爱", hatred:"仇恨", dependent:"依赖", reverent:"敬重", guilt:"愧疚",
+  betray:"背叛", sworn:"结义", worship:"崇拜", fear:"畏惧", debt:"亏欠", fated:"宿命冤家",
+  ally:"同盟", partner:"搭档"
+};
+const REL_ORDER = ["friend","rival","enemy","family","lover","mentor","neutral","crush","soulmate","hatred","dependent","reverent","guilt","betray","sworn","worship","fear","debt","fated","ally","partner"];
+const CHAR_TAGS = ["温柔","活泼","高冷","神秘","直率","腹黑","傲娇","病娇","热血","冷静","狡黠","忠厚","优雅","狂野","怯懦","坚韧","感性","理性","浪漫","孤僻","健谈","毒舌","可靠","孩子气","沧桑","天真","强势","自卑","洒脱","偏执","睿智","阴郁","开朗","狡诈","仁厚","多疑"];
 
 const worldId = new URLSearchParams(location.search).get("world") || "";
 
@@ -355,10 +431,28 @@ function renderThreads(){
   const cur = S.threadId;
   let html = "";
   list.forEach(t => {
-    html += `<button class="tchip${t.id===cur?" active":""}" onclick="switchThread('${t.id}')">${escapeHtml(t.title || "日常")}</button>`;
+    const main = t.kind === "main";
+    html += `<button class="tchip${main?" main":""}${t.id===cur?" active":""}" onclick="switchThread('${t.id}')">${escapeHtml(t.title || "日常")}${main?"":`<span class="x" title="删除线程" onclick="event.stopPropagation();delThread('${t.id}')">✕</span>`}</button>`;
   });
   html += `<button class="tchip add" onclick="newThread()">＋ 新线程</button>`;
   $("threadBar").innerHTML = html;
+}
+
+async function delThread(id){
+  if (!confirm("删除这个线程及其全部消息？主线线程不可删除。")) return;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/threads?thread=" + encodeURIComponent(id), { method: "DELETE" });
+    S.world.threads = d.threads || S.world.threads;
+    if (S.threadId === id) {
+      const next = d.threads && d.threads[0];
+      S.threadId = next ? next.id : "";
+      S.msgs = []; S.lastSeq = 0;
+      $("feed").innerHTML = "";
+      if (next) loadMessages(next.id);
+    }
+    renderThreads();
+    toast("线程已删除。");
+  } catch (e) { toast(e.message); }
 }
 
 function renderFeed(){
@@ -538,16 +632,23 @@ function appendMessages(list){
 
 function renderSide(){
   const bg = S.world.background || {};
+  $("bgCover").src = S.world.cover_image || "";
+  $("bgImage").value = bg.bg_image || "";
   $("bgEra").value = bg.era || "";
   $("bgPlace").value = bg.place || "";
   $("bgTone").value = bg.tone || "";
   $("bgRule").value = bg.rule || "";
   $("bgNote").value = bg.note || "";
+  renderTagChips();
+  fillVoiceSelect();
   renderCastList();
+  renderRelKindOptions();
   renderRelForm();
   renderRelList();
+  renderSceneAreas();
   renderScenePresent();
   renderSceneList();
+  renderAreaList();
   const life = S.world.life || {};
   document.querySelectorAll("#panel-run .opt-radio").forEach(el => el.classList.toggle("active", el.dataset.mode === life.mode));
   document.querySelectorAll('input[name="mode"]').forEach(r => { r.checked = r.value === life.mode; });
@@ -556,28 +657,113 @@ function renderSide(){
   $("runPauseBtn").textContent = life.paused ? "▶ 恢复运转" : "暂停运转";
 }
 
-/* ---- 原住民 ---- */
+/* ---- 世界角色 ---- */
 function renderCastList(){
-  const list = S.world.natives || [];
-  $("castList").innerHTML = list.length ? list.map(n => `
-    <div class="cast-card">
+  const natives = S.world.natives || [];
+  const globals = (S.world.cast || []).filter(c => c.source === "global");
+  let html = "";
+  natives.forEach(n => {
+    html += `<div class="cast-card">
       ${n.avatar ? `<img src="${escapeHtml(n.avatar)}" onerror="this.style.opacity=.2">` : `<div style="width:36px;height:36px;border-radius:50%;background:hsl(${hashHue(n.id)},40%,22%);flex-shrink:0"></div>`}
       <div class="cc"><b>${escapeHtml(n.name)}</b><small>世界原住民</small><p>${escapeHtml((n.personality || n.background || "").slice(0, 30))}</p></div>
       <div class="row">
         <button class="btn ghost" onclick="editNative('${escapeHtml(n.id)}')">✏️</button>
         <button class="btn del" onclick="delNative('${escapeHtml(n.id)}')">🗑️</button>
       </div>
-    </div>`).join("")
-    : '<p style="color:var(--muted);font-size:.8rem">还没有原住民。先 AI 生成或手动添加一位吧。</p>';
+    </div>`;
+  });
+  globals.forEach(c => {
+    html += `<div class="cast-card">
+      ${c.avatar ? `<img src="${escapeHtml(c.avatar)}" onerror="this.style.opacity=.2">` : `<div style="width:36px;height:36px;border-radius:50%;background:hsl(${hashHue(c.id)},40%,22%);flex-shrink:0"></div>`}
+      <div class="cc"><b>${escapeHtml(c.name)}</b><small>角色库</small><p>${escapeHtml((c.personality || "").slice(0, 30))}</p></div>
+      <button class="btn ghost" title="移出世界（保留在角色库）" onclick="removeCast('${escapeHtml(c.id)}')">↩</button>
+    </div>`;
+  });
+  $("castList").innerHTML = html || '<p style="color:var(--muted);font-size:.8rem">还没有角色。AI 生成原住民、手动添加，或从角色库邀请。</p>';
 }
+
+function renderTagChips(){
+  const cur = S.editingNative || {};
+  const picked = Array.isArray(cur.tags) ? cur.tags : [];
+  $("natTags").innerHTML = CHAR_TAGS.map(t =>
+    `<span class="tag-chip${picked.includes(t) ? " on" : ""}" data-tag="${escapeHtml(t)}" onclick="toggleTag('${escapeHtml(t)}', this)">${escapeHtml(t)}</span>`
+  ).join("");
+}
+
+function toggleTag(tag, el){
+  if (el) el.classList.toggle("on");
+  const picked = collectTagPicks();
+  if (picked.length > 6) {
+    if (el) el.classList.remove("on");
+    toast("性格标签最多选 6 个。");
+    return;
+  }
+}
+
+function collectTagPicks(){
+  const arr = [];
+  document.querySelectorAll("#natTags .tag-chip.on").forEach(el => arr.push(el.dataset.tag));
+  return arr.slice(0, 6);
+}
+
+let voiceList = [];
+async function fillVoiceSelect(){
+  const sel = $("natVoice");
+  if (!sel) return;
+  if (!voiceList.length) {
+    try { const d = await api("/api/tts/voices"); voiceList = d.voices || []; } catch { voiceList = []; }
+  }
+  const gender = $("natGender").value;
+  let list = voiceList;
+  if (gender === "male") list = voiceList.filter(v => v.gender === "male");
+  else if (gender === "female") list = voiceList.filter(v => v.gender === "female");
+  const cur = (S.editingNative && S.editingNative.chat_config && S.editingNative.chat_config.voice) || "";
+  const opts = [`<option value="">自动（默认）</option>`].concat(list.map(v => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.name)}</option>`)).join("");
+  sel.innerHTML = opts;
+  sel.value = voiceList.some(v => v.id === cur) ? cur : "";
+}
+
+async function previewVoice(){
+  const text = "你好，我是这个世界里的角色。";
+  const voice = $("natVoice").value || "";
+  const rate = parseInt($("natRate").value, 10) || 0;
+  try {
+    const res = await fetch("/api/tts", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json", ...(localStorage.getItem("hyool_token") ? { Authorization: "Bearer " + localStorage.getItem("hyool_token") } : {}) },
+      body: JSON.stringify({ text, voice, rate })
+    });
+    if (!res.ok) throw new Error("合成失败");
+    const url = URL.createObjectURL(await res.blob());
+    const a = new Audio(url); a.play();
+  } catch (e) { toast(e.message || "试听失败。"); }
+}
+
+async function uploadImageFile(file){
+  const fd = new FormData();
+  fd.append("file", file);
+  const t = localStorage.getItem("hyool_token");
+  const h = {};
+  if (t) h["Authorization"] = "Bearer " + t;
+  const r = await fetch("/api/upload", { method: "POST", credentials: "include", headers: h, body: fd });
+  const d = await r.json().catch(() => ({}));
+  if (!d.success || !d.url) throw new Error(d.error || "上传失败。");
+  return d.url;
+}
+
 function editNative(id){
   const n = (S.world.natives || []).find(x => x.id === id);
   if (!n) return;
   S.editingNative = n;
+  S.editingNative.tags = Array.isArray(n.tags) ? n.tags : [];
   $("natName").value = n.name || "";
   $("natAvatar").value = n.avatar || "";
+  $("natGender").value = n.gender || "";
+  $("natRate").value = (n.chat_config && typeof n.chat_config.rate === "number") ? n.chat_config.rate : 0;
   $("natPersona").value = [n.appearance, n.personality, n.background, n.speech_style].filter(Boolean).join("\n");
   $("natAdd").textContent = "保存修改";
+  renderTagChips();
+  fillVoiceSelect();
   toast("正在编辑「" + n.name + "」，改完点保存修改。");
 }
 async function genNative(){
@@ -595,30 +781,36 @@ async function genNative(){
 async function addOrUpdateNative(){
   const name = $("natName").value.trim();
   const avatar = $("natAvatar").value.trim();
+  const gender = $("natGender").value;
+  const tags = collectTagPicks();
+  const voice = $("natVoice").value || "";
+  const rate = parseInt($("natRate").value, 10) || 0;
   const persona = $("natPersona").value.trim().split(/\n+/).map(s => s.trim());
   const [appearance = "", personality = "", background = "", speech_style = ""] = persona;
   if (!name) { toast("请填写名字。"); return; }
+  const base = { name, avatar, gender, tags, chat_config: { voice, rate }, appearance, personality, background, speech_style };
   if (S.editingNative) {
     try {
-      const d = await api("/api/worlds/" + worldId + "/life/natives/" + S.editingNative.id + "/update", { method: "POST", body: JSON.stringify({ name, avatar, appearance, personality, background, speech_style }) });
+      const d = await api("/api/worlds/" + worldId + "/life/natives/" + S.editingNative.id + "/update", { method: "POST", body: JSON.stringify(base) });
       S.world.natives = d.natives || S.world.natives;
       S.editingNative = null;
       $("natAdd").textContent = "手动添加";
       renderSide();
-      toast("原住民已更新。");
+      toast("角色已更新。");
     } catch (e) { toast(e.message); }
     return;
   }
   try {
-    const d = await api("/api/worlds/" + worldId + "/life/natives", { method: "POST", body: JSON.stringify({ native: { name, appearance, personality, background, speech_style }, avatar }) });
+    const d = await api("/api/worlds/" + worldId + "/life/natives", { method: "POST", body: JSON.stringify({ native: base, chat_config: { voice, rate }, avatar }) });
     S.world.natives = (S.world.natives || []).concat([d.native]);
     renderSide();
     toast("已添加「" + d.native.name + "」。");
-    $("natName").value = ""; $("natPersona").value = ""; $("natAvatar").value = "";
+    $("natName").value = ""; $("natPersona").value = ""; $("natAvatar").value = ""; $("natGender").value = ""; $("natRate").value = 0;
+    document.querySelectorAll("#natTags .tag-chip.on").forEach(el => el.classList.remove("on"));
   } catch (e) { toast(e.message); }
 }
 async function delNative(id){
-  if (!confirm("删除这位原住民？相关关系与场景出场也会一并清理。")) return;
+  if (!confirm("删除这位世界原住民？相关关系与场景出场也会一并清理。（角色库角色请用「↩」移出）")) return;
   try {
     const d = await api("/api/worlds/" + worldId + "/life/natives/" + id + "/delete", { method: "POST" });
     S.world.natives = d.natives || S.world.natives;
@@ -627,7 +819,45 @@ async function delNative(id){
   } catch (e) { toast(e.message); }
 }
 
+/* ---- 角色库邀请 / 移出 ---- */
+async function inviteCast(){
+  try {
+    const d = await api("/api/hub");
+    const mine = (d.characters || []).filter(c => !(S.world.cast || []).some(x => x.id === c.id));
+    if (!mine.length) { toast("角色库没有可邀请的角色。"); return; }
+    const pick = window.prompt("输入要邀请的角色序号（多个用逗号分隔）：\n" + mine.map((c, i) => (i + 1) + ". " + c.name).join("\n"));
+    if (!pick) return;
+    const idxs = pick.split(/[,，\s]+/).map(s => parseInt(s, 10) - 1).filter(i => i >= 0 && i < mine.length);
+    if (!idxs.length) { toast("序号无效。"); return; }
+    for (const i of idxs) {
+      await api("/api/worlds/" + worldId + "/life/cast", { method: "POST", body: JSON.stringify({ char_id: mine[i].id }) });
+    }
+    await refreshWorld();
+    toast("已邀请 " + idxs.length + " 位角色进入世界。");
+  } catch (e) { toast(e.message); }
+}
+async function removeCast(charId){
+  if (!confirm("将该角色移出这个世界？（角色仍保留在你的角色库）")) return;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/cast/" + charId, { method: "DELETE" });
+    S.world.cast = d.cast || S.world.cast;
+    S.world.relations = d.relations || S.world.relations;
+    renderSide();
+    toast("角色已移出世界。");
+  } catch (e) { toast(e.message); }
+}
+async function refreshWorld(){
+  const d = await api("/api/worlds/" + worldId + "/life");
+  S.world = d.world;
+  renderSide();
+}
+
+
+
 /* ---- 关系 ---- */
+function renderRelKindOptions(){
+  $("relKind").innerHTML = REL_ORDER.map(k => `<option value="${k}">${REL_LABEL[k]}</option>`).join("");
+}
 function renderRelForm(){
   const cast = S.world.cast || [];
   const opts = cast.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
@@ -639,18 +869,41 @@ function renderRelList(){
   const cm = castMap();
   $("relList").innerHTML = rels.length ? rels.map(r => {
     const na = cm[r.a], nb = cm[r.b];
-    return `<div class="rel-row"><span>${escapeHtml(na ? na.name : r.a)}</span><span class="rk">${REL_LABEL[r.kind] || r.kind}</span><span>${escapeHtml(nb ? nb.name : r.b)}</span>${r.note ? `<small style="color:var(--muted)">${escapeHtml(r.note)}</small>` : ""}<button class="btn del" style="margin-left:auto;padding:4px 8px" onclick="delRel('${escapeHtml(r.a)}','${escapeHtml(r.b)}')">✕</button></div>`;
-  }).join("") : '<p style="color:var(--muted);font-size:.8rem">还没有角色关系。建立好友、宿敌或亲人关系，世界会更立体。</p>';
+    const bond = Number.isFinite(Number(r.bond)) ? Math.max(0, Math.min(100, Number(r.bond))) : 100;
+    return `<div class="rel-row" style="flex-wrap:wrap">
+      <span>${escapeHtml(na ? na.name : r.a)}</span>
+      <span class="rk">${REL_LABEL[r.kind] || r.kind}</span>
+      <span>${escapeHtml(nb ? nb.name : r.b)}</span>
+      <span class="bond-bar"><i style="width:${bond}%"></i></span>
+      <span style="font-size:.7rem;color:var(--muted);white-space:nowrap">${bond}</span>
+      ${r.note ? `<small style="color:var(--muted);flex-basis:100%">${escapeHtml(r.note)}</small>` : ""}
+      <div class="row" style="margin-left:auto">
+        <button class="btn ghost" style="padding:4px 8px" title="载入表单强干扰改写" onclick="editRel('${escapeHtml(r.a)}','${escapeHtml(r.b)}')">✍️</button>
+        <button class="btn del" style="padding:4px 8px" onclick="delRel('${escapeHtml(r.a)}','${escapeHtml(r.b)}')">✕</button>
+      </div>
+    </div>`;
+  }).join("") : '<p style="color:var(--muted);font-size:.8rem">还没有角色关系。建立爱慕、仇恨或宿敌关系，世界会更立体。</p>';
 }
 async function addRel(){
   const a = $("relA").value, b = $("relB").value, kind = $("relKind").value, note = $("relNote").value.trim();
+  const bond = parseInt($("relBond").value, 10) || 100;
   if (!a || !b || a === b) { toast("请选择两个不同的角色。"); return; }
   try {
-    const d = await api("/api/worlds/" + worldId + "/life/relations", { method: "POST", body: JSON.stringify({ a, b, kind, note }) });
+    const d = await api("/api/worlds/" + worldId + "/life/relations", { method: "POST", body: JSON.stringify({ a, b, kind, note, bond }) });
     S.world.relations = d.relations || S.world.relations;
     renderRelList();
-    toast("关系已建立。");
+    toast("关系已建立" + (bond < 100 ? "（羁绊 " + bond + "，强干扰生效）" : "，羁绊满值 100。"));
   } catch (e) { toast(e.message); }
+}
+function editRel(a, b){
+  const r = (S.world.relations || []).find(x => (x.a === a && x.b === b) || (x.a === b && x.b === a));
+  if (!r) return;
+  $("relA").value = r.a; $("relB").value = r.b;
+  $("relKind").value = REL_LABEL[r.kind] ? r.kind : "neutral";
+  $("relBond").value = Number.isFinite(Number(r.bond)) ? Math.max(0, Math.min(100, Number(r.bond))) : 100;
+  $("relBondVal").textContent = $("relBond").value;
+  $("relNote").value = r.note || "";
+  toast("已载入该关系，可强干扰改写标签与羁绊值。");
 }
 async function delRel(a, b){
   try {
@@ -661,6 +914,11 @@ async function delRel(a, b){
 }
 
 /* ---- 场景 ---- */
+function renderSceneAreas(){
+  const areas = S.world.areas || [];
+  const opts = [`<option value="">无 / 不指定区域</option>`].concat(areas.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)}</option>`)).join("");
+  $("scArea").innerHTML = opts;
+}
 function renderScenePresent(){
   const cast = S.world.cast || [];
   $("scPresent").innerHTML = cast.map(c => `<label style="display:inline-flex;align-items:center;gap:6px;margin:0 10px 6px 0;font-size:.8rem"><input type="checkbox" class="scp" value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</label>`).join("") || '<span style="color:var(--muted);font-size:.78rem">暂无角色</span>';
@@ -668,26 +926,29 @@ function renderScenePresent(){
 function renderSceneList(){
   const scenes = S.world.scenes || [];
   const cm = castMap();
-  $("sceneList").innerHTML = scenes.length ? scenes.map(s => `
-    <div class="scene-card">
-      <b>${escapeHtml(s.name)}</b>${s.location ? ` <span style="color:var(--muted);font-size:.75rem">@ ${escapeHtml(s.location)}</span>` : ""}
+  const areas = S.world.areas || [];
+  $("sceneList").innerHTML = scenes.length ? scenes.map(s => {
+    const area = areas.find(a => a.id === s.area_id);
+    return `<div class="scene-card">
+      <b>${escapeHtml(s.name)}</b>${s.location ? ` <span style="color:var(--muted);font-size:.75rem">@ ${escapeHtml(s.location)}</span>` : ""}${area ? ` <span class="rk">📍 ${escapeHtml(area.name)}</span>` : ""}
       <p>${escapeHtml(s.desc || "")}</p>
       <div class="rc">在场：${(s.present || []).map(p => escapeHtml(cm[p] ? cm[p].name : p)).join("、") || "全部"}</div>
       <div class="row" style="margin-top:8px">
         <button class="btn sav" onclick="enterScene('${escapeHtml(s.id)}')">进入场景</button>
         <button class="btn del" onclick="delScene('${escapeHtml(s.id)}')">删除</button>
       </div>
-    </div>`).join("") : '<p style="color:var(--muted);font-size:.8rem">还没有场景。设定背景，让角色们在特定现场展开剧情。</p>';
+    </div>`;
+  }).join("") : '<p style="color:var(--muted);font-size:.8rem">还没有场景。设定背景，让角色们在特定现场展开剧情。</p>';
 }
 async function createScene(){
   const name = $("scName").value.trim();
   if (!name) { toast("请给场景起个名字。"); return; }
   const present = [...document.querySelectorAll(".scp:checked")].map(c => c.value);
   try {
-    const d = await api("/api/worlds/" + worldId + "/life/scenes", { method: "POST", body: JSON.stringify({ scene: { name, location: $("scLocation").value.trim(), desc: $("scDesc").value.trim(), present, opening: $("scOpening").value.trim() } }) });
+    const d = await api("/api/worlds/" + worldId + "/life/scenes", { method: "POST", body: JSON.stringify({ scene: { name, location: $("scLocation").value.trim(), desc: $("scDesc").value.trim(), present, opening: $("scOpening").value.trim(), area_id: $("scArea").value } }) });
     S.world.scenes = d.scenes || S.world.scenes;
     renderSceneList();
-    $("scName").value = ""; $("scLocation").value = ""; $("scDesc").value = ""; $("scOpening").value = "";
+    $("scName").value = ""; $("scLocation").value = ""; $("scDesc").value = ""; $("scOpening").value = ""; $("scArea").value = "";
     document.querySelectorAll(".scp").forEach(c => c.checked = false);
     toast("场景「" + name + "」已创建。");
   } catch (e) { toast(e.message); }
@@ -714,6 +975,56 @@ async function delScene(id){
   } catch (e) { toast(e.message); }
 }
 
+/* ---- 地图 / 区域 ---- */
+let editingArea = null;
+function renderAreaList(){
+  const areas = S.world.areas || [];
+  $("areaList").innerHTML = areas.length ? areas.map(a => `
+    <div class="area-card">
+      <b>${escapeHtml(a.name)}</b>
+      ${a.desc ? `<p>${escapeHtml(a.desc)}</p>` : ""}
+      ${a.bg_image ? `<img src="${escapeHtml(a.bg_image)}" onerror="this.style.opacity=.2">` : ""}
+      <div class="row" style="margin-top:8px">
+        <button class="btn ghost" onclick="editArea('${escapeHtml(a.id)}')">✏️</button>
+        <button class="btn del" onclick="delArea('${escapeHtml(a.id)}')">🗑️</button>
+      </div>
+    </div>`).join("") : '<p style="color:var(--muted);font-size:.8rem">还没有区域。创建地图区域，让世界拥有更多空间。</p>';
+}
+function editArea(id){
+  const a = (S.world.areas || []).find(x => x.id === id);
+  if (!a) return;
+  editingArea = a;
+  $("arName").value = a.name || "";
+  $("arDesc").value = a.desc || "";
+  $("arBg").value = a.bg_image || "";
+  $("arAdd").textContent = "保存区域";
+  toast("正在编辑「" + a.name + "」。");
+}
+async function addArea(){
+  const name = $("arName").value.trim();
+  if (!name) { toast("请给区域起个名字。"); return; }
+  const area = { name, desc: $("arDesc").value.trim(), bg_image: $("arBg").value.trim() };
+  if (editingArea) area.id = editingArea.id;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/areas", { method: "POST", body: JSON.stringify({ area }) });
+    S.world.areas = d.areas || S.world.areas;
+    editingArea = null;
+    $("arAdd").textContent = "添加 / 保存区域";
+    $("arName").value = ""; $("arDesc").value = ""; $("arBg").value = "";
+    renderSide();
+    toast("区域已保存。");
+  } catch (e) { toast(e.message); }
+}
+async function delArea(id){
+  if (!confirm("删除这个区域？关联场景会取消区域绑定。")) return;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/areas", { method: "POST", body: JSON.stringify({ deleteArea: id }) });
+    S.world.areas = d.areas || S.world.areas;
+    renderSide();
+    toast("区域已删除。");
+  } catch (e) { toast(e.message); }
+}
+
 /* ---- 运转 / 背景 / 模型 ---- */
 let pendingMode = null;
 function pickMode(m){
@@ -736,10 +1047,23 @@ async function saveRun(){
 }
 async function saveBg(){
   try {
-    const d = await api("/api/worlds/" + worldId + "/life/background", { method: "POST", body: JSON.stringify({ background: { era: $("bgEra").value.trim(), place: $("bgPlace").value.trim(), tone: $("bgTone").value.trim(), rule: $("bgRule").value.trim(), note: $("bgNote").value.trim() } }) });
+    const d = await api("/api/worlds/" + worldId + "/life/background", { method: "POST", body: JSON.stringify({ background: { era: $("bgEra").value.trim(), place: $("bgPlace").value.trim(), tone: $("bgTone").value.trim(), rule: $("bgRule").value.trim(), note: $("bgNote").value.trim(), bg_image: $("bgImage").value.trim() } }) });
     S.world.background = d.background || S.world.background;
     toast("世界背景已保存。");
   } catch (e) { toast(e.message); }
+}
+
+/* ---- 封面 / 图片上传 ---- */
+async function saveCover(cover){
+  const d = await api("/api/worlds/" + worldId + "/cover", { method: "POST", body: JSON.stringify({ cover_image: cover }) });
+  S.world.cover_image = d.cover_image || S.world.cover_image;
+  $("bgCover").src = S.world.cover_image || "";
+}
+async function regenCover(){
+  const prompt = (S.world.description || S.world.name || "living world") + ", cinematic concept art, wide shot, highly detailed, no text, no watermark";
+  const seed = Math.floor(Math.random() * 1000000);
+  const url = "https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt) + "?width=1024&height=768&nologo=true&model=flux&seed=" + seed;
+  try { await saveCover(url); toast("封面已重新生成。"); } catch (e) { toast(e.message); }
 }
 async function onModelChange(){
   const model = $("modelSel").value;
@@ -770,10 +1094,40 @@ document.addEventListener("DOMContentLoaded", () => {
   $("closeSide").addEventListener("click", closeSide);
   document.querySelectorAll(".side-tabs button").forEach(b => b.addEventListener("click", () => openPanel(b.dataset.panel)));
   $("bgSave").addEventListener("click", saveBg);
+  $("bgCoverRegen").addEventListener("click", regenCover);
+  $("bgCoverUpload").addEventListener("click", () => $("bgCoverFile").click());
+  $("bgCoverFile").addEventListener("change", async e => {
+    try { const url = await uploadImageFile(e.target.files[0]); await saveCover(url); toast("封面已更新。"); }
+    catch (err) { toast(err.message); }
+    e.target.value = "";
+  });
+  $("bgImageUpload").addEventListener("click", () => $("bgImageFile").click());
+  $("bgImageFile").addEventListener("change", async e => {
+    try { $("bgImage").value = await uploadImageFile(e.target.files[0]); }
+    catch (err) { toast(err.message); }
+    e.target.value = "";
+  });
   $("natGen").addEventListener("click", genNative);
   $("natAdd").addEventListener("click", addOrUpdateNative);
+  $("natAvatarUpload").addEventListener("click", () => $("natAvatarFile").click());
+  $("natAvatarFile").addEventListener("change", async e => {
+    try { $("natAvatar").value = await uploadImageFile(e.target.files[0]); }
+    catch (err) { toast(err.message); }
+    e.target.value = "";
+  });
+  $("natVoicePreview").addEventListener("click", previewVoice);
+  $("natGender").addEventListener("change", fillVoiceSelect);
+  $("castInvite").addEventListener("click", inviteCast);
   $("relAdd").addEventListener("click", addRel);
+  $("relBond").addEventListener("input", () => { $("relBondVal").textContent = $("relBond").value; });
   $("scSave").addEventListener("click", createScene);
+  $("arAdd").addEventListener("click", addArea);
+  $("arBgUpload").addEventListener("click", () => $("arBgFile").click());
+  $("arBgFile").addEventListener("change", async e => {
+    try { $("arBg").value = await uploadImageFile(e.target.files[0]); }
+    catch (err) { toast(err.message); }
+    e.target.value = "";
+  });
   $("runSave").addEventListener("click", saveRun);
   $("runPauseBtn").addEventListener("click", togglePause);
   $("modelSel").addEventListener("change", onModelChange);

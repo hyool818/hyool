@@ -791,11 +791,25 @@ function mockNativeCharacter(idea, world) {
     };
 }
 
-const RELATION_KINDS = new Set(["friend", "rival", "enemy", "family", "lover", "mentor", "neutral"]);
+const RELATION_KINDS = new Set([
+    "friend", "rival", "enemy", "family", "lover", "mentor", "neutral",
+    "crush", "soulmate", "hatred", "dependent", "reverent", "guilt", "betray",
+    "sworn", "worship", "fear", "debt", "fated", "ally", "partner"
+]);
 const RELATION_LABEL = {
-    friend: "好友", rival: "对手", enemy: "宿敌",
-    family: "亲人", lover: "恋人", mentor: "师徒", neutral: "中立"
+    friend: "好友", rival: "对手", enemy: "宿敌", family: "亲人", lover: "恋人", mentor: "师徒", neutral: "中立",
+    crush: "爱慕", soulmate: "挚爱", hatred: "仇恨", dependent: "依赖", reverent: "敬重", guilt: "愧疚",
+    betray: "背叛", sworn: "结义", worship: "崇拜", fear: "畏惧", debt: "亏欠", fated: "宿命冤家",
+    ally: "同盟", partner: "搭档"
 };
+
+/** 性格标签池（与 mvp.js LIFE_CHAR_TAGS 一致，注入人设提示影响角色） */
+const LIFE_CHAR_TAGS = new Set([
+    "温柔", "活泼", "高冷", "神秘", "直率", "腹黑", "傲娇", "病娇", "热血", "冷静",
+    "狡黠", "忠厚", "优雅", "狂野", "怯懦", "坚韧", "感性", "理性", "浪漫", "孤僻",
+    "健谈", "毒舌", "可靠", "孩子气", "沧桑", "天真", "强势", "自卑", "洒脱", "偏执",
+    "睿智", "阴郁", "开朗", "狡诈", "仁厚", "多疑"
+]);
 
 /** 角色在生命世界里的系统提示：身份 + 世界观 + 现场 + 关系 + 发言规则 */
 export function buildLifeSystemPrompt({ character, world, scene, relations = [], recent = [], userName = "你", opening = false }) {
@@ -812,18 +826,33 @@ export function buildLifeSystemPrompt({ character, world, scene, relations = [],
         .filter(r => r && (r.a === character.id || r.b === character.id))
         .map(r => {
             const other = r.a === character.id ? r.b : r.a;
-            return `- 你与「${other}」的关系：${RELATION_LABEL[r.kind] || r.kind}${r.note ? "（" + r.note + "）" : ""}`;
+            const label = RELATION_LABEL[r.kind] || r.kind;
+            const bond = Number.isFinite(Number(r.bond)) ? Math.max(0, Math.min(100, Number(r.bond))) : 100;
+            const bondText = bond >= 90 ? "羁绊极深" : bond >= 60 ? "羁绊深厚" : bond >= 30 ? "羁绊一般" : "羁绊淡薄";
+            return `- 你与「${other}」的关系：${label}（羁绊 ${bond}/100，${bondText}）${r.note ? "（" + r.note + "）" : ""}`;
         });
+
+    // 当前所在区域（场景绑定 area_id 时给出区域描述与背景）
+    const areaBlock = (() => {
+        if (!scene || !scene.area_id) return "";
+        const area = Array.isArray(world?.areas) ? world.areas.find(a => a.id === scene.area_id) : null;
+        if (!area) return "";
+        return area.desc ? `（${area.name}：${area.desc}）` : `（${area.name}）`;
+    })();
 
     const transcript = (Array.isArray(recent) ? recent : [])
         .map(m => `【${m.name || (m.actor === "user" ? userName : "某人")}】${String(m.content || "").slice(0, 300)}`)
         .join("\n");
 
+    const tagText = Array.isArray(character.tags) && character.tags.length
+        ? `\n- 性格标签：${character.tags.join("、")}（这些标签是你的底色，必须在言行中自然流露）`
+        : "";
+
     return [
         "# 身份",
         `你是「${character.name}」——「${world?.name || "这个世界"}」中土生土长的原住民。以下是你的人设，任何时候都不能偏离：`,
         `- 外貌：${character.appearance || "未知"}`,
-        `- 性格：${character.personality || "未知"}`,
+        `- 性格：${character.personality || "未知"}${tagText}`,
         `- 背景：${character.background || "未知"}`,
         `- 说话风格：${character.speech_style || "自然"}`,
         "",
@@ -831,7 +860,7 @@ export function buildLifeSystemPrompt({ character, world, scene, relations = [],
         (bgLines.length ? bgLines.join("\n") : "你熟悉这里的每一寸土地，这里是你的家。"),
         "",
         "# 现场",
-        scene && scene.name ? `你们现在在「${scene.name}」${scene.location ? `（${scene.location}）` : ""}。${scene.desc || ""}${scene.opening ? "\n开场：\"" + scene.opening + "\"" : ""}` : "此刻你们正在这个世界里碰面，聊聊正在发生的事。",
+        scene && scene.name ? `你们现在在「${scene.name}」${scene.location ? `（${scene.location}）` : ""}。${scene.desc || ""}${areaBlock}${scene.opening ? "\n开场：\"" + scene.opening + "\"" : ""}` : "此刻你们正在这个世界里碰面，聊聊正在发生的事。",
         "",
         "# 关系",
         relLines.length ? relLines.join("\n") : "你和在场的人大多是点头之交，还没建立特别深的关系。",

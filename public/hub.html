@@ -370,10 +370,12 @@ a { color: inherit; text-decoration: none; }
 
     <div class="wstep" data-wstep="4">
       <div class="wstep-title">生成<span style="color:#c9a84c;">封面</span></div>
-      <div class="wstep-desc">AI 将按题材与设定绘制世界封面，不满意可重新生成。</div>
+      <div class="wstep-desc">AI 按题材绘制封面，或上传你自己的图片。</div>
       <img class="cover-preview" id="coverPreview" alt="世界封面" onerror="this.style.opacity=.2">
       <div style="display:flex;gap:.6rem;">
         <button class="btn btn-cancel" style="flex:1;" onclick="wizardRegenCover()">🔄 换一张</button>
+        <button class="btn btn-cancel" style="flex:1;" id="wizardUploadCover">📤 上传封面</button>
+        <input type="file" id="wizardCoverFile" accept="image/*" style="display:none">
       </div>
     </div>
 
@@ -486,6 +488,7 @@ const GENRES = [
   { id: "city", emoji: "🏙️", name: "都市", desc: "灯火与日常" },
   { id: "mystery", emoji: "🔍", name: "悬疑", desc: "迷雾与真相" },
   { id: "wuxia", emoji: "⚔️", name: "武侠", desc: "江湖与侠义" },
+  { id: "xianxia", emoji: "⛩️", name: "仙侠", desc: "御剑与修真" },
   { id: "daily", emoji: "☕", name: "日常", desc: "温柔与陪伴" },
   { id: "apocalypse", emoji: "🌋", name: "末日", desc: "废墟与守望" },
   { id: "custom", emoji: "✨", name: "自定义", desc: "完全原创" }
@@ -496,6 +499,7 @@ const GENRE_PROMPT = {
   city: "modern city skyline at dusk, warm lights, bustling streets",
   mystery: "mysterious noir city, thick fog, dim streetlights, hidden clues",
   wuxia: "chinese wuxia world, misty mountains, ancient pavilions, flying sword",
+  xianxia: "xianxia immortal cultivation world, floating mountains, flying swords, ancient chinese temple in clouds, waterfalls, spiritual aura",
   daily: "cozy peaceful everyday scene, warm sunlight, gentle atmosphere",
   apocalypse: "post-apocalyptic wasteland, ruined buildings, dramatic stormy sky",
   custom: "dreamlike original world, surreal landscape, cinematic"
@@ -774,7 +778,7 @@ function openWorldDelete(idx) {
   deletingChar = null;
   $("deleteTitle").textContent = "删除世界";
   $("deleteName").textContent = w.name;
-  $("deleteExtra").textContent = "世界的剧本与素材将一并删除，此操作不可撤销。";
+  $("deleteExtra").textContent = "除角色库角色将回归角色库外，世界内其他资源（原住民、线程、消息、场景、关系、背景图）将一并删除。此操作不可撤销。";
   showModal("deleteModal", true);
 }
 
@@ -816,7 +820,7 @@ function wizardGo(step) {
   const next = $("wizardNext");
   if (step === 3) {
     const isLife = wizard.form === "life";
-    $("wCastGrid").style.display = isLife ? "none" : "";
+    // 生命世界同样可以从角色库勾选角色加入世界（不再隐藏）
     $("lifePanel").style.display = isLife ? "" : "none";
   }
   if (step === 5) {
@@ -939,6 +943,27 @@ function wizardRegenCover() {
   $("coverPreview2").src = wizard.cover;
 }
 
+function uploadImageFile(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const t = localStorage.getItem("hyool_token");
+  const h = {};
+  if (t) h["Authorization"] = "Bearer " + t;
+  return fetch("/api/upload", { method: "POST", credentials: "include", headers: h, body: fd })
+    .then(r => r.json())
+    .then(d => { if (d.success && d.url) return d.url; throw new Error(d.error || "上传失败。"); });
+}
+async function wizardUploadCover(file) {
+  if (!file) return;
+  try {
+    const url = await uploadImageFile(file);
+    wizard.cover = url;
+    $("coverPreview").src = wizard.cover;
+    $("coverPreview2").src = wizard.cover;
+    toast("封面已上传。");
+  } catch (e) { toast(e.message); }
+}
+
 function wizardNext() {
   if (wizard.step === 1 && !wizard.genre) { toast("请先选择世界题材。"); return; }
   if (wizard.step === 2) {
@@ -1054,6 +1079,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("emptyWorldGo").addEventListener("click", openWizard);
   $("wizardPrev").addEventListener("click", wizardPrev);
   $("wizardNext").addEventListener("click", wizardNext);
+  $("wizardUploadCover").addEventListener("click", () => $("wizardCoverFile").click());
+  $("wizardCoverFile").addEventListener("change", e => { wizardUploadCover(e.target.files[0]); e.target.value = ""; });
   $("editCancel").addEventListener("click", closeEdit);
   $("editSave").addEventListener("click", saveEdit);
   $("deleteCancel").addEventListener("click", closeDelete);

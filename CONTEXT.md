@@ -172,5 +172,20 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - 首批剩余项 #3「游戏工坊」**已完成**：`game-studio.html` + `game-studio.js` + `game-studio-check.html`（28 断言 SMOKE-OK）+ fantasy 卡片激活 + 本文件同步。
 - **生命世界（type="life"，多角色自主共存）已完成**：后端全链路 + 模型路由 + `world.html` 直播间 + hub 向导第 4 形态 + 三运转模式（watch/hybrid/always + cron）+ 31 断言冒烟 PASS。**已 commit + push（1ab7f51），线上部署确认**：`https://hyool.w910227a.workers.dev/world.html` 与 `/api/models` 均 200。体验路径：`/hub` →「＋ 创造」→ 自定义世界 → 选「生命世界」。
 - 后续可做（用户主动提出再推进）：关系自动演化（随剧情变化）、世界消息清洗/归档（保留最近 N 条）、「沉淀为剧场回放」把世界历史转剧本、GPU 后端上线后启用 dsv4pro / XVERSE-Ent-25B / Qwen3-27B-Instruct（配置 `GPU_BASE_URL` + `GPU_API_KEY` 即可，代码已就绪）。
+
+## 新一批需求（2026-08-21 用户拍板，开发中 —— 本清单已完成「开发中」→每完成一批改标注）
+
+目标：把「生命世界」升级为真正可运营的世界编辑器。用户原文需求拆解：
+
+1. **世界题材增加「仙侠」选择** —— hub 向导 GENRES/GENRE_PROMPT 增加 xianxia（御剑与修真），封面与背景提示随题材。
+2. **角色库 ↔ 生命世界互通** —— ① 向导第 3 步生命世界也能勾选现有角色库角色（当前被隐藏 wCastGrid），选中即 cast_ids 入库成为世界内角色；② 世界后台可再邀请/移出角色库角色（`/api/worlds/:id/life/cast`）；③ 世界内角色与角色库共用形象/性格/TTS 等字段。
+3. **封面可上传图片** —— 向导第 4 步 + world.html 后台均支持「上传封面」（走 `/api/upload` 存 /img/），不再只能 AI 生成；「换一张」保留。
+4. **线程可删除** —— 新增 `/life/threads/delete`（默认主线程 kind='main' 不可删，删除整个世界除外）；world.html 线程 chip 非 main 显示 ✕。
+5. **删除世界语义** —— 除公共角色（cast_ids，回归角色库不删 character 行）外，世界内其他资源（原住民/线程/消息/场景/关系/背景图）一并删除；hub 删除确认文案必须提醒用户。
+6. **关系升级为「羁绊」** —— 关系 kind 扩展为全而多的情感标签（爱慕/仇恨/依赖/敬重/愧疚…）；初始建立关系即羁绊满值 bond=100；用户可随时强干扰覆盖双方关系（重新选 kind/改 bond）；列表显示羁绊值条。
+7. **地图/区域/场景** —— world_json 增加 `areas[]`（id/name/desc/bg_image）；区域可单独创建/删除/上传背景图；场景绑定 area_id；世界背景支持全局背景图 bg_image。
+8. **世界内角色面板与角色库一致** —— 原住民增加 gender/tags（性格标签多选，尽量全而多，选择后影响人设提示与发言）/chat_config（voice/rate/temperature/max_tokens/proactivity）/形象上传；`/api/tts/voices` 提供音色列表；buildLifeSystemPrompt 注入 tags+bond+area 信息。
+
+实现约定：全部存 world_json（natives/relations/scenes/areas/life/background），不新增 DB 表；关系存储 `{a,b,kind,note,bond}`；标签中文表前后端各维护一份常量（后端白名单校验）。<b>开发进度（Batch 1 完成）：①仙侠题材已加；②角色库互通完成（向导放开勾选 + `/life/cast` 邀请/移出 + 世界内显示 source=global 角色）；③封面上传完成（hub 向导 + world.html 后台 `POST /cover`）；④线程删除完成（kind='main' 主线不可删，`DELETE /life/threads?thread=`）；⑤删除世界清理线程+消息+world_json，公共角色回归角色库（响应 cast_preserved）；⑥关系升级羁绊（21 标签 + bond 0~100 初始满值 + 强干扰覆盖 + 列表羁绊条）；⑦地图/区域完成（`/life/areas` + 场景 area_id + 背景 bg_image）；⑧原住民面板扩展 gender/tags（36 标签）/TTS 音色+语速/形象上传。冒烟 world-check 44 断言 PASS + hub-check 34 + game-studio-check 29 + dry-run 通过；角色库邀请成功路径用一次性 Node 脚本（本地 D1 直插角色）全链路验证。剩：部署上线 + 线上验证。</b>
 - 注意：本地 dev 的 Workers AI 远程绑定当前可能因代理挂起（60s 超时）；冒烟测试已走 `mock:true` 钩子，不受影响。
 
