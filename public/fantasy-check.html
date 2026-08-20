@@ -29,6 +29,8 @@ async function main(){
     ok(q('.hub-hero-name') && q('.hub-hero-name').textContent.trim() === '幻想', 'hub hero shows 幻想');
     ok(qa('.tool-card').length === 5, 'fantasy hub has 5 tool cards', 'got ' + qa('.tool-card').length);
     ok(q('.tool-card.featured h3') && q('.tool-card.featured h3').textContent.includes('游戏工坊'), 'featured game workshop card present');
+    ok(!!q('.tool-card.featured .tool-cta[href="game-studio.html"]'), 'game workshop card links to game-studio.html');
+    ok(q('.tool-card.featured .tool-badge').textContent.trim() === '已开放', 'game workshop card badge shows 已开放');
     const names = qa('.tool-card h3').map(h => h.textContent);
     ok(['游戏工坊','音乐工作室','VN 编辑器','Live2D','TTS 声音'].every(n => names.includes(n)), 'all 5 planned cards named');
     ok(!!q('.world-link[href="workspace.html"]') && !!q('.world-link[href="yonder.html"]'), 'world links to 无限/彼岸 present');

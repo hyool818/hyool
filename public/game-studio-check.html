@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>GAME-STUDIO-CHECK</title>
+</head>
+<body>
+<pre id="results">RUNNING…</pre>
+<iframe id="gs" src="game-studio.html" style="width:1280px;height:800px;border:1px solid #333"></iframe>
+<script>
+const results = [];
+function line(s){ results.push(s); document.getElementById('results').textContent = results.join('\n'); }
+function ok(cond, name, extra=''){ line((cond?'PASS':'FAIL')+'  '+name+(extra?'  '+extra:'')); }
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function waitFrame(){
+  return new Promise((resolve, reject) => {
+    const f = document.getElementById('gs');
+    const to = setTimeout(() => reject(new Error('iframe load timeout')), 60000);
+    f.addEventListener('load', () => { clearTimeout(to); resolve(); }, { once: true });
+  });
+}
+async function waitFor(fn, ms, timeout){
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeout){
+    try { const v = fn(); if (v) return v; } catch (e) {}
+    await sleep(ms);
+  }
+  return null;
+}
+async function main(){
+  try {
+    await waitFrame();
+    await sleep(400); // 等待 module 初始化
+    const doc = document.getElementById('gs').contentDocument;
+    const win = document.getElementById('gs').contentWindow;
+    const q = (s) => doc.querySelector(s);
+    const qa = (s) => [...doc.querySelectorAll(s)];
+    const GS = win.GameStudio;
+    const visible = (el) => el && !el.classList.contains('hidden') && win.getComputedStyle(el).display !== 'none';
+
+    // ---- 基础结构 ----
+    ok(q('.brand-name') && q('.brand-name').textContent.trim() === '游戏工坊', 'brand shows 游戏工坊');
+    ok(qa('.tpl-card').length === 3, 'template picker has 3 cards', 'got ' + qa('.tpl-card').length);
+    ok(q('.tpl-card.active') && q('.tpl-card.active').dataset.tpl === 'catch', 'default template is catch (接水果)');
+    ok(!!q('#cfgName') && !!q('#cfgHero') && !!q('#cfgBg') && !!q('#cfgDiff') && !!q('#cfgTime') && !!q('#cfgSound'), 'all config inputs present');
+    ok(visible(q('#idleOverlay')), 'idle overlay visible on load');
+    ok(q('#engineBadge') && q('#engineBadge').textContent.includes('待启动'), 'engine badge shows 待启动 on load');
+    ok(!!GS && GS.ready === true, 'GameStudio API ready');
+    ok(JSON.stringify(GS.templates()) === '["catch","dodge","whack"]', 'templates list has catch/dodge/whack');
+    ok(GS.cfg.template === 'catch' && GS.cfg.hero === '🧺', 'cfg defaults: catch + 🧺');
+    ok(GS.cfg.difficulty === 2 && GS.cfg.time === 30, 'cfg defaults: difficulty 2 + time 30');
+
+    // ---- 模板切换 ----
+    GS.selectTemplate('dodge');
+    ok(GS.cfg.template === 'dodge' && q('.tpl-card.active').dataset.tpl === 'dodge', 'selectTemplate switches to dodge');
+    ok(GS.cfg.hero === '🐱', 'template switch applies default hero 🐱');
+    const heroInput = q('#cfgHero');
+    heroInput.value = '🦸';
+    heroInput.dispatchEvent(new win.Event('input', { bubbles: true }));
+    GS.selectTemplate('catch');
+    ok(GS.cfg.hero === '🦸', 'custom hero preserved across template switch');
+
+    // ---- 开始 / 运行 / 停止（躲避） ----
+    GS.selectTemplate('dodge');
+    GS.start();
+    const st1 = await waitFor(() => GS.state(), 150, 20000);
+    ok(!!st1 && st1.template === 'dodge', 'game starts running (dodge)');
+    ok(GS.canvasCount() === 1, 'one canvas mounted', 'got ' + GS.canvasCount());
+    ok(['pixi','canvas'].includes(GS.engine()), 'engine is pixi or canvas fallback', GS.engine());
+    ok(visible(q('#gameHud')) && !!q('#hudScore'), 'HUD visible with score element');
+    ok(st1.timeLeft > 0 && st1.timeLeft <= 30, 'timeLeft within range', 't=' + st1.timeLeft);
+    await sleep(700);
+    GS.stop();
+    ok(GS.state() === null && GS.canvasCount() === 0, 'stop clears game + canvas');
+    ok(visible(q('#idleOverlay')), 'idle overlay returns after stop');
+    ok(/PixiJS WebGL|Canvas 2D/.test(q('#engineBadge').textContent), 'engine badge shows active engine after play', q('#engineBadge').textContent);
+
+    // ---- 存档：保存 / 载入试玩 / 删除 ----
+    const nameInput = q('#cfgName');
+    nameInput.value = '测试存档';
+    nameInput.dispatchEvent(new win.Event('input', { bubbles: true }));
+    GS.selectTemplate('catch');
+    GS.save();
+    const list1 = GS.list();
+    ok(list1.length === 1 && list1[0].name === '测试存档', 'save adds entry to 我的游戏');
+    ok(!!GS.localStorage() && GS.localStorage().includes('测试存档'), 'save persists to localStorage');
+    const savedId = list1[0].id;
+    ok(GS.startSaved(savedId) === true, 'startSaved accepts saved id');
+    const st2 = await waitFor(() => GS.state(), 150, 15000);
+    ok(!!st2 && st2.template === 'catch', 'saved game launches with catch template');
+    GS.stop();
+
+    // ---- 打地鼠：9 宫格 + 点击得分 ----
+    GS.selectTemplate('whack');
+    GS.start();
+    const st3 = await waitFor(() => GS.state(), 150, 15000);
+    ok(!!st3 && st3.whackCells && st3.whackCells.length === 9, 'whack mode has 9 cells');
+    let hit = false;
+    for (let i = 0; i < 30 && !hit; i++) {
+      await sleep(200);
+      const st = GS.state();
+      if (!st) break;
+      for (const cell of st.whackCells) {
+        if (cell.hasTarget) {
+          const r = GS.tapCell(cell.row, cell.col);
+          if (r.hit) { hit = true; break; }
+        }
+      }
+    }
+    ok(hit, 'tapping an active mole scores a hit');
+    const st4 = GS.state();
+    ok(!!st4 && st4.score > 0, 'score increases after hit', 'score=' + (st4 && st4.score));
+    GS.stop();
+
+    // ---- 删除存档 ----
+    GS.deleteSaved(savedId);
+    ok(GS.list().length === 0, 'deleteSaved removes entry');
+
+    document.title = 'SMOKE-OK';
+  } catch (e) {
+    line('FATAL: ' + (e && e.stack || e && e.message || e));
+    document.title = 'SMOKE-FAIL';
+  }
+}
+main();
+</script>
+</body>
+</html>

@@ -68,7 +68,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **游戏工坊定位（2026-08-20 补正）**：工坊 = 用户自己完成游戏的制作工具（与音乐工作室 / VN 编辑器同性质），不是我们交付现成游戏；首版做模板化生成器（选模板 → 配置角色/背景/难度/音效 → 即时试玩 → 存档），跑通后升级更自由的编辑能力
 - **速度优先级（哪些快做哪些）**：音频工坊（最快，纯前端）→ 幻想入口骨架 + 首款 PixiJS 游戏工坊 → 音乐工作室 → 视频剪辑升级 → 图像超分 → 其余按档
 
-### ✅ 第一批（现在做，纯前端低风险）
+### ✅ 第一批（已完成，纯前端低风险）
 1. **音频工坊 `public/audio.html`**：Web Audio API + Canvas 波形 + 裁剪/拼接/音量/淡入淡出/三频均衡/压缩器/反向 + 导出 WAV（原生 PCM）/ MP3（lamejs CDN 懒加载）；无限入口 hub 卡片直链
 2. **幻想入口 `public/fantasy.html`**：制作类 hub 页，激活 index.html 幻想世界跳转 + workspace 世界链接
 3. **首款 PixiJS 游戏工坊**（模板化小游戏生成器：用户选模板→配置角色/背景/难度/音效→即时试玩→存档；B 路线，PixiJS CDN 懒加载）
@@ -90,6 +90,19 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **Ren'Py 本体**：Python 桌面引擎，无官方 Web 导出，renpy-web（Pyodide）实验性、体积大、体验差
 - **Cocos Creator 作为工具箱原生工具**：独立 IDE/引擎工程，不嵌入；但其 H5 构建产物可 iframe 嵌入（路线 A）
 - 已确认：**iframe 嵌入 + postMessage 双向通信 = 外部构建产物（H5 游戏/VN）接入站点的标准方式**，与页面是否用 Vue/React 无关，本项目原生静态 HTML 同样适用
+
+## ✅ 已完成的新工具矩阵（首批 3 项，均已部署）
+
+1. **音频工坊** `public/audio.html` + `workspace/js/audio.js`：Web Audio + Canvas 波形，裁剪/拼接/音量/淡入淡出/三频均衡/压缩器/反向，导出 WAV（原生 PCM）/MP3（lamejs CDN 懒加载）；无限 hub 卡片直链。冒烟 `public/audio-check.html` SMOKE-OK。
+2. **幻想入口** `public/fantasy.html`：制作类 hub（音乐工作室 / 游戏工坊 / VN 编辑器 / Live2D / TTS 共 5 卡片），激活 index.html 幻想世界跳转 + workspace 世界链接。冒烟 `public/fantasy-check.html` SMOKE-OK。
+3. **游戏工坊** `public/game-studio.html` + `workspace/js/game-studio.js`（740 行）：
+   - 引擎：**PixiJS 8.6.6 jsDelivr 懒加载**（WebGL），加载/初始化失败自动回退 Canvas2D；`engineMode` = `pixi/canvas/idle`，顶部引擎徽章展示当前引擎。
+   - 三模板：接水果 🧺 / 躲避 🐱 / 打地鼠 🔨。配置面板（角色 / 背景色 / 难度 / 时长 / 音效开关）→ 即时试玩（HUD：得分 / 命中数 / 剩余时间，Canvas 640×420 自适应缩放）；打地鼠为 3×3 宫格点击计分。
+   - 存档：localStorage `hyool_games_v1`，「我的游戏」列表可载入/删除；音效全为 Web Audio 合成，无外部音频文件。
+   - 对外暴露 `window.GameStudio` 测试 API（`start/stop/save/list/startSaved/deleteSaved/state/tapCell/engine` 等）。
+   - 入口：fantasy.html 游戏工坊卡片 badge「已开放」+ CTA 直链 game-studio.html。
+   - 冒烟 `public/game-studio-check.html` **28 断言全 PASS**（PixiJS 真引擎启动、模板切换、自定义角色保留、存档全流程、打地鼠点击得分），回归 audio-check / fantasy-check 均 SMOKE-OK。
+   - **经验教训**：编辑器对中文大文件多次插入会偶发截断/错位（game-studio.js 曾因此损坏）；对策 = 拆 `.gs/part*.js` 小分片 + `copy /b` 拼接，校验后再删分片。下次改大 JS 沿用此法。
 
 ## 观察期 / 待办（用户暂缓，用户主动提出再推进）
 
@@ -140,6 +153,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 ## 待办状态
 
-- 本会话所有变更**尚未 commit / push**（需 `git add -A && git commit` 后 push main 触发 CI 部署）。
+- 首批剩余项 #3「游戏工坊」**已完成**：`game-studio.html` + `game-studio.js` + `game-studio-check.html`（28 断言 SMOKE-OK）+ fantasy 卡片激活 + 本文件同步。
 - 本地 dev 正常（AI 绑定已恢复）；`wrangler.toml` 无残留测试改动。
+- 本次改动（3 个新文件 + fantasy.html/fantasy-check.html/CONTEXT.md 修改）待 commit + push main 触发 CI 部署。
 
