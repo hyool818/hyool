@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>smoke test</title>
+<script src="/workspace/vendor/pako/pako.umd.min.js"></script>
+<script src="/workspace/vendor/upng/UPNG.js"></script>
+<script src="/workspace/vendor/omggif/omggif.js"></script>
+<script type="importmap">
+{ "imports": { "wasm-feature-detect": "/workspace/vendor/wasm-feature-detect/index.js" } }
+</script>
+</head>
+<body>
+<pre id="results">RUNNING…</pre>
+<script type="module">
+import { encodeImage, resizeImage, warmUp } from './workspace/js/codecs.js';
+import { encodeGif, encodeApng, decodeGif, decodeApng, supportsImageDecoder } from './workspace/js/anim.js';
+import { processImageData, applyMosaicRegions, makeCanvas, canvasToImageData, loadAsset } from './workspace/js/engine.js';
+import { presetGeometry } from './workspace/js/presets.js';
+import { runBatch } from './workspace/js/batch.js';
+import { pickVideoMime } from './workspace/js/video.js';
+
+const results = [];
+function line(s) {
+  results.push(s);
+  const el = document.getElementById('results');
+  if (el) el.textContent = results.join('\n');
+}
+function ok(cond, name, extra = '') { line((cond ? 'PASS' : 'FAIL') + '  ' + name + (extra ? '  ' + extra : '')); }
+function hex(b, n = 12) { return [...new Uint8Array(b.slice(0, n))].map(x => x.toString(16).padStart(2, '0')).join(' '); }
+
+async function main() {
+  try {
+    const w = 24, h = 18;
+    const buf = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < w * h; i++) {
+      buf[i*4] = (i*7) % 256; buf[i*4+1] = (i*3) % 256; buf[i*4+2] = (i*11) % 256;
+      buf[i*4+3] = i % 5 === 0 ? 128 : 255;
+    }
+    const img = new ImageData(buf, w, h);
+
+    line('INFO  module graph loaded');
+    line('INFO  ImageDecoder=' + supportsImageDecoder());
+
+    await warmUp();
+    line('INFO  warmUp settled');
+
+    for (const fmt of ['webp', 'avif', 'jpeg', 'png']) {
+      try {
+        const ab = await encodeImage(img, fmt, { quality: 70, effort: 2 });
+        ok(ab && ab.byteLength > 0, 'encode ' + fmt, 'bytes=' + (ab ? ab.byteLength : 'null') + ' head=' + hex(ab));
+      } catch (e) { ok(false, 'encode ' + fmt, e.message); }
+    }
+
+    try {
+      const ab = await encodeImage(img, 'png', { pngOptimise: true, pngLevel: 2 });
+      ok(ab && ab.byteLength > 0, 'encode png+oxipng', 'bytes=' + ab.byteLength);
+    } catch (e) { ok(false, 'encode png+oxipng', e.message); }
+
+    try {
+      const r = await resizeImage(img, { width: 8, height: 8 });
+      ok(r.width === 8 && r.height === 8, 'resizeImage 24x18->8x8', r.width + 'x' + r.height);
+    } catch (e) { ok(false, 'resizeImage', e.message); }
+
+    try {
+      const edits = {
+        crop: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 }, rotate: 90, flipH: true, flipV: false,
+        resize: { enabled: true, width: 16, height: 16, method: 'lanczos3' },
+        regions: [{ x: 0.2, y: 0.2, w: 0.3, h: 0.3, type: 'mosaic', strength: 8 }],
+        pad: { w: 20, h: 20, color: 'transparent' },
+      };
+      const out = await processImageData(img, edits);
+      ok(out.width === 20 && out.height === 20, 'processImageData pipeline', out.width + 'x' + out.height);
+    } catch (e) { ok(false, 'processImageData', e.message); }
+
+    try {
+      const r = applyMosaicRegions(img, [{ x: 0.1, y: 0.1, w: 0.4, h: 0.4, type: 'blur', strength: 10 }]);
+      ok(r.width === w && r.height === h, 'applyMosaicRegions blur');
+    } catch (e) { ok(false, 'applyMosaicRegions blur', e.message); }
+
+    try {
+      const frames = [{ data: img, delay: 100 }, { data: img, delay: 100 }];
+      const gif = encodeGif(frames, { delay: 100, loop: true });
+      ok(gif && gif.length > 10, 'encodeGif 2 frames', 'bytes=' + gif.length + ' head=' + hex(gif));
+      const dec = await decodeGif(gif.buffer);
+      ok(dec && dec.frames.length === 2 && dec.width === w, 'decodeGif roundtrip', dec.frames.length + ' frames ' + dec.width + 'x' + dec.height);
+    } catch (e) { ok(false, 'GIF roundtrip', e.message); }
+
+    try {
+      const frames = [{ data: img, delay: 100 }, { data: img, delay: 100 }];
+      const ab = await encodeApng(frames, 100);
+      ok(ab && ab.byteLength > 0, 'encodeApng 2 frames', 'bytes=' + ab.byteLength + ' head=' + hex(ab));
+      const dec = await decodeApng(ab);
+      ok(dec && dec.frames.length === 2, 'decodeApng roundtrip', dec.frames.length + ' frames');
+    } catch (e) { ok(false, 'APNG roundtrip', e.message); }
+
+    try {
+      const g = presetGeometry(1920, 1080, { w: 1080, h: 1440, fit: 'cover' });
+      ok(g.crop && g.resize.width === 1080 && g.resize.height === 1440, 'presetGeometry cover');
+      const g2 = presetGeometry(100, 100, { w: 200, h: 100, fit: 'contain' });
+      ok(g2.pad && g2.pad.w === 200 && g2.pad.h === 100, 'presetGeometry contain');
+    } catch (e) { ok(false, 'presetGeometry', e.message); }
+
+    try {
+      const pngBuf = await encodeImage(img, 'png');
+      const file = new File([pngBuf], 't.png', { type: 'image/png' });
+      const asset = await loadAsset(file);
+      ok(asset && asset.imageData && asset.imageData.width === w, 'loadAsset png', (asset.width || '?') + 'x' + (asset.height || '?'));
+      const res = await runBatch([{ file }], { edits: {}, format: 'webp', options: { quality: 60 }, concurrency: 1 });
+      ok(res[0] && res[0].ok && res[0].blob && res[0].blob.size > 0, 'runBatch png->webp', res[0].ok ? 'bytes=' + res[0].bytes : res[0].error);
+    } catch (e) { ok(false, 'loadAsset/batch', e.message); }
+
+    // video roundtrip: canvas.captureStream -> MediaRecorder -> loadAsset
+    try {
+      const mime = pickVideoMime();
+      line('INFO  MediaRecorder mime: ' + (mime || 'NONE'));
+      if (!mime) throw new Error('no MediaRecorder mime in this browser');
+      const c = makeCanvas(32, 32);
+      const ctx = c.getContext('2d');
+      let t = 0;
+      const iv = setInterval(() => { ctx.fillStyle = 'rgb(' + t + ',0,0)'; ctx.fillRect(0, 0, 32, 32); t = (t + 10) % 256; }, 60);
+      const stream = c.captureStream(10);
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2000000 });
+      const chunks = [];
+      rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+      const stopped = new Promise(res => { rec.onstop = res; });
+      rec.start(200);
+      await new Promise(r => setTimeout(r, 900));
+      rec.stop();
+      await stopped;
+      clearInterval(iv);
+      const blob = new Blob(chunks, { type: mime.split(';')[0] });
+      const isMp4 = blob.type.includes('mp4');
+      const file = new File([blob], 'smoke.' + (isMp4 ? 'mp4' : 'webm'), { type: blob.type });
+      const asset = await loadAsset(file);
+      ok(asset && asset.kind === 'video' && asset.width > 0 && asset.height > 0, 'video record+load ' + blob.type,
+        asset.width + 'x' + asset.height + ' dur=' + (asset.duration || 0).toFixed(2));
+    } catch (e) { ok(false, 'video roundtrip', e.message); }
+
+    try {
+      const mod = await import('./workspace/js/ai.js');
+      ok(typeof mod.removeBackgroundFromImageData === 'function', 'ai.js module loads');
+    } catch (e) { ok(false, 'ai.js module', e.message); }
+
+    line('DONE');
+  } catch (e) {
+    line('FATAL: ' + (e && e.stack ? e.stack : String(e)));
+  }
+  document.getElementById('results').textContent = results.join('\n');
+  document.title = results.some(r => r.startsWith('FAIL') || r.startsWith('FATAL')) ? 'SMOKE-FAIL' : 'SMOKE-OK';
+}
+main();
+</script>
+</body>
+</html>

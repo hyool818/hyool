@@ -2123,13 +2123,41 @@ document.querySelectorAll(".core-entry").forEach(
 
 
                 /* =========================================
-                   幻想 / 无限 / 生命
+                   无限：进入工作区
+                ========================================= */
+
+                if(
+                    worldName === "infinite"
+                ){
+
+                    world.classList.add(
+                        "entering-world"
+                    );
+
+
+                    setTimeout(
+                        () => {
+
+                            window.location.href =
+                                "workspace.html";
+
+                        },
+                        650
+                    );
+
+
+                    return;
+
+                }
+
+
+                /* =========================================
+                   幻想 / 生命
                    暂未开放
                 ========================================= */
 
                 if(
                     worldName === "fantasy" ||
-                    worldName === "infinite" ||
                     worldName === "life"
                 ){
 
