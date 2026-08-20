@@ -53,6 +53,31 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **禁手改 `.wrangler/dry/index.js`**（部署 bundle 自动生成）
 - **摘要机制**：`compressHistory`（gateway.js 导出）增量合并摘要；chat 路由按 `summarized_upto` 增量触发（>20000 字符），摘要以【过往对话摘要】注入 # 记忆
 
+## 新增工具规划（2026-08-20 拍板，多工具矩阵）
+
+> 背景：无限世界·工具箱将扩展为「图片 / 音频 / 音乐 / 视频 / AI / 游戏」矩阵。均沿用现有架构约定：无构建步骤、浏览器端处理优先、CDN 懒加载 + IndexedDB 缓存、hub 卡片 + workspace/js 模块 + 冒烟测试。
+
+### ✅ 第一批（现在做，纯前端低风险）
+1. **音频编辑 & 音效处理**：Web Audio API + Canvas 波形 + WebCodecs AudioEncoder（或 lamejs）导出 WAV/MP3；裁剪 / 拼接 / 淡入淡出 / 均衡 / 混响 / 变调
+2. **音乐工作室（MIDI 编曲 + 虚拟乐器）**：@tonejs/midi 解析/生成 .mid + 自绘钢琴卷帘 + tone.js 回放；虚拟乐器用 Web Audio 合成 + WebAudioFonts 采样 + WebMIDI 输入（WebMIDI 仅 Chrome/Edge 且需用户手势，无 MIDI 设备时鼠标点卷帘兜底）
+
+### ✅ 第二批（现在做，投入较大）
+3. **视频剪辑升级**：主力 WebCodecs + mp4-muxer（硬件加速、无大包体；Chrome/Edge 94+、Safari 16.4+），复用现有 Canvas 打码/裁剪管线，新增 MP4 导出 / 音画合成；ffmpeg.wasm（~31MB，多线程需 COOP/COEP）仅做 WebCodecs 不可用或特殊格式时的兜底
+4. **onnxruntime-web 图像超分**：Real-ESRGAN-x4 ONNX ~64MB，复用 ai.js 的 CDN 懒加载 + IndexedDB 缓存模式，ort-web wasm / WebGPU（Chrome 113+）双后端
+
+### 🗄 存档后续（用户暂缓 / 需前置条件）
+5. **TTS 文字转语音**：目标 GPT-SoVITS（高质克隆音色），需 GPU，与 Workers 架构不兼容 → 与 QLoRA 微调一并归入「另起 GPU 推理栈」后做；工作台暂不接 Edge TTS
+6. **onnxruntime-web 去水印（图片 / 动图 / 视频）**：LaMa inpainting ONNX ~200MB、浏览器 CPU 慢（需 WebGPU）、效果依赖水印类型；按 图片→动图→视频 顺序实验，视频逐帧在浏览器端可行性低（保留但不优先）
+7. **onnxruntime-web AI 扩图**：需生成式模型（SD 系），浏览器端不现实，且与隐私卖点冲突 → 暂缓
+8. **Live2D Cubism SDK for Web**：技术可行（纯前端 WebGL，SDK 免费、需展示版权声明）；瓶颈在模型资产（Cubism Editor 收费 / nizima 购买 / 官方样例），等用户提供模型文件后进第二批，用于 buddy 形象区呼吸 / 说话动画
+9. **自研 VN 编辑器（Ren'Py 替代，必做）**：剧本 JSON + Canvas/PixiJS 渲染 + 复用素材管线；不引入 Ren'Py 本体
+10. **网页 H5 游戏**：可行。路线 A：Cocos Creator 独立源工程 → CLI/CI 构建 Web 产物 → iframe + postMessage 双向通信嵌入站点（或独立路由）；路线 B：PixiJS/Phaser 直接在现有项目内写轻量小游戏（无构建、与工作台同构）。排期靠后
+
+### ❌ 明确不做 / 已确认的可行方案
+- **Ren'Py 本体**：Python 桌面引擎，无官方 Web 导出，renpy-web（Pyodide）实验性、体积大、体验差
+- **Cocos Creator 作为工具箱原生工具**：独立 IDE/引擎工程，不嵌入；但其 H5 构建产物可 iframe 嵌入（见上）
+- 已确认：**iframe 嵌入 + postMessage 双向通信 = 外部构建产物（H5 游戏/VN）接入站点的标准方式**，与页面是否用 Vue/React 无关，本项目原生静态 HTML 同样适用
+
 ## 观察期 / 待办（用户暂缓，用户主动提出再推进）
 
 - 第三层：情绪/场景路由 Agent、RAG 知识库（若做：embedding 可换 `@cf/baai/bge-base-zh-v1.5`，但需重建向量索引）
