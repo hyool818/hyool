@@ -75,6 +75,7 @@ async function main() {
       await sleep(250);
     }
     ok(loaded, '图片载入');
+    ok(f().eval(`!document.getElementById('topExportBtn').classList.contains('hidden')`), '导入后顶栏「保存/导出」按钮可见');
     // 布局诊断：确认 mosaicLayer 在 iframe 里的实际布局尺寸（此前 stagePoint 拿到 NaN 疑似 rect.width=0）
     const layoutDiag = f().eval(`(() => {
       const l = document.getElementById('mosaicLayer');
@@ -92,30 +93,40 @@ async function main() {
     })()`);
     line('DIAG  layout=' + layoutDiag);
 
-    // 1) 对比关闭：重渲染后 canvasOut 不应有 clip-path（回归点：旧代码在 layoutStage 里无条件套 clip）
-    let clip = f().eval(`document.getElementById('canvasOut').style.clipPath`);
-    ok(clip === '', '关闭对比时 canvasOut 无 clip-path', 'clipPath=' + JSON.stringify(clip));
+    // 有效（computed）样式断言：clip 必须测 getComputedStyle —— 上一版只查内联 style.clipPath，
+    // 但 CSS 类规则 `.compare-canvas.out{clip-path:inset(0 50% 0 0)}` 仍会生效，右半照样露出原图
+    const computedClip = () => f().eval(`getComputedStyle(document.getElementById('canvasOut')).clipPath`);
+    const tagOpacity = () => f().eval(`getComputedStyle(document.querySelector('.compare-tag.tag-left')).opacity`);
+    const dividerLeft = () => f().eval(`document.getElementById('compareDivider').style.left`);
 
-    // 2) 开启对比：clip-path 应为 inset
+    // 1) 对比关闭：canvasOut 应完整显示（无任何 clip），原图/处理后标签隐藏
+    let clip = computedClip();
+    ok(clip === 'none', '关闭对比时 canvasOut 无 clip-path（computed）', 'clipPath=' + JSON.stringify(clip));
+    ok(tagOpacity() === '0', '关闭对比时 原图/处理后 标签隐藏', 'opacity=' + tagOpacity());
+
+    // 2) 开启对比：clip-path 应为 inset，分割线跟随滑块（默认 50%），标签可见
     f().eval(`document.getElementById('compareToggle').click()`);
-    await sleep(120);
-    clip = f().eval(`document.getElementById('canvasOut').style.clipPath`);
+    await sleep(320); // 等 .compare-tag 的 opacity .2s 过渡完成
+    clip = computedClip();
     ok(String(clip).indexOf('inset') === 0, '开启对比时 canvasOut 有 clip-path', 'clipPath=' + JSON.stringify(clip));
+    ok(dividerLeft() === '50%', '开启对比时分割线对齐滑块位置', 'left=' + JSON.stringify(dividerLeft()));
+    ok(tagOpacity() === '1', '开启对比时 原图/处理后 标签可见', 'opacity=' + tagOpacity());
 
-    // 3) 关闭对比：clip-path 清空
+    // 3) 关闭对比：clip 清空 + 标签隐藏
     f().eval(`document.getElementById('compareToggle').click()`);
-    await sleep(120);
-    clip = f().eval(`document.getElementById('canvasOut').style.clipPath`);
-    ok(clip === '', '再次关闭对比后 clip-path 清空', 'clipPath=' + JSON.stringify(clip));
+    await sleep(320); // 等 opacity 过渡完成
+    clip = computedClip();
+    ok(clip === 'none', '再次关闭对比后 clip-path 清空', 'clipPath=' + JSON.stringify(clip));
+    ok(tagOpacity() === '0', '再次关闭对比后标签隐藏', 'opacity=' + tagOpacity());
 
-    // 记录裁剪前的画布内容，供步骤 6 对比「裁剪放大已生效」
+    // 记录裁剪前的画布内容，供步骤 7 对比「裁剪放大已生效」
     f().eval(`(() => {
       const o = document.getElementById('canvasOut');
       window.__beforeCrop = o.getContext('2d').getImageData(0, 0, o.width, o.height).data;
       return true;
     })()`);
 
-    // 4) 拖拽裁剪（回归点：旧代码裁剪后 canvasOut 左右分离）
+    // 4) 拖拽裁剪（回归点：裁剪后 canvasOut 被 CSS 裁掉右半 →「左右分离」）
     f().eval(`(() => {
       document.getElementById('mosaicLayer').setPointerCapture = () => {}; // 合成事件没有真实 pointer 捕获
       document.getElementById('cropModeBtn').click();
@@ -128,8 +139,8 @@ async function main() {
       return true;
     })()`);
     await sleep(900); // 等 processImageData 异步完成后 drawOverlay
-    clip = f().eval(`document.getElementById('canvasOut').style.clipPath`);
-    ok(clip === '', '裁剪后（对比仍关）canvasOut 无 clip-path', 'clipPath=' + JSON.stringify(clip));
+    clip = computedClip();
+    ok(clip === 'none', '裁剪后（对比仍关）canvasOut 无 clip-path', 'clipPath=' + JSON.stringify(clip));
 
     // 5) 裁剪已生效：清除按钮可见 + 画布内容已变为裁剪放大结果（预览保持原画布尺寸，把裁剪区拉伸铺满）
     const cropState = f().eval(`(() => {
@@ -165,6 +176,14 @@ async function main() {
       return diff > 0;
     })()`);
     ok(differ, '裁剪后画布内容已改变（裁剪放大生效）');
+
+    // 7) 裁剪后开启对比仍应正常出分割（裁剪编辑与对比共存），最后恢复关闭
+    f().eval(`document.getElementById('compareToggle').click()`);
+    await sleep(320); // 等 opacity 过渡完成
+    clip = computedClip();
+    ok(String(clip).indexOf('inset') === 0, '裁剪后开启对比仍有 clip-path', 'clipPath=' + JSON.stringify(clip));
+    f().eval(`document.getElementById('compareToggle').click()`);
+    await sleep(320);
 
     line('');
     line('--- console/errors ---');

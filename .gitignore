@@ -5,6 +5,10 @@
 .wrangler-dev.log
 .wrangler-dev.err.log
 
+# Browser-test output logs
+.test-crop.log
+.test-ui.log
+
 # Dependencies
 node_modules/
 

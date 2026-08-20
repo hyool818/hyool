@@ -187,6 +187,7 @@
   </div>
   <div class="topbar-right">
     <span id="assetBadge" class="asset-badge hidden"></span>
+    <button id="topExportBtn" class="btn primary hidden">↓ 保存 / 导出</button>
     <button id="importBtn" class="btn primary">＋ 导入素材</button>
     <input type="file" id="fileInput" multiple hidden
       accept="image/png,image/jpeg,image/webp,image/avif,image/gif,image/apng,video/mp4,video/webm,video/ogg">
@@ -206,6 +207,7 @@
       <canvas id="canvasOrig" class="compare-canvas orig"></canvas>
       <canvas id="canvasOut" class="compare-canvas out"></canvas>
       <canvas id="mosaicLayer" class="compare-canvas overlay"></canvas>
+      <div id="compareDivider" class="compare-divider"></div>
       <div class="compare-tag tag-left">原图</div>
       <div class="compare-tag tag-right">处理后</div>
       <input type="range" id="compareSlider" class="compare-slider" min="0" max="100" value="50" aria-label="对比分割">

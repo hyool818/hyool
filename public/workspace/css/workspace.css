@@ -77,11 +77,11 @@ body{display:flex;flex-direction:column}
   repeating-conic-gradient(rgba(255,255,255,.05) 0 25%,transparent 0 50%) 0 0/20px 20px;
   border-radius:6px}
 .compare-canvas.orig{z-index:1}
-.compare-canvas.out{z-index:2;clip-path:inset(0 50% 0 0)}
-.compare.canvas-compare .compare-canvas.out{clip-path:inset(0 50% 0 0)}
-.compare.canvas-compare .tag-left{opacity:1}
-.compare.canvas-compare .tag-right{opacity:1}
-.compare:not(.canvas-compare) .tag-left,.compare:not(.canvas-compare) .tag-right{opacity:0}
+/* 默认 canvasOut 完整覆盖 canvasOrig（对比关闭时绝不裁剪，否则右半露出原图 →「左右分离」）；
+   对比开启时的分割裁剪由 app.js 的 applyCompareClip() 以内联 clip-path 控制 */
+.compare-canvas.out{z-index:2}
+.compare .tag-left,.compare .tag-right{opacity:0}
+.compare.compare-on .tag-left,.compare.compare-on .tag-right{opacity:1}
 .compare-canvas.overlay{z-index:3;pointer-events:auto;cursor:crosshair;border-radius:6px}
 .compare-tag{position:absolute;top:10px;z-index:4;font-size:11px;letter-spacing:.12em;color:#fff;
   background:rgba(0,0,0,.55);padding:3px 9px;border-radius:4px;transition:opacity .2s;pointer-events:none}

@@ -11,10 +11,10 @@ import { runBatch } from './batch.js';
 const PREVIEW_MAX = 1920; // 预览画布最大边（导出仍为全分辨率）
 
 const R = {
-  fileInput: $('#fileInput'), importBtn: $('#importBtn'),
+  fileInput: $('#fileInput'), importBtn: $('#importBtn'), topExportBtn: $('#topExportBtn'),
   empty: $('#empty'), compareWrap: $('#compareWrap'),
   canvasOrig: $('#canvasOrig'), canvasOut: $('#canvasOut'), mosaicLayer: $('#mosaicLayer'),
-  compareSlider: $('#compareSlider'), stageHint: $('#stageHint'),
+  compareSlider: $('#compareSlider'), compareDivider: $('#compareDivider'), stageHint: $('#stageHint'),
   videoBar: $('#videoBar'), frameStrip: $('#frameStrip'),
   assetBadge: $('#assetBadge'),
   tabs: $('#tabs'), tabBody: $('#tabBody'),
@@ -164,6 +164,7 @@ function bindMosaicVideoEvents() {
 
   // 导出
   R.exportBtn.addEventListener('click', exportStatic);
+  R.topExportBtn.addEventListener('click', exportCurrent);
   R.copyBtn.addEventListener('click', copyStatic);
 }
 
@@ -246,6 +247,7 @@ async function handleFiles(files) {
     state.asset = asset;
     R.assetBadge.textContent = `${asset.kind === 'video' ? 'VIDEO' : asset.kind === 'animated' ? 'GIF/动图' : 'IMAGE'} · ${asset.name} · ${asset.width}×${asset.height}`;
     R.empty.classList.add('hidden');
+    R.topExportBtn.classList.remove('hidden');
     R.compareWrap.classList.remove('hidden');
     R.stageHint.classList.add('hidden');
     R.frameStrip.classList.toggle('hidden', asset.kind !== 'animated');
@@ -412,11 +414,13 @@ function applyCompareClip() {
   if (!state.compareOn) {
     R.canvasOut.style.clipPath = '';
     R.canvasOut.style.WebkitClipPath = '';
+    R.compareDivider.style.left = '';
     return;
   }
   const pct = +R.compareSlider.value;
   R.canvasOut.style.clipPath = `inset(0 0 0 ${pct}%)`;
   R.canvasOut.style.WebkitClipPath = `inset(0 0 0 ${pct}%)`;
+  R.compareDivider.style.left = pct + '%';
 }
 
 function toggleCompare() {
@@ -687,6 +691,15 @@ function onResizeInput() {
 
 /* ================= 导出 ================= */
 
+/** 统一导出入口：静态图 / 动图 / 视频按当前素材分派（顶栏「保存 / 导出」按钮） */
+function exportCurrent() {
+  const a = state.asset;
+  if (!a) return;
+  if (a.kind === 'video') return exportVideo();
+  if (a.kind === 'animated') return exportAnim();
+  return exportStatic();
+}
+
 function assetName() {
   return (state.asset?.name || 'image').replace(/\.[^.]+$/, '');
 }
@@ -694,6 +707,7 @@ function assetName() {
 function setBusy(busy, label) {
   state.busy = busy;
   R.exportBtn.disabled = busy;
+  R.topExportBtn.disabled = busy;
   R.copyBtn.disabled = busy;
   R.exportAnimBtn.disabled = busy;
   R.exportVideoBtn.disabled = busy;
