@@ -212,6 +212,14 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 6. **world-check 扩充 partH**（19 条断言）——`/life` 返回 `world.state` 对象；`state.story.phase` 合法阶段；`state.beats/secrets/plots/timeline` 落账；`lastPulseSeq` 推进；关系自动演化（`auto:true`）写入；节拍类型合法+含台词/旁白；`/life/story` 200 且 chapters/beats/secrets/plots/timeline 与 state 一致；partD 增「故事」tab/面板存在+可切换 3 条断言。
 7. **验证**：`node --check`（mvp.js/gateway.js）通过；本地 dev 启动后 CDP 冒烟 **world-check 84 断言 PASS（SMOKE-OK）**——含节拍化 tick 产出「旁白+2 角色」3 条、pulse 后 state.story=opening、beats=2、secrets=1、lastPulseSeq=11、`/life/story` 档案与 state 一致；唯一 SKIP 为「角色创建失败/超时（本地 AI 挂起）」既有项。**已部署（35848a2，CI 自动）并线上验证通过**：`https://hyool.w910227a.workers.dev/world-check.html` CDP 冒烟 **91 断言 PASS（SMOKE-OK，0 SKIP）**——含此前线上失败的「关系自动演化（auto）写入 relations」、`lastPulseSeq=11`、`/life/story` 档案与 state 一致；修复为 partH 收敛循环（轮询 /life + 重复 mock tick，直到 N1-N2 auto 关系落账，≤120s），规避 iframe 真实 hybrid auto-tick 抢跑消耗积压消息导致脉动阈值不足的竞态。
 
+<b>world.html 页面布局优化（本次会话，已完成本地验证，commit 208fe2a）：</b>
+1. **顶部右侧「世界X」tab** —— 移出导轨底部 tab 行，改为顶栏右侧常驻「世界角色 / 世界关系 / 世界故事」三个切换按钮（`.world-tab`，保留 `data-rail` 属性兼容 world-check 断言），切换世界面板分节；「世界后台」按钮（openSide）保留。
+2. **隐藏对话模型选择** —— 顶栏 `modelSel` 用 `display:none` 隐藏（模型选择移到世界后台运转面板 `runModel`），`onModelChange` 绑定保留；world-check「模型选择器 4 项」断言仍通过。
+3. **新线程·场景合一** —— 移除线程栏「＋新线程」chip 与场景分节，改为导轨底部常驻按钮「＋ 新线程 / 进入场景」→ 打开合一弹窗 `threadModal`（线程字段 + 常用背景 chips + 已有场景列表 `sceneList` + 创建场景表单），`newThread()` 打开并清空场景字段。
+4. **世界后台与面板并排** —— 新增 `body.side-open` 使 `.wrap/.topbar/.composer` 右移 408px，世界后台（side）与世界面板（rail）并排显示，不再覆盖。
+5. **介绍卡 ✕ 收起** —— 主线介绍卡新增 `.ic-close` ✕（`toggleIntro(false)` → rail 加 `hide-intro` 隐藏介绍卡并显示 📋 恢复按钮），修复此前 ✕ 无反应；`toggleIntro(true)` 恢复。
+6. **验证**：`node --check` 通过；`npx wrangler deploy --dry-run` 通过；本地 CDP 冒烟 **world-check 93 断言 PASS（SMOKE-OK，2 SKIP 为既有「本地 AI 挂起 / 无邀请角色」项）**；另起一次性 CDP 脚本 **14 断言 ALL-PASS**（合一弹窗打开+含 sceneList、介绍卡 ✕ 收起/恢复）。
+
 ## 已拍板：生命世界升级「故事孵化器」（2026-08-21 用户拍板，设计已确认，待新窗口开工）
 
 > **定位变更（最高目标）**：生命世界不是「多人 AI 聊天室」，而是 **AI 世界孵化器**——用户创造角色与世界，AI 让世界自主产生可导出的连续故事。**一句话最高目标：你创造世界，AI 让世界发生故事。**
