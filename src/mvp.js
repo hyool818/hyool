@@ -950,13 +950,14 @@ export async function handleMvpRoutes(
             const prev = wj.background || {};
             const next = sanitizeBackground(body.background || {});
             if (prev.locked) {
-                // 时代/氛围/规则一经设定即锁死；其余字段（地点/补充/背景图）仍可调整
-                if (next.era !== prev.era || next.tone !== prev.tone || next.rule !== prev.rule) {
-                    return json({ success: false, error: "世界的时代、氛围与世界规则一经设定即锁定，无法二次修改。" }, 400);
+                // 已锁定的核心字段不允许改动其值；但可补填此前为空的字段（如新增的主要势力/力量体系）
+                const lockedChanged = ["era", "tone", "rule", "faction", "power"].some(k => prev[k] && next[k] !== prev[k]);
+                if (lockedChanged) {
+                    return json({ success: false, error: "世界的时代背景、世界规则、主要势力、力量体系与氛围基调一经设定即锁定，无法二次修改。" }, 400);
                 }
                 next.locked = true;
-            } else if (next.era || next.tone || next.rule) {
-                // 一经选择时代/氛围/世界规则，立即锁死
+            } else if (next.era || next.tone || next.rule || next.faction || next.power) {
+                // 一经选择核心设定（时代背景/世界规则/主要势力/力量体系/氛围基调），立即锁死
                 next.locked = true;
             }
             wj.background = next;
@@ -2488,10 +2489,12 @@ function sanitizeNativeConfig(cfg) {
 function sanitizeBackground(bg) {
     const o = (bg && typeof bg === "object" && !Array.isArray(bg)) ? bg : {};
     return {
-        era: String(o.era || "").slice(0, 80),
+        era: String(o.era || "").slice(0, 200),
         place: String(o.place || "").slice(0, 80),
-        tone: String(o.tone || "").slice(0, 120),
-        rule: String(o.rule || "").slice(0, 400),
+        tone: String(o.tone || "").slice(0, 200),
+        rule: String(o.rule || "").slice(0, 600),
+        faction: String(o.faction || "").slice(0, 600),
+        power: String(o.power || "").slice(0, 600),
         note: String(o.note || "").slice(0, 800),
         bg_image: String(o.bg_image || "").slice(0, 2000),
         locked: !!o.locked

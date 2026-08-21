@@ -254,8 +254,7 @@ input, textarea { color-scheme: dark; }
 .intro-desc { font-size: .76rem; color: var(--muted); margin-bottom: 8px; line-height: 1.6; }
 .bg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .bg-chips .tag-chip { font-size: .68rem; }
-.panel .locked .fg { opacity: .55; }
-.panel .locked .fg input, .panel .locked .fg textarea, .panel .locked .fg select { cursor: not-allowed; }
+.panel .fg input:disabled, .panel .fg textarea:disabled, .panel .fg select:disabled { opacity: .55; cursor: not-allowed; }
 .bg-summary { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
 .bg-summary .cover-sq { max-height: 110px; }
 .bg-line { display: flex; gap: 8px; font-size: .78rem; }
@@ -491,7 +490,7 @@ input, textarea { color-scheme: dark; }
 
     <section class="panel" id="panel-bg">
       <h3>🌍 世界背景</h3>
-      <div class="intro-desc">这里承载世界的时代、氛围与规则。一经选择即锁死，无法二次修改；地点、补充说明与背景图仍可调整。</div>
+      <div class="intro-desc">这里承载世界的核心设定（时代背景、世界规则、主要势力、力量体系、氛围基调）。一经保存即锁定，无法二次修改；地点、补充说明与背景图仍可调整。</div>
       <div class="fg"><label>世界封面</label>
         <img class="cover-sq" id="bgCover" alt="" onerror="this.style.opacity=.2">
         <div class="row" style="margin-top:6px">
@@ -508,9 +507,11 @@ input, textarea { color-scheme: dark; }
         </div>
       </div>
       <div id="bgLockWrap">
-        <div class="fg"><label>时代</label><input id="bgEra" maxlength="80" placeholder="如：灵气复苏初期 / 蒸汽时代"></div>
-        <div class="fg"><label>氛围</label><input id="bgTone" maxlength="120" placeholder="如：潮湿、怀旧、暗流涌动"></div>
-        <div class="fg"><label>世界规则 / 特殊设定</label><textarea id="bgRule" maxlength="400" placeholder="如：这里的人不会真正死去，只会在雾中重生…"></textarea></div>
+        <div class="fg"><label>时代背景</label><input id="bgEra" maxlength="200" placeholder="如：灵气逐渐枯竭的修炼世界。曾经的文明被一场巨大灾变摧毁，天地规则出现裂痕，禁区、古遗迹、失落传承不断显现。"></div>
+        <div class="fg"><label>世界规则 / 特殊设定</label><textarea id="bgRule" maxlength="600" placeholder="如：天地灵气会随禁区扩张而变化。强者不得随意颠覆凡俗秩序，否则会受到世界规则压制。"></textarea></div>
+        <div class="fg"><label>主要势力</label><textarea id="bgFaction" maxlength="600" placeholder="如：人类修炼势力；万族联盟；古老守秘组织；禁区深处的神秘存在。"></textarea></div>
+        <div class="fg"><label>力量体系</label><textarea id="bgPower" maxlength="600" placeholder="如：以灵气修炼为主，结合符文、血脉、神魂传承。力量越强，越容易引发世界规则的注视。"></textarea></div>
+        <div class="fg"><label>氛围基调</label><input id="bgTone" maxlength="200" placeholder="如：残酷但不绝望，探索世界真相为主，战斗和成长为辅。"></div>
       </div>
       <div class="fg"><label>地点</label><input id="bgPlace" maxlength="80" placeholder="如：临海小城「雾港」"></div>
       <div class="fg"><label>补充说明</label><textarea id="bgNote" maxlength="800"></textarea></div>
@@ -973,13 +974,15 @@ function renderIntro(){
         ${locked ? '<span class="lock-badge">🔒 已锁定</span>' : ""}
         <button class="ic-close" onclick="toggleIntro(false)" title="收起介绍">✕</button>
       </div>
-      <div class="intro-desc">世界背景（时代 / 氛围 / 规则）已设定。编辑请前往「⚙ 世界后台 → 🌍 大世界背景」。</div>
+      <div class="intro-desc">世界背景（时代背景 / 世界规则 / 主要势力 / 力量体系 / 氛围基调）已设定。编辑请前往「⚙ 世界后台 → 🌍 大世界背景」。</div>
       <div class="bg-summary">
         ${bg.bg_image ? `<img class="cover-sq" src="${escapeHtml(bg.bg_image)}" alt="" onerror="this.style.opacity=.2">` : ""}
-        ${line("时代", bg.era)}
-        ${line("氛围", bg.tone)}
+        ${line("时代背景", bg.era)}
+        ${line("世界规则", bg.rule)}
+        ${line("主要势力", bg.faction)}
+        ${line("力量体系", bg.power)}
+        ${line("氛围基调", bg.tone)}
         ${line("地点", bg.place)}
-        ${line("规则", bg.rule)}
         ${line("补充", bg.note)}
       </div>
       <button class="btn ghost" style="width:100%" onclick="openPanel('bg')">⚙ 编辑世界背景</button>`;
@@ -1396,11 +1399,11 @@ async function saveRun(){
 }
 async function saveBg(){
   try {
-    const d = await api("/api/worlds/" + worldId + "/life/background", { method: "POST", body: JSON.stringify({ background: { era: $("bgEra").value.trim(), place: $("bgPlace").value.trim(), tone: $("bgTone").value.trim(), rule: $("bgRule").value.trim(), note: $("bgNote").value.trim(), bg_image: $("bgImage").value.trim() } }) });
+    const d = await api("/api/worlds/" + worldId + "/life/background", { method: "POST", body: JSON.stringify({ background: { era: $("bgEra").value.trim(), place: $("bgPlace").value.trim(), tone: $("bgTone").value.trim(), rule: $("bgRule").value.trim(), faction: $("bgFaction").value.trim(), power: $("bgPower").value.trim(), note: $("bgNote").value.trim(), bg_image: $("bgImage").value.trim() } }) });
     S.world.background = d.background || S.world.background;
     renderIntro();
     renderBgPanel();
-    toast(S.world.background.locked ? "世界背景已保存，时代/氛围/规则已锁定。" : "世界背景已保存。");
+    toast(S.world.background.locked ? "世界背景已保存，核心设定已锁定。" : "世界背景已保存。");
   } catch (e) { toast(e.message); }
 }
 
@@ -1413,12 +1416,15 @@ function renderBgPanel(){
   set("bgEra", bg.era);
   set("bgTone", bg.tone);
   set("bgRule", bg.rule);
+  set("bgFaction", bg.faction);
+  set("bgPower", bg.power);
   set("bgPlace", bg.place);
   set("bgNote", bg.note);
-  ["bgEra", "bgTone", "bgRule"].forEach(id => { const x = $(id); if (x) x.disabled = locked; });
-  const wrap = $("bgLockWrap"); if (wrap) wrap.classList.toggle("locked", locked);
-  const saveBtn = $("bgSave"); if (saveBtn) saveBtn.textContent = locked ? "保存（时代/氛围/规则已锁定）" : "保存世界背景";
-  const hint = $("bgHint"); if (hint) hint.textContent = locked ? "时代、氛围与世界规则已锁定；地点、补充说明与背景图仍可调整。" : "保存后时代/氛围/规则将立即锁死。";
+  // 已设定的核心字段一经保存即锁定；此前为空的字段（如新补充的主要势力/力量体系）仍可编辑补填
+  const lockKey = { bgEra: "era", bgTone: "tone", bgRule: "rule", bgFaction: "faction", bgPower: "power" };
+  ["bgEra", "bgTone", "bgRule", "bgFaction", "bgPower"].forEach(id => { const x = $(id); if (x) x.disabled = locked && !!bg[lockKey[id]]; });
+  const saveBtn = $("bgSave"); if (saveBtn) saveBtn.textContent = locked ? "保存（核心设定已锁定）" : "保存世界背景";
+  const hint = $("bgHint"); if (hint) hint.textContent = locked ? "已锁定的核心设定不可修改；其余字段（含主要势力/力量体系）仍可补充调整。" : "保存后时代背景、世界规则、主要势力、力量体系与氛围基调将立即锁死。";
 }
 
 /* ---- 封面 / 图片上传 ---- */

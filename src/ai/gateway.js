@@ -862,7 +862,7 @@ export async function generateNpcBatch({ world, env, mock, count, excludeNames =
                 { role: "system", content: system },
                 {
                     role: "user",
-                    content: `# 世界\n名字：${world?.name || "未知"}\n设定：${world?.description || ""}\n背景：${((world?.background && [world.background.era, world.background.place, world.background.tone, world.background.rule].filter(Boolean).join("；")) || "")}`
+                    content: `# 世界\n名字：${world?.name || "未知"}\n设定：${world?.description || ""}\n背景：${((world?.background && [world.background.era, world.background.place, world.background.tone, world.background.rule, world.background.faction, world.background.power].filter(Boolean).join("；")) || "")}`
                 }
             ],
             env.AI_CREATE_MODEL || DEFAULT_CREATE_MODEL,
@@ -954,10 +954,12 @@ const LIFE_CHAR_TAGS = new Set([
 export function buildLifeSystemPrompt({ character, world, scene, relations = [], recent = [], userName = "你", opening = false, state }) {
     const bg = (world && world.background) || {};
     const bgLines = [
-        bg.era ? `- 时代：${bg.era}` : null,
+        bg.era ? `- 时代背景：${bg.era}` : null,
         bg.place ? `- 地点：${bg.place}` : null,
-        bg.tone ? `- 氛围：${bg.tone}` : null,
+        bg.tone ? `- 氛围基调：${bg.tone}` : null,
         bg.rule ? `- 世界规则：${bg.rule}` : null,
+        bg.faction ? `- 主要势力：${bg.faction}` : null,
+        bg.power ? `- 力量体系：${bg.power}` : null,
         bg.note ? `- 补充：${bg.note}` : null
     ].filter(Boolean);
 
