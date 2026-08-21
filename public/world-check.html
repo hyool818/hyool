@@ -176,6 +176,11 @@ async function partD(){
   }, 25000, 'world.html 加载');
   const win = f.contentWindow;
   const q = (s) => doc.querySelector(s);
+  // 等待 iframe 完成首次完整加载（线程栏就绪、当前线程已定），避免慢网络下断言过早
+  await waitFor(() => {
+    const tid = win.eval('S.threadId');
+    return (tid && doc.querySelectorAll('#threadBar .tchip').length >= 2) ? true : null;
+  }, 20000, 'world.html 首次加载完成');
   ok(!!doc.getElementById('feed'), 'D: world.html 渲染 feed 舞台');
   ok(doc.getElementById('wMode').textContent.includes('混合运转'), 'D: 模式徽章=混合运转', doc.getElementById('wMode').textContent);
   ok((doc.querySelectorAll('#threadBar .tchip').length) >= 2, 'D: 线程栏渲染场景/日常', doc.querySelectorAll('#threadBar .tchip').length + ' 个');
@@ -198,6 +203,13 @@ async function partD(){
   ok(!!doc.getElementById('natAge'), 'D: 原住民年龄选择存在');
   ok(!!doc.getElementById('natNpcGen'), 'D: NPC 批量生成按钮存在');
   ok(!!doc.getElementById('natNameRandom'), 'D: 随机起名按钮存在');
+  ok(!!q('[data-rail="story"]'), 'D: 「故事」tab 存在');
+  ok(!!doc.getElementById('panel-story'), 'D: 故事面板存在');
+  q('[data-rail="story"]').click();
+  await sleep(150);
+  ok(q('#panel-story').classList.contains('active'), 'D: 故事面板可切换');
+  q('[data-rail="cast"]').click();
+  await sleep(100);
   ok(!!doc.getElementById('threadIntro'), 'D: 右侧线程介绍卡存在');
   // 切到主线线程 -> 世界背景介绍卡（时代/氛围/规则锁定）
   const mainChip = q('#threadBar .tchip.main');
@@ -306,6 +318,58 @@ async function partG(){
   ok(bgLock.world.background.locked === true, 'G: background.locked=true');
 }
 
+async function partH(){
+  // Batch 3 故事引擎：节拍化 tick → 增量脉动 → world_json.state 持久化 → /life/story 档案
+  try {
+    await waitFor(async () => {
+      const r = await api('/api/worlds/' + WID + '/life/tick', { method:'POST', body: JSON.stringify({ thread_id: TID, mock: true }) });
+      return (r.messages && r.messages.length) ? r : null;
+    }, 60000, 'tick 再推进一个节拍');
+  } catch(e) {}
+
+  // 页面内真实 LLM 自动 tick 可能与测试抢跑增量脉动（它已消费积压消息时，脉动阈值不足 4 条就不会跑）。
+  // 这里重复 mock tick 直到 mock 脉动把 N1-N2 关系落账：每次 mock 节拍都会新增 N1/N2 在场消息，
+  // 下一次脉动的 actors 即 [N1,N2]，故只要脉冲运行就必然写入该 auto 关系，收敛有保证。
+  let autoRel = false;
+  const t0 = Date.now();
+  while (Date.now() - t0 < 120000 && !autoRel) {
+    const cur = await api('/api/worlds/' + WID + '/life');
+    autoRel = (cur.world.relations || []).some(r => ((r.a === N1 && r.b === N2) || (r.a === N2 && r.b === N1)) && r.auto === true);
+    if (autoRel) break;
+    try {
+      await api('/api/worlds/' + WID + '/life/tick', { method:'POST', body: JSON.stringify({ thread_id: TID, mock: true }) });
+    } catch(e) {}
+    await sleep(1500);
+  }
+  ok(autoRel, 'H: 关系自动演化（auto）写入 relations');
+
+  // 收敛后读取 state，保证与 /life/story 档案同源一致
+  const life = await api('/api/worlds/' + WID + '/life');
+  const st = life.world.state || {};
+  ok(!!st && typeof st === 'object', 'H: /life 返回 world.state 对象');
+  ok(!!st.story && !!st.story.phase, 'H: state.story 存在', st.story ? st.story.phase : '(none)');
+  ok(['opening','rising','climax','falling','resolution'].indexOf(st.story.phase) >= 0, 'H: story.phase 为合法阶段', st.story ? st.story.phase : '');
+  ok(Array.isArray(st.beats) && st.beats.length >= 1, 'H: state.beats 记录节拍', st.beats ? st.beats.length + ' 条' : '0');
+  ok(Array.isArray(st.secrets) && st.secrets.length >= 1, 'H: state.secrets 记录秘密', st.secrets ? st.secrets.length + ' 条' : '0');
+  ok(Array.isArray(st.plots) && st.plots.length >= 1, 'H: state.plots 记录支线');
+  ok(Array.isArray(st.timeline) && st.timeline.length >= 1, 'H: state.timeline 记录时间线');
+  ok(Number(st.lastPulseSeq) >= 1, 'H: lastPulseSeq 已推进', String(st.lastPulseSeq));
+
+  const b = st.beats[0] || {};
+  ok(['event','action','dialogue','decision','consequence','narration'].indexOf(b.t) >= 0, 'H: 节拍类型合法', b.t || '(none)');
+  ok((b.text && b.text.length) || b.narration, 'H: 节拍含台词或旁白');
+
+  // /life/story 档案与 state 一致
+  const story = await api('/api/worlds/' + WID + '/life/story');
+  ok(story.success === true, 'H: GET /life/story 200');
+  ok(story.story && story.story.title && story.story.logline, 'H: story 档案含标题与梗概', story.story ? story.story.title : '');
+  ok(Array.isArray(story.chapters), 'H: story 档案含章节');
+  ok(Array.isArray(story.beats) && story.beats.length === st.beats.length, 'H: 档案节拍数与 state 一致', story.beats ? story.beats.length + ' 条' : '0');
+  ok(Array.isArray(story.secrets) && story.secrets.length === st.secrets.length, 'H: 档案秘密数与 state 一致');
+  ok(Array.isArray(story.plots) && story.plots.length === st.plots.length, 'H: 档案支线数与 state 一致');
+  ok(Array.isArray(story.timeline) && story.timeline.length === st.timeline.length, 'H: 档案时间线数与 state 一致');
+}
+
 async function partE(){
   const del = await api('/api/worlds/' + WID + '/delete', { method:'POST' });
   ok(del.success && del.cast_preserved === true, 'E: 清理删除世界（cast_preserved）');
@@ -334,6 +398,7 @@ async function partE(){
     await partD();
     await partF();
     await partG();
+    await partH();
     await partE();
   } catch (e) {
     line('ERROR  ' + (e && e.message ? e.message : e));

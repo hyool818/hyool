@@ -951,7 +951,7 @@ const LIFE_CHAR_TAGS = new Set([
 ]);
 
 /** 角色在生命世界里的系统提示：身份 + 世界观 + 现场 + 关系 + 发言规则 */
-export function buildLifeSystemPrompt({ character, world, scene, relations = [], recent = [], userName = "你", opening = false }) {
+export function buildLifeSystemPrompt({ character, world, scene, relations = [], recent = [], userName = "你", opening = false, state }) {
     const bg = (world && world.background) || {};
     const bgLines = [
         bg.era ? `- 时代：${bg.era}` : null,
@@ -987,6 +987,20 @@ export function buildLifeSystemPrompt({ character, world, scene, relations = [],
         ? `\n- 性格标签：${character.tags.join("、")}（这些标签是你的底色，必须在言行中自然流露）`
         : "";
 
+    // 世界状态注入（故事孵化器）：主线焦点/阶段 + 已揭露线索，让角色言行顺着故事走
+    const st = (state && typeof state === "object" && !Array.isArray(state)) ? state : null;
+    const stateBlock = (() => {
+        if (!st) return "";
+        const story = st.story || {};
+        const phaseLabel = { opening: "序章", rising: "发展", climax: "高潮", falling: "回落", resolution: "收束" };
+        const revealed = (Array.isArray(st.secrets) ? st.secrets : []).filter(s => s.revealed);
+        const lines = [];
+        if (story.focus) lines.push(`- 当前焦点：${story.focus}`);
+        if (story.phase && phaseLabel[story.phase]) lines.push(`- 故事阶段：${phaseLabel[story.phase]}`);
+        if (revealed.length) lines.push(`- 已知线索：${revealed.slice(0, 3).map(s => s.desc).join("；")}`);
+        return lines.length ? `# 世界状态\n${lines.join("\n")}` : "";
+    })();
+
     const threadCtx = (world && world.threadCtx) || null;
     const threadLine = scene && scene.name
         ? `你们现在在「${scene.name}」${scene.location ? `（${scene.location}）` : ""}。${scene.desc || ""}${areaBlock}${scene.opening ? "\n开场：\"" + scene.opening + "\"" : ""}`
@@ -1008,7 +1022,7 @@ export function buildLifeSystemPrompt({ character, world, scene, relations = [],
         "",
         "# 现场",
         threadLine,
-        "",
+        ...(stateBlock ? ["", "# 世界状态", ...stateBlock.split("\n"), ""] : [""]),
         "# 关系",
         relLines.length ? relLines.join("\n") : "你和在场的人大多是点头之交，还没建立特别深的关系。",
         "",
@@ -1026,14 +1040,14 @@ export function buildLifeSystemPrompt({ character, world, scene, relations = [],
 }
 
 /** 让单个角色在生命世界里说一句话 */
-export async function generateWorldLine({ character, world, scene, relations, recent, userName, modelId, env, mock }) {
+export async function generateWorldLine({ character, world, scene, relations, recent, userName, modelId, env, mock, state }) {
     if (!env.AI || mock) {
         return mockWorldLine(character, recent);
     }
     try {
         const model = normalizeModelId(modelId);
         const info = resolveModel(model);
-        const system = buildLifeSystemPrompt({ character, world, scene, relations, recent, userName });
+        const system = buildLifeSystemPrompt({ character, world, scene, relations, recent, userName, state });
         const content = await chatCompletions(
             env,
             [
@@ -1125,6 +1139,327 @@ export async function summarizeWorldGap({ world, messages, modelId, env }) {
         console.error("WORLD GAP SUMMARY ERROR:", e);
         return "";
     }
+}
+
+/* =========================================================
+ * 故事孵化器（Batch 3）：世界状态增量脉动 + 故事节拍
+ * ========================================================= */
+
+/** 故事节拍类型 */
+export const STORY_BEAT_TYPES = ["event", "action", "dialogue", "decision", "consequence", "narration"];
+
+/** 故事阶段（按序演进） */
+export const STORY_PHASES = ["opening", "rising", "climax", "falling", "resolution"];
+
+/** 从模型输出里抽出 JSON 对象（容忍 markdown 围栏与前后废话） */
+function extractJsonObject(text) {
+    const s = String(text || "").trim();
+    const start = s.indexOf("{");
+    const end = s.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+        try { return JSON.parse(s.slice(start, end + 1)); } catch { /* 继续尝试整串 */ }
+    }
+    try { return JSON.parse(s); } catch { /* 解析失败 */ }
+    return null;
+}
+
+/* __STORY_ENGINE_CHUNK_2__ */
+
+/** 世界状态脉动的系统提示：增量消化最近消息为结构化状态更新 */
+export function buildStoryStatePrompt({ world, wj, messages }) {
+    const state = (wj && wj.state) || {};
+    const story = state.story || {};
+    const transcript = (Array.isArray(messages) ? messages : [])
+        .map(m => `【${m.name || (m.actor === "user" ? "用户" : m.actor)}】${String(m.content || "").slice(0, 300)}`)
+        .join("\n");
+    const secretLines = (state.secrets || []).map(s => `- [${s.id}] ${s.desc}（${s.revealed ? "已揭露" : "未揭露"}）`).join("\n") || "无";
+    const plotLines = (state.plots || []).map(p => `- [${p.id}] ${p.desc}（${p.status || "进行中"}）`).join("\n") || "无";
+    const relLines = (wj.relations || []).map(r => `- ${r.a} ↔ ${r.b}：${r.kind || "?"}（bond ${Number(r.bond) || 100}${r.manual ? "，手动维护" : ""}）`).join("\n") || "无";
+    return [
+        "# 角色：世界状态引擎",
+        `你是「${world?.name || "生命世界"}」的故事状态维护引擎，负责把最近的消息增量消化为结构化世界状态，让世界持续往连续故事演进。`,
+        "",
+        "# 当前世界状态",
+        `主线：${story.title || "尚未成形"}｜阶段：${story.phase || "opening"}｜焦点：${story.focus || "尚未形成"}`,
+        `未揭露秘密：\n${secretLines}`,
+        `支线：\n${plotLines}`,
+        `已知关系：\n${relLines}`,
+        "",
+        "# 本次增量消息（lastPulseSeq 之后，≤40 条）",
+        transcript || "（无）",
+        "",
+        "# 输出要求（只输出 JSON，不要 markdown 与解释）",
+        `{"relations":[{"a":"角色id","b":"角色id","kind":"关系标签","bond":0~100,"note":"一句话原因"}],"newSecrets":[{"desc":"新埋的秘密一句话"}],"reveal":["已存在未揭露秘密的id"],"plots":[{"id":"固定id或留空","desc":"一句话","status":"进行中","involved":["角色id"]}],"timeline":["重大事件一句话"],"story":{"title":"主线标题","logline":"一句话梗概","phase":"opening|rising|climax|falling|resolution","focus":"当前焦点一句话"},"chapters":[{"title":"章节标题","summary":"章节摘要"}]}`,
+        "规则：relations 只输出本次变化（新增/升级/降级），bond 0~100，标 manual:true 的关系不要改动；newSecrets 是本次新埋的秘密；reveal 只能列上方 secrets 里已存在且未揭露的 id；plots 对已有支线沿用原 id，新支线留空 id；timeline 只收重大事件（≤3 条）；若本次消息 ≥8 条且上一章 toSeq 小于最新消息 seq，则输出一个新章节；story 沿用已有值，除非出现显著变化。"
+    ].filter(Boolean).join("\n");
+}
+
+/* __STORY_ENGINE_CHUNK_3__ */
+
+/** 增量脉动：只读 lastPulseSeq 之后的增量消息（≤40 条），输出结构化状态更新 */
+export async function updateWorldState({ world, wj, messages, modelId, env, mock }) {
+    const fallback = () => mockStatePulse({ world, wj, messages });
+    const msgs = (Array.isArray(messages) ? messages : []).filter(m => m);
+    if (!msgs.length) return null;
+    if (!env.AI || mock) return fallback();
+    try {
+        const model = normalizeModelId(modelId);
+        const info = resolveModel(model);
+        const system = buildStoryStatePrompt({ world, wj, messages: msgs });
+        const content = await chatCompletions(
+            env,
+            [
+                { role: "system", content: system },
+                { role: "user", content: "根据上面的增量消息，输出世界状态更新 JSON。" }
+            ],
+            model,
+            0.4,
+            Math.min(700, Math.max(400, info.maxTokens || 500))
+        );
+        const raw = extractJsonObject(content);
+        if (!raw || typeof raw !== "object") return fallback();
+        return sanitizeStatePulse(raw, { world, wj, msgs });
+    } catch (e) {
+        console.error("WORLD STATE PULSE ERROR:", e);
+        return fallback();
+    }
+}
+
+/** 把模型产出的状态更新清洗为安全结构 */
+function sanitizeStatePulse(raw, { world, wj, msgs }) {
+    const state = (wj && wj.state) || {};
+    const prevStory = state.story || {};
+    const maxSeq = msgs.reduce((mx, m) => Math.max(mx, Number(m.seq) || 0), 0);
+    const now = new Date().toISOString();
+    const story = (raw.story && typeof raw.story === "object") ? {
+        title: String(raw.story.title || prevStory.title || world?.name || "").trim().slice(0, 60),
+        logline: String(raw.story.logline || prevStory.logline || "").trim().slice(0, 200),
+        phase: STORY_PHASES.includes(raw.story.phase) ? raw.story.phase : (STORY_PHASES.includes(prevStory.phase) ? prevStory.phase : "opening"),
+        focus: String(raw.story.focus || prevStory.focus || "").trim().slice(0, 80)
+    } : { ...prevStory };
+    const relations = (Array.isArray(raw.relations) ? raw.relations : [])
+        .slice(0, 8)
+        .map(r => ({
+            a: String(r.a || "").slice(0, 40),
+            b: String(r.b || "").slice(0, 40),
+            kind: RELATION_LABEL[r.kind] ? r.kind : (typeof r.kind === "string" && r.kind ? r.kind : "neutral"),
+            bond: Math.max(0, Math.min(100, Number(r.bond) || 50)),
+            note: String(r.note || "").slice(0, 120),
+            auto: true
+        }))
+        .filter(r => r.a && r.b && r.a !== r.b);
+    const chapters = (msgs.length >= 8 && Array.isArray(raw.chapters) && raw.chapters.length)
+        ? raw.chapters.slice(0, 2).map(c => ({
+            id: "ch_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8),
+            title: String(c.title || "").slice(0, 60),
+            summary: String(c.summary || "").slice(0, 300),
+            fromSeq: (state.chapters || []).length ? Number(state.chapters[state.chapters.length - 1].toSeq) + 1 : 1,
+            toSeq: maxSeq,
+            createdAt: now
+        })).filter(c => c.title || c.summary)
+        : [];
+    return {
+        lastPulseSeq: maxSeq,
+        relations,
+        newSecrets: (Array.isArray(raw.newSecrets) ? raw.newSecrets : []).slice(0, 3)
+            .map(s => ({ desc: String(s && s.desc ? s.desc : s).slice(0, 200) }))
+            .filter(s => s.desc),
+        reveal: (Array.isArray(raw.reveal) ? raw.reveal : []).map(String).filter(Boolean).slice(0, 3),
+        plots: (Array.isArray(raw.plots) ? raw.plots : []).slice(0, 4).map(p => ({
+            id: String(p.id || "pl_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8)).slice(0, 40),
+            desc: String(p.desc || "").slice(0, 200),
+            status: String(p.status || "进行中").slice(0, 20),
+            involved: (Array.isArray(p.involved) ? p.involved : []).map(String).slice(0, 6)
+        })).filter(p => p.desc),
+        timeline: (Array.isArray(raw.timeline) ? raw.timeline : []).slice(0, 3)
+            .map(t => ({ at: now, text: String(t && t.text ? t.text : t).slice(0, 200) }))
+            .filter(t => t.text),
+        story,
+        chapters
+    };
+}
+
+/* __STORY_ENGINE_CHUNK_4__ */
+
+/** mock 状态脉动（冒烟测试 / 无 AI 环境兜底） */
+function mockStatePulse({ world, wj, messages }) {
+    const msgs = (Array.isArray(messages) ? messages : []).filter(m => m);
+    if (!msgs.length) return null;
+    const maxSeq = msgs.reduce((mx, m) => Math.max(mx, Number(m.seq) || 0), 0);
+    const state = (wj && wj.state) || {};
+    const prevStory = state.story || {};
+    const now = new Date().toISOString();
+
+    const relations = [];
+    const actors = [...new Set(msgs.filter(m => m.actor && m.actor !== "user" && m.actor !== "narrator").map(m => m.actor))].slice(0, 2);
+    if (actors.length >= 2) {
+        const existing = (wj.relations || []).find(r => (r.a === actors[0] && r.b === actors[1]) || (r.a === actors[1] && r.b === actors[0]));
+        relations.push({
+            a: actors[0], b: actors[1],
+            kind: existing ? existing.kind : "neutral",
+            bond: existing ? Math.min(100, Number(existing.bond) + 10) : 45,
+            note: "世界自主运转中关系逐渐靠近",
+            auto: true
+        });
+    }
+
+    const newSecrets = [];
+    if (!(state.secrets || []).some(s => s.desc && s.desc.includes("雾"))) {
+        newSecrets.push({ desc: "灯塔下的旧码头埋着一段没人愿意提起的往事。" });
+    }
+
+    const plots = [];
+    if (!(state.plots || []).length) {
+        plots.push({
+            id: "pl_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8),
+            desc: "码头的怪声越来越近，似乎与雾有关。",
+            status: "进行中",
+            involved: actors
+        });
+    }
+
+    const phaseIdx = STORY_PHASES.indexOf(prevStory.phase || "");
+    const story = {
+        title: prevStory.title || world?.name || "雾港",
+        logline: prevStory.logline || "雾港的人们各自守着秘密，直到有一天潮水带来了答案。",
+        phase: STORY_PHASES[Math.min(STORY_PHASES.length - 1, (phaseIdx < 0 ? -1 : phaseIdx) + 1)],
+        focus: prevStory.focus || "码头边的怪声"
+    };
+
+    const chapters = [];
+    const lastChapter = (state.chapters || [])[(state.chapters || []).length - 1];
+    if (msgs.length >= 8 && (!lastChapter || Number(lastChapter.toSeq) < maxSeq)) {
+        chapters.push({
+            id: "ch_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8),
+            title: `第${(state.chapters || []).length + 1}章 · ${story.focus}`,
+            summary: `世界推进到「${story.focus}」，人们开始察觉雾里藏着的秘密。`,
+            fromSeq: lastChapter ? Number(lastChapter.toSeq) + 1 : 1,
+            toSeq: maxSeq,
+            createdAt: now
+        });
+    }
+
+    return {
+        lastPulseSeq: maxSeq,
+        relations,
+        newSecrets,
+        reveal: [],
+        plots,
+        timeline: [{ at: now, text: `世界又翻过一页：${(msgs[0].name || "某人")}与众人聊起了「${story.focus}」。` }],
+        story,
+        chapters
+    };
+}
+
+/* __STORY_ENGINE_CHUNK_5__ */
+
+/** 故事节拍的系统提示：输入世界状态 + 现场 → 输出下一个节拍 */
+export function buildStoryBeatPrompt({ world, wj, thread, cast, recent }) {
+    const state = (wj && wj.state) || {};
+    const story = state.story || {};
+    const beatLines = (state.beats || []).slice(-6).map(b => `[${b.t}] ${b.text || (Array.isArray(b.who) ? b.who.join("、") : "") || ""}`).join("\n");
+    const secretLines = (state.secrets || []).filter(s => s.revealed).map(s => `- ${s.desc}`).join("\n") || "无";
+    const castNames = (Array.isArray(cast) ? cast : []).map(c => `${c.id}（${c.name}）`).join("、");
+    const transcript = (Array.isArray(recent) ? recent : [])
+        .map(m => `【${m.name || (m.actor === "user" ? "用户" : m.actor)}】${String(m.content || "").slice(0, 300)}`)
+        .join("\n");
+    return [
+        "# 角色：故事节拍引擎",
+        `你是「${world?.name || "生命世界"}」的故事节拍引擎。世界不是聊天室，你要不断推进一个连贯的故事——每一次都推进一步。`,
+        "",
+        "# 世界状态",
+        `主线：${story.title || "尚未成形"}｜阶段：${story.phase || "opening"}｜焦点：${story.focus || "尚未形成"}`,
+        `已揭露线索：${secretLines}`,
+        beatLines ? `最近节拍：\n${beatLines}` : "最近节拍：无",
+        `在场角色：${castNames || "无"}`,
+        `当前现场：${thread && thread.title ? `「${thread.title}」` : ""}${thread && thread.desc ? thread.desc : ""}`,
+        "",
+        "# 最近消息",
+        transcript || "（开场，还没有人说话）",
+        "",
+        "# 输出要求（只输出 JSON，不要 markdown 与解释）",
+        `{"t":"event|action|dialogue|decision|consequence|narration","narration":"可选，一句有画面感的旁白","who":["角色id"],"text":["与 who 一一对应的台词或行动"],"affects":[{"a":"角色id","b":"角色id","kind":"关系标签","bond":0~100,"note":"一句话理由"}],"reveal":["已存在未揭露秘密的id"],"hide":["新秘密一句话"]}`,
+        "规则：t 决定节拍类型——event 事件 / action 行动 / dialogue 对白 / decision 决定 / consequence 后果 / narration 纯旁白；narration 可选，有旁白时写一句；who/text 一一对应、各不超过 2 条，只能输出上面「在场角色」里出现的 id；affects 最多 1 条（关系变化）；reveal 只能列「已揭露线索」之外、世界状态秘密列表里已存在且未揭露的 id；hide 埋一个新秘密（最多 1 条）；推动主线，不要原地闲聊。"
+    ].filter(Boolean).join("\n");
+}
+
+/* __STORY_ENGINE_CHUNK_6__ */
+
+/** 生成下一个故事节拍：推进一个 beat，而非“挑人说一句” */
+export async function generateStoryBeat({ world, wj, thread, cast, recent, modelId, env, mock }) {
+    const fallback = () => mockStoryBeat({ world, wj, cast, recent });
+    if (!env.AI || mock) return fallback();
+    try {
+        const model = normalizeModelId(modelId);
+        const info = resolveModel(model);
+        const system = buildStoryBeatPrompt({ world, wj, thread, cast, recent });
+        const content = await chatCompletions(
+            env,
+            [
+                { role: "system", content: system },
+                { role: "user", content: "输出下一个故事节拍 JSON。" }
+            ],
+            model,
+            Math.min(1.0, Math.max(0.5, info.temperature || 0.9)),
+            Math.min(600, Math.max(300, info.maxTokens || 400))
+        );
+        const raw = extractJsonObject(content);
+        if (!raw || typeof raw !== "object") return fallback();
+        return sanitizeStoryBeat(raw, { wj, cast, recent, world });
+    } catch (e) {
+        console.error("STORY BEAT ERROR:", e);
+        return fallback();
+    }
+}
+
+/** 把模型产出的节拍清洗为安全结构 */
+function sanitizeStoryBeat(raw, { wj, cast, recent, world }) {
+    const state = (wj && wj.state) || {};
+    const t = STORY_BEAT_TYPES.includes(raw.t) ? raw.t : "dialogue";
+    const castIds = new Set((Array.isArray(cast) ? cast : []).map(c => c.id));
+    const who = (Array.isArray(raw.who) ? raw.who : []).map(String).filter(id => castIds.has(id)).slice(0, 2);
+    const text = (Array.isArray(raw.text) ? raw.text : []).map(s => String(s || "").trim().slice(0, 400)).filter(Boolean).slice(0, 2);
+    const n = Math.min(who.length, text.length);
+    who.length = n;
+    text.length = n;
+    const narration = String(raw.narration || "").trim().slice(0, 400);
+    const affects = (Array.isArray(raw.affects) ? raw.affects : []).slice(0, 1).map(a => ({
+        a: String(a.a || "").slice(0, 40),
+        b: String(a.b || "").slice(0, 40),
+        kind: RELATION_LABEL[a.kind] ? a.kind : (typeof a.kind === "string" && a.kind ? a.kind : "neutral"),
+        bond: Math.max(0, Math.min(100, Number(a.bond) || 50)),
+        note: String(a.note || "").slice(0, 120)
+    })).filter(a => a.a && a.b && a.a !== a.b);
+    const knownSecretIds = new Set((state.secrets || []).filter(s => !s.revealed).map(s => s.id));
+    const reveal = (Array.isArray(raw.reveal) ? raw.reveal : []).map(String).filter(id => knownSecretIds.has(id)).slice(0, 2);
+    const hide = (Array.isArray(raw.hide) ? raw.hide : []).map(s => String(s && s.desc ? s.desc : s).trim().slice(0, 200)).filter(Boolean).slice(0, 2);
+
+    if (!who.length && !narration) {
+        return { ...mockStoryBeat({ world, wj, cast, recent }), affects, reveal, hide };
+    }
+    return { t, narration, who, text, affects, reveal, hide };
+}
+
+/** mock 故事节拍（冒烟测试 / 无 AI 环境兜底）：按类型轮转，保证有消息产出 */
+function mockStoryBeat({ world, wj, cast, recent }) {
+    const state = (wj && wj.state) || {};
+    const pool = (Array.isArray(cast) && cast.length) ? cast : [];
+    const types = STORY_BEAT_TYPES;
+    const t = types[(state.beats || []).length % types.length];
+    const sp = pool.slice(0, 2);
+    const last = (Array.isArray(recent) && recent.length) ? recent[recent.length - 1] : null;
+    const base = last && last.name ? `望向${String(last.name).slice(0, 20)}的方向` : "望着码头深处";
+    if (!sp.length) {
+        return { t: "event", narration: "码头上传来一声沉闷的钟响，雾气又浓了一层。", who: [], text: [], affects: [], reveal: [], hide: [] };
+    }
+    const narration = t === "narration"
+        ? `雾顺着海面漫上来，${sp[0].name}的影子在灯下被拉得很长。`
+        : (pool.length >= 2 ? `${world?.name || "雾港"}的风里传来一阵低沉的响动，码头边的人都停下了手里的活。` : "");
+    const who = t === "narration" ? [] : sp.map(c => c.id);
+    const text = t === "narration" ? [] : sp.map((c, i) => i === 0
+        ? `${c.name}${base}，压低声音：「雾里的东西，今晚好像又近了一点。」`
+        : `${c.name}点点头：「那就按你说的办，先别声张。」`);
+    return { t, narration, who, text, affects: [], reveal: [], hide: [] };
 }
 
 

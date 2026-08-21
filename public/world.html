@@ -210,6 +210,21 @@ input, textarea { color-scheme: dark; }
 .rail-tabs button.active { background: var(--accent); color: #0a0a12; font-weight: 600; border-color: transparent; }
 .rail-body section { display: none; }
 .rail-body section.active { display: block; }
+/* 故事档案 */
+.story-title { font-size: .98rem; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.phase-badge { font-size: .66rem; color: #ffd28f; border: 1px solid rgba(255,190,90,.4); background: rgba(255,190,90,.08); border-radius: 999px; padding: 1px 8px; }
+.story-logline { font-size: .78rem; color: var(--muted); margin: 6px 0 10px; line-height: 1.6; }
+.story-focus { font-size: .76rem; color: #b7b7ff; margin-bottom: 10px; }
+.story-sec { border-top: 1px dashed var(--border); margin-top: 12px; padding-top: 10px; }
+.story-sec b { font-size: .76rem; color: rgba(255,255,255,.75); display: block; margin-bottom: 6px; }
+.story-secret, .story-plot, .story-time, .story-beat { font-size: .74rem; line-height: 1.55; color: rgba(255,255,255,.8); margin: 4px 0; }
+.story-secret.revealed { color: #9fe6c8; }
+.story-chapter { font-size: .74rem; color: rgba(255,255,255,.8); margin: 6px 0; }
+.story-chapter-sum { font-size: .68rem; color: var(--muted); margin-top: 2px; }
+.story-beat { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin: 8px 0; background: rgba(255,255,255,.03); }
+.story-beat .beat-tag { font-size: .6rem; color: #ffd28f; border: 1px solid rgba(255,190,90,.35); border-radius: 999px; padding: 0 6px; margin-right: 6px; }
+.story-beat .beat-narr { color: rgba(255,255,255,.45); font-style: italic; margin-top: 4px; }
+.story-beat .beat-text { color: rgba(255,255,255,.9); margin-top: 4px; }
 .intro-card {
   border: 1px solid var(--border); border-radius: 14px; padding: 12px; margin-bottom: 12px;
   background: rgba(255,255,255,.04);
@@ -315,6 +330,7 @@ input, textarea { color-scheme: dark; }
       <button data-rail="cast" class="active">角色</button>
       <button data-rail="rel">关系</button>
       <button data-rail="scene">场景</button>
+      <button data-rail="story">故事</button>
     </div>
     <div class="rail-body">
       <section class="panel" id="panel-cast">
@@ -397,6 +413,13 @@ input, textarea { color-scheme: dark; }
         <div class="fg"><label>在场角色（可多选，默认全部）</label><div id="scPresent"></div></div>
         <button class="btn sav" id="scSave">创建场景</button>
         <div id="sceneList" style="margin-top:14px"></div>
+      </section>
+
+      <section class="panel" id="panel-story">
+        <h3>故事档案</h3>
+        <div id="storyCard">
+          <div class="hint" style="font-size:.78rem;color:var(--muted)">世界运转后会在这里沉淀主线、节拍、秘密、支线与时间线。</div>
+        </div>
       </section>
     </div>
   </aside>
@@ -810,12 +833,53 @@ function renderSide(){
   renderRelList();
   renderScenePresent();
   renderSceneList();
+  renderStory();
   const life = S.world.life || {};
   document.querySelectorAll("#panel-run .opt-radio").forEach(el => el.classList.toggle("active", el.dataset.mode === life.mode));
   document.querySelectorAll('input[name="mode"]').forEach(r => { r.checked = r.value === life.mode; });
   $("runModel").value = life.model || "llama3-70b";
   $("runTickSec").value = life.tickIntervalSec || 25;
   $("runPauseBtn").textContent = life.paused ? "▶ 恢复运转" : "暂停运转";
+}
+
+/* ---- 故事档案（「故事」rail tab） ---- */
+async function renderStory(){
+  const el = $("storyCard");
+  if (!el) return;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/story");
+    if (!d.success) throw new Error(d.error || "读取失败");
+    const st = d.story || {};
+    const phaseName = { opening:"序章", rising:"发展", climax:"高潮", falling:"收束", resolution:"落幕" }[st.phase] || "";
+    const phaseBadge = st.phase ? `<span class="phase-badge">${escapeHtml(st.phase)}${phaseName ? " · " + phaseName : ""}</span>` : "";
+    const secrets = (d.secrets || []).map(s =>
+      `<div class="story-secret${s.revealed ? " revealed" : ""}">${s.revealed ? "☀" : "🔒"} ${escapeHtml(s.desc || "")}</div>`).join("");
+    const plots = (d.plots || []).map(p =>
+      `<div class="story-plot"><span class="phase-badge">${escapeHtml(p.status || "进行中")}</span> ${escapeHtml(p.desc || "")}</div>`).join("");
+    const timeline = (d.timeline || []).slice(-6).map(t =>
+      `<div class="story-time">· ${escapeHtml(t && t.text ? t.text : t)}</div>`).join("");
+    const chapters = (d.chapters || []).map(c =>
+      `<div class="story-chapter"><b>${escapeHtml(c.title || "")}</b><div class="story-chapter-sum">${escapeHtml(c.summary || "")}</div></div>`).join("");
+    const beats = (d.beats || []).slice(-8).reverse().map(b =>
+      `<div class="story-beat"><span class="beat-tag">${escapeHtml(b.t || "dialogue")}</span>${escapeHtml(b.where || "")}` +
+      (b.narration ? `<div class="beat-narr">${escapeHtml(b.narration)}</div>` : "") +
+      (b.text || []).map(t => `<div class="beat-text">${escapeHtml(t)}</div>`).join("") +
+      `</div>`).join("");
+
+    const parts = [];
+    parts.push(`<div class="story-title">${escapeHtml(st.title || "未命名故事")} ${phaseBadge}</div>`);
+    if (st.logline) parts.push(`<div class="story-logline">${escapeHtml(st.logline)}</div>`);
+    if (st.focus) parts.push(`<div class="story-focus">🎯 当前焦点：${escapeHtml(st.focus)}</div>`);
+    if (secrets) parts.push(`<div class="story-sec"><b>🕯 秘密</b>${secrets}</div>`);
+    if (plots) parts.push(`<div class="story-sec"><b>🌱 支线</b>${plots}</div>`);
+    if (timeline) parts.push(`<div class="story-sec"><b>⏳ 时间线</b>${timeline}</div>`);
+    if (chapters) parts.push(`<div class="story-sec"><b>📖 章节</b>${chapters}</div>`);
+    if (beats) parts.push(`<div class="story-sec"><b>🎬 节拍</b>${beats}</div>`);
+    if (!beats && !secrets) parts.push(`<div class="hint" style="font-size:.78rem;color:var(--muted)">世界运转后会在这里沉淀主线、节拍、秘密与时间线。</div>`);
+    el.innerHTML = parts.join("");
+  } catch (e) {
+    el.innerHTML = `<div class="hint" style="font-size:.78rem;color:var(--muted)">故事档案暂不可用：${escapeHtml(e.message)}</div>`;
+  }
 }
 
 /* ---- 线程介绍 / 世界背景（右侧介绍信息页） ---- */

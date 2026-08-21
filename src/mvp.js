@@ -12,7 +12,10 @@
     generateWorldLine,
     pickNextSpeakers,
     summarizeWorldGap,
-    normalizeModelId
+    normalizeModelId,
+    updateWorldState,
+    generateStoryBeat,
+    STORY_PHASES
 } from "./ai/gateway.js";
 import { listModelInfos } from "./ai/models.js";
 import { TTS_VOICES } from "./tts.js";
@@ -815,6 +818,7 @@ export async function handleMvpRoutes(
     const lifeNpcBatchMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/npc-batch$/);
     const lifeThreadMetaMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/threads\/meta$/);
     const lifeNameMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/name$/);
+    const lifeStoryMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/story$/);
 
     // 校验生命世界归属；返回 { user, world } 或直接返回错误 Response
     async function requireOwnedLifeWorld(id) {
@@ -1196,6 +1200,29 @@ export async function handleMvpRoutes(
         } catch (error) {
             console.error("LIFE NAME ERROR:", error);
             return json({ success: false, error: "起名失败。" }, 500);
+        }
+    }
+
+    if (lifeStoryMatch && method === "GET") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeStoryMatch[1]);
+            if (!auth.world) return auth;
+            const wj = await loadWorldJson(env, auth.world.id);
+            const state = wj.state || {};
+            return json({
+                success: true,
+                story: state.story || {},
+                chapters: Array.isArray(state.chapters) ? state.chapters : [],
+                beats: Array.isArray(state.beats) ? state.beats : [],
+                secrets: Array.isArray(state.secrets) ? state.secrets : [],
+                plots: Array.isArray(state.plots) ? state.plots : [],
+                timeline: Array.isArray(state.timeline) ? state.timeline : [],
+                relations: wj.relations || [],
+                lastPulseSeq: Number(state.lastPulseSeq) || 0
+            });
+        } catch (error) {
+            console.error("LIFE STORY ERROR:", error);
+            return json({ success: false, error: "读取故事档案失败。" }, 500);
         }
     }
 
@@ -2499,6 +2526,15 @@ function parseWorldJson(row) {
     wj.life.lastTickAt = Number(wj.life.lastTickAt) || 0;
     wj.life.ticksToday = Number(wj.life.ticksToday) || 0;
     wj.life.currentThreadId = prevThreadId;
+    // 故事状态（Batch 3）：persist world_json.state
+    wj.state = (wj.state && typeof wj.state === "object" && !Array.isArray(wj.state)) ? wj.state : {};
+    wj.state.story = (wj.state.story && typeof wj.state.story === "object" && !Array.isArray(wj.state.story)) ? wj.state.story : {};
+    wj.state.beats = Array.isArray(wj.state.beats) ? wj.state.beats : [];
+    wj.state.secrets = Array.isArray(wj.state.secrets) ? wj.state.secrets : [];
+    wj.state.plots = Array.isArray(wj.state.plots) ? wj.state.plots : [];
+    wj.state.timeline = Array.isArray(wj.state.timeline) ? wj.state.timeline : [];
+    wj.state.chapters = Array.isArray(wj.state.chapters) ? wj.state.chapters : [];
+    wj.state.lastPulseSeq = Number(wj.state.lastPulseSeq) || 0;
     return wj;
 }
 
@@ -2698,7 +2734,221 @@ async function runWorldTurn({ env, world, wj, thread, cast, recent, speakers, us
     return inserted;
 }
 
-/** 世界运转核心：tick（在线/cron 共用）。返回 { skipped, reason, messages } */
+/** 把故事状态脉动（updateWorldState 输出）合并进 world_json.state，并让 relations 增量落账 */
+function applyStatePulse(wj, pulse) {
+    if (!wj.state) wj.state = {};
+    const state = wj.state;
+    const now = new Date().toISOString();
+
+    // relations：新增 / 升级 / 降级（标 manual 的关系不动）
+    (Array.isArray(pulse.relations) ? pulse.relations : []).forEach((r) => {
+        if (!r || !r.a || !r.b || r.a === r.b) return;
+        const existing = (wj.relations || []).find((x) => (x.a === r.a && x.b === r.b) || (x.a === r.b && x.b === r.a));
+        if (existing) {
+            if (!existing.manual) {
+                existing.kind = r.kind || existing.kind;
+                existing.bond = Math.max(0, Math.min(100, Number(r.bond) || existing.bond));
+                if (r.note) existing.note = r.note;
+                existing.updatedAt = now;
+            }
+        } else {
+            wj.relations.push({
+                a: r.a, b: r.b, kind: r.kind || "neutral",
+                bond: Math.max(0, Math.min(100, Number(r.bond) || 50)),
+                note: r.note || "", auto: true, updatedAt: now
+            });
+        }
+    });
+
+    // secrets：埋新秘密 + 揭晓
+    state.secrets = Array.isArray(state.secrets) ? state.secrets : [];
+    (Array.isArray(pulse.newSecrets) ? pulse.newSecrets : []).forEach((s) => {
+        if (!s || !s.desc) return;
+        state.secrets.push({
+            id: String(s.id || "sec_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8)),
+            desc: String(s.desc).slice(0, 200),
+            revealed: !!s.revealed,
+            createdAt: s.createdAt || now
+        });
+    });
+    (Array.isArray(pulse.reveal) ? pulse.reveal : []).forEach((sid) => {
+        const s = state.secrets.find((x) => x.id === sid);
+        if (s && !s.revealed) { s.revealed = true; s.revealedAt = now; }
+    });
+    state.secrets = state.secrets.slice(-100);
+
+    // plots：已有支线沿用原 id
+    state.plots = Array.isArray(state.plots) ? state.plots : [];
+    (Array.isArray(pulse.plots) ? pulse.plots : []).forEach((p) => {
+        if (!p || !p.desc) return;
+        const id = String(p.id || "").slice(0, 40);
+        const existing = id ? state.plots.find((x) => x.id === id) : null;
+        if (existing) {
+            existing.desc = String(p.desc || existing.desc).slice(0, 200);
+            existing.status = String(p.status || existing.status || "进行中").slice(0, 20);
+            if (Array.isArray(p.involved)) existing.involved = p.involved.slice(0, 8);
+        } else {
+            state.plots.push({
+                id: id || ("pl_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8)),
+                desc: String(p.desc).slice(0, 200),
+                status: String(p.status || "进行中").slice(0, 20),
+                involved: Array.isArray(p.involved) ? p.involved.slice(0, 8) : []
+            });
+        }
+    });
+    state.plots = state.plots.slice(-50);
+
+    // timeline：只收重大事件
+    state.timeline = Array.isArray(state.timeline) ? state.timeline : [];
+    (Array.isArray(pulse.timeline) ? pulse.timeline : []).forEach((t) => {
+        const text = String(t && t.text ? t.text : t || "").trim().slice(0, 200);
+        if (text) state.timeline.push({ at: (t && t.at) || now, text });
+    });
+    state.timeline = state.timeline.slice(-100);
+
+    // story：主线标题 / 梗概 / 阶段 / 焦点
+    if (pulse.story && typeof pulse.story === "object") {
+        state.story = {
+            title: String(pulse.story.title || (state.story && state.story.title) || "").trim().slice(0, 60),
+            logline: String(pulse.story.logline || (state.story && state.story.logline) || "").trim().slice(0, 200),
+            phase: STORY_PHASES.includes(pulse.story.phase) ? pulse.story.phase : ((state.story && state.story.phase) || "opening"),
+            focus: String(pulse.story.focus || (state.story && state.story.focus) || "").trim().slice(0, 80)
+        };
+    }
+
+    // chapters：封章
+    state.chapters = Array.isArray(state.chapters) ? state.chapters : [];
+    (Array.isArray(pulse.chapters) ? pulse.chapters : []).forEach((c) => {
+        state.chapters.push({
+            id: String(c.id || "ch_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8)),
+            title: String(c.title || "").slice(0, 60),
+            summary: String(c.summary || "").slice(0, 200),
+            fromSeq: Number(c.fromSeq) || 0,
+            toSeq: Number(c.toSeq) || 0,
+            createdAt: c.createdAt || now
+        });
+    });
+    state.chapters = state.chapters.slice(-20);
+
+    if (Number(pulse.lastPulseSeq) > (Number(state.lastPulseSeq) || 0)) {
+        state.lastPulseSeq = Number(pulse.lastPulseSeq);
+    }
+}
+
+/** 把一个故事节拍落为世界消息（旁白 narrator + 在场角色台词），并立即落账 affects/reveal/hide */
+async function applyStoryBeat(env, world, wj, thread, cast, beat) {
+    const castById = new Map((Array.isArray(cast) ? cast : []).map((c) => [c.id, c]));
+    const msgs = [];
+    if (beat.narration) msgs.push({ actor: "narrator", name: "旁白", content: String(beat.narration).slice(0, 400) });
+    (Array.isArray(beat.who) ? beat.who : []).forEach((cid, i) => {
+        const c = castById.get(cid);
+        const line = (Array.isArray(beat.text) && beat.text[i]) || "";
+        if (c && line) msgs.push({ actor: c.id, name: c.name, content: String(line).slice(0, 400) });
+    });
+
+    const inserted = await appendWorldMessages(env, thread.id, msgs);
+    if (inserted.length) {
+        const now = Date.now();
+        const day = new Date().toISOString().slice(0, 10);
+        if (wj.life.tickDay !== day) {
+            wj.life.tickDay = day;
+            wj.life.ticksToday = 0;
+        }
+        wj.life.lastTickAt = now;
+        wj.life.ticksToday = (wj.life.ticksToday || 0) + 1;
+    }
+
+    // 节拍立即落账到 world_json.state.beats
+    if (!wj.state) wj.state = {};
+    wj.state.beats = Array.isArray(wj.state.beats) ? wj.state.beats : [];
+    wj.state.beats.push({
+        id: "bt_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8),
+        t: String(beat.t || "dialogue").slice(0, 20),
+        who: (Array.isArray(beat.who) ? beat.who : []).slice(0, 2),
+        text: (Array.isArray(beat.text) ? beat.text : []).slice(0, 2).map((s) => String(s).slice(0, 400)),
+        narration: String(beat.narration || "").slice(0, 400),
+        affects: Array.isArray(beat.affects) ? beat.affects.slice(0, 1) : [],
+        reveal: Array.isArray(beat.reveal) ? beat.reveal.slice(0, 2) : [],
+        hide: Array.isArray(beat.hide) ? beat.hide.slice(0, 2) : [],
+        at: new Date().toISOString()
+    });
+    wj.state.beats = wj.state.beats.slice(-200);
+
+    // affects → relations 立即落账（不靠模型自觉）
+    (Array.isArray(beat.affects) ? beat.affects : []).forEach((r) => {
+        if (!r || !r.a || !r.b || r.a === r.b) return;
+        const existing = (wj.relations || []).find((x) => (x.a === r.a && x.b === r.b) || (x.a === r.b && x.b === r.a));
+        if (existing) {
+            if (!existing.manual) {
+                existing.kind = r.kind || existing.kind;
+                existing.bond = Math.max(0, Math.min(100, Number(r.bond) || existing.bond));
+                if (r.note) existing.note = r.note;
+                existing.updatedAt = Date.now();
+            }
+        } else {
+            wj.relations.push({
+                a: r.a, b: r.b, kind: r.kind || "neutral",
+                bond: Math.max(0, Math.min(100, Number(r.bond) || 50)),
+                note: r.note || "", auto: true, updatedAt: Date.now()
+            });
+        }
+    });
+
+    // reveal → 揭晓秘密；hide → 埋新秘密
+    wj.state.secrets = Array.isArray(wj.state.secrets) ? wj.state.secrets : [];
+    (Array.isArray(beat.reveal) ? beat.reveal : []).forEach((sid) => {
+        const s = wj.state.secrets.find((x) => x.id === sid);
+        if (s && !s.revealed) { s.revealed = true; s.revealedAt = new Date().toISOString(); }
+    });
+    (Array.isArray(beat.hide) ? beat.hide : []).forEach((desc) => {
+        wj.state.secrets.push({
+            id: "sec_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8),
+            desc: String(desc).slice(0, 200),
+            revealed: false,
+            createdAt: new Date().toISOString()
+        });
+    });
+    wj.state.secrets = wj.state.secrets.slice(-100);
+
+    return inserted;
+}
+
+/** 增量脉动：消化各线程新消息 → updateWorldState → 合并进 world_json.state 并持久化 */
+async function maybeRunStatePulse(env, world, wj, mock) {
+    if (!wj.state) wj.state = {};
+    const state = wj.state;
+    const threads = await loadWorldThreads(env, world.id);
+    const pulsedSeqs = (state.pulsedSeqs && typeof state.pulsedSeqs === "object" && !Array.isArray(state.pulsedSeqs))
+        ? state.pulsedSeqs
+        : (state.pulsedSeqs = {});
+
+    const inc = [];
+    for (const t of threads) {
+        const after = Number(pulsedSeqs[t.id]) || 0;
+        const res = await env.DB.prepare(
+            "SELECT id, seq, actor, name, content FROM world_messages WHERE thread_id = ? AND seq > ? ORDER BY seq ASC"
+        ).bind(t.id, after).all();
+        (res.results || []).forEach((m) => inc.push({ threadId: t.id, ...m }));
+    }
+    if (!inc.length) return;
+
+    // 成本控制：积压不足时不跑脉动
+    if (inc.length < 4) return;
+
+    const latestSeq = inc.reduce((mx, m) => Math.max(mx, Number(m.seq) || 0), 0);
+    const pulse = await updateWorldState({ world, wj, messages: inc, modelId: wj.life.model, env, mock });
+    if (!pulse) return;
+    applyStatePulse(wj, pulse);
+
+    // 记住各线程已消化到的 seq（对外只暴露全局 lastPulseSeq）
+    for (const m of inc) {
+        if (Number(m.seq) > (Number(pulsedSeqs[m.threadId]) || 0)) pulsedSeqs[m.threadId] = Number(m.seq);
+    }
+    state.lastPulseSeq = latestSeq;
+    await saveWorldJson(env, world.id, wj);
+}
+
+/** 世界运转核心：tick（在线/cron 共用）。返回 { skipped, reason, messages, beat } */
 async function runWorldTickCore(env, world, wj, speakerCount, threadId, userName, mock) {
     const now = Date.now();
     if (now - (Number(wj.life.lastTickAt) || 0) < 10000) {
@@ -2716,16 +2966,19 @@ async function runWorldTickCore(env, world, wj, speakerCount, threadId, userName
     wj.life.currentThreadId = thread.id;
     const activeCast = await activeCastForThread(env, world, wj, thread);
     const recent = await loadThreadMessages(env, thread.id, 24);
-    const speakers = pickNextSpeakers(activeCast, recent, speakerCount || 1);
-    if (!speakers.length) {
-        return { skipped: true, reason: "no-speaker", messages: [] };
-    }
-    const opening = !recent.length;
-    const inserted = await runWorldTurn({
-        env, world, wj, thread, cast: activeCast, recent, speakers,
-        userName: userName || "TA", opening, mock
+
+    // 节拍化运转：每个 tick 推进一个故事节拍（旁白 + 1~2 名在场角色），而非“挑人说一句”
+    const beat = await generateStoryBeat({
+        env, world, wj, thread, cast: activeCast, recent,
+        modelId: wj.life.model, mock
     });
-    return { skipped: !inserted.length, reason: inserted.length ? "" : "no-line", messages: inserted };
+    const messages = await applyStoryBeat(env, world, wj, thread, activeCast, beat);
+
+    // 故事状态增量脉动：消化新消息，推进 world_json.state 并持久化
+    await maybeRunStatePulse(env, world, wj, mock);
+    await saveWorldJson(env, world.id, wj);
+
+    return { skipped: !messages.length, reason: messages.length ? "" : "no-line", messages, beat };
 }
 
 /** 生命世界完整视图（world.html 首次加载用） */
@@ -2751,6 +3004,7 @@ async function formatLifeWorld(env, world) {
             areas: wj.areas,
             threadMeta: wj.threadMeta,
             life: wj.life,
+            state: wj.state,
             cast,
             threads,
             currentThread: thread,
