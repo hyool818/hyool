@@ -6,6 +6,11 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
+# Clean stale CDP profiles left behind by crashed/interrupted runs (each ~180MB on C:)
+Get-ChildItem (Join-Path $env:TEMP 'hyool-cdp-*') -Directory -ErrorAction SilentlyContinue |
+  Where-Object { (Get-Date) - $_.LastWriteTime -gt (New-TimeSpan -Minutes 5) } |
+  Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
 $chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 if (-not (Test-Path $chrome)) {
   $chrome = (Get-Command chrome.exe -ErrorAction SilentlyContinue).Source
