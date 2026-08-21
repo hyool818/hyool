@@ -192,24 +192,27 @@ input, textarea { color-scheme: dark; }
   max-width: 86vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 #toast.show { opacity: 1; visibility: visible; }
-/* 右侧世界面板（角色/关系/场景 + 线程介绍） */
+/* 右侧世界面板（世界角色/关系/故事 + 线程介绍） */
 .rail {
   width: 372px; flex-shrink: 0; position: sticky; top: 84px;
-  max-height: calc(100vh - 110px); overflow-y: auto; overflow-x: hidden;
+  max-height: calc(100vh - 110px); overflow: hidden;
   background: linear-gradient(160deg, #161722, #0c0d14);
-  border: 1px solid var(--border); border-radius: 16px; padding: 14px 14px 26px;
+  border: 1px solid var(--border); border-radius: 16px; padding: 14px 14px 16px;
+  display: flex; flex-direction: column;
 }
+.rail.closed { display: none; }
 .rail-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .rail-head b { font-size: .92rem; }
+.rail-head .rh-actions { display: flex; gap: 6px; align-items: center; }
 .rail-close { border: 0; background: rgba(255,255,255,.08); color: #fff; width: 26px; height: 26px; border-radius: 8px; }
-.rail-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-.rail-tabs button {
-  border: 1px solid var(--border); background: rgba(255,255,255,.05); color: var(--muted);
-  padding: 5px 12px; border-radius: 999px; font-size: 12px;
-}
-.rail-tabs button.active { background: var(--accent); color: #0a0a12; font-weight: 600; border-color: transparent; }
+.rail-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; margin-right: -4px; padding-right: 4px; }
 .rail-body section { display: none; }
 .rail-body section.active { display: block; }
+.new-scene-btn { width: 100%; margin-top: 12px; flex-shrink: 0; }
+.rail.hide-intro .intro-card { display: none; }
+/* 顶部右侧「世界XX」切换按钮 */
+.world-tab { white-space: nowrap; }
+.world-tab.active { background: rgba(139,139,255,.22); color: #cfcfff; border-color: rgba(139,139,255,.5); }
 /* 故事档案 */
 .story-title { font-size: .98rem; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .phase-badge { font-size: .66rem; color: #ffd28f; border: 1px solid rgba(255,190,90,.4); background: rgba(255,190,90,.08); border-radius: 999px; padding: 1px 8px; }
@@ -228,6 +231,7 @@ input, textarea { color-scheme: dark; }
 .intro-card {
   border: 1px solid var(--border); border-radius: 14px; padding: 12px; margin-bottom: 12px;
   background: rgba(255,255,255,.04);
+  max-height: min(520px, 46vh); overflow-y: auto; overflow-x: hidden; flex-shrink: 0;
 }
 .intro-card .ic-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .intro-card h3 { font-size: .92rem; }
@@ -235,6 +239,12 @@ input, textarea { color-scheme: dark; }
   font-size: .66rem; color: #8fe0bb; border: 1px solid rgba(120,220,170,.35);
   border-radius: 999px; padding: 1px 8px; white-space: nowrap;
 }
+.intro-card .ic-close {
+  border: 0; background: rgba(255,255,255,.08); color: rgba(255,255,255,.8);
+  width: 22px; height: 22px; border-radius: 7px; font-size: 11px; line-height: 1; flex-shrink: 0; cursor: pointer;
+  margin-left: auto;
+}
+.intro-card .ic-close:hover { color: #ffb3b3; }
 .intro-card .locked .fg { opacity: .55; }
 .intro-card .locked .fg input, .intro-card .locked .fg textarea, .intro-card .locked .fg select { cursor: not-allowed; }
 .intro-desc { font-size: .76rem; color: var(--muted); margin-bottom: 8px; line-height: 1.6; }
@@ -259,6 +269,8 @@ input, textarea { color-scheme: dark; }
 .overlay .box .hint { font-size: .76rem; color: var(--muted); margin-bottom: 10px; }
 .overlay .m-actions { display: flex; gap: 10px; margin-top: 14px; }
 .overlay .m-actions .btn { flex: 1; }
+.m-divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .72rem; margin: 16px 0 10px; }
+.m-divider::before, .m-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 .count-row { display: flex; align-items: center; gap: 12px; justify-content: center; margin: 6px 0 12px; }
 .count-row button {
   width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--border);
@@ -281,9 +293,19 @@ input, textarea { color-scheme: dark; }
 }
 .pick-item.selected .pk { display: flex; }
 
+@media (min-width: 901px) {
+  /* 世界后台打开时页面右移留位：世界面板（rail）与世界后台（side）并排显示 */
+  body.side-open .wrap { margin-right: 408px; }
+  body.side-open .topbar { right: 408px; }
+  body.side-open .composer { right: 408px; }
+}
 @media (max-width: 720px) {
   .tr select.tbtn { max-width: 110px; }
   .msg .col { max-width: 84%; }
+}
+@media (max-width: 560px) {
+  .lb { display: none; }
+  .world-tab { padding: 8px 10px; }
 }
 @media (max-width: 900px) {
   .wrap { flex-direction: column; }
@@ -294,7 +316,6 @@ input, textarea { color-scheme: dark; }
     max-height: none; box-shadow: -12px 0 40px rgba(0,0,0,.45);
   }
   .rail.open { transform: translateX(0); }
-  #railToggle { display: inline-block; }
 }
 </style>
 </head>
@@ -308,9 +329,11 @@ input, textarea { color-scheme: dark; }
     <span class="badge pause" id="wPause" style="display:none">已暂停</span>
   </div>
   <div class="tr">
-    <select class="tbtn" id="modelSel" title="对话模型"></select>
-    <button class="tbtn" id="railToggle">🎭 世界面板</button>
-    <button class="tbtn" id="pauseBtn">⏸ 暂停</button>
+    <select class="tbtn" id="modelSel" title="对话模型" style="display:none" tabindex="-1" aria-hidden="true"></select>
+    <button class="tbtn world-tab active" data-rail="cast" onclick="openWorldTab('cast')">🎭 <span class="lb">世界角色</span></button>
+    <button class="tbtn world-tab" data-rail="rel" onclick="openWorldTab('rel')">💞 <span class="lb">世界关系</span></button>
+    <button class="tbtn world-tab" data-rail="story" onclick="openWorldTab('story')">📖 <span class="lb">世界故事</span></button>
+    <button class="tbtn" id="pauseBtn">⏸ 暂停世界</button>
     <button class="tbtn accent" id="openSide">⚙ 世界后台</button>
   </div>
 </div>
@@ -323,17 +346,14 @@ input, textarea { color-scheme: dark; }
   <aside class="rail" id="rail">
     <div class="rail-head">
       <b>世界面板</b>
-      <button class="rail-close" id="railClose">✕</button>
+      <div class="rh-actions">
+        <button class="rail-close" id="introToggle" title="显示介绍" style="display:none">📋</button>
+        <button class="rail-close" id="railClose">✕</button>
+      </div>
     </div>
     <div class="intro-card" id="threadIntro"></div>
-    <div class="rail-tabs">
-      <button data-rail="cast" class="active">角色</button>
-      <button data-rail="rel">关系</button>
-      <button data-rail="scene">场景</button>
-      <button data-rail="story">故事</button>
-    </div>
     <div class="rail-body">
-      <section class="panel" id="panel-cast">
+      <section class="panel active" id="panel-cast">
         <h3>世界角色</h3>
         <div class="fg"><label>用一句话描述你想生成的原住民</label>
           <textarea id="natIdea" maxlength="2000" placeholder="如：在码头修船的老渔夫，话少，见过雾里的怪物"></textarea>
@@ -404,17 +424,6 @@ input, textarea { color-scheme: dark; }
         <div id="relList" style="margin-top:14px"></div>
       </section>
 
-      <section class="panel" id="panel-scene">
-        <h3>自定义场景</h3>
-        <div class="fg"><label>场景名</label><input id="scName" maxlength="60" placeholder="如：雾港码头的深夜"></div>
-        <div class="fg"><label>地点</label><input id="scLocation" maxlength="80"></div>
-        <div class="fg"><label>背景描述</label><textarea id="scDesc" maxlength="600" placeholder="设定这个场景里正在发生的事…"></textarea></div>
-        <div class="fg"><label>开场台词（可选）</label><input id="scOpening" maxlength="300"></div>
-        <div class="fg"><label>在场角色（可多选，默认全部）</label><div id="scPresent"></div></div>
-        <button class="btn sav" id="scSave">创建场景</button>
-        <div id="sceneList" style="margin-top:14px"></div>
-      </section>
-
       <section class="panel" id="panel-story">
         <h3>故事档案</h3>
         <div id="storyCard">
@@ -422,6 +431,7 @@ input, textarea { color-scheme: dark; }
         </div>
       </section>
     </div>
+    <button class="btn sav new-scene-btn" onclick="newThread()">＋ 新线程 / 进入场景</button>
   </aside>
 </div>
 
@@ -464,17 +474,28 @@ input, textarea { color-scheme: dark; }
   </div>
 </div>
 
-<!-- 新线程弹窗 -->
+<!-- 新线程 / 场景 合一弹窗 -->
 <div class="overlay" id="threadModal">
   <div class="box">
-    <h2>开启新线程</h2>
-    <div class="hint">线程是一条聊天线（群），可给它挂一段「背景」，角色会按背景在场闲聊。</div>
+    <h2>新线程 · 场景</h2>
+    <div class="hint">开一条新聊天线程，或进入已有场景直接开演；也可以顺手创建新场景。</div>
     <div class="fg"><label>线程名</label><input id="thTitle" maxlength="60" placeholder="如：夜谈酒馆"></div>
     <div class="fg"><label>背景钩子</label><textarea id="thBg" maxlength="1200" placeholder="如：雾港码头的深夜，酒馆打烊后只剩下你们几个…"></textarea></div>
     <div class="fg"><label>常用背景</label>
       <div class="bg-chips" id="thBgChips"></div>
     </div>
     <div class="fg"><label>线程介绍（可选）</label><textarea id="thDesc" maxlength="800"></textarea></div>
+
+    <div class="m-divider">或进入已有场景</div>
+    <div id="sceneList"></div>
+
+    <div class="m-divider">或创建新场景</div>
+    <div class="fg"><label>场景名</label><input id="scName" maxlength="60" placeholder="如：雾港码头的深夜"></div>
+    <div class="fg"><label>地点</label><input id="scLocation" maxlength="80"></div>
+    <div class="fg"><label>背景描述</label><textarea id="scDesc" maxlength="600" placeholder="设定这个场景里正在发生的事…"></textarea></div>
+    <div class="fg"><label>开场台词（可选）</label><input id="scOpening" maxlength="300"></div>
+    <div class="fg"><label>在场角色（可多选，默认全部）</label><div id="scPresent"></div></div>
+    <button class="btn ghost" id="scSave" style="width:100%">＋ 创建场景</button>
     <div class="m-actions">
       <button class="btn ghost" id="thCancel">取消</button>
       <button class="btn sav" id="thCreate">开启线程</button>
@@ -555,7 +576,7 @@ function updateHeader(){
   const life = S.world.life || {};
   $("wMode").textContent = MODE_LABEL[life.mode] || life.mode || "";
   $("wPause").style.display = life.paused ? "" : "none";
-  $("pauseBtn").textContent = life.paused ? "▶ 恢复" : "⏸ 暂停";
+  $("pauseBtn").textContent = life.paused ? "▶ 恢复世界" : "⏸ 暂停世界";
   const sel = $("modelSel");
   sel.value = life.model || "llama3-70b";
   const mi = (S.models||[]).find(m=>m.id===sel.value);
@@ -580,7 +601,6 @@ function renderThreads(){
     const main = t.kind === "main";
     html += `<button class="tchip${main?" main":""}${t.id===cur?" active":""}" onclick="switchThread('${t.id}')">${escapeHtml(t.title || "日常")}${main?"":`<span class="x" title="删除线程" onclick="event.stopPropagation();delThread('${t.id}')">✕</span>`}</button>`;
   });
-  html += `<button class="tchip add" onclick="newThread()">＋ 新线程</button>`;
   $("threadBar").innerHTML = html;
   renderIntro();
 }
@@ -716,9 +736,12 @@ function newThread(){
   $("thTitle").value = "";
   $("thBg").value = "";
   $("thDesc").value = "";
+  $("scName").value = ""; $("scLocation").value = ""; $("scDesc").value = ""; $("scOpening").value = "";
   $("thBgChips").innerHTML = THREAD_BG_PRESETS.map(p =>
     `<span class="tag-chip" data-bg="${escapeHtml(p)}" onclick="pickThreadBg('${escapeHtml(p)}', this)">${escapeHtml(p)}</span>`
   ).join("");
+  renderScenePresent();
+  renderSceneList();
   openModal("threadModal");
 }
 function pickThreadBg(bg, el){
@@ -899,6 +922,7 @@ function renderIntro(){
       <div class="ic-head">
         <h3>🌍 主线 · 大世界背景</h3>
         ${locked ? '<span class="lock-badge">🔒 已锁定</span>' : ""}
+        <button class="ic-close" onclick="toggleIntro(false)" title="收起介绍">✕</button>
       </div>
       <div class="intro-desc">这里承载世界的时代、氛围与规则。一经选择即锁死，无法二次修改。</div>
       <div class="fg"><label>世界封面</label>
@@ -939,6 +963,7 @@ function renderIntro(){
     <div class="ic-head">
       <h3>${t.kind === "scene" ? "🎬 场景线程" : "💬 线程"} · ${escapeHtml(t.title || "未命名")}</h3>
       <span class="lock-badge">可编辑</span>
+      <button class="ic-close" onclick="toggleIntro(false)" title="收起介绍">✕</button>
     </div>
     <div class="intro-desc">线程是一条聊天线（群），可以修改名字，并给它挂一段「背景钩子」让角色在这里登场闲聊。</div>
     <div class="fg"><label>线程名</label><input id="thMetaTitle" maxlength="60" value="${escapeHtml(t.title || "")}"></div>
@@ -1308,6 +1333,7 @@ async function enterScene(id){
     S.msgs = []; S.lastSeq = 0;
     renderThreads(); renderFeed();
     loadMessages(d.thread.id);
+    closeModal("threadModal");
     toast("已进入场景线程。");
   } catch (e) { toast(e.message); }
 }
@@ -1375,15 +1401,37 @@ async function onModelChange(){
 
 /* ---- 侧栏 / 右侧面板 ---- */
 function openPanel(p){
+  document.body.classList.add("side-open");
   $("side").classList.add("open");
+  if (window.innerWidth <= 900) closeRail();
   document.querySelectorAll(".side-body section").forEach(s => s.classList.toggle("active", s.id === "panel-" + p));
 }
-function closeSide(){ $("side").classList.remove("open"); }
-function openRail(){ $("rail").classList.add("open"); }
-function closeRail(){ $("rail").classList.remove("open"); }
+function closeSide(){
+  $("side").classList.remove("open");
+  document.body.classList.remove("side-open");
+}
+function openRail(){
+  $("rail").classList.remove("closed");
+  $("rail").classList.add("open");
+  if (window.innerWidth <= 900) { $("side").classList.remove("open"); document.body.classList.remove("side-open"); }
+}
+function closeRail(){
+  $("rail").classList.remove("open");
+  $("rail").classList.add("closed");
+}
 function switchRailTab(p){
-  document.querySelectorAll(".rail-tabs button").forEach(b => b.classList.toggle("active", b.dataset.rail === p));
+  document.querySelectorAll(".world-tab").forEach(b => b.classList.toggle("active", b.dataset.rail === p));
   document.querySelectorAll(".rail-body section").forEach(s => s.classList.toggle("active", s.id === "panel-" + p));
+}
+function openWorldTab(p){
+  switchRailTab(p);
+  openRail();
+}
+function toggleIntro(show){
+  const rail = $("rail");
+  const btn = $("introToggle");
+  if (show) { rail.classList.remove("hide-intro"); btn.style.display = "none"; }
+  else { rail.classList.add("hide-intro"); btn.style.display = "inline-block"; }
 }
 
 /* ---- 事件绑定 ---- */
@@ -1395,9 +1443,8 @@ document.addEventListener("DOMContentLoaded", () => {
   $("pauseBtn").addEventListener("click", togglePause);
   $("openSide").addEventListener("click", () => openPanel("run"));
   $("closeSide").addEventListener("click", closeSide);
-  $("railToggle").addEventListener("click", openRail);
+  $("introToggle").addEventListener("click", () => toggleIntro(true));
   $("railClose").addEventListener("click", closeRail);
-  document.querySelectorAll(".rail-tabs button").forEach(b => b.addEventListener("click", () => switchRailTab(b.dataset.rail)));
   document.querySelectorAll(".overlay").forEach(m => {
     m.addEventListener("click", e => { if (e.target === m) m.classList.remove("show"); });
   });
