@@ -63,6 +63,9 @@ input, textarea { color-scheme: dark; }
 .tchip:hover { color: #fff; }
 .tchip.active { background: var(--accent); color: #0a0a12; font-weight: 600; border-color: transparent; }
 .tchip.add { border-style: dashed; }
+/* 线程栏里「＋ 新线程 / 进入场景」动作按钮（紧跟主线 chip） */
+.new-scene-inline { border: 1px dashed var(--accent); background: rgba(139,139,255,.14); color: #cfcfff; padding: 6px 14px; border-radius: 999px; font-size: 12px; white-space: nowrap; transition: all .2s; cursor: pointer; flex-shrink: 0; }
+.new-scene-inline:hover { background: rgba(139,139,255,.26); color: #fff; }
 
 .stage {
   flex: 1; display: flex; flex-direction: column; gap: 14px;
@@ -208,7 +211,6 @@ input, textarea { color-scheme: dark; }
 .rail-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; margin-right: -4px; padding-right: 4px; }
 .rail-body section { display: none; }
 .rail-body section.active { display: block; }
-.new-scene-btn { width: 100%; margin-top: 12px; flex-shrink: 0; }
 .rail.hide-intro .intro-card { display: none; }
 /* 顶部右侧「世界XX」切换按钮 */
 .world-tab { white-space: nowrap; }
@@ -444,7 +446,6 @@ input, textarea { color-scheme: dark; }
         </div>
       </section>
     </div>
-    <button class="btn sav new-scene-btn" onclick="newThread()">＋ 新线程 / 进入场景</button>
   </aside>
 </div>
 
@@ -645,12 +646,18 @@ function renderThreads(){
   const list = S.world.threads || [];
   const cur = S.threadId;
   let html = "";
+  let added = false;
   list.forEach(t => {
     const main = t.kind === "main";
     html += `<button class="tchip${main?" main":""}${t.id===cur?" active":""}" onclick="switchThread('${t.id}')">${escapeHtml(t.title || "日常")}${main?"":`<span class="x" title="删除线程" onclick="event.stopPropagation();delThread('${t.id}')">✕</span>`}</button>`;
+    if (main) { html += newSceneBtn(); added = true; }
   });
+  if (!added) html += newSceneBtn();
   $("threadBar").innerHTML = html;
   renderIntro();
+}
+function newSceneBtn(){
+  return `<button class="new-scene-inline" onclick="newThread()" title="开新线程，或进入已有场景">＋ 新线程 / 进入场景</button>`;
 }
 
 async function delThread(id){
