@@ -203,14 +203,14 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 <b>Batch 2 部署 + 验证（本次会话补全闭环）：</b>已 commit + push（2e69644），CI 自动部署生效；另提交 f8657fd（chore：run-browser-test 启动时清理残留 CDP 配置，修复中断/崩溃的 Chrome profile 残留导致冒烟误报）。验证全绿：node --check（gateway.js/mvp.js/index.js）通过；`npx wrangler deploy --dry-run` 通过；本地 CDP 冒烟 **world-check 44 断言 PASS**（含 Batch 2 新断言：角色选择弹窗开/关/摘要更新、随机起名返回名字、native 年龄字段保存、NPC 批量生成 5 名互不重名+入场消息写入线程、线程改名+背景钩子保存、`background.locked=true`、时代/规则 disabled、地图面板移除、后台仅保留运转）+ **hub-check 34 PASS**（含角色弹窗断言）+ **game-studio-check 29 PASS**。**线上已确认**：hub.html 第 3 步「＋从角色库选择角色」弹窗、world.html「🎲随机 / 年龄段 / 🎭AI 生成 NPC / 从角色库邀请角色弹窗 / 开启新线程（背景钩子+常用背景）/ 角色·关系·场景 tab / 主线介绍卡」、`/api/models` 均在线正常。
 - 注意：本地 dev 的 Workers AI 远程绑定当前可能因代理挂起（60s 超时）；冒烟测试已走 `mock:true` 钩子，不受影响。
 
-<b>Batch 3 故事引擎（已完成 + 本地冒烟 SMOKE-OK，待部署 + 线上验证）：</b>
+<b>Batch 3 故事引擎（已完成 + 已部署 + 线上验证）：</b>
 1. **自动世界状态** `world_json.state`（不新增 DB 表）——`parseWorldJson` 兜底初始化 `state/story/beats/secrets/plots/timeline/chapters/lastPulseSeq`；`updateWorldState`（gateway）增量脉动只读 `lastPulseSeq` 之后的消息 → 输出结构化状态更新（关系 delta / 新秘密 / 支线 / 时间线 / story.focus·phase 演进 / 自动封章）。
 2. **节拍化运转内核**——`runWorldTickCore` 由「挑人说一句」改为「推进一个节拍」：`generateStoryBeat`（t ∈ event|action|dialogue|decision|consequence|narration，mock 按类型轮转）→ `applyStoryBeat` 落为旁白（`actor='narrator'`）+ 1~2 名在场角色台词；beat 声明的 `affects/reveal/hide` **后端立即落账**：affects→relations（`manual` 强干扰优先，无则 `auto` 新建/更新 bond）、reveal→secrets 揭晓、hide→埋新秘密；节拍写入 `state.beats`（上限 200）。
 3. **增量脉动 + 成本控制**——`maybeRunStatePulse` 在 tick 后消化各线程 `seq > pulsedSeqs[threadId]` 的增量消息，积压 <4 条不跑（成本控制）；`applyStatePulse` 合并 relations（保留 manual）/secrets(100)/plots(50)/timeline(100)/chapters(20)/story/lastPulseSeq；成功后更新 `pulsedSeqs` 与 `lastPulseSeq` 并 `saveWorldJson`。
 4. **GET /api/worlds/:id/life/story**——返回 `{ story, chapters, beats, secrets, plots, timeline, relations, lastPulseSeq }` 故事档案；`formatLifeWorld` 的 `/life` 视图同步暴露 `state`。
 5. **world.html「故事」tab**——世界面板 rail-tabs 新增「故事」，renderStory 拉取 `/life/story` 渲染主线卡（标题/阶段徽章/梗概/焦点）、秘密（🔒/☀）、支线、时间线、章节、节拍流（类型标签+旁白+台词）；随 8s refreshWorld 自动刷新。
 6. **world-check 扩充 partH**（19 条断言）——`/life` 返回 `world.state` 对象；`state.story.phase` 合法阶段；`state.beats/secrets/plots/timeline` 落账；`lastPulseSeq` 推进；关系自动演化（`auto:true`）写入；节拍类型合法+含台词/旁白；`/life/story` 200 且 chapters/beats/secrets/plots/timeline 与 state 一致；partD 增「故事」tab/面板存在+可切换 3 条断言。
-7. **验证**：`node --check`（mvp.js/gateway.js）通过；本地 dev 启动后 CDP 冒烟 **world-check 84 断言 PASS（SMOKE-OK）**——含节拍化 tick 产出「旁白+2 角色」3 条、pulse 后 state.story=opening、beats=2、secrets=1、lastPulseSeq=11、`/life/story` 档案与 state 一致；唯一 SKIP 为「角色创建失败/超时（本地 AI 挂起）」既有项。**待部署 + 线上验证。**
+7. **验证**：`node --check`（mvp.js/gateway.js）通过；本地 dev 启动后 CDP 冒烟 **world-check 84 断言 PASS（SMOKE-OK）**——含节拍化 tick 产出「旁白+2 角色」3 条、pulse 后 state.story=opening、beats=2、secrets=1、lastPulseSeq=11、`/life/story` 档案与 state 一致；唯一 SKIP 为「角色创建失败/超时（本地 AI 挂起）」既有项。**已部署（35848a2，CI 自动）并线上验证通过**：`https://hyool.w910227a.workers.dev/world-check.html` CDP 冒烟 **91 断言 PASS（SMOKE-OK，0 SKIP）**——含此前线上失败的「关系自动演化（auto）写入 relations」、`lastPulseSeq=11`、`/life/story` 档案与 state 一致；修复为 partH 收敛循环（轮询 /life + 重复 mock tick，直到 N1-N2 auto 关系落账，≤120s），规避 iframe 真实 hybrid auto-tick 抢跑消耗积压消息导致脉动阈值不足的竞态。
 
 ## 已拍板：生命世界升级「故事孵化器」（2026-08-21 用户拍板，设计已确认，待新窗口开工）
 
