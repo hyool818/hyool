@@ -188,7 +188,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 实现约定：全部存 world_json（natives/relations/scenes/areas/life/background/threadMeta），不新增 DB 表；关系存储 `{a,b,kind,note,bond}`；标签中文表前后端各维护一份常量（后端白名单校验）。<b>开发进度（Batch 1 完成 + 已部署 + 线上验证）：①仙侠题材已加；②角色库互通完成（向导放开勾选 + `/life/cast` 邀请/移出 + 世界内显示 source=global 角色）；③封面上传完成（hub 向导 + world.html 后台 `POST /cover`）；④线程删除完成（kind='main' 主线不可删，`DELETE /life/threads?thread=`）；⑤删除世界清理线程+消息+world_json，公共角色回归角色库（响应 cast_preserved）；⑥关系升级羁绊（21 标签 + bond 0~100 初始满值 + 强干扰覆盖 + 列表羁绊条）；⑦地图/区域完成（`/life/areas` + 场景 area_id + 背景 bg_image）；⑧原住民面板扩展 gender/tags（36 标签）/TTS 音色+语速/形象上传。冒烟 world-check 44 断言 PASS + hub-check 34 + game-studio-check 29 + dry-run 通过；角色库邀请成功路径用一次性 Node 脚本（本地 D1 直插角色）全链路验证；**已部署（b033b6c）并线上验证**：真实 LLM tick 产出 2 条消息、邀请 source=global、羁绊初始 100、区域/场景绑定、封面更新、主线线程 kind=main、删除世界后角色库保留均正常。线上验证期间发现 HUBTEST2026 邀请码被禁用（is_active=0）已重新激活并重置 used_count=0/max_uses=500。</b>
 
-<b>Batch 2（本次改动，已本地全绿，待部署）：</b>
+<b>Batch 2（已完成 + 已部署 + 线上验证）：</b>
 1. **创建世界选角色改为弹窗** —— 向导第 3 步不再内嵌角色列表，改为「＋从角色库选择角色」按钮弹出角色库勾选弹窗（可多选，摘要 chips 显示已选）；world.html「从角色库邀请角色」也由 `window.prompt` 序号改为同一套弹窗勾选（`/api/hub` 拉取 + `POST /life/cast` 逐个邀请）。
 2. **名字栏随机起名按钮** —— 手动表单名字栏旁「🎲 随机」，走 `POST /api/worlds/:id/life/name`（本地中文名库随机生成，排除世界已有角色名降低重名）。
 3. **年龄选择列表** —— 性别下方新增年龄段 select（幼童/少年/青年/中年/老年），native 增 `age` 字段，`buildLifeSystemPrompt` 注入「- 年龄」。
@@ -197,5 +197,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 6. **删地图页，改线程背景属性** —— 移除地图/区域面板；`POST /api/worlds/:id/life/threads/meta` 支持线程改名 + 线程介绍(desc) + 背景钩子(bg)（存 `world_json.threadMeta[id]={desc,bg}`）；新线程弹窗可选常用背景 chips；`buildLifeSystemPrompt` 现场块注入线程背景。
 7. **主线大世界背景锁死** —— 世界背景保存时代/氛围/规则后 `background.locked=true` 立即锁死（再次修改时代/氛围/规则返回 400，仅地点/补充/背景图可调）；world.html 右侧主线介绍卡对时代/氛围/规则 disabled + 🔒 徽章；向导第 2 步生命世界隐藏「一句话设定」栏（设定移到世界页锁定）。
 8. **布局：角色/关系到页面右侧，后台只保留运转** —— world.html 双栏布局：左侧线程+聊天舞台（运转），右侧常驻「世界面板」（顶部线程/世界介绍卡 + 角色/关系/场景 tab）；「⚙ 世界后台」侧栏只保留运转（模式/模型/tick/暂停）。修复 parseWorldJson 丢弃 currentThreadId 的 bug（chat/tick 也会更新当前线程）。
+
+<b>Batch 2 部署 + 验证（本次会话补全闭环）：</b>已 commit + push（2e69644），CI 自动部署生效；另提交 f8657fd（chore：run-browser-test 启动时清理残留 CDP 配置，修复中断/崩溃的 Chrome profile 残留导致冒烟误报）。验证全绿：node --check（gateway.js/mvp.js/index.js）通过；`npx wrangler deploy --dry-run` 通过；本地 CDP 冒烟 **world-check 44 断言 PASS**（含 Batch 2 新断言：角色选择弹窗开/关/摘要更新、随机起名返回名字、native 年龄字段保存、NPC 批量生成 5 名互不重名+入场消息写入线程、线程改名+背景钩子保存、`background.locked=true`、时代/规则 disabled、地图面板移除、后台仅保留运转）+ **hub-check 34 PASS**（含角色弹窗断言）+ **game-studio-check 29 PASS**。**线上已确认**：hub.html 第 3 步「＋从角色库选择角色」弹窗、world.html「🎲随机 / 年龄段 / 🎭AI 生成 NPC / 从角色库邀请角色弹窗 / 开启新线程（背景钩子+常用背景）/ 角色·关系·场景 tab / 主线介绍卡」、`/api/models` 均在线正常。
 - 注意：本地 dev 的 Workers AI 远程绑定当前可能因代理挂起（60s 超时）；冒烟测试已走 `mock:true` 钩子，不受影响。
 
