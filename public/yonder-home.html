@@ -1623,45 +1623,6 @@ body {
             class="bio"
         ></div>
 
-        <div class="stats" id="statsContainer" style="display:none;">
-            <div class="stat">
-                <div class="num" id="statCharacters">0</div>
-                <div class="label">数字生命</div>
-            </div>
-            <div class="stat">
-                <div class="num" id="statPosts">0</div>
-                <div class="label">记录</div>
-            </div>
-        </div>
-
-    </section>
-
-
-    <!-- POSTS -->
-
-    <section
-        id="postsSection"
-        class="section"
-    >
-
-        <div class="section-title">
-
-            <h2>
-                记录
-            </h2>
-
-            <span>
-                YONDER
-            </span>
-
-        </div>
-
-
-        <div
-            id="posts"
-            class="posts"
-        ></div>
-
     </section>
 
 
@@ -1675,7 +1636,7 @@ body {
         <div class="section-title">
 
             <h2>
-                数字生命
+                角色库
             </h2>
 
             <span>
@@ -1707,7 +1668,7 @@ body {
         <div class="section-title">
 
             <h2>
-                世界
+                世界库
             </h2>
 
             <span>
@@ -2008,19 +1969,6 @@ body {
                 <label class="checkbox-item">
 
                     <input
-                        id="showPosts"
-                        type="checkbox"
-                        checked
-                    >
-
-                    动态
-
-                </label>
-
-
-                <label class="checkbox-item">
-
-                    <input
                         id="showWorks"
                         type="checkbox"
                         checked
@@ -2157,8 +2105,6 @@ const state = {
     profile: null,
 
     settings: null,
-
-    posts: [],
 
     characters: [],
 
@@ -2306,7 +2252,6 @@ async function loadYonder() {
 async function applyYonderData(yonder) {
     state.profile = yonder.profile;
     state.settings = yonder.settings || {};
-    state.posts = yonder.posts || [];
     await checkOwner();
     render();
 }
@@ -2425,8 +2370,6 @@ function render() {
 
     renderProfile();
 
-    renderPosts();
-
     document
         .getElementById(
             "bottomNav"
@@ -2448,9 +2391,6 @@ function render() {
         loadCharacters();
         loadWorlds();
     }
-
-    document.getElementById("statPosts").textContent = state.posts.length;
-    document.getElementById("statsContainer").style.display = "flex";
 
     document
         .getElementById(
@@ -2547,82 +2487,6 @@ function renderProfile() {
 
 }
 
-
-/* =====================================================
-   POSTS
-===================================================== */
-
-function renderPosts() {
-
-    const container =
-        document.getElementById(
-            "posts"
-        );
-
-    if (!state.posts.length) {
-
-        container.innerHTML = `
-            <div class="empty" style="grid-column:1/-1;">
-                这里还没有留下内容。
-            </div>
-        `;
-
-        return;
-
-    }
-
-
-    container.innerHTML =
-        state.posts
-            .map(
-                post =>
-                    renderPost(post)
-            )
-            .join("");
-
-}
-
-
-/* =====================================================
-   POST
-===================================================== */
-
-function renderPost(post) {
-
-    const content =
-        post.content ||
-        post.text ||
-        post.body ||
-        "";
-
-    const createdAt =
-        post.created_at ||
-        "";
-
-
-    return `
-        <article class="post">
-
-            <div class="post-content">
-                ${escapeHtml(content)}
-            </div>
-
-            ${
-                createdAt
-                    ? `
-                        <div class="post-meta">
-                            ${escapeHtml(
-                                formatDate(createdAt)
-                            )}
-                        </div>
-                    `
-                    : ""
-            }
-
-        </article>
-    `;
-
-}
 
 
 /* =====================================================
@@ -2904,11 +2768,6 @@ function applySettings(
     );
 
     setVisible(
-        "postsSection",
-        settings.show_posts !== 0
-    );
-
-    setVisible(
         "worksSection",
         settings.show_works !== 0
     );
@@ -2978,7 +2837,6 @@ async function loadCharacters() {
 function renderCharacters() {
     const grid = document.getElementById("charGrid");
     const chars = state.characters || [];
-    document.getElementById("statCharacters").textContent = chars.length;
 
     const showCount = 3;
     const visible = chars.slice(0, showCount);
@@ -2987,7 +2845,7 @@ function renderCharacters() {
     if (state.isOwner) {
         html += `<a href="/create/character/" class="create-card">
             <div class="plus">+</div>
-            <div class="label">创造数字生命</div>
+            <div class="label">创造角色</div>
         </a>`;
     }
     html += visible.map(c => `
@@ -3008,7 +2866,7 @@ function renderCharacters() {
     }
 
     if (!state.isOwner && !chars.length) {
-        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">还没有创造数字生命。</div>`;
+        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">还没有创造角色。</div>`;
     } else {
         grid.innerHTML = html;
     }
@@ -3040,10 +2898,14 @@ function renderWorlds() {
     const grid = document.getElementById("worldGrid");
     const worlds = state.worlds || [];
     const section = document.getElementById("worldsSection");
-    if (worlds.length === 0) { grid.innerHTML = ""; section.style.display = "none"; return; }
+    if (!state.isOwner) { section.style.display = "none"; return; }
     section.style.display = "";
     const formLabelOf = ({ story: "故事剧本", game: "H5 小游戏", mixed: "故事 + 游戏" });
-    grid.innerHTML = worlds.slice(0, 6).map(w => `
+    let html = `<a href="/hub?create=world" class="create-card">
+        <div class="plus">+</div>
+        <div class="label">创造世界</div>
+    </a>`;
+    html += worlds.slice(0, 6).map(w => `
         <a class="world-card" href="/hub?world=${encodeURIComponent(w.id)}">
             <img class="thumb" src="${escapeHtml(w.cover_image || '/placeholder.png')}" alt="${escapeHtml(w.name || '')}" onerror="this.style.opacity=.3">
             <div class="info">
@@ -3055,6 +2917,7 @@ function renderWorlds() {
             </div>
         </a>
     `).join("");
+    grid.innerHTML = html;
 }
 
 
@@ -3175,14 +3038,6 @@ function openEditor() {
         )
         .checked =
             settings.show_profile !== 0;
-
-
-    document
-        .getElementById(
-            "showPosts"
-        )
-        .checked =
-            settings.show_posts !== 0;
 
 
     document
@@ -3396,13 +3251,6 @@ async function saveSettings() {
                 document
                     .getElementById(
                         "showProfile"
-                    )
-                    .checked,
-
-            show_posts:
-                document
-                    .getElementById(
-                        "showPosts"
                     )
                     .checked,
 

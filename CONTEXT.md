@@ -160,6 +160,12 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 6. **远端 D1 worlds 表旧 schema 补列**：`schema/migrate_worlds_v2.sql`（ALTER TABLE ADD COLUMN type/cover_image/script_json/cast_ids/settings/source_conversation/status/share_id）已对 remote 执行成功；`migrate_worlds.sql`（CREATE IF NOT EXISTS）对已存在的旧表无效，勿再依赖。
 7. 远端插入邀请码 `HUBTEST2026`（is_active=1, max_uses=100）供测试/演示注册。
 
+## 个人主页优化（2026-08-22 本会话已完成）
+
+1. **「记录」区块移除** —— 判断依据：全产品无任何「创建记录」入口（后端仅只读 `GET /api/yonder/:username/posts`，全库无 `INSERT INTO yonder_posts`），个人主页「记录」永远空态占位，无存在必要。已从 `yonder-home.html` 移除：记录区块 + 个人介绍下方数量统计（stats 行）+ 设置面板「动态」开关；同步清理 `postsSection`/`renderPosts`/`renderPost`/`state.posts`/`show_posts` 相关 JS。**数据表与接口保留**，日后做动态功能可随时恢复。
+2. **文案改名** —— 「数字生命」→「角色库」（区块标题）、「创造数字生命」→「创造角色」（卡片 + 空态文案）；「世界」→「世界库」（区块标题）。
+3. **世界库新增「创造世界」入口** —— worldGrid 最前加「＋创造世界」create-card（`/hub?create=world`）；登录态即使无世界也显示世界库区块；`hub.html` 支持 `?create=world` 直达自定义世界向导（`openWizard()`）。
+
 ## 验证记录
 
 - `.wrangler/e2e-script-test.ps1`（seed→register→POST script→worlds list）：全绿（mock AI 路径，AI 绑定临时注释）。

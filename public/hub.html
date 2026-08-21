@@ -1182,6 +1182,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       openWorldDetail(wi);
     }
   }
+
+  /* ?create=world 直达自定义世界向导（例如从个人主页「创造世界」入口跳转） */
+  if (new URLSearchParams(location.search).get("create") === "world") openWizard();
 });
 </script>
 </body>
