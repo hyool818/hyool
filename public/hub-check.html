@@ -102,13 +102,20 @@ async function main(){
     await sleep(200);
     ok(q('.wstep.active[data-wstep="3"]') != null, '第 3 步: 选角色');
 
-    /* ---- Step3 角色勾选（注入假演员测试 UI 勾选逻辑） ---- */
+    /* ---- Step3 角色勾选（弹窗从角色库勾选） ---- */
     win.eval('allChars = [{ id: "fake-act-1", name: "测试演员", image_url: "", world_name: "测试世界" }]; wizardInit(); wizard.genre = "fantasy"; wizard.name = "星陨之地"; wizard.desc = "被流星撕裂的大陆上，最后一个守夜人苏醒了。"; wizard.form = "story"; pickGenre("fantasy"); pickForm("story"); wizardGo(3);');
     await sleep(250);
+    q('#wCastPick').click();
+    await sleep(200);
+    ok(q('#castPickModal').classList.contains('show'), '角色选择弹窗打开');
     ok(qa('#wCastGrid .char-select').length === 1, '角色格渲染 1 名演员');
     q('#wCastGrid .char-select').click();
     await sleep(80);
     ok(q('#wCastGrid .char-select.selected') != null, '演员勾选生效');
+    q('#castPickConfirm').click();
+    await sleep(200);
+    ok(!q('#castPickModal').classList.contains('show'), '角色选择弹窗关闭');
+    ok(q('#wCastHint').textContent.includes('已选择 1'), '已选择摘要更新', q('#wCastHint').textContent);
     q('#wizardNext').click();
     await sleep(250);
     ok(q('.wstep.active[data-wstep="4"]') != null, '第 4 步: 生成封面');

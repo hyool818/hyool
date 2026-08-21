@@ -179,6 +179,8 @@ async function partD(){
   ok(!!doc.getElementById('feed'), 'D: world.html 渲染 feed 舞台');
   ok(doc.getElementById('wMode').textContent.includes('混合运转'), 'D: 模式徽章=混合运转', doc.getElementById('wMode').textContent);
   ok((doc.querySelectorAll('#threadBar .tchip').length) >= 2, 'D: 线程栏渲染场景/日常', doc.querySelectorAll('#threadBar .tchip').length + ' 个');
+  line('INFO  D: 线程=' + Array.from(doc.querySelectorAll('#threadBar .tchip')).map(c => c.textContent.trim()).join('|'));
+  line('INFO  D: threadId=' + win.eval('S.threadId') + ' 当前线程=' + win.eval('S.world.currentThread ? S.world.currentThread.title : "none"'));
   const msgCnt = await waitFor(() => {
     const n = doc.querySelectorAll('#feed .msg').length;
     return n >= 3 ? n : null;
@@ -189,9 +191,21 @@ async function partD(){
   ok(doc.getElementById('side').classList.contains('open'), 'D: 侧栏可打开');
   ok(q('#panel-cast .cast-card') !== null, 'D: 原住民面板列出角色');
   ok(!!doc.getElementById('relBond'), 'D: 关系面板有羁绊滑杆');
-  ok(!!doc.getElementById('panel-map'), 'D: 地图面板存在');
+  ok(!!doc.getElementById('panel-run'), 'D: 世界后台保留运转面板');
+  ok(!doc.getElementById('panel-map'), 'D: 地图面板已移除');
   ok(!!doc.getElementById('castInvite'), 'D: 角色库邀请按钮存在');
   ok(!!doc.getElementById('natVoice'), 'D: 原住民音色选择存在');
+  ok(!!doc.getElementById('natAge'), 'D: 原住民年龄选择存在');
+  ok(!!doc.getElementById('natNpcGen'), 'D: NPC 批量生成按钮存在');
+  ok(!!doc.getElementById('natNameRandom'), 'D: 随机起名按钮存在');
+  ok(!!doc.getElementById('threadIntro'), 'D: 右侧线程介绍卡存在');
+  // 切到主线线程 -> 世界背景介绍卡（时代/氛围/规则锁定）
+  const mainChip = q('#threadBar .tchip.main');
+  ok(!!mainChip, 'D: 主线线程 chip 存在');
+  if (mainChip) mainChip.click();
+  await sleep(250);
+  ok(!!doc.getElementById('bgEra') && doc.getElementById('bgEra').disabled, 'D: 时代已锁定（disabled）');
+  ok(!!doc.getElementById('bgRule') && doc.getElementById('bgRule').disabled, 'D: 世界规则已锁定（disabled）');
   ok(doc.getElementById('modelSel').options.length === 4, 'D: 模型选择器 4 项', doc.getElementById('modelSel').options.length + ' 项');
 }
 
@@ -257,6 +271,41 @@ async function partF(){
   }
 }
 
+async function partG(){
+  // 线程 meta（改名 + 背景钩子 + 介绍）
+  const tmp = await api('/api/worlds/' + WID + '/life/threads', { method:'POST', body: JSON.stringify({ kind:'auto', title:'旧名' }) });
+  const mt = await api('/api/worlds/' + WID + '/life/threads/meta', { method:'POST', body: JSON.stringify({ thread_id: tmp.thread.id, title:'夜谈酒馆', desc:'深夜酒馆', bg:'雾港码头' }) });
+  ok(mt.thread.title === '夜谈酒馆' && mt.meta.bg === '雾港码头', 'G: 线程改名+背景钩子保存', mt.thread.title);
+  const life = await api('/api/worlds/' + WID + '/life');
+  ok(life.world.threadMeta && life.world.threadMeta[tmp.thread.id] && life.world.threadMeta[tmp.thread.id].desc === '深夜酒馆', 'G: 线程介绍随世界视图返回');
+
+  // 随机起名
+  const nm = await api('/api/worlds/' + WID + '/life/name', { method:'POST', body: JSON.stringify({ gender:'female' }) });
+  ok(!!nm.name && nm.name.length >= 2, 'G: 随机起名返回名字', nm.name);
+
+  // 手动原住民带年龄
+  const ag = await api('/api/worlds/' + WID + '/life/natives', { method:'POST', body: JSON.stringify({ native:{ name:'老雾', gender:'male', age:'老年', personality:'寡言', background:'渔夫', speech_style:'慢' } }) });
+  ok(ag.native.age === '老年' && ag.native.gender === 'male', 'G: 原住民年龄字段保存', ag.native.age);
+
+  // NPC 批量生成（mock，5 名）并入当前线程
+  const npc = await api('/api/worlds/' + WID + '/life/npc-batch', { method:'POST', body: JSON.stringify({ count:5, thread_id: TID, mock:true }) });
+  const made = (npc.natives || []).filter(n => n.source === 'npc');
+  ok(made.length === 5, 'G: NPC 批量生成5名', 'got ' + made.length);
+  const names = made.map(n => n.name);
+  ok(new Set(names).size === names.length, 'G: NPC 名字互不重复');
+  ok(Array.isArray(npc.messages) && npc.messages.some(m => m.actor === 'narrator'), 'G: NPC 入场消息已写入线程');
+  const cast2 = await api('/api/worlds/' + WID + '/life');
+  ok((cast2.world.cast || []).some(c => c.age === '老年'), 'G: cast 视图带年龄');
+
+  // 背景锁定：时代不可二次修改
+  try {
+    await api('/api/worlds/' + WID + '/life/background', { method:'POST', body: JSON.stringify({ background:{ era:'另一个时代', place:'雾港' } }) });
+    ok(false, 'G: 已锁定背景修改时代应 400');
+  } catch(e) { ok(String(e.message).indexOf('锁定') >= 0, 'G: 已锁定背景不可修改时代', e.message); }
+  const bgLock = await api('/api/worlds/' + WID + '/life');
+  ok(bgLock.world.background.locked === true, 'G: background.locked=true');
+}
+
 async function partE(){
   const del = await api('/api/worlds/' + WID + '/delete', { method:'POST' });
   ok(del.success && del.cast_preserved === true, 'E: 清理删除世界（cast_preserved）');
@@ -284,6 +333,7 @@ async function partE(){
     await partC();
     await partD();
     await partF();
+    await partG();
     await partE();
   } catch (e) {
     line('ERROR  ' + (e && e.message ? e.message : e));

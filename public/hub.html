@@ -236,6 +236,20 @@ a { color: inherit; text-decoration: none; }
 .char-select .cs-name { font-size: .85rem; font-weight: 600; }
 .char-select .cs-world { font-size: .68rem; color: var(--muted); }
 
+/* 原生下拉列表深色，避免白底看不清字 */
+select { color-scheme: dark; }
+select option { background: #161722; color: #f2f2f7; }
+input, textarea { color-scheme: dark; }
+
+.cast-pick-hint { font-size: .78rem; color: var(--muted); margin-bottom: .5rem; }
+.cast-picked { display: flex; flex-wrap: wrap; gap: 6px; margin-top: .5rem; }
+.cast-picked .chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+  border-radius: 999px; background: rgba(201,168,76,.14); color: #e8d9a8; font-size: .74rem;
+}
+.cast-picked .chip button { border: 0; background: transparent; color: rgba(255,255,255,.55); cursor: pointer; font-size: .82rem; line-height: 1; }
+.cast-picked .chip button:hover { color: #fff; }
+
 .cover-preview {
   width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 14px;
   background: #0c0d14; border: 1px solid var(--glass-border); display: block; margin-bottom: .8rem;
@@ -346,9 +360,9 @@ a { color: inherit; text-decoration: none; }
 
     <div class="wstep" data-wstep="2">
       <div class="wstep-title">命名与<span style="color:#c9a84c;">设定</span></div>
-      <div class="wstep-desc">一句话设定会参与封面生成，越具体越贴近想象。</div>
+      <div class="wstep-desc">为世界起名并选择载体。生命世界的一步设定将在世界里设置并锁定。</div>
       <div class="field-group"><label>世界名称</label><input type="text" id="wName" maxlength="40" placeholder="例如：星陨之地"></div>
-      <div class="field-group"><label>一句话设定</label><textarea id="wDesc" maxlength="300" placeholder="例如：被流星撕裂的大陆上，最后一个守夜人苏醒了。"></textarea></div>
+      <div class="field-group" id="wDescGroup"><label>一句话设定 <span style="font-weight:400;color:var(--muted);font-size:.72rem">（封面参考）</span></label><textarea id="wDesc" maxlength="300" placeholder="例如：被流星撕裂的大陆上，最后一个守夜人苏醒了。"></textarea></div>
       <div class="wstep-title" style="font-size:.95rem;margin-bottom:.6rem;">世界载体</div>
       <div class="form-grid" id="formGrid"></div>
     </div>
@@ -356,7 +370,9 @@ a { color: inherit; text-decoration: none; }
     <div class="wstep" data-wstep="3">
       <div class="wstep-title">选择<span style="color:#c9a84c;">角色</span></div>
       <div class="wstep-desc">从你的角色工坊里挑选世界的演员（可多选，也可跳过稍后补充）。</div>
-      <div class="char-select-grid" id="wCastGrid"></div>
+      <button class="btn btn-save" id="wCastPick" style="width:100%;margin-bottom:.5rem;">＋ 从角色库选择角色</button>
+      <div class="cast-pick-hint" id="wCastHint">尚未选择角色。</div>
+      <div class="cast-picked" id="wCastPicked"></div>
       <div id="lifePanel" style="display:none;">
         <div class="wstep-title" style="font-size:.95rem;margin:.4rem 0 .6rem;">世界如何<span style="color:#c9a84c;">运转</span>？</div>
         <div class="wstep-desc">三种运转方式，创建后在世界后台随时可切换。</div>
@@ -389,6 +405,19 @@ a { color: inherit; text-decoration: none; }
     <div class="modal-actions">
       <button class="btn btn-cancel" id="wizardPrev">上一步</button>
       <button class="btn btn-save" id="wizardNext">下一步</button>
+    </div>
+  </div>
+</div>
+
+<!-- 角色选择弹窗（向导第 3 步：从角色库勾选） -->
+<div class="modal-overlay" id="castPickModal">
+  <div class="modal">
+    <h2>从角色库选择角色</h2>
+    <div class="hint-line">勾选要加入世界的角色，可多选。</div>
+    <div class="char-select-grid" id="wCastGrid"></div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="castPickCancel">取消</button>
+      <button class="btn btn-save" id="castPickConfirm">确认选择</button>
     </div>
   </div>
 </div>
@@ -820,8 +849,8 @@ function wizardGo(step) {
   const next = $("wizardNext");
   if (step === 3) {
     const isLife = wizard.form === "life";
-    // 生命世界同样可以从角色库勾选角色加入世界（不再隐藏）
     $("lifePanel").style.display = isLife ? "" : "none";
+    renderCastPickSummary();
   }
   if (step === 5) {
     next.textContent = "创建世界";
@@ -860,15 +889,8 @@ function wizardInit() {
       <span class="name">${f.name}</span><span class="desc">${f.desc}</span>
     </div>`).join("");
   pickForm("story");
-
-  $("wCastGrid").innerHTML = allChars.length
-    ? allChars.map(c => `
-        <div class="char-select" data-cid="${escapeHtml(c.id)}" onclick="toggleCast('${escapeHtml(c.id)}', this)">
-          <span class="check">✓</span>
-          <img src="${escapeHtml(c.image_url || '')}" alt="" onerror="this.style.opacity=.2">
-          <span><span class="cs-name">${escapeHtml(c.name || '未名')}</span><br><span class="cs-world">${escapeHtml(c.world_name || '')}</span></span>
-        </div>`).join("")
-    : `<span class="hint-line" style="grid-column:1/-1;">还没有角色。可以先跳过，稍后在工坊中补充演员。</span>`;
+  renderCastPickGrid();
+  renderCastPickSummary();
 
   $("lifeModeGrid").innerHTML = [
     { id: "watch", emoji: "🌱", name: "在线运转", desc: "你看着它们聊，离开即暂停" },
@@ -902,11 +924,12 @@ function pickForm(id) {
   document.querySelectorAll("#formGrid .option-card").forEach(el => {
     el.classList.toggle("selected", el.dataset.form === id);
   });
+  // 生命世界：去掉向导里的一句话设定（时代/氛围/规则将到世界里设置并锁死）
+  $("wDescGroup").style.display = id === "life" ? "none" : "";
+  $("wDesc").value = "";
   if (id === "life") {
-    $("wCastGrid").style.display = "none";
     $("lifePanel").style.display = "";
   } else {
-    $("wCastGrid").style.display = "";
     $("lifePanel").style.display = "none";
   }
 }
@@ -926,8 +949,35 @@ function pickLifeModel(id) {
 }
 function toggleCast(id, el) {
   const idx = wizard.castIds.indexOf(id);
-  if (idx >= 0) { wizard.castIds.splice(idx, 1); el.classList.remove("selected"); }
-  else { wizard.castIds.push(id); el.classList.add("selected"); }
+  if (idx >= 0) { wizard.castIds.splice(idx, 1); if (el) el.classList.remove("selected"); }
+  else { wizard.castIds.push(id); if (el) el.classList.add("selected"); }
+  renderCastPickSummary();
+}
+function renderCastPickGrid() {
+  const sel = new Set(wizard.castIds);
+  $("wCastGrid").innerHTML = allChars.length
+    ? allChars.map(c => `
+        <div class="char-select${sel.has(c.id) ? " selected" : ""}" data-cid="${escapeHtml(c.id)}" onclick="toggleCast('${escapeHtml(c.id)}', this)">
+          <span class="check">✓</span>
+          <img src="${escapeHtml(c.image_url || '')}" alt="" onerror="this.style.opacity=.2">
+          <span><span class="cs-name">${escapeHtml(c.name || '未名')}</span><br><span class="cs-world">${escapeHtml(c.world_name || '')}</span></span>
+        </div>`).join("")
+    : `<span class="hint-line" style="grid-column:1/-1;">还没有角色。可以先跳过，稍后在工坊中补充演员。</span>`;
+}
+function renderCastPickSummary() {
+  const picked = allChars.filter(c => wizard.castIds.includes(c.id));
+  $("wCastHint").textContent = picked.length ? `已选择 ${picked.length} 位角色。` : "尚未选择角色。";
+  $("wCastPicked").innerHTML = picked.map(c => `
+    <span class="chip">${escapeHtml(c.name)} <button type="button" onclick="toggleCast('${escapeHtml(c.id)}', null)">✕</button></span>`).join("");
+}
+function openCastPick() {
+  renderCastPickGrid();
+  showModal("castPickModal", true);
+}
+function confirmCastPick() {
+  showModal("castPickModal", false);
+  renderCastPickSummary();
+  toast(wizard.castIds.length ? "已选择 " + wizard.castIds.length + " 位角色。" : "未选择角色，可稍后在工坊补充。");
 }
 
 function buildCoverUrl() {
@@ -1079,6 +1129,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("emptyWorldGo").addEventListener("click", openWizard);
   $("wizardPrev").addEventListener("click", wizardPrev);
   $("wizardNext").addEventListener("click", wizardNext);
+  $("wCastPick").addEventListener("click", openCastPick);
+  $("castPickCancel").addEventListener("click", () => showModal("castPickModal", false));
+  $("castPickConfirm").addEventListener("click", confirmCastPick);
   $("wizardUploadCover").addEventListener("click", () => $("wizardCoverFile").click());
   $("wizardCoverFile").addEventListener("change", e => { wizardUploadCover(e.target.files[0]); e.target.value = ""; });
   $("editCancel").addEventListener("click", closeEdit);

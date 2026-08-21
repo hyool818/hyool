@@ -717,7 +717,10 @@ const NATIVE_SCHEMA = {
     appearance: "string",
     personality: "string",
     background: "string",
-    speech_style: "string"
+    speech_style: "string",
+    gender: "string",
+    age: "string",
+    tags: "array"
 };
 
 /** 用脑洞/描述生成一位「世界原住民」（只属于该世界，不进公共角色库） */
@@ -758,6 +761,135 @@ export async function generateNativeCharacter({ idea, world, env, mock }) {
     }
 }
 
+/** 中文起名字库（仙侠/古风/都市通用；尽量降低重名概率） */
+const NAME_SURNAMES = ["白", "萧", "顾", "沈", "叶", "楚", "苏", "林", "墨", "云", "姜", "陆", "洛", "秦", "谢", "韩", "温", "池", "闻", "宋", "唐", "凌", "纪", "商", "燕", "慕", "霍", "裴", "夏", "岑", "祁", "江", "柳", "晏", "傅", "程", "庄", "封", "越", "宁"];
+const NAME_GIVEN_M = ["尘", "涯", "渊", "川", "岚", "霄", "曜", "临", "澈", "枫", "昊", "澜", "聿", "珩", "屿", "晟", "璟", "泽", "修", "玄", "苍", "痕", "彻", "慕", "朔", "鹤", "弈", "潜", "樾", "谌", "衡", "骁", "屹", "邈", "容", "既"];
+const NAME_GIVEN_F = ["汐", "婉", "灵", "雪", "霜", "柔", "浅", "梦", "璃", "月", "烟", "梨", "宁", "洛", "笙", "晚", "湄", "晴", "芙", "嫣", "蘅", "若", "夭", "绾", "篱", "瑶", "杳", "鸢", "蕊", "黛", "菱", "漪", "薇", "荻", "芩", "芷"];
+const NAME_GIVEN_N = ["之", "若", "未", "初", "以", "拾", "南", "归", "晚", "一", "半", "小", "亦", "听", "闲", "别", "西", "无", "故", "歌"];
+
+function pickArr(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function shuffleArr(arr) {
+    const a = (Array.isArray(arr) ? arr : []).slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+/** 生成一个随机的中文名字；exclude 内已有名字会被跳过（减少重名） */
+export function randomWorldName({ gender = "", exclude = [] } = {}) {
+    const used = new Set((Array.isArray(exclude) ? exclude : []).map(String).filter(Boolean));
+    for (let tries = 0; tries < 60; tries++) {
+        const surname = pickArr(NAME_SURNAMES);
+        let given = "";
+        if (gender === "female") given = pickArr(NAME_GIVEN_F);
+        else if (gender === "male") given = pickArr(NAME_GIVEN_M);
+        else given = Math.random() < 0.5 ? pickArr(NAME_GIVEN_M) : pickArr(NAME_GIVEN_F);
+        if (Math.random() < 0.35) given += pickArr(NAME_GIVEN_N);
+        const name = surname + given;
+        if (!used.has(name)) return name;
+    }
+    return "路人" + (Math.floor(Math.random() * 9000) + 1000);
+}
+
+const NPC_AGE_OPTIONS = ["幼童", "少年", "青年", "中年", "老年"];
+
+function mockNpc(world, used) {
+    const name = randomWorldName({ exclude: used });
+    used.add(name);
+    const gender = pickArr(["male", "female", "neutral"]);
+    const age = pickArr(NPC_AGE_OPTIONS);
+    const tags = shuffleArr([...LIFE_CHAR_TAGS]).slice(0, 3);
+    return {
+        name,
+        appearance: "普通而真实的穿着，和「" + (world?.name || "这里") + "」的风土浑然一体。",
+        personality: "平实鲜活，有自己的小算盘和小坚持，像邻家的熟面孔。",
+        background: `住在「${world?.name || "这片土地"}」的普通居民，日复一日地过着日子，也藏着不愿说出口的心事。`,
+        speech_style: "带着本地口音，说话随意，偶尔蹦出几句街坊里的闲话。",
+        gender,
+        age,
+        tags,
+        chat_config: {}
+    };
+}
+
+function sanitizeNpc(n, world, used) {
+    const fallback = mockNpc(world, used);
+    const name = String(n.name || "").trim().slice(0, 40) || fallback.name;
+    used.add(name);
+    return {
+        name,
+        appearance: String(n.appearance || "").trim().slice(0, 800) || fallback.appearance,
+        personality: String(n.personality || "").trim().slice(0, 800) || fallback.personality,
+        background: String(n.background || "").trim().slice(0, 2000) || fallback.background,
+        speech_style: String(n.speech_style || "").trim().slice(0, 400) || fallback.speech_style,
+        gender: ["female", "male", "neutral"].includes(n.gender) ? n.gender : fallback.gender,
+        age: NPC_AGE_OPTIONS.includes(n.age) ? n.age : fallback.age,
+        tags: (Array.isArray(n.tags) ? n.tags.filter((t) => LIFE_CHAR_TAGS.has(t)) : fallback.tags).slice(0, 6),
+        chat_config: {}
+    };
+}
+
+/**
+ * 批量生成一批「NPC 原住民」（一次性加入当前线程的人群）。
+ * 全部属性随机（性别/年龄/性格/外貌/名字），名字尽量不与已有角色重复。
+ */
+export async function generateNpcBatch({ world, env, mock, count, excludeNames = [] }) {
+    const used = new Set((Array.isArray(excludeNames) ? excludeNames : []).map(String).filter(Boolean));
+    const target = Math.min(10, Math.max(1, parseInt(count, 10) || 1));
+    const list = [];
+
+    if (!env.AI || mock) {
+        while (list.length < target) list.push(mockNpc(world, used));
+        return list;
+    }
+
+    try {
+        const system = [
+            "你是 HYOOL 生命世界的「NPC 居民生成引擎」。",
+            `根据世界设定，一次性生成 ${target} 位平凡的 NPC 居民，用于填充这个世界的人群。`,
+            "只返回 JSON 数组，每个元素：{ name, appearance, personality, background, speech_style, gender, age, tags }。",
+            "要求：名字互不重复且贴合世界题材；gender 只能是 female/male/neutral；age 只能是 幼童/少年/青年/中年/老年；tags 从【温柔 活泼 高冷 神秘 直率 腹黑 傲娇 病娇 热血 冷静 狡黠 忠厚 优雅 狂野 怯懦 坚韧 感性 理性 浪漫 孤僻 健谈 毒舌 可靠 孩子气 沧桑 天真 强势 自卑 洒脱 偏执 睿智 阴郁 开朗 狡诈 仁厚 多疑】中挑 2~4 个。",
+            "不要 markdown，不要解释，只要 JSON 数组。"
+        ].join("\n");
+        const content = await chatCompletions(
+            env,
+            [
+                { role: "system", content: system },
+                {
+                    role: "user",
+                    content: `# 世界\n名字：${world?.name || "未知"}\n设定：${world?.description || ""}\n背景：${((world?.background && [world.background.era, world.background.place, world.background.tone, world.background.rule].filter(Boolean).join("；")) || "")}`
+                }
+            ],
+            env.AI_CREATE_MODEL || DEFAULT_CREATE_MODEL,
+            0.9,
+            700
+        );
+        const cleaned = String(content || "")
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/```\s*$/i, "")
+            .trim();
+        const arr = JSON.parse(cleaned);
+        if (Array.isArray(arr)) {
+            arr.forEach((n) => {
+                if (list.length < target && n && typeof n === "object") {
+                    list.push(sanitizeNpc(n, world, used));
+                }
+            });
+        }
+    } catch (e) {
+        console.error("NPC BATCH GEN ERROR:", e);
+    }
+
+    while (list.length < target) list.push(mockNpc(world, used));
+    return list;
+}
+
 function parseNativeJson(raw, idea, world) {
     const fallback = mockNativeCharacter(idea, world);
     try {
@@ -772,7 +904,10 @@ function parseNativeJson(raw, idea, world) {
             appearance: String(parsed.appearance || fallback.appearance).slice(0, 800),
             personality: String(parsed.personality || fallback.personality).slice(0, 800),
             background: String(parsed.background || fallback.background).slice(0, 2000),
-            speech_style: String(parsed.speech_style || fallback.speech_style).slice(0, 400)
+            speech_style: String(parsed.speech_style || fallback.speech_style).slice(0, 400),
+            gender: ["female", "male", "neutral"].includes(parsed.gender) ? parsed.gender : fallback.gender,
+            age: NPC_AGE_OPTIONS.includes(parsed.age) ? parsed.age : fallback.age,
+            tags: (Array.isArray(parsed.tags) ? parsed.tags.filter((t) => LIFE_CHAR_TAGS.has(t)) : fallback.tags).slice(0, 6)
         };
     } catch {
         return fallback;
@@ -782,12 +917,16 @@ function parseNativeJson(raw, idea, world) {
 function mockNativeCharacter(idea, world) {
     const trimmed = String(idea || "").trim();
     const snippet = trimmed.slice(0, 48) || "一个尚未命名的原住民";
+    const used = new Set();
     return {
-        name: extractMockName(trimmed) || "未名",
+        name: extractMockName(trimmed) || randomWorldName({ exclude: used }),
         appearance: "带着这个世界独有的气质，像从这里的风土里长出来的一样。",
         personality: "朴实、鲜活，对自己生活的地方有很深的感情。",
         background: trimmed || `在「${world?.name || "这片土地"}」土生土长的原住民。`,
-        speech_style: "说话带着本地腔调，直来直去，偶尔冒出一句土话。"
+        speech_style: "说话带着本地腔调，直来直去，偶尔冒出一句土话。",
+        gender: pickArr(["male", "female", "neutral"]),
+        age: pickArr(["少年", "青年", "中年", "老年"]),
+        tags: shuffleArr([...LIFE_CHAR_TAGS]).slice(0, 3)
     };
 }
 
@@ -848,10 +987,18 @@ export function buildLifeSystemPrompt({ character, world, scene, relations = [],
         ? `\n- 性格标签：${character.tags.join("、")}（这些标签是你的底色，必须在言行中自然流露）`
         : "";
 
+    const threadCtx = (world && world.threadCtx) || null;
+    const threadLine = scene && scene.name
+        ? `你们现在在「${scene.name}」${scene.location ? `（${scene.location}）` : ""}。${scene.desc || ""}${areaBlock}${scene.opening ? "\n开场：\"" + scene.opening + "\"" : ""}`
+        : (threadCtx && (threadCtx.bg || threadCtx.desc)
+            ? `此刻你们正聚在「${threadCtx.bg || "这里"}」——${threadCtx.desc || "聊聊正在发生的事。"}`
+            : "此刻你们正在这个世界里碰面，聊聊正在发生的事。");
+
     return [
         "# 身份",
         `你是「${character.name}」——「${world?.name || "这个世界"}」中土生土长的原住民。以下是你的人设，任何时候都不能偏离：`,
         `- 外貌：${character.appearance || "未知"}`,
+        `- 年龄：${character.age || "未知"}`,
         `- 性格：${character.personality || "未知"}${tagText}`,
         `- 背景：${character.background || "未知"}`,
         `- 说话风格：${character.speech_style || "自然"}`,
@@ -860,7 +1007,7 @@ export function buildLifeSystemPrompt({ character, world, scene, relations = [],
         (bgLines.length ? bgLines.join("\n") : "你熟悉这里的每一寸土地，这里是你的家。"),
         "",
         "# 现场",
-        scene && scene.name ? `你们现在在「${scene.name}」${scene.location ? `（${scene.location}）` : ""}。${scene.desc || ""}${areaBlock}${scene.opening ? "\n开场：\"" + scene.opening + "\"" : ""}` : "此刻你们正在这个世界里碰面，聊聊正在发生的事。",
+        threadLine,
         "",
         "# 关系",
         relLines.length ? relLines.join("\n") : "你和在场的人大多是点头之交，还没建立特别深的关系。",
