@@ -213,6 +213,10 @@ input, textarea { color-scheme: dark; }
 /* 顶部右侧「世界XX」切换按钮 */
 .world-tab { white-space: nowrap; }
 .world-tab.active { background: rgba(139,139,255,.22); color: #cfcfff; border-color: rgba(139,139,255,.5); }
+/* 导轨内「世界」内容切换 tab：紧挨其内容，顶栏不再拥挤 */
+.rail-tabs { display: flex; gap: 6px; margin: 2px 0 12px; }
+.rail-tabs .world-tab { flex: 1; justify-content: center; text-align: center; padding: 7px 6px; font-size: 12px; }
+.rail-tabs .world-tab .lb { display: inline; }
 /* 故事档案 */
 .story-title { font-size: .98rem; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .phase-badge { font-size: .66rem; color: #ffd28f; border: 1px solid rgba(255,190,90,.4); background: rgba(255,190,90,.08); border-radius: 999px; padding: 1px 8px; }
@@ -330,9 +334,7 @@ input, textarea { color-scheme: dark; }
   </div>
   <div class="tr">
     <select class="tbtn" id="modelSel" title="对话模型" style="display:none" tabindex="-1" aria-hidden="true"></select>
-    <button class="tbtn world-tab active" data-rail="cast" onclick="openWorldTab('cast')">🎭 <span class="lb">世界角色</span></button>
-    <button class="tbtn world-tab" data-rail="rel" onclick="openWorldTab('rel')">💞 <span class="lb">世界关系</span></button>
-    <button class="tbtn world-tab" data-rail="story" onclick="openWorldTab('story')">📖 <span class="lb">世界故事</span></button>
+    <button class="tbtn" id="railOpen">🗂 世界面板</button>
     <button class="tbtn" id="pauseBtn">⏸ 暂停世界</button>
     <button class="tbtn accent" id="openSide">⚙ 世界后台</button>
   </div>
@@ -352,6 +354,11 @@ input, textarea { color-scheme: dark; }
       </div>
     </div>
     <div class="intro-card" id="threadIntro"></div>
+    <div class="rail-tabs">
+      <button class="tbtn world-tab active" data-rail="cast" onclick="openWorldTab('cast')">🎭 <span class="lb">世界角色</span></button>
+      <button class="tbtn world-tab" data-rail="rel" onclick="openWorldTab('rel')">💞 <span class="lb">世界关系</span></button>
+      <button class="tbtn world-tab" data-rail="story" onclick="openWorldTab('story')">📖 <span class="lb">世界故事</span></button>
+    </div>
     <div class="rail-body">
       <section class="panel active" id="panel-cast">
         <h3>世界角色</h3>
@@ -1441,6 +1448,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   });
   $("pauseBtn").addEventListener("click", togglePause);
+  $("railOpen").addEventListener("click", () => openRail());
   $("openSide").addEventListener("click", () => openPanel("run"));
   $("closeSide").addEventListener("click", closeSide);
   $("introToggle").addEventListener("click", () => toggleIntro(true));
