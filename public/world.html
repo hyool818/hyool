@@ -254,6 +254,13 @@ input, textarea { color-scheme: dark; }
 .intro-desc { font-size: .76rem; color: var(--muted); margin-bottom: 8px; line-height: 1.6; }
 .bg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .bg-chips .tag-chip { font-size: .68rem; }
+.panel .locked .fg { opacity: .55; }
+.panel .locked .fg input, .panel .locked .fg textarea, .panel .locked .fg select { cursor: not-allowed; }
+.bg-summary { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.bg-summary .cover-sq { max-height: 110px; }
+.bg-line { display: flex; gap: 8px; font-size: .78rem; }
+.bg-line span { color: var(--muted); min-width: 34px; flex-shrink: 0; }
+.bg-line b { color: rgba(255,255,255,.92); font-weight: 600; }
 
 /* 弹窗 */
 .overlay {
@@ -452,6 +459,10 @@ input, textarea { color-scheme: dark; }
   <div class="side-head">⚙ 世界后台
     <button id="closeSide">✕</button>
   </div>
+  <div class="side-tabs">
+    <button class="sbtn active" data-side="run" onclick="openPanel('run')">⚙ 运转</button>
+    <button class="sbtn" data-side="bg" onclick="openPanel('bg')">🌍 大世界背景</button>
+  </div>
   <div class="side-body">
 
     <section class="panel active" id="panel-run">
@@ -476,6 +487,35 @@ input, textarea { color-scheme: dark; }
       <button class="btn sav" id="runSave">保存运转设置</button>
       <div style="height:14px"></div>
       <button class="btn del" id="runPauseBtn">暂停运转</button>
+    </section>
+
+    <section class="panel" id="panel-bg">
+      <h3>🌍 世界背景</h3>
+      <div class="intro-desc">这里承载世界的时代、氛围与规则。一经选择即锁死，无法二次修改；地点、补充说明与背景图仍可调整。</div>
+      <div class="fg"><label>世界封面</label>
+        <img class="cover-sq" id="bgCover" alt="" onerror="this.style.opacity=.2">
+        <div class="row" style="margin-top:6px">
+          <button class="btn ghost" id="bgCoverRegen">🔄 换一张</button>
+          <button class="btn ghost" id="bgCoverUpload">📤 上传</button>
+          <input type="file" id="bgCoverFile" accept="image/*" style="display:none">
+        </div>
+      </div>
+      <div class="fg"><label>全局背景图（可选）</label>
+        <div class="row">
+          <input id="bgImage" maxlength="2000" placeholder="URL 或上传">
+          <button class="btn ghost" id="bgImageUpload">上传</button>
+          <input type="file" id="bgImageFile" accept="image/*" style="display:none">
+        </div>
+      </div>
+      <div id="bgLockWrap">
+        <div class="fg"><label>时代</label><input id="bgEra" maxlength="80" placeholder="如：灵气复苏初期 / 蒸汽时代"></div>
+        <div class="fg"><label>氛围</label><input id="bgTone" maxlength="120" placeholder="如：潮湿、怀旧、暗流涌动"></div>
+        <div class="fg"><label>世界规则 / 特殊设定</label><textarea id="bgRule" maxlength="400" placeholder="如：这里的人不会真正死去，只会在雾中重生…"></textarea></div>
+      </div>
+      <div class="fg"><label>地点</label><input id="bgPlace" maxlength="80" placeholder="如：临海小城「雾港」"></div>
+      <div class="fg"><label>补充说明</label><textarea id="bgNote" maxlength="800"></textarea></div>
+      <button class="btn sav" id="bgSave" style="width:100%">保存世界背景</button>
+      <div class="small-hint" id="bgHint"></div>
     </section>
 
   </div>
@@ -855,6 +895,7 @@ function appendMessages(list){
 
 function renderSide(){
   renderIntro();
+  renderBgPanel();
   renderTagChips();
   fillVoiceSelect();
   renderCastList();
@@ -925,44 +966,23 @@ function renderIntro(){
   const bg = S.world.background || {};
   if (main) {
     const locked = !!bg.locked;
+    const line = (label, v) => v ? `<div class="bg-line"><span>${label}</span><b>${escapeHtml(v)}</b></div>` : "";
     el.innerHTML = `
       <div class="ic-head">
         <h3>🌍 主线 · 大世界背景</h3>
         ${locked ? '<span class="lock-badge">🔒 已锁定</span>' : ""}
         <button class="ic-close" onclick="toggleIntro(false)" title="收起介绍">✕</button>
       </div>
-      <div class="intro-desc">这里承载世界的时代、氛围与规则。一经选择即锁死，无法二次修改。</div>
-      <div class="fg"><label>世界封面</label>
-        <img class="cover-sq" id="bgCover" alt="" onerror="this.style.opacity=.2">
-        <div class="row" style="margin-top:6px">
-          <button class="btn ghost" id="bgCoverRegen">🔄 换一张</button>
-          <button class="btn ghost" id="bgCoverUpload">📤 上传</button>
-          <input type="file" id="bgCoverFile" accept="image/*" style="display:none">
-        </div>
+      <div class="intro-desc">世界背景（时代 / 氛围 / 规则）已设定。编辑请前往「⚙ 世界后台 → 🌍 大世界背景」。</div>
+      <div class="bg-summary">
+        ${bg.bg_image ? `<img class="cover-sq" src="${escapeHtml(bg.bg_image)}" alt="" onerror="this.style.opacity=.2">` : ""}
+        ${line("时代", bg.era)}
+        ${line("氛围", bg.tone)}
+        ${line("地点", bg.place)}
+        ${line("规则", bg.rule)}
+        ${line("补充", bg.note)}
       </div>
-      <div class="fg"><label>全局背景图（可选）</label>
-        <div class="row">
-          <input id="bgImage" maxlength="2000" placeholder="URL 或上传">
-          <button class="btn ghost" id="bgImageUpload">上传</button>
-          <input type="file" id="bgImageFile" accept="image/*" style="display:none">
-        </div>
-      </div>
-      <div class="${locked ? "locked" : ""}">
-        <div class="fg"><label>时代</label><input id="bgEra" maxlength="80" placeholder="如：灵气复苏初期 / 蒸汽时代" ${locked ? "disabled" : ""}></div>
-        <div class="fg"><label>氛围</label><input id="bgTone" maxlength="120" placeholder="如：潮湿、怀旧、暗流涌动" ${locked ? "disabled" : ""}></div>
-        <div class="fg"><label>世界规则 / 特殊设定</label><textarea id="bgRule" maxlength="400" placeholder="如：这里的人不会真正死去，只会在雾中重生…" ${locked ? "disabled" : ""}></textarea></div>
-      </div>
-      <div class="fg"><label>地点</label><input id="bgPlace" maxlength="80" placeholder="如：临海小城「雾港」"></div>
-      <div class="fg"><label>补充说明</label><textarea id="bgNote" maxlength="800"></textarea></div>
-      <button class="btn sav" id="bgSave" style="width:100%">${locked ? "保存（时代/氛围/规则已锁定）" : "保存世界背景"}</button>
-      <div class="small-hint">${locked ? "时代、氛围与世界规则已锁定；地点、补充说明与背景图仍可调整。" : "保存后时代/氛围/规则将立即锁死。"}</div>`;
-    $("bgCover").src = S.world.cover_image || "";
-    $("bgImage").value = bg.bg_image || "";
-    $("bgEra").value = bg.era || "";
-    $("bgPlace").value = bg.place || "";
-    $("bgTone").value = bg.tone || "";
-    $("bgRule").value = bg.rule || "";
-    $("bgNote").value = bg.note || "";
+      <button class="btn ghost" style="width:100%" onclick="openPanel('bg')">⚙ 编辑世界背景</button>`;
     return;
   }
   const meta = (S.world.threadMeta && S.world.threadMeta[t.id]) || {};
@@ -1379,8 +1399,26 @@ async function saveBg(){
     const d = await api("/api/worlds/" + worldId + "/life/background", { method: "POST", body: JSON.stringify({ background: { era: $("bgEra").value.trim(), place: $("bgPlace").value.trim(), tone: $("bgTone").value.trim(), rule: $("bgRule").value.trim(), note: $("bgNote").value.trim(), bg_image: $("bgImage").value.trim() } }) });
     S.world.background = d.background || S.world.background;
     renderIntro();
+    renderBgPanel();
     toast(S.world.background.locked ? "世界背景已保存，时代/氛围/规则已锁定。" : "世界背景已保存。");
   } catch (e) { toast(e.message); }
+}
+
+function renderBgPanel(){
+  const bg = S.world.background || {};
+  const locked = !!bg.locked;
+  const set = (id, v) => { const el = $(id); if (el) el.value = v || ""; };
+  const cover = $("bgCover"); if (cover) cover.src = S.world.cover_image || "";
+  set("bgImage", bg.bg_image);
+  set("bgEra", bg.era);
+  set("bgTone", bg.tone);
+  set("bgRule", bg.rule);
+  set("bgPlace", bg.place);
+  set("bgNote", bg.note);
+  ["bgEra", "bgTone", "bgRule"].forEach(id => { const x = $(id); if (x) x.disabled = locked; });
+  const wrap = $("bgLockWrap"); if (wrap) wrap.classList.toggle("locked", locked);
+  const saveBtn = $("bgSave"); if (saveBtn) saveBtn.textContent = locked ? "保存（时代/氛围/规则已锁定）" : "保存世界背景";
+  const hint = $("bgHint"); if (hint) hint.textContent = locked ? "时代、氛围与世界规则已锁定；地点、补充说明与背景图仍可调整。" : "保存后时代/氛围/规则将立即锁死。";
 }
 
 /* ---- 封面 / 图片上传 ---- */
@@ -1412,6 +1450,7 @@ function openPanel(p){
   $("side").classList.add("open");
   if (window.innerWidth <= 900) closeRail();
   document.querySelectorAll(".side-body section").forEach(s => s.classList.toggle("active", s.id === "panel-" + p));
+  document.querySelectorAll(".side-tabs .sbtn").forEach(b => b.classList.toggle("active", b.dataset.side === p));
 }
 function closeSide(){
   $("side").classList.remove("open");
@@ -1460,14 +1499,18 @@ document.addEventListener("DOMContentLoaded", () => {
   // 线程介绍卡（动态渲染）委托绑定
   const introEl = $("threadIntro");
   introEl.addEventListener("click", e => {
+    if (e.target.id === "thMetaSave") saveThreadMeta();
+  });
+  // 世界背景编辑已迁到「⚙ 世界后台」侧栏，委托绑定在 side 上
+  const sideEl = $("side");
+  sideEl.addEventListener("click", e => {
     const id = e.target.id;
     if (id === "bgSave") saveBg();
     else if (id === "bgCoverRegen") regenCover();
     else if (id === "bgCoverUpload") $("bgCoverFile").click();
     else if (id === "bgImageUpload") $("bgImageFile").click();
-    else if (id === "thMetaSave") saveThreadMeta();
   });
-  introEl.addEventListener("change", async e => {
+  sideEl.addEventListener("change", async e => {
     const id = e.target.id;
     try {
       if (id === "bgCoverFile") { const url = await uploadImageFile(e.target.files[0]); await saveCover(url); toast("封面已更新。"); }
