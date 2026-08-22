@@ -110,6 +110,10 @@ a { color: inherit; text-decoration: none; }
 .card-btn.edit:hover { background: rgba(139,139,255,.4); color: #fff; }
 .card-btn.del { background: rgba(255,80,80,.2); color: rgba(255,160,160,.9); }
 .card-btn.del:hover { background: rgba(255,80,80,.45); color: #fff; }
+.card-btn.pub { width: auto; padding: 0 12px; font-size: 11px; font-weight: 600; letter-spacing: .03em; background: rgba(40,167,69,.2); color: rgba(160,255,190,.95); }
+.card-btn.pub:hover { background: rgba(40,167,69,.5); color: #fff; }
+.card-btn.pub.off { background: rgba(220,53,69,.2); color: rgba(255,160,160,.9); }
+.card-btn.pub.off:hover { background: rgba(220,53,69,.5); color: #fff; }
 
 /* World card extras */
 .badges { display: flex; gap: 6px; flex-wrap: wrap; margin: .2rem 0 .5rem; }
@@ -767,6 +771,7 @@ function renderWorlds(worlds) {
     const castInfo = (w.cast && w.cast.length) ? `演员 ${w.cast.length}` : "暂无演员";
     return `<div class="card" onclick="openWorldDetail(${i})">
       <div class="card-actions">
+        <button class="card-btn pub ${w.status === "published" ? "off" : ""}" onclick="event.stopPropagation();toggleWorldPublish(${i})" title="${w.status === "published" ? "下架：从主站生命世界广场移除" : "发布：进入主站生命世界广场"}">${w.status === "published" ? "下架" : "发布"}</button>
         <button class="card-btn del" onclick="event.stopPropagation();openWorldDelete(${i})" title="删除">🗑️</button>
       </div>
       <img class="thumb" src="${escapeHtml(w.cover_image || '')}" alt="" onerror="this.style.opacity=.2">
@@ -876,6 +881,22 @@ async function saveWorldPricing() {
     toast(e.message);
   } finally {
     btn.disabled = false; btn.textContent = "保存作品设置";
+  }
+}
+
+/* 发布/下架：status='published' 进入主站生命世界广场，draft 下架移除 */
+async function toggleWorldPublish(idx) {
+  const w = allWorlds[idx];
+  if (!w) return;
+  const target = w.status !== "published";
+  try {
+    const res = await api("/api/worlds/" + w.id, { method: "PATCH", body: JSON.stringify({ status: target ? "published" : "draft" }) });
+    if (!res.success) throw new Error(res.error || "操作失败。");
+    w.status = target ? "published" : "draft";
+    renderWorlds(allWorlds);
+    toast(target ? "已发布：进入主站生命世界广场。" : "已下架：从主站生命世界广场移除。");
+  } catch (e) {
+    toast(e.message || "操作失败。");
   }
 }
 

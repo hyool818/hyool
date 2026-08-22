@@ -739,6 +739,37 @@ export async function handleMvpRoutes(
     const worldDetailMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)$/);
     const worldDeleteMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/delete$/);
 
+    /* =====================================================
+       主站生命世界广场
+       GET /api/plaza → 所有已发布（status='published'）的 life 世界
+    ===================================================== */
+    if (pathname === "/api/plaza" && method === "GET") {
+        try {
+            const result = await env.DB.prepare(
+                `SELECT w.*, p.username, p.display_name, p.avatar_url
+                 FROM worlds w
+                 LEFT JOIN profiles p ON w.owner_id = p.id
+                 WHERE w.status = 'published' AND w.type = 'life'
+                 ORDER BY w.updated_at DESC LIMIT 100`
+            ).all();
+            const worlds = [];
+            for (const row of (result.results || [])) {
+                const w = await formatWorld(env, row);
+                if (!w) continue;
+                worlds.push({
+                    ...w,
+                    owner_username: row.username || "",
+                    owner_display_name: row.display_name || row.username || "TA",
+                    owner_avatar_url: row.avatar_url || ""
+                });
+            }
+            return json({ success: true, worlds });
+        } catch (error) {
+            console.error("PLAZA ERROR:", error);
+            return json({ success: false, error: "加载失败。" }, 500);
+        }
+    }
+
     if (worldDetailMatch && method === "GET") {
         try {
             const user = await getAuthenticatedUser(request);
@@ -807,6 +838,18 @@ export async function handleMvpRoutes(
             if (typeof body.status === "string" && ["draft", "published"].includes(body.status)) {
                 sets.push("status = ?");
                 vals.push(body.status);
+            }
+            if (typeof body.visible === "boolean") {
+                // visible = 主页「显示/隐藏」（仅影响个人主页卡片，不影响主站发布）
+                if (body.visible) {
+                    const cur = (world.share_id || "").trim();
+                    const shareId = cur || ("w" + crypto.randomUUID().replace(/-/g, "").slice(0, 8));
+                    sets.push("share_id = ?");
+                    vals.push(shareId);
+                } else {
+                    sets.push("share_id = ?");
+                    vals.push("");
+                }
             }
             if (["free", "paid"].includes(body.pricing)) {
                 sets.push("pricing = ?");

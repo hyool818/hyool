@@ -1823,7 +1823,7 @@ async function buildYonderPayload(
     const worldSql =
         isOwner
             ? "SELECT id, name, description, type, cover_image, settings, status, share_id, pricing, price, created_at FROM worlds WHERE owner_id = ? ORDER BY created_at DESC"
-            : "SELECT id, name, description, type, cover_image, settings, status, share_id, pricing, price, created_at FROM worlds WHERE owner_id = ? AND status = 'published' ORDER BY created_at DESC";
+            : "SELECT id, name, description, type, cover_image, settings, status, share_id, pricing, price, created_at FROM worlds WHERE owner_id = ? AND share_id IS NOT NULL AND share_id != '' ORDER BY created_at DESC";
 
     const worldResult = await env.DB
         .prepare(worldSql)

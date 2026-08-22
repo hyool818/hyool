@@ -290,6 +290,54 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 **为什么必须改（现状核对）**：`runWorldTickCore`（`src/mvp.js:2702`）每次 tick 的唯一产出是 `pickNextSpeakers`（启发式挑 1~2 人）+ `generateWorldLine`（每人"说一句话"≤60字，`src/ai/gateway.js:1029`），没有事件/行动/冲突/后果——这就是「原地打转」的根因。改造不是加功能，是**换运转内核**：从「挑人说一句」→「推进一个节拍」。
 
+---
+
+## 生命世界广场 + 发布/下架 + 显示/隐藏解耦（2026-08-23 本会话已完成）
+
+### 背景
+用户澄清产品语义：**「发布」= 进入主站生命世界广场**（所有用户发布的都在那）；**「显示/隐藏」= 只针对个人主页卡片**（不影响主站）；**「下架」= 主动从主站移除**。此前代码里 `worlds.status` 一个字段同时驱动主页访客可见性 + 匿名放行 + 详情访问，与「显示/隐藏」混用，且**主站没有任何生命世界聚合入口**（首页「生命」只跳 `/hub`）。
+
+### 数据语义（最终定案）
+| 维度 | 字段 | 取值 | 效果 |
+|---|---|---|---|
+| 发布/下架 | `worlds.status` | `published` | 进主站广场（`/api/plaza` 聚合）+ 世界详情匿名可读 + 生命世界互动匿名放行 |
+| 发布/下架 | `worlds.status` | `draft` | 从广场消失，仅主人可见可进 |
+| 主页显示/隐藏 | `worlds.share_id` | 非空 | 个人主页访客视图可见（与角色卡同语义） |
+| 主页显示/隐藏 | `worlds.share_id` | 空 | 主页访客视图隐藏（世界本身照常运转） |
+
+### 后端（`src/mvp.js` / `src/index.js`）
+1. **`PATCH /api/worlds/:id` 新增 `visible` 字段**：`visible:true` 确保/生成 `share_id`（`w` + 8 hex），`visible:false` 清空。仅主人可调。
+2. **新增 `GET /api/plaza`**：`SELECT w.*, p.username, p.display_name, p.avatar_url FROM worlds w LEFT JOIN profiles p ON w.owner_id = p.id WHERE w.status='published' AND w.type='life' ORDER BY updated_at DESC LIMIT 100`，逐条 `formatWorld`（复用 natives_count/scenes_count 等）+ 补主人字段。
+3. **`buildYonderPayload` 访客世界过滤**：`status='published'` → `share_id IS NOT NULL AND share_id != ''`（与角色一致）。主人视图不变。
+4. 世界详情匿名放行（`GET /api/worlds/:id`、`requireOwnedLifeWorld public:true`）保持看 `status='published'`：**下架才会锁访问，隐藏不影响**。Cron 运转不看 status（type=life 即 tick），发布/下架只控制广场展示。
+
+### 前端
+1. **`public/plaza.html`（新建）**：主站生命世界广场。header（LOGO/首页/我的彼岸）+ 卡片网格（封面 4:3、名字、「生命世界」徽章、描述 2 行截断、主人头像+@username、原住民/场景数、更新日期），点卡进 `/world?world=id`，空态引导去 hub 发布。
+2. **`public/index.html`**：首页「生命」core-entry 从 `/hub` 改跳 `/plaza`（注释同步）。
+3. **`public/yonder-home.html`**（主人视图世界卡）：
+   - 右上角「发布/下架」按钮（`.vis-toggle.pub`，draft=绿色「发布」，published=红色「下架」，title 说明进主站广场）；
+   - 右下角「显示/隐藏」按钮改为 `share_id` 维度；
+   - 未发布世界加橙色「未发布」badge；隐藏卡保持半透明 + 红色「已隐藏」角标；
+   - `toggleWorldVisible` 改 PATCH `{visible}`，`toggleWorldPublish` 新增 PATCH `{status}`。
+4. **`public/hub.html`**：世界卡 card-actions 加「发布/下架」文字按钮（`.card-btn.pub`），新增 `toggleWorldPublish(idx)`。
+
+### 迁移
+- **`schema/migrate_plaza_share.sql`（新建，幂等）**：`UPDATE worlds SET share_id='w'||lower(hex(randomblob(4))) WHERE status='published' AND (share_id IS NULL OR share_id='')` —— 存量已发布但 share_id 为空的世界补 share_id，避免新过滤下从访客主页消失。
+- **已对 remote D1 执行成功**（changes=1）。
+
+### 验证
+- `node --check src/mvp.js` + `src/index.js` 通过。
+- `public/plaza.html` / `index.html` / `yonder-home.html` / `hub.html` 内联脚本抽取语法检查通过。
+- `npx wrangler deploy --dry-run` 通过（242 文件含 plaza.html 已纳入静态托管）。
+- node:sqlite 全链路模拟 **11/11 PASS**：广场 SQL 只含 published+life 且带主人信息；访客主页只见 share_id 非空（published 但隐藏的不见、draft 且未显示的不见）；主人见全部；隐藏=share_id 清空且 status 不变；显示=share_id 重新生成；发布/下架后广场成员变化正确。
+- 迁移 SQL 本地验证：published+空 share_id 补 `w`+8hex，已非空保留，draft 不动。
+
+### 行为要点
+- 世界创建默认 `draft`（未发布）+ 有 `share_id`（主页显示）：**新建世界访客主页可见、但不在广场**，需点「发布」上广场。
+- 显示/隐藏只影响主页卡片；发布/下架才影响主站广场与匿名访问。
+- 主页角色卡/世界卡的显示/隐藏按钮是独立功能，不影响广场。
+
+
 ### 架构（已确认，不推翻既有决策）
 
 **① 自动世界状态**（用户完全不用管，存 `world_json.state`，不新增 DB 表）：

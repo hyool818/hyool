@@ -1338,6 +1338,12 @@ body {
 .vis-toggle:hover { background: rgba(90,130,255,.32); }
 .vis-toggle.off { color: #ffe1b8; border-color: rgba(255,180,90,.45); background: rgba(70,45,15,.82); }
 .vis-toggle.off:hover { background: rgba(150,100,30,.55); }
+/* 发布/下架按钮（世界卡右上角） */
+.vis-toggle.pub { bottom: auto; top: 8px; background: rgba(40,167,69,.88); color: #fff; }
+.vis-toggle.pub:hover { background: rgba(40,167,69,1); }
+.vis-toggle.pub.off { background: rgba(220,53,69,.85); color: #fff; border-color: rgba(255,140,140,.45); }
+.vis-toggle.pub.off:hover { background: rgba(220,53,69,1); }
+.badge.draft { background: rgba(255,110,70,.16); color: #ff9a8a; }
 .char-card.hidden-card, .world-card.hidden-card { opacity: .55; filter: grayscale(.25); }
 .hidden-tag {
     position: absolute;
@@ -3129,10 +3135,13 @@ function renderWorlds() {
         </a>`;
     }
     html += visible.map(w => {
-        const wVisible = w.status === "published";
+        // 主页显示/隐藏 = share_id 非空；发布/下架 = status
+        const wVisible = !!(w.share_id && w.share_id !== "");
+        const wPublished = w.status === "published";
         const ownerBtns = state.isOwner ? `
-            ${wVisible ? '' : `<div class="hidden-tag">已隐藏</div>`}
-            <button class="vis-toggle ${wVisible ? '' : 'off'}" onclick="toggleWorldVisible('${w.id}', ${!wVisible}, event)">${wVisible ? '隐藏' : '显示'}</button>` : "";
+            ${!wVisible ? `<div class="hidden-tag">已隐藏</div>` : ''}
+            <button class="vis-toggle pub ${wPublished ? 'off' : ''}" onclick="toggleWorldPublish('${w.id}', ${!wPublished}, event)" title="控制是否进入主站生命世界广场">${wPublished ? '下架' : '发布'}</button>
+            <button class="vis-toggle ${wVisible ? '' : 'off'}" onclick="toggleWorldVisible('${w.id}', ${!wVisible}, event)" title="控制个人主页上的卡片可见性">${wVisible ? '隐藏' : '显示'}</button>` : "";
         return `
         <a class="world-card${wVisible ? '' : ' hidden-card'}" href="${worldPlayUrl(w)}">
             <img class="thumb" src="${escapeHtml(w.cover_image || '/placeholder.png')}" alt="${escapeHtml(w.name || '')}" onerror="this.style.opacity=.3">
@@ -3140,6 +3149,7 @@ function renderWorlds() {
             <div class="info">
                 <div class="name">${escapeHtml(w.name || '未命名')}</div>
                 <div class="badges">
+                    ${!wPublished ? `<span class="badge draft">未发布</span>` : ''}
                     <span class="badge">${escapeHtml((w.settings && (w.settings.genreLabel || w.settings.genre)) || '世界')}</span>
                     <span class="badge form">${formLabelOf[w.type] || w.type}</span>
                 </div>
@@ -3160,7 +3170,7 @@ function renderWorlds() {
    WORKS VISIBILITY（角色卡 / 世界卡 显示·隐藏）
    ===================================================== */
 
-// 角色：公开 = share_id 非空（世界同表字段）；世界：公开 = status='published'
+// 角色：主页显示 = share_id 非空；世界：主页显示 = share_id 非空，发布/下架 = status
 async function toggleCharVisible(id, targetVisible, ev) {
     if (ev) { ev.preventDefault(); ev.stopPropagation(); }
     try {
@@ -3188,15 +3198,37 @@ async function toggleWorldVisible(id, targetVisible, ev) {
         const res = await fetch('/api/worlds/' + encodeURIComponent(id), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({ status: targetVisible ? 'published' : 'draft' })
+            body: JSON.stringify({ visible: !!targetVisible })
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.error || '操作失败。');
         const w = (state.worlds || []).find(x => x.id === id);
-        if (w) w.status = targetVisible ? 'published' : 'draft';
+        if (w) {
+            w.share_id = data.world && data.world.share_id ? data.world.share_id : (targetVisible ? 'pub' : '');
+        }
         renderWorlds();
     } catch (e) {
         console.error('TOGGLE WORLD VISIBLE ERROR:', e);
+        alert(e.message || '操作失败，请稍后再试。');
+    }
+}
+
+// 发布 = 进入主站生命世界广场（status='published'）；下架 = 从广场移除（draft）
+async function toggleWorldPublish(id, targetPublish, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    try {
+        const res = await fetch('/api/worlds/' + encodeURIComponent(id), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ status: targetPublish ? 'published' : 'draft' })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || '操作失败。');
+        const w = (state.worlds || []).find(x => x.id === id);
+        if (w) w.status = targetPublish ? 'published' : 'draft';
+        renderWorlds();
+    } catch (e) {
+        console.error('TOGGLE WORLD PUBLISH ERROR:', e);
         alert(e.message || '操作失败，请稍后再试。');
     }
 }
