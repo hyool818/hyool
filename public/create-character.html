@@ -120,6 +120,7 @@ a { color: inherit; text-decoration: none; }
 .option-card .name { font-size: .88rem; font-weight: 600; }
 .option-card .desc { font-size: .72rem; color: var(--muted); line-height: 1.4; }
 .option-card.highlight .name { color: var(--gold); }
+.option-card .art-img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 8px; background: var(--surface2); }
 
 /* Voice cards (TA 的声音) */
 .voice-card {
@@ -423,10 +424,10 @@ const state = { step: 1, style: null, styleCustom: "", race: null, raceCustom: "
 
 /* Data */
 const STEP1 = [
-  { id: "realistic", name: "写实风", desc: "真实质感，电影光影", highlight: false },
-  { id: "3d", name: "3D渲染", desc: "游戏建模，立体光影", highlight: false },
+  { id: "realistic", name: "写实风", desc: "真实质感，电影光影", highlight: false, video: "realistic.mp4" },
+  { id: "3d", name: "3D渲染", desc: "游戏建模，立体光影", highlight: false, video: "3d.mp4" },
   { id: "anime", name: "2D动漫", desc: "日系动画，赛璐璐上色", highlight: false },
-  { id: "guofeng", name: "国风仙侠", desc: "水墨意境，东方美学", highlight: true },
+  { id: "guofeng", name: "国风仙侠", desc: "水墨意境，东方美学", highlight: true, video: "guofeng.mp4" },
   { id: "custom", name: "自定义", desc: "自由描述风格", highlight: false },
 ];
 const STEP2 = [
@@ -459,6 +460,7 @@ function renderCards(containerId, items, stateKey, isMulti) {
   grid.innerHTML = items.map(item => `
     <div class="option-card ${item.highlight ? 'highlight' : ''}" data-value="${item.id}" data-state="${stateKey}">
       <div class="check">&#10003;</div>
+      ${item.video ? `<video class="art-img" src="/create-art/${item.video}" autoplay muted loop playsinline preload="metadata" onerror="this.remove()"></video>` : ''}
       <div class="name">${item.name}</div>
       ${item.desc ? `<div class="desc">${item.desc}</div>` : ''}
     </div>`).join("");

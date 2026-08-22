@@ -75,7 +75,9 @@ a { color: inherit; text-decoration: none; }
 .style-card:hover::before { opacity: 1; }
 .style-card.active { border-color: var(--accent); background: rgba(139,139,255,.10); }
 .style-card.active::before { opacity: 1; }
-.style-icon { font-size: 1.8rem; margin-bottom: 6px; position: relative; z-index: 1; }
+.style-icon { margin-bottom: 6px; position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; }
+.style-card .style-img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; display: block; }
+.style-card .style-emoji { font-size: 1.8rem; }
 .style-name { font-size: .82rem; font-weight: 600; position: relative; z-index: 1; }
 .style-desc { font-size: .66rem; color: var(--muted); margin-top: 2px; position: relative; z-index: 1; }
 
@@ -247,22 +249,22 @@ a { color: inherit; text-decoration: none; }
       <div class="style-label">选择立绘风格</div>
       <div class="style-grid" id="styleGrid">
         <div class="style-card active" data-style="realistic">
-          <div class="style-icon">📷</div>
+          <div class="style-icon"><video class="style-img" src="/create-art/realistic.mp4" autoplay muted loop playsinline preload="metadata" onerror="this.remove()"></video><span class="style-emoji">📷</span></div>
           <div class="style-name">写实</div>
           <div class="style-desc">真实人像质感</div>
         </div>
         <div class="style-card" data-style="3d">
-          <div class="style-icon">🎮</div>
+          <div class="style-icon"><video class="style-img" src="/create-art/3d.mp4" autoplay muted loop playsinline preload="metadata" onerror="this.remove()"></video><span class="style-emoji">🎮</span></div>
           <div class="style-name">3D</div>
           <div class="style-desc">游戏角色风格</div>
         </div>
         <div class="style-card" data-style="anime">
-          <div class="style-icon">🌸</div>
+          <div class="style-icon"><span class="style-emoji">🌸</span></div>
           <div class="style-name">2D动漫</div>
           <div class="style-desc">日系动漫立绘</div>
         </div>
         <div class="style-card" data-style="guofeng">
-          <div class="style-icon">🏮</div>
+          <div class="style-icon"><video class="style-img" src="/create-art/guofeng.mp4" autoplay muted loop playsinline preload="metadata" onerror="this.remove()"></video><span class="style-emoji">🏮</span></div>
           <div class="style-name">国风</div>
           <div class="style-desc">东方水墨韵味</div>
         </div>
