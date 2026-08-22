@@ -93,6 +93,8 @@ a { color: inherit; text-decoration: none; }
 .option-grid { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 .option-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
 .option-grid.cols-2 { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+/* 艺术风格步骤：大卡展示生图风格动图（对标角色卡观感） */
+.option-grid.style-grid { grid-template-columns: repeat(2, 1fr); }
 
 .option-card {
   position: relative; cursor: pointer; border: 1px solid var(--border); border-radius: 12px;
@@ -231,6 +233,7 @@ a { color: inherit; text-decoration: none; }
   .main { padding: 110px 16px calc(80px + env(safe-area-inset-bottom)); }
   .step-title { font-size: 1.25rem; }
   .option-grid, .option-grid.cols-3 { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: .5rem; }
+  .option-grid.style-grid { grid-template-columns: repeat(1, 1fr); gap: .5rem; }
   .option-card { padding: 10px 8px; }
   .option-card .name { font-size: .82rem; }
   .option-card .desc { font-size: .68rem; }
@@ -263,7 +266,7 @@ a { color: inherit; text-decoration: none; }
   <section class="step active" data-step="1">
     <h2 class="step-title">选择<span class="accent">艺术风格</span></h2>
     <p class="step-desc">你的数字生命将以何种视觉风格降临？</p>
-    <div class="option-grid" id="step1Grid"></div>
+    <div class="option-grid style-grid" id="step1Grid"></div>
     <div class="custom-input" id="step1Custom"><input class="text-input" placeholder="描述你想要的风格..." id="styleCustomInput"></div>
   </section>
 
