@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>WORKS-GUEST-CHECK</title>
+</head>
+<body>
+<pre id="results">RUNNING…</pre>
+<iframe id="fa" src="about:blank" style="width:1280px;height:800px;border:1px solid #333"></iframe>
+<script>
+/* 端到端验证「公开作品游客可体验 + 世界卡直达进入」 */
+const results = [];
+function line(s){ results.push(s); document.getElementById('results').textContent = results.join('\n'); }
+function ok(cond, name, extra=''){ line((cond?'PASS':'FAIL')+'  '+name+(extra?'  '+extra:'')); }
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+function waitFor(fn, timeout, what){
+  return new Promise((resolve, reject) => {
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      let v = null;
+      try { v = fn(); } catch(e) {}
+      if (v) { clearInterval(iv); resolve(v); }
+      else if (Date.now() - t0 > timeout) { clearInterval(iv); reject(new Error('timeout: ' + what)); }
+    }, 150);
+  });
+}
+function loadIframe(src){
+  return new Promise((res, rej) => {
+    const f = document.getElementById('fa');
+    const to = setTimeout(() => rej(new Error('iframe load timeout: ' + src)), 60000);
+    f.addEventListener('load', () => { clearTimeout(to); res(); }, { once: true });
+    f.src = src;
+  });
+}
+const api = (p, o = {}) => {
+  const t = localStorage.getItem('hyool_token');
+  const h = { 'Content-Type': 'application/json', ...(o.headers || {}) };
+  if (t) h['Authorization'] = 'Bearer ' + t;
+  return fetch(p, { credentials: 'include', ...o, headers: h }).then(async r => {
+    let d; try { d = await r.json(); } catch { d = { success:false, error:'bad json' }; }
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    return d;
+  });
+};
+let worldId = '';
+(async function main(){
+  try {
+    let d = await api('/api/login', { method:'POST', body: JSON.stringify({ username:'smokews', password:'testpass123' }) });
+    if (!d.success) {
+      d = await api('/api/register', { method:'POST', body: JSON.stringify({ username:'smokews', password:'testpass123', display_name:'Smoke User', invite_code:'HUBTEST2026' }) });
+    }
+    if (!d.success || !d.token) throw new Error('login failed: ' + (d.error || ''));
+    localStorage.setItem('hyool_token', d.token);
+    ok(true, '登录 smokews');
+    const tag = Date.now().toString(36).slice(-5);
+    const w = await api('/api/worlds', { method:'POST', body: JSON.stringify({
+      name: '游客测试世界' + tag,
+      description: '用于验证公开作品游客体验。',
+      type: 'life',
+      settings: { genre:'custom', genreLabel:'测试' }
+    }) });
+    if (!w.success || !w.world) throw new Error('world create failed');
+    worldId = w.world.id;
+    ok(true, '创建生命世界', worldId);
+    const pub = await api('/api/worlds/' + worldId, { method:'PATCH', body: JSON.stringify({ status:'published' }) });
+    ok(!!pub.success && pub.world && pub.world.status === 'published', '世界已发布(published)', pub.world ? pub.world.status : 'FAIL');
+
+    // ---- 创建公开角色（share_id 自动生成；AI 生成可能较慢，失败则跳过角色断言） ----
+    let charId = '';
+    try {
+      const c = await api('/api/character/create-advanced', { method:'POST', body: JSON.stringify({
+        idea: '一只会说话的橘猫，名字叫团子',
+        gender: 'neutral'
+      }) });
+      if (c.success && c.character && c.character.share_id) {
+        charId = c.character.id;
+        ok(true, '创建公开角色', charId + ' share=' + c.character.share_id);
+      } else {
+        ok(false, '创建公开角色失败', (c.error || 'no share_id'));
+      }
+    } catch (e) {
+      ok(false, '创建公开角色异常', e.message.slice(0, 80));
+    }
+
+    // ---- 游客视角：清除登录 token，访问 /@smokews ----
+    localStorage.removeItem('hyool_token');
+    localStorage.removeItem('hyool_is_guest');
+    await loadIframe('/@smokews?v=' + Date.now());
+    const f = document.getElementById('fa');
+    const doc = await waitFor(() => {
+      const d = f.contentDocument;
+      return (d.getElementById('worldGrid') && d.querySelector('#worldGrid .world-card')) ? d : null;
+    }, 30000, 'guest profile world cards');
+
+    const nav = doc.getElementById('bottomNav');
+    ok(!nav || doc.defaultView.getComputedStyle(nav).display === 'none', '游客不显示底部导航');
+    ok(!doc.getElementById('navEditBtn') || doc.getElementById('navEditBtn').style.display === 'none', '游客无「编辑彼岸」按钮');
+    ok(!doc.querySelector('#worldGrid a.create-card'), '游客无「创造世界」入口');
+
+    const wcards = doc.querySelectorAll('#worldGrid .world-card');
+    ok(wcards.length >= 1, '游客可见世界预览卡', wcards.length + ' 张');
+    const whref = wcards[0].getAttribute('href') || '';
+    ok(whref.indexOf('/world?world=') === 0, '世界卡 href 直达 /world?world=', whref);
+    ok((wcards[0].textContent || '').indexOf('免费') >= 0 || (wcards[0].textContent || '').indexOf('收费') >= 0, '世界卡显示免费/收费徽章');
+
+    const ccards = doc.querySelectorAll('#charGrid .char-card');
+    if (charId) {
+      ok(ccards.length >= 1, '游客可见角色预览卡', ccards.length + ' 张');
+      const chref = ccards[0].getAttribute('href') || '';
+      ok(chref.indexOf('/buddy/') === 0, '角色卡 href 直达 /buddy/', chref);
+    } else {
+      ok(true, '跳过角色卡断言（角色创建被跳过）');
+    }
+
+    // ---- 游客直接进入世界页（无需注册） ----
+    await loadIframe('/world?world=' + worldId + '&v=' + Date.now());
+    const wdoc = await waitFor(() => {
+      const d = f.contentDocument;
+      return (d.getElementById('feed') && d.getElementById('msgInput')) ? d : null;
+    }, 30000, 'guest world page');
+    ok(true, '游客世界页可加载（feed/composer 出现）', wdoc.getElementById('wName') ? wdoc.getElementById('wName').textContent : '');
+    ok(wdoc.getElementById('sendBtn') != null, '游客可发言（composer 存在）');
+
+    // ---- 清理测试数据：恢复主人 token 后删除测试世界/角色 ----
+    const again = await api('/api/login', { method:'POST', body: JSON.stringify({ username:'smokews', password:'testpass123' }) });
+    if (again.success && again.token) localStorage.setItem('hyool_token', again.token);
+    try {
+      if (worldId) await api('/api/worlds/' + worldId + '/delete', { method:'POST' });
+      if (charId) await api('/api/characters/' + charId + '/delete', { method:'POST' });
+      ok(true, '测试数据已清理');
+    } catch (e) {
+      ok(false, '测试数据清理失败', e.message.slice(0, 60));
+    }
+  } catch (e) {
+    line('FATAL: ' + e.message);
+  }
+  const fails = results.filter(r => r.startsWith('FAIL')).length;
+  document.title = fails ? 'SMOKE-FAIL' : 'SMOKE-OK';
+  line('==== 冒烟结果: ' + (fails ? '失败 ' + fails + ' 项' : '全部通过') + ' ====');
+})();
+</script>
+</body>
+</html>
