@@ -512,6 +512,7 @@ const isSvg = u => u && (u.endsWith(".svg") || u.includes("/portrait"));
 let isGuest = true;
 let allChars = [];
 let allWorlds = [];
+let inboxMap = {};   // Companion inbox：character_id → 未读条数
 let currentDetailWorld = null;
 let editingChar = null;
 let deletingChar = null;
@@ -615,10 +616,18 @@ function renderChars(chars, guest) {
       </div>`;
     const tag = guest ? "a" : "div";
     const linkAttr = guest ? `href="${href}"` : `onclick="location.href='${href}'"`;
+    const chips = [];
+    if (!guest) {
+      if (c.emotion_label && c.emotion_label !== "平静") chips.push(`<span class="chip" style="background:rgba(255,208,138,.14);color:#ffd08a;">${escapeHtml(c.emotion_label)}</span>`);
+      if (c.relation_label) chips.push(`<span class="chip" style="background:rgba(255,150,180,.14);color:#ff9dba;">${escapeHtml(c.relation_label)}</span>`);
+      if (inboxMap[c.id]) chips.push(`<span class="chip" style="background:rgba(255,80,110,.18);color:#ff8090;">💌 ${inboxMap[c.id]} 条留言</span>`);
+    }
+    const chipsHtml = chips.length ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:4px;">${chips.join("")}</div>` : "";
     return `<${tag} class="card" ${linkAttr}>
       ${actions}
       <img class="thumb" src="${escapeHtml(c.image_url || '')}" alt="" onerror="this.style.opacity=.2">
       <div class="body">
+        ${chipsHtml}
         <div class="name">${escapeHtml(c.name || '未名')}</div>
         <div class="world">${escapeHtml(c.world_name || '')}</div>
         <div class="hook">${escapeHtml(c.story_hook || c.appearance || '')}</div>
@@ -1228,6 +1237,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     const res = await api("/api/hub");
     renderChars(res.characters || [], isGuest);
+    // Companion inbox：TA 主动留的话 → 卡片角标
+    if (!isGuest) {
+      try {
+        const inb = await api("/api/companion/inbox");
+        inboxMap = {};
+        (inb.unread || []).forEach(u => { inboxMap[u.character_id] = (inboxMap[u.character_id] || 0) + 1; });
+        renderChars(res.characters || [], isGuest);
+      } catch {}
+    }
   } catch (e) {
     $("grid").innerHTML = '<div style="text-align:center;">加载失败：' + escapeHtml(e.message) + '</div>';
     $("loading").style.display = "none";

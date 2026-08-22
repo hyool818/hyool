@@ -402,6 +402,7 @@ a { color: inherit; text-decoration: none; }
       <div>
         <div class="char-name" id="charName"></div>
         <div class="char-sub" id="charWorld"></div>
+        <div class="char-sub" id="stateLine" style="display:none;"></div>
       </div>
     </div>
     <div style="display:flex;gap:.5rem;">
@@ -495,6 +496,13 @@ a { color: inherit; text-decoration: none; }
         <div class="intimacy-fill"><span id="intimacyFill" style="width:0%"></span></div>
         <span id="intimacyNum">0</span>
       </div>
+    </div>
+
+    <!-- Companion Engine：你们的关系 -->
+    <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:.4rem;">
+      <div class="setting-label" style="width:100%;"><span>你们的关系</span><span class="val" id="relationVal">初识</span></div>
+      <div style="font-size:.72rem;color:var(--muted);" id="relationHint"></div>
+      <div id="relActions" style="display:flex;flex-wrap:wrap;gap:.4rem;"></div>
     </div>
 
     <button class="settings-close" id="settingsClose">完成</button>
@@ -768,6 +776,98 @@ function updateSettingsUI() {
   if (vs) vs.value = chatConfig.voice || "";
   $("rateVal").textContent = (chatConfig.rate > 0 ? "+" : "") + chatConfig.rate + "%";
   $("rateSlider").value = chatConfig.rate;
+}
+
+/* ---------- Companion Engine：情绪 / 关系 / 家庭 ---------- */
+let companionState = null;
+
+function renderStateLine() {
+  const el = $("stateLine");
+  if (!el) return;
+  const parts = [];
+  const st = companionState;
+  if (st) {
+    if (st.emotion && st.emotion.intensity > 0) parts.push("· " + st.emotion.label);
+    if (st.relation && st.relation.stage !== "acquaintance") parts.push("· " + (st.relation.label || ""));
+    if (st.family) {
+      if (st.family.children && st.family.children.length) parts.push("· 有孩子：" + st.family.children.map(c => c.name).join("、"));
+      else if (st.family.pregnant) parts.push("· 期待新成员");
+      else if (st.family.marriedAt) parts.push("· 已婚");
+    }
+  }
+  if (parts.length) { el.textContent = parts.join(" "); el.style.display = ""; }
+  else el.style.display = "none";
+}
+
+function renderRelationUI() {
+  const val = $("relationVal");
+  const hint = $("relationHint");
+  const box = $("relActions");
+  if (!val || !box) return;
+  const st = companionState;
+  if (!st || !st.relation) return;
+  val.textContent = st.relation.label || "初识";
+  if (st.relation.since) {
+    const d = new Date(st.relation.since).toISOString().slice(0, 10);
+    hint.textContent = (st.relation.note ? st.relation.note + " · " : "") + "自 " + d;
+  } else hint.textContent = st.relation.note || "";
+
+  const map = {
+    acquaintance: [],
+    friends: [{ a: "confess", t: "💌 向 TA 表白" }],
+    close: [{ a: "confess", t: "💌 向 TA 表白" }],
+    confession: [{ a: "date", t: "💑 在一起" }, { a: "downgrade", t: "← 回退" }],
+    dating: [{ a: "propose", t: "💍 求婚" }, { a: "downgrade", t: "← 回退" }],
+    engaged: [{ a: "marry", t: "💒 结婚" }, { a: "downgrade", t: "← 回退" }],
+    married: [{ a: "want_child", t: "👶 想要孩子" }, { a: "break", t: "解除关系" }]
+  };
+  const btns = map[st.relation.stage] || [];
+  box.innerHTML = "";
+  btns.forEach(b => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = b.t;
+    btn.style.cssText = "border:1px solid rgba(139,139,255,.35);background:rgba(139,139,255,.10);color:#c9c9ff;border-radius:999px;padding:6px 12px;font-size:12px;cursor:pointer;";
+    btn.addEventListener("click", () => relationAction(b.a));
+    box.appendChild(btn);
+  });
+}
+
+async function relationAction(action) {
+  try {
+    const res = await api("/api/buddy/" + getCharId() + "/relation", {
+      method: "POST",
+      body: JSON.stringify({ action })
+    });
+    if (!res.success) throw new Error(res.error || "操作失败。");
+    companionState = res.state;
+    renderStateLine();
+    renderRelationUI();
+    toast(res.note || "关系已更新。");
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+async function loadCompanionState() {
+  try {
+    const res = await api("/api/buddy/" + getCharId() + "/state");
+    if (!res.success || !res.state) return;
+    companionState = res.state;
+    renderStateLine();
+    renderRelationUI();
+    // 主动找你：TA 曾给你留话
+    if (res.unread && res.unread.length) {
+      const last = res.unread[res.unread.length - 1];
+      const bar = document.createElement("div");
+      bar.className = "mem-bar";
+      bar.innerHTML = '<span class="dot" style="background:#ffd08a"></span> 💌 ' + escapeHtml(last.title) + '：' + escapeHtml(last.body);
+      $("chatInner").insertBefore(bar, $("chatInner").firstChild);
+      api("/api/companion/inbox/read", { method: "POST", body: JSON.stringify({ ids: res.unread.map(u => u.id) }) }).catch(() => {});
+    }
+  } catch (e) {
+    // 状态加载失败不影响聊天
+  }
 }
 
 let saveTimer = null;
@@ -1200,6 +1300,10 @@ async function sendMessage() {
       currentIntimacy = res.intimacy;
       updateSettingsUI();
     }
+    if (res.emotion && companionState) {
+      companionState.emotion = res.emotion;
+      renderStateLine();
+    }
     if (res.memories_count !== undefined) {
       const bar = document.querySelector(".mem-bar");
       if (bar) {
@@ -1382,6 +1486,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (isOwner) {
     await loadMessages();
+    loadCompanionState(); // fire-and-forget：情绪/关系/家庭 + TA 主动留话
   } else {
     await loadVisitorCharacter();
   }

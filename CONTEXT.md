@@ -37,6 +37,17 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **生命世界 = 故事孵化器**（2026-08-21 拍板）：AI 让世界自主产生可导出的连续故事；世界状态由系统自动维护（`world_json.state`），用户不设置；目标导出：小说 / Ren'Py / 分镜 / 游戏。详见下方「生命世界·故事孵化器」。
 - **前端架构**：编解码全浏览器本地 WASM、无构建步骤、图片不上传服务器（隐私卖点）；iframe + postMessage = 外部构建产物接入标准；入口划分：无限=工具类（workspace）、幻想=制作类（fantasy）
 
+## Companion 层（数字生命·一对一，Batch 5 完成）
+
+> 三层架构：Companion 层「NPC 怎么活」/ World 层「世界怎么活」/ Director 层「接下来发生什么」。用户定案：**Companion 层是核心，World 服务于 Companion**。原则与 World Engine 一致：**引擎确定性落账，LLM 只演绎，不维护状态**。
+
+- **状态挂载**：全部挂在 `characters.companion_state`（JSON，无 migration 前置依赖）+ `companion_inbox` 表（主动找你）。引擎 = `src/companion.js`（情绪/关系/家庭/里程碑规则，纯函数可单测）。
+- **情绪**：20 个白名单标签 + 中文关键词规则确定性落账；现实时间衰减（每天 -1 强度，掉 0 归「平静」），读时惰性计算。
+- **关系**：acquaintance→friends（亲密≥10 自动）→close（≥30 自动）→confession/dating/engaged/married（手动确认，manual 优先引擎不再自动动）。API：`POST /api/buddy/:id/relation`。
+- **家庭**：婚后「想要孩子」→2 天怀孕→再 3 天出生（`advanceFamilyState` 惰性推进）；孩子=characters 新行（`parent_id` 标记，FNV-1a 确定性取名），可与孩子聊天。
+- **主动找你**：亲密里程碑 10/30/50/70/90（chat 落账即时生成）/ 3 天未聊想念 / 关系纪念日 7·30·100·365 天（读取时惰性生成）。API：`GET /api/companion/inbox`、`POST /api/companion/inbox/read`。
+- 前端：buddy.html 情绪/关系状态行 + 设置面板「你们的关系」按钮组 + 未读留言条；hub.html 角色卡片情绪 chip/关系 chip/💌 角标。
+
 ## 生命世界·故事孵化器（当前核心）
 
 > 最高目标：**你创造世界，AI 让世界发生故事。** 故事链：世界 → 故事 → 小说 / 视觉小说(Ren'Py) / 分镜 / 游戏。四象限：幻想 → 生命 → 无限 → 彼岸。
@@ -76,16 +87,17 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 ## 最近已完成（2026-08-23）
 
-- **World Engine 知识边界 + NPC 日程/场景填充（Batch 4.6）**：`state.knowledge[]`（witness 戳）+ `state.schedules/ambient`（确定性种子日程+背景填充）；`buildStoryBeatPrompt` 注入信息边界块。无 migration。详见上方「生命世界·故事孵化器」与 docs/history.md。
+- **★ Companion Engine（数字生命「一对一」层，Batch 5，2026-08-23）**：情绪状态机（20 标签 + 关键词规则确定性落账 + 现实时间衰减）+ 主动找你 inbox（亲密里程碑 10/30/50/70/90 / 3 天未聊想念 / 关系纪念日 7·30·100·365 天）+ 恋爱/结婚/家庭生命周期（表白→在一起→求婚→结婚，用户手动拍板 manual 优先；婚后「想要孩子」→2 天后怀孕→再 3 天孩子出生，孩子=characters 新行 parent_id 标记可与 TA 聊天）。全部状态挂 `characters.companion_state`（JSON），`src/companion.js` 引擎确定性落账，LLM 只演绎。详见 docs/history.md「Companion Engine」。
+- **World Engine 知识边界 + NPC 日程/场景填充（Batch 4.6）**：`state.knowledge[]`（witness 戳）+ `state.schedules/ambient`（确定性种子日程+背景填充）；`buildStoryBeatPrompt` 注入信息边界块。无 migration。详见 docs/history.md。
 
 - **首页主 logo 放大 + 间距优化**：`public/index.html` `.world-logo-main img` 桌面 96px→**160px**→**800px**、移动 72px→**120px**→**600px**（`logo.png` 主 logo，`logo1.png` 左上角未动，`max-width:88vw` 防溢出）；随后上下间距拉开：logo `top:4%`（移 3.5%）、上入口 fantasy `top:28%`（移 26%）、下入口 life `bottom:28%`（移 27%）。已 commit `12f2939`，CI 部署后线上生效。详见 docs/history.md。
 - **用户主页分享链路限定在主页（`3533a94`）**：规则=游客在用户主页无论怎么操作都留在主页，仅点 LOGO 可回主站。改动：`buddy.html` 分享链接/游客登录提示携带 `?from=/@…`；`share.html` 识别 `from`，「与 TA 相遇」带回 from，「创造我的」/header/错误页按钮改为返回主页；`yonder-home.html` 门禁下 LOGO 可见可点（header z 100→810 高于 gate 800），移除门禁非 LOGO 的「返回首页」。详见 docs/history.md。
 
 ## 当前待办
 
-- **★ Batch 4 一键导出**（见上，未开工）
+- **Batch 4 一键导出**：用户 2026-08-23 明确「不做」（Companion 层三项已另行完成）
 - **收费作品支付（二维码收单）**：数据/徽章层已就绪（pricing/price 列），支付渠道未实现；用户拍板暂不开通，待主动提出再推进
-- **观察期/暂缓**（用户主动提出再推进）：情绪/场景路由 Agent、RAG 知识库（embedding 可换 `@cf/baai/bge-base-zh-v1.5` 但需重建索引）；QLoRA 微调（需另起 GPU 推理栈）；世界消息清洗/归档；TTS/Live2D/VN 编辑器（自研 VN 编辑器 = 必做项，Ren'Py 替代）；音乐工作室 / 视频剪辑升级 / 图像超分
+- **观察期/暂缓**（用户主动提出再推进）：情绪/场景路由 Agent（注：Companion 情绪状态机已完成，路由 Agent 仍暂缓）；RAG 知识库（embedding 可换 `@cf/baai/bge-base-zh-v1.5` 但需重建索引）；QLoRA 微调（需另起 GPU 推理栈）；世界消息清洗/归档；TTS/Live2D/VN 编辑器（自研 VN 编辑器 = 必做项，Ren'Py 替代）；音乐工作室 / 视频剪辑升级 / 图像超分
 - 历史需求细节与完成记录：`docs/history.md`
 
 ## 常用命令

@@ -445,4 +445,30 @@ state: {
 
 **新约定**：改完直接 commit + push main（CI 自动部署），线上不行再改；验证相关命令仅作备用（见 CONTEXT.md「常用命令」）。CONTEXT.md「会话工作约定」第 4 条已同步更新为「不做验证」。
 
+## Companion Engine：情绪状态机 + 主动找你 + 恋爱/结婚/家庭生命周期（2026-08-23）
+
+**背景**：用户给出三层架构对照（Companion 层「NPC 怎么活」/ World 层「世界怎么活」/ Director 层「接下来发生什么」），并指出 Companion 层是 HYOOL 的核心但最薄。指示：「除了 Batch 4（一键导出）不做，其他都完善完成」。本轮把 Companion 层三块全部落地，沿用 World Engine 同一原则：**引擎确定性落账，LLM 只演绎，不维护状态**。
+
+**改动**（6 文件，+~490 行；正式迁移 1 文件）：
+
+1. 新增 `src/companion.js`（Companion Engine）：
+   - **情绪状态机**：20 个白名单标签 + 中文关键词规则 → `applyEmotionToMessage` 确定性落账（不依赖 LLM 结构化输出）；读时按现实时间衰减（每天 -1 强度，掉到 0 归「平静」）；`emotionAt` 惰性计算。
+   - **关系状态机**：acquaintance → friends（亲密≥10 自动）→ close（≥30 自动）→ confession/dating/engaged/married（`applyRelationAction` 手动确认，用户拍板 manual 优先，引擎不再自动动；支持回退/解除）。
+   - **家庭生命周期**：结婚后「想要孩子」→ 2 天后确认怀孕 → 再 3 天孩子出生（`advanceFamilyState` 惰性推进，读时执行）；孩子 = characters 新行（parent_id 标记，FNV-1a 确定性取名），可与孩子聊天（复用 buddy 链路）。
+   - **主动找你 inbox**：里程碑（亲密跨 10/30/50/70/90，chat 落账即时生成）、想念（3 天未聊 + 亲密≥10，读取时惰性生成）、纪念日（关系 since 命中 7/30/100/365 天）。
+   - `buildCompanionPromptBlock`：情绪/关系/家庭注入 system prompt（LLM 只按状态演绎）。
+2. `src/ai/gateway.js`：`chatWithCharacter`/`callChatModel`/`mockChat` 透传 `companionState`；`buildBuddySystemPrompt` 在「话题边界」后注入「# 你的状态」块。
+3. `src/mvp.js`：
+   - `ensureCompanionColumns`（幂等补列/建表，兜底远程迁移；正式迁移 `schema/migrate_companion.sql`：`characters.companion_state` + `characters.parent_id` + `companion_inbox` 表 + 索引）。
+   - chat 路由：加载状态 → 落账情绪 + 关系自动升温 + 家庭惰性推进 → 里程碑/孩子 inbox 同批 INSERT → 响应带 `emotion/relation/family`。
+   - 新 API：`GET /api/buddy/:id/state`（状态 + 该角色未读留言）、`POST /api/buddy/:id/relation`（手动推进，仅 owner）、`GET /api/companion/inbox`（惰性生成 + 未读列表）、`POST /api/companion/inbox/read`。
+   - `formatCharacter` 附 `emotion_label` / `relation_label` / `parent_id`；`maybeGenerateLazyInbox` 读取时按规则落账想念/纪念日。
+4. `public/buddy.html`：header 下方「情绪 · 关系 · 家庭」状态行；设置面板新增「你们的关系」区（表白/在一起/求婚/结婚/想要孩子/回退/解除按钮，按阶段动态显示）；进入聊天时若有未读留言，聊天区顶部展示「💌 TA 曾主动找你」条并自动标记已读；chat 响应即时刷新情绪。
+5. `public/hub.html`：角色卡片新增情绪 chip（开心/难过…）、关系 chip（热恋/已结婚…）、💌 未读留言角标（加载后拉 `/api/companion/inbox` 按 character_id 计数）。
+
+**验证**：35 条逻辑单测全过（临时 `.wrangler/_test_companion.mjs`，覆盖情绪关键词/衰减/关系链/家庭时间线/里程碑/纪念日/prompt 注入，测完已删）；三个后端文件 node --check exit=0；两个前端 HTML 提取 script 语法检查通过；`wrangler deploy --dry-run` 通过（302 KiB，绑定正常）。commit + push main（CI 自动部署），线上效果待用户确认。
+
+**待办状态**：Batch 4 一键导出按用户指示**不做**；「情绪/场景路由 Agent」中情绪状态机已完成，路由 Agent 仍观察期。
+
+
 

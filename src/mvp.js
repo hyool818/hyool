@@ -19,6 +19,21 @@
 } from "./ai/gateway.js";
 import { listModelInfos } from "./ai/models.js";
 import { TTS_VOICES } from "./tts.js";
+import {
+    loadCompanionState,
+    emotionAt,
+    applyEmotionToMessage,
+    autoAdvanceRelation,
+    applyRelationAction,
+    advanceFamilyState,
+    buildMilestoneInbox,
+    buildMissInbox,
+    buildAnniversaryInbox,
+    buildChildInbox,
+    milestoneTriggered,
+    anniversaryDaysSince,
+    RELATION_LABEL
+} from "./companion.js";
 
 // 所有可用语音 id（创建/保存角色时校验 voice）
 const KNOWN_VOICE_IDS = new Set(TTS_VOICES.map(v => v.id));
@@ -32,6 +47,28 @@ async function ensureMonetizationColumns(env) {
     await env.DB.prepare("ALTER TABLE worlds ADD COLUMN pricing TEXT DEFAULT 'free'").run().catch(() => {});
     await env.DB.prepare("ALTER TABLE worlds ADD COLUMN price INTEGER DEFAULT 0").run().catch(() => {});
     monetizationEnsured = true;
+}
+
+// Companion Engine 列/表：首次请求自动补（幂等；正式迁移见 schema/migrate_companion.sql）
+let companionEnsured = false;
+async function ensureCompanionColumns(env) {
+    if (companionEnsured) return;
+    await env.DB.prepare("ALTER TABLE characters ADD COLUMN companion_state TEXT NOT NULL DEFAULT '{}'").run().catch(() => {});
+    await env.DB.prepare("ALTER TABLE characters ADD COLUMN parent_id TEXT NOT NULL DEFAULT ''").run().catch(() => {});
+    await env.DB.prepare(
+        `CREATE TABLE IF NOT EXISTS companion_inbox (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            character_id TEXT NOT NULL,
+            kind TEXT NOT NULL DEFAULT '',
+            title TEXT NOT NULL DEFAULT '',
+            body TEXT NOT NULL DEFAULT '',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            read_at TEXT
+        )`
+    ).run().catch(() => {});
+    await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_companion_inbox_user ON companion_inbox(user_id, read_at)").run().catch(() => {});
+    companionEnsured = true;
 }
 
 // voice id → 性别（用于“角色性别明确时，声音严格对应性别”）
@@ -70,6 +107,8 @@ export async function handleMvpRoutes(
 
     // 收费/免费作品列自动补列（首次请求）
     await ensureMonetizationColumns(env).catch(() => {});
+    // Companion Engine 列/表自动补（首次请求）
+    await ensureCompanionColumns(env).catch(() => {});
 
     /* ----- HTML routes ----- */
 
@@ -2166,6 +2205,9 @@ export async function handleMvpRoutes(
                 ? character.intimacy
                 : (parseInt(character.intimacy, 10) || 0);
 
+            // Companion Engine：加载情绪/关系/家庭状态
+            const companionState = loadCompanionState(character);
+
             const aiResult = await chatWithCharacter(
                 {
                     character,
@@ -2174,7 +2216,8 @@ export async function handleMvpRoutes(
                     userMessage: aiUserMessage,
                     intimacy,
                     chatConfig,
-                    userName: user.username
+                    userName: user.username,
+                    companionState
                 },
                 env
             );
@@ -2182,6 +2225,22 @@ export async function handleMvpRoutes(
             const userMsgId = "msg_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
             const assistantMsgId = "msg_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
             const newIntimacy = intimacy + 1;
+
+            // ---- Companion Engine：情绪落账 + 关系自动升温 + 家庭时间推进（惰性）----
+            companionState.emotion = applyEmotionToMessage(companionState, aiUserMessage);
+            companionState.relation = autoAdvanceRelation(companionState, newIntimacy);
+            const familyEvents = await advanceFamilyState(env, { character, ownerId: user.id, state: companionState });
+            const companionStateJson = JSON.stringify(companionState);
+
+            // 主动找你：亲密里程碑跨过 / 孩子出生 → 生成 inbox 条目
+            const inboxItems = [];
+            for (const t of milestoneTriggered(intimacy, newIntimacy)) {
+                inboxItems.push(buildMilestoneInbox(character, t));
+            }
+            if (familyEvents.includes("child")) {
+                const child = companionState.family.children[companionState.family.children.length - 1];
+                inboxItems.push(buildChildInbox(character, child));
+            }
 
             await env.DB.batch([
                 env.DB.prepare(
@@ -2194,8 +2253,18 @@ export async function handleMvpRoutes(
                     "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?"
                 ).bind(conversation.id),
                 env.DB.prepare(
-                    "UPDATE characters SET intimacy = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                ).bind(newIntimacy, characterId)
+                    "UPDATE characters SET intimacy = ?, companion_state = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+                ).bind(newIntimacy, companionStateJson, characterId),
+                ...inboxItems.map(item => env.DB.prepare(
+                    "INSERT INTO companion_inbox (id, user_id, character_id, kind, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+                ).bind(
+                    "inb_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                    user.id,
+                    characterId,
+                    item.kind,
+                    item.title,
+                    item.body
+                ))
             ]);
 
             if (aiResult.memory_note) {
@@ -2235,6 +2304,9 @@ export async function handleMvpRoutes(
                 },
                 memories_count: memCount?.cnt || 0,
                 intimacy: newIntimacy,
+                emotion: { label: companionState.emotion.label, intensity: companionState.emotion.intensity },
+                relation: { stage: companionState.relation.stage, label: RELATION_LABEL[companionState.relation.stage] },
+                family: companionState.family,
                 ai_mode: env.AI ? "workers-ai" : "mock"
             });
 
@@ -2245,6 +2317,167 @@ export async function handleMvpRoutes(
                 success: false,
                 error: "对话失败，请稍后再试。"
             }, 500);
+        }
+    }
+
+    /* ----- Companion Engine：角色状态（情绪/关系/家庭）----- */
+
+    const companionStateMatch = pathname.match(
+        /^\/api\/buddy\/(char_[a-z0-9]+)\/state$/
+    );
+
+    if (companionStateMatch && method === "GET") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const character = await getCharacterById(env, companionStateMatch[1]);
+            if (!character) {
+                return json({ success: false, error: "角色不存在。" }, 404);
+            }
+
+            const state = loadCompanionState(character);
+            // 惰性推进家庭时间线（想要孩子 → 怀孕 → 孩子出生）
+            const familyEvents = await advanceFamilyState(env, { character, ownerId: character.owner_id, state });
+            if (familyEvents.length) {
+                await saveCompanionState(env, character.id, state);
+                if (familyEvents.includes("child")) {
+                    const child = state.family.children[state.family.children.length - 1];
+                    const inbox = buildChildInbox(character, child);
+                    await env.DB.prepare(
+                        "INSERT INTO companion_inbox (id, user_id, character_id, kind, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+                    ).bind(
+                        "inb_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                        user.id,
+                        character.id,
+                        inbox.kind,
+                        inbox.title,
+                        inbox.body
+                    ).run();
+                }
+            }
+
+            const unread = await env.DB.prepare(
+                `SELECT id, kind, title, body, created_at FROM companion_inbox
+                 WHERE user_id = ? AND character_id = ? AND read_at IS NULL
+                 ORDER BY created_at DESC LIMIT 10`
+            ).bind(user.id, character.id).all();
+
+            return json({
+                success: true,
+                state: publicCompanionState(state),
+                unread: unread.results || []
+            });
+        } catch (error) {
+            console.error("COMPANION STATE ERROR:", error);
+            return json({ success: false, error: "加载失败。" }, 500);
+        }
+    }
+
+    /* ----- Companion Engine：关系手动推进（表白/在一起/求婚/结婚/要孩子/回退/解除）----- */
+
+    const relationMatch = pathname.match(
+        /^\/api\/buddy\/(char_[a-z0-9]+)\/relation$/
+    );
+
+    if (relationMatch && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const character = await getCharacterById(env, relationMatch[1]);
+            if (!character) {
+                return json({ success: false, error: "角色不存在。" }, 404);
+            }
+            if (character.owner_id !== user.id) {
+                return json({ success: false, error: "只有 TA 的主人才可以推进关系。" }, 403);
+            }
+
+            const body = await request.json();
+            const action = String(body.action || "");
+            const state = loadCompanionState(character);
+            const result = applyRelationAction(state, action);
+
+            if (result.error) {
+                return json({ success: false, error: result.error }, 400);
+            }
+
+            if (result.relation) state.relation = result.relation;
+            if (result.family !== undefined) {
+                state.family = action === "break" ? {} : { ...state.family, ...result.family };
+            }
+
+            await saveCompanionState(env, character.id, state);
+
+            return json({
+                success: true,
+                state: publicCompanionState(state),
+                note: result.note || ""
+            });
+        } catch (error) {
+            console.error("COMPANION RELATION ERROR:", error);
+            return json({ success: false, error: "操作失败，请稍后再试。" }, 500);
+        }
+    }
+
+    /* ----- Companion Engine：主动找你 inbox ----- */
+
+    if (pathname === "/api/companion/inbox" && method === "GET") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            // 惰性生成「想念」与「纪念日」（确定性规则，读取时落账）
+            await maybeGenerateLazyInbox(env, user);
+
+            const unread = await env.DB.prepare(
+                `SELECT id, character_id, kind, title, body, created_at FROM companion_inbox
+                 WHERE user_id = ? AND read_at IS NULL
+                 ORDER BY created_at DESC LIMIT 50`
+            ).bind(user.id).all();
+
+            const total = await env.DB.prepare(
+                `SELECT COUNT(*) as cnt FROM companion_inbox WHERE user_id = ? AND read_at IS NULL`
+            ).bind(user.id).first();
+
+            return json({
+                success: true,
+                unread: unread.results || [],
+                unread_count: total?.cnt || 0
+            });
+        } catch (error) {
+            console.error("COMPANION INBOX ERROR:", error);
+            return json({ success: false, error: "加载失败。" }, 500);
+        }
+    }
+
+    if (pathname === "/api/companion/inbox/read" && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const body = await request.json();
+            const ids = Array.isArray(body.ids) ? body.ids.map(String).slice(0, 100) : [];
+            if (ids.length) {
+                const placeholders = ids.map(() => "?").join(",");
+                await env.DB.prepare(
+                    `UPDATE companion_inbox SET read_at = CURRENT_TIMESTAMP
+                     WHERE user_id = ? AND id IN (${placeholders}) AND read_at IS NULL`
+                ).bind(user.id, ...ids).run();
+            }
+
+            return json({ success: true });
+        } catch (error) {
+            console.error("COMPANION INBOX READ ERROR:", error);
+            return json({ success: false, error: "操作失败。" }, 500);
         }
     }
 
@@ -2383,6 +2616,94 @@ async function getCharacterById(env, id) {
     ).bind(id).first();
 }
 
+/* ---- Companion Engine helpers ---- */
+
+function publicCompanionState(state) {
+    const emo = emotionAt(state);
+    return {
+        emotion: emo,
+        relation: {
+            stage: state.relation.stage,
+            label: RELATION_LABEL[state.relation.stage] || "初识",
+            since: state.relation.since,
+            note: state.relation.note
+        },
+        family: state.family
+    };
+}
+
+async function saveCompanionState(env, characterId, state) {
+    await env.DB.prepare("UPDATE characters SET companion_state = ? WHERE id = ?")
+        .bind(JSON.stringify(state), characterId).run();
+}
+
+/**
+ * 主动找你的惰性生成（读取 inbox 时落账，确定性规则）：
+ *   1. 想念：角色与主人 >=3 天没聊 + 亲密度 >=10 + 7 天内未发过 miss
+ *   2. 纪念日：关系阶段 since 命中 7/30/100/365 天
+ */
+async function maybeGenerateLazyInbox(env, user) {
+    try {
+        const now = Date.now();
+        const chars = (await env.DB.prepare(
+            `SELECT id, name, intimacy, companion_state FROM characters WHERE owner_id = ?`
+        ).bind(user.id).all()).results || [];
+
+        if (!chars.length) return;
+
+        const convs = {};
+        for (const r of (await env.DB.prepare(
+            `SELECT character_id, MAX(updated_at) AS last_at FROM conversations WHERE user_id = ? GROUP BY character_id`
+        ).bind(user.id).all()).results || []) {
+            convs[r.character_id] = r.last_at;
+        }
+
+        const recentMiss = new Set((await env.DB.prepare(
+            `SELECT character_id FROM companion_inbox WHERE user_id = ? AND kind = 'miss' AND created_at >= datetime('now', '-7 days')`
+        ).bind(user.id).all()).results?.map(r => r.character_id) || []);
+        const recentAnniv = new Set((await env.DB.prepare(
+            `SELECT character_id FROM companion_inbox WHERE user_id = ? AND kind = 'anniversary' AND created_at >= datetime('now', '-2 days')`
+        ).bind(user.id).all()).results?.map(r => r.character_id) || []);
+
+        const inserts = [];
+        const mk = (c, item) => env.DB.prepare(
+            "INSERT INTO companion_inbox (id, user_id, character_id, kind, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+        ).bind(
+            "inb_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+            user.id,
+            c.id,
+            item.kind,
+            item.title,
+            item.body
+        );
+
+        for (const c of chars) {
+            const state = loadCompanionState(c);
+            const intimacy = Number(c.intimacy) || 0;
+
+            // 想念
+            if (intimacy >= 10 && !recentMiss.has(c.id)) {
+                const lastMs = convs[c.id] ? new Date(convs[c.id]).getTime() : 0;
+                if (Number.isFinite(lastMs) && lastMs > 0 && (now - lastMs) >= 3 * 86400000) {
+                    inserts.push(mk(c, buildMissInbox(c)));
+                }
+            }
+
+            // 纪念日
+            if (!recentAnniv.has(c.id) && state.relation.since) {
+                const days = anniversaryDaysSince(state.relation.since, now);
+                if (days !== null) {
+                    inserts.push(mk(c, buildAnniversaryInbox(c, days)));
+                }
+            }
+        }
+
+        if (inserts.length) await env.DB.batch(inserts);
+    } catch (e) {
+        console.error("LAZY INBOX ERROR:", e);
+    }
+}
+
 function formatCharacter(row) {
     if (!row) {
         return null;
@@ -2411,6 +2732,17 @@ function formatCharacter(row) {
         chat_config: (() => {
             try { return JSON.parse(row.chat_config || "{}"); } catch { return {}; }
         })(),
+        // Companion Engine：当前情绪标签 + 关系阶段标签（hub 卡片展示用）
+        emotion_label: (() => {
+            try { return emotionAt(loadCompanionState(row)).label; } catch { return "平静"; }
+        })(),
+        relation_label: (() => {
+            try {
+                const st = loadCompanionState(row);
+                return st.relation.stage === "acquaintance" ? "" : (RELATION_LABEL[st.relation.stage] || "");
+            } catch { return ""; }
+        })(),
+        parent_id: row.parent_id || "",
         created_at: row.created_at,
         updated_at: row.updated_at
     };

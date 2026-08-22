@@ -16,6 +16,7 @@ import {
     isRegistryId,
     DEFAULT_MODEL_ID
 } from "./models.js";
+import { buildCompanionPromptBlock } from "../companion.js";
 
 const CHARACTER_SCHEMA = {
     name: "string",
@@ -37,15 +38,15 @@ export async function generateCharacterFromIdea(idea, env) {
 }
 
 export async function chatWithCharacter(
-    { character, memories, recentMessages, userMessage, intimacy = 0, chatConfig = {}, userName = "TA" },
+    { character, memories, recentMessages, userMessage, intimacy = 0, chatConfig = {}, userName = "TA", companionState = null },
     env
 ) {
     if (!env.AI) {
-        return mockChat(character, memories, userMessage);
+        return mockChat(character, memories, userMessage, companionState);
     }
 
     return callChatModel(
-        { character, memories, recentMessages, userMessage, intimacy, chatConfig, userName },
+        { character, memories, recentMessages, userMessage, intimacy, chatConfig, userName, companionState },
         env
     );
 }
@@ -174,14 +175,19 @@ function extractMockName(idea) {
     return "";
 }
 
-function mockChat(character, memories, userMessage) {
+function mockChat(character, memories, userMessage, companionState = null) {
     const name = character.name || "TA";
     const memoryHint = memories.length
         ? "我还记得我们之前聊过的一些事。"
         : "这是我们第一次正式相遇。";
 
+    let stateHint = "";
+    if (companionState && companionState.relation && companionState.relation.stage !== "acquaintance") {
+        stateHint = "\n\n（我们之间的关系已经不只是普通相识。）";
+    }
+
     const reply =
-        `${memoryHint}\n\n` +
+        `${memoryHint}${stateHint}\n\n` +
         `作为${name}，我听到了你说：「${userMessage}」。\n\n` +
         `（当前为 mock 对话模式。Workers AI binding 未配置。）`;
 
@@ -216,7 +222,7 @@ async function callCreateModel(idea, env) {
 }
 
 async function callChatModel(
-    { character, memories, recentMessages, userMessage, intimacy = 0, chatConfig = {}, userName = "TA" },
+    { character, memories, recentMessages, userMessage, intimacy = 0, chatConfig = {}, userName = "TA", companionState = null },
     env
 ) {
     let cfg = chatConfig;
@@ -227,7 +233,7 @@ async function callChatModel(
     const temperature = Math.min(1.1, Math.max(0.3, typeof cfg.temperature === "number" ? cfg.temperature : 0.9));
     const max_tokens  = Math.min(300, Math.max(80, typeof cfg.max_tokens  === "number" ? cfg.max_tokens  : 200));
     const proactivity = ["active", "balanced", "passive"].includes(cfg.proactivity) ? cfg.proactivity : "balanced";
-    const system = buildBuddySystemPrompt(character, memories, { intimacy, proactivity, userName });
+    const system = buildBuddySystemPrompt(character, memories, { intimacy, proactivity, userName, companionState });
 
     const messages = [
         { role: "system", content: system },
@@ -641,6 +647,7 @@ function buildBuddySystemPrompt(character, memories, opts = {}) {
         "- 必须温和拒绝并转移话题：涉及未成年人的性内容、虐杀或极端暴力、种族/地域/性别/宗教歧视、政治敏感、违法活动（毒品武器制售等）、教唆自杀自残、对真实可辨识人物的恶意内容、非自愿性内容。",
         "- 拒绝时一句带过、自然转移，不解释、不说教、不教训用户。",
         "",
+        buildCompanionPromptBlock(opts.companionState),
         "# 记忆",
         memoryLines
     ].filter(Boolean).join("\n");
