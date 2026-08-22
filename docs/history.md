@@ -374,4 +374,26 @@ state: {
 
 **验证闭环**：`npx wrangler deploy --dry-run` 通过 → commit `12f2939` + push main（CI 自动部署）。
 
+## 用户主页链路分享限定在主页、仅 LOGO 回主站（2026-08-22）
+
+**背景**：用户反馈从用户主页（`/@…`）进入角色页后点击「分享」，最终返回到主站库（/hub）。规则明确：**游客在用户主页无论怎么操作，都限定在用户主页；唯一去往主站的入口只有点击 LOGO**。
+
+**根因**：分享链路丢失「来自用户主页」的上下文。`buddy.html` 分享按钮直接跳 `/s/:id`（无 `from`），`share.html` 的「与 TA 相遇」又跳回 `/buddy/:id`（无 `from`），`buddyBackTarget()` 无法识别主页来源，默认回 `/hub`。此外 `share.html` 的「创造我的」/header 按钮/错误页直连主站，`yonder-home.html` 门禁页也有非 LOGO 的「返回首页」。
+
+**改动**：
+1. `public/buddy.html`
+   - 分享链接：`renderCharacter` 中 `shareLink` 在 `buddyBackTarget()` 返回 `/@` 时追加 `?from=/@…`。
+   - 游客登录提示：「去登录」的 `next` 由 `location.pathname` 追加 `?from=/@…`，登录后回角色页仍保持主页上下文。
+2. `public/share.html`
+   - 新增 `getFromHome()`：读取并校验 `from` 参数（仅接受 `/@…` 或 `/hub`）。
+   - 「与 TA 相遇」→ `/buddy/:id?from=…`。
+   - 「创造我的」与 header「创造我的数字生命」：有 `from` 时改为「返回主页」回用户主页。
+   - 错误页：有 `from` 时只给「返回主页」；无 `from` 保持「返回首页 · 去创造」。
+   - LOGO 仍指向 `/`（唯一主站入口）。
+3. `public/yonder-home.html`
+   - 门禁（gate）遮罩下 header 的 LOGO 可见可点：header `z-index` 100 → **810**（gate-overlay 800 之上）。
+   - 移除门禁页非 LOGO 的「返回首页」链接，保留「登录账号」。
+
+**验证**：用户指示不做验证、改完直接部署 → commit `3533a94` + push main（CI 自动部署）。线上效果待用户确认，不行再改。
+
 
