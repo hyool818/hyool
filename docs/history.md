@@ -578,3 +578,13 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 **验证**：按用户约定不做验证；commit `a759424` + push main（CI 自动部署），线上效果待用户确认。
 
 
+## 创角页艺术风格动图尺寸放大（2026-08-23）
+
+**背景**：用户反馈风格动图「有点小」，要求「对标角色卡大小」。角色卡参考 = `create.html` 结果卡的 `.portrait`（`width:100%; aspect-ratio:3/4; max-height:520px`）。
+
+**改动**（2 个 HTML，纯 CSS/class，无 migration）：
+1. `create.html`：`.style-grid` 桌面 `repeat(4,1fr)` → **`repeat(2,1fr)`**、移动端（≤600px）`repeat(2,1fr)` → **`repeat(1,1fr)`**（单列）；`.style-card` padding `18px 8px 14px` → `12px 10px 14px`（大图减内边距）。动图 3:4 全宽，桌面单卡宽约 350px、高约 470px，接近角色立绘观感。
+2. `create-character.html`：`#step1Grid` 加 `style-grid` 类 → 新增 `.option-grid.style-grid { grid-template-columns: repeat(2,1fr) }`（桌面 2 列大卡，5 张卡 2+2+1）；移动端媒体查询追加 `.option-grid.style-grid { grid-template-columns: repeat(1,1fr) }`（单列）。
+
+**验证**：按用户约定不做验证；commit `58d72d4` + push main（CI 自动部署），线上效果待用户确认。
+
