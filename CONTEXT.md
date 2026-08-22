@@ -172,7 +172,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
    `.\check-home-fast.ps1 -OutFile .\test-out-home-fast.txt`
    13 断言（`@smokews` 页文案/href/区块存在 + 旧文案与已删标识缺失 + hub 向导标识），实测约 1.7s。注意：`.ps1` 含中文须保持 **UTF-8 BOM**（Windows PowerShell 5.1 按 ANSI 读无 BOM 文件会乱码报错）；改脚本请用 .NET ReadAllText/WriteAllText 保留 BOM，勿用编辑器直接覆盖。
 
-## 个人主页·公开作品大改造（2026-08-22 本会话已完成，待部署）
+## 个人主页·公开作品大改造（2026-08-22 本会话已完成，已部署 e0f3244）
 
 1. **公开作品游客可体验（无需注册）** —— ① 后端新增 `POST /api/guest`：自动创建游客 profile+session（`guest_<hex>`，展示名「游客」），返回 token 并写 cookie；② `GET /api/yonder/:username` 经 `buildYonderPayload()` 返回 `works{characters[],worlds[]}`（主人=全部，访客=公开：角色 `share_id` 非空、世界 `status='published'`）；③ 生命世界 `requireOwnedLifeWorld(id,{public:true})`：已发布世界对游客放行读（GET life / messages / story）与互动（tick / chat / threads / threads-meta），管理接口保持仅主人，游客发言名显示「游客」；④ `GET /api/worlds/:id` 已发布世界对游客可读（game/mixed 工坊页打通）；⑤ `buddy.html`/`world.html` 无 token 时自动 `POST /api/guest`（存 `hyool_token` + `hyool_is_guest`），游客隐藏仅主人功能（沉淀剧本/设置/更换形象/世界后台/暂停/线程删除等），world 页按 `S.canManage`（对比 `world.owner_id` 与 `/api/me`）控制；`formatLifeWorld` 补 `owner_id`。hub 游客卡也直达 `/buddy/:id`。
 2. **底部导航只留「编辑彼岸」** —— `yonder-home.html` 底栏删除 角色工坊/返回幻灵 两个链接，仅剩 `navEditBtn`；非主人不显示底栏。
@@ -180,7 +180,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 4. **主页点世界直接进入** —— 世界卡 `href` 改为 `worldPlayUrl()`：life→`/world?world=`、game/mixed→`/game-workshop?world=`，不再弹详情卡二次选择；story/vn 无入口时回退 `/hub?world=`。
 5. **无限模块 → 自定义模块区** —— 删除 `infiniteSection` 与「无限」开关；`yonder_settings` 新增 `modules` 列（JSON `[{id,name,content}]`，迁移 `schema/migrate_yonder_modules.sql`）；编辑器新增「自定义模块区」（`＋ 添加模块`，名字/内容可改可删，最多 20 个），主页 `renderModules()` 按序渲染为独立区块；保存走 `/api/yonder/settings`（含列兜底 ALTER）。
 6. **收费 / 免费作品（暂不开通支付）** —— `characters`/`worlds` 新增 `pricing`('free'|'paid') + `price`(元) 列（迁移 `schema/migrate_monetization.sql`；`mvp.js ensureMonetizationColumns()` 与 index.js 均带幂等补列兜底）；hub 角色编辑弹窗与世界详情弹窗可设 免费/收费+价格（PATCH `/api/worlds/:id` 与 `/api/characters/:id/update` 支持）；角色/世界卡与主页卡显示 `免费` / `¥xx 收费` 徽章；**支付未开通，收费作品暂可直接体验**。二维码支付 → 待办（见「待办状态」）。
-7. **验证**：`node --check` 通过；`wrangler deploy --dry-run` 通过；`home-check.html` 扩至 22 断言（底栏只留编辑彼岸/无无限/自定义模块区增删改名/我的彼岸 h1），`check-home-fast.ps1` 扩至 21 项，`workshop-smoke-check` Part E 改为断言直达 href，`hub-check` h1 改「我的彼岸」。
+7. **验证（线上全绿）**：`check-home-fast.ps1` 20/20；`home-check.html` 22/22 SMOKE-OK；`hub-check.html` 37/37 SMOKE-OK；端到端游客验证（一次性 `works-guest-check.html`，已删）15/15 SMOKE-OK——游客打开 /@smokews 可见角色+世界公开预览卡、角色卡直达 /buddy/、世界卡直达 /world?world=、游客直接进世界页可发言、底栏/编辑按钮/创造入口对游客隐藏，测试数据自清理。`workshop-smoke-check` 因线上缺少夹具数据（W1/W2/CHAR1 需先种到 smokews 名下）无法跑，其改动的 Part E（世界卡直达 href）已由游客端到端验证覆盖。修复两处：主人 0 角色时创造卡被空态覆盖（03b369d）、hub-check iframe load 竞态（abd1a90）。
 
 ## 验证记录
 
