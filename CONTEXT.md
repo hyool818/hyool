@@ -61,7 +61,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 ## 最近已完成（2026-08-22）
 
-- **主站首页补 logo**：`public/index.html` 新增 `.world-logo-main` 元素，`logo.png` 置于四个世界入口（幻想/彼岸/无限/生命）上方、顶部居中（桌面 96px / 移动 72px，随 `#world.show` 淡入），**左上角原有 `logo1.png` 未动**。已部署 + 线上验证（首页 HTTP 200 含 `src="./logo.png"`，logo.png 可访问）。一并收尾提交了上一会话遗留的首页重构批次（PAGE 1 入口移除、buddy/world 返回按钮 `?from=/@…` 回退逻辑、各页 logo 链接 `/?entered=1`→`/`）。详见 docs/history.md。
+- **首页主 logo 放大**：`public/index.html` `.world-logo-main img` 桌面 96px→**160px**、移动 72px→**120px**（`logo.png` 为主 logo，`logo1.png` 左上角未动）。已 commit `d012362`，CI 部署后线上生效。详见 docs/history.md。
 
 ## 当前待办
 

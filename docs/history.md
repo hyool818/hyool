@@ -334,4 +334,17 @@ state: {
 
 **验证闭环**：`npx wrangler deploy --dry-run` 通过（236 文件 / 257.20 KiB）→ commit + push main（`4b873f6`，CI 自动部署）→ 线上验证：`hyool.w910227a.workers.dev/` HTTP 200 且含 `world-logo-main` + `src="./logo.png"`，原 `src="./logo1.png"` 仍在；`/logo.png` HTTP 200。
 
+---
+
+## 首页主 logo 尺寸放大（2026-08-22）
+
+**背景**：用户反馈首页主 logo（`logo.png`，`.world-logo-main`）太小，要求放大。明确指示：**不要对比/扫描图片差异，直接更换尺寸**；`logo1.png`（左上角小 logo）不修改。
+
+**改动（`public/index.html`，仅 CSS 两处）**：
+1. `.world-logo-main img` 桌面宽度：`96px` → **`160px`**（`height:auto` 保持比例不变）。
+2. `@media(max-width:700px)` 下 `.world-logo-main img`：`72px` → **`120px`**。
+3. 未改 HTML 结构、未动 `.world-logo`（logo1.png）及任何其他文件。
+
+**验证闭环**：`npx wrangler deploy --dry-run` 通过（D1/Vectorize/AI/ASSETS 绑定正常）→ commit `d012362` + push main（CI 自动部署）。纯 CSS 尺寸改动，未跑浏览器冒烟（用户判定无必要）。
+
 
