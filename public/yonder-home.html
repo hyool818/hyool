@@ -4409,9 +4409,19 @@ loadYonder();
 
 let inviteCodes = [];
 
+/* 统一鉴权头：从 localStorage 取 token（与页面其它请求一致） */
+function authHeaders() {
+    const h = {};
+    const t = localStorage.getItem("hyool_token");
+    if (t) h["Authorization"] = "Bearer " + t;
+    return h;
+}
+
 async function loadInviteCodes() {
     try {
-        const response = await fetch('/api/invite-codes');
+        const response = await fetch('/api/invite-codes', {
+            headers: authHeaders()
+        });
         const data = await response.json();
         
         if (data.success) {
@@ -4460,7 +4470,8 @@ async function generateInviteCode() {
         const response = await fetch('/api/invite-codes', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                ...authHeaders()
             },
             body: JSON.stringify({
                 max_uses: maxUses ? parseInt(maxUses) : null,
@@ -4485,7 +4496,8 @@ async function generateInviteCode() {
 async function toggleInviteCode(code) {
     try {
         const response = await fetch(`/api/invite-codes/${code}/toggle`, {
-            method: 'POST'
+            method: 'POST',
+            headers: authHeaders()
         });
         
         const data = await response.json();
@@ -4508,7 +4520,8 @@ async function deleteInviteCode(code) {
     
     try {
         const response = await fetch(`/api/invite-codes/${code}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: authHeaders()
         });
         
         const data = await response.json();
@@ -4527,7 +4540,10 @@ async function deleteInviteCode(code) {
 // Check if user is admin (333123) and show invite code section
 async function checkAdminAccess() {
     try {
-        const response = await fetch('/api/me');
+        const response = await fetch('/api/me', {
+            cache: 'no-store',
+            headers: authHeaders()
+        });
         const data = await response.json();
         
         if (data.authenticated && data.user.username === '333123') {
