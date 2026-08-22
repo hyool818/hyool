@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>HOME-SMOKE</title>
+</head>
+<body>
+<pre id="results">RUNNING…</pre>
+<iframe id="fa" src="about:blank" style="width:1280px;height:800px;border:1px solid #333"></iframe>
+<script>
+/* 个人主页优化冒烟（b097992 之后）：
+   - @smokews 登录态（0 世界 0 角色）：角色库/世界库标题、创造角色/创造世界卡片、
+     世界库登录态始终显示、无「记录」区块/统计容器/数字生命文案
+   - /hub?create=world 直达自定义世界向导（5 步，第 1 步激活） */
+const results = [];
+function line(s){ results.push(s); document.getElementById('results').textContent = results.join('\n'); }
+function ok(cond, name, extra=''){ line((cond?'PASS':'FAIL')+'  '+name+(extra?'  '+extra:'')); }
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+function waitFor(fn, timeout, what){
+  return new Promise((resolve, reject) => {
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      let v = null;
+      try { v = fn(); } catch(e) {}
+      if (v) { clearInterval(iv); resolve(v); }
+      else if (Date.now() - t0 > timeout) { clearInterval(iv); reject(new Error('timeout: ' + what)); }
+    }, 150);
+  });
+}
+
+function loadIframe(src){
+  return new Promise((res, rej) => {
+    const f = document.getElementById('fa');
+    const to = setTimeout(() => rej(new Error('iframe load timeout: ' + src)), 45000);
+    f.addEventListener('load', () => { clearTimeout(to); res(); }, { once: true });
+    f.src = src;
+  });
+}
+
+let token = '';
+async function login(){
+  let r = await fetch('/api/login', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username:'smokews', password:'testpass123' }) });
+  let d = await r.json();
+  if (!d.success) {
+    r = await fetch('/api/register', { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username:'smokews', password:'testpass123', display_name:'Smoke User', invite_code:'HUBTEST2026' }) });
+    d = await r.json();
+  }
+  if (!d.success) throw new Error('login failed: ' + (d.error || r.status));
+  token = d.token || '';
+  localStorage.setItem('hyool_token', token);
+  return d;
+}
+
+// 仅统计可见文本（跳过 script/style/隐藏元素），避免源码注释等误报
+function visibleText(doc){
+  let out = '';
+  const walk = (n) => {
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) { out += c.textContent; continue; }
+      if (c.nodeType !== 1) continue;
+      const tag = c.tagName.toLowerCase();
+      if (tag === 'script' || tag === 'style' || tag === 'noscript' || tag === 'template') continue;
+      const st = c.ownerDocument.defaultView.getComputedStyle(c);
+      if (st.display === 'none' || st.visibility === 'hidden' || c.hidden) continue;
+      walk(c);
+    }
+  };
+  walk(doc.body);
+  return out;
+}
+
+/* ================= Part A: @smokews 登录态主页（0 世界 0 角色） ================= */
+async function partA(){
+  await loadIframe('/@smokews?v=' + Date.now());
+  const f = document.getElementById('fa');
+  const doc = await waitFor(() => {
+    const d = f.contentDocument;
+    return (d.getElementById('worldGrid') && d.querySelector('#worldGrid a.create-card')) ? d : null;
+  }, 30000, 'yonder-home owner render (world create-card)');
+  const q = (s) => doc.querySelector(s);
+  const g = (id) => doc.getElementById(id);
+  const h2 = (id) => { const el = g(id); return el ? (el.querySelector('h2') || {}).textContent : null; };
+
+  ok((h2('worksSection') || '').trim() === '角色库', 'A: 区块标题「角色库」', h2('worksSection'));
+  ok((h2('worldsSection') || '').trim() === '世界库', 'A: 区块标题「世界库」', h2('worldsSection'));
+  ok(g('worldsSection') && doc.defaultView.getComputedStyle(g('worldsSection')).display !== 'none', 'A: 登录态 0 世界也显示世界库区块');
+
+  const charCreate = q('#charGrid a.create-card');
+  const worldCreate = q('#worldGrid a.create-card');
+  ok(!!charCreate && charCreate.getAttribute('href') === '/create/character/' && charCreate.textContent.includes('创造角色'),
+     'A: 角色库「创造角色」卡片', charCreate ? (charCreate.getAttribute('href') + ' | ' + charCreate.textContent.trim()) : '(无)');
+  ok(!!worldCreate && worldCreate.getAttribute('href') === '/hub?create=world' && worldCreate.textContent.includes('创造世界'),
+     'A: 世界库「创造世界」卡片', worldCreate ? (worldCreate.getAttribute('href') + ' | ' + worldCreate.textContent.trim()) : '(无)');
+  ok(g('worldGrid').querySelectorAll('.world-card').length === 0, 'A: 无世界卡片（smokews 名下 0 世界）', g('worldGrid').querySelectorAll('.world-card').length + ' 张');
+
+  ok(!g('postsSection') && !g('posts'), 'A: 「记录」区块已移除');
+  ok(!g('statsContainer'), 'A: 统计容器已移除');
+
+  const vt = visibleText(doc);
+  ok(!vt.includes('记录'), 'A: 可见文案无「记录」');
+  ok(!vt.includes('数字生命'), 'A: 可见文案无「数字生命」');
+  ok(vt.includes('Smoke User') || vt.includes('smokews'), 'A: 主页渲染 smokews 信息');
+}
+
+/* ================= Part B: /hub?create=world 直达自定义世界向导 ================= */
+async function partB(){
+  await loadIframe('/hub?create=world&v=' + Date.now());
+  const f = document.getElementById('fa');
+  const doc = await waitFor(() => {
+    const d = f.contentDocument;
+    const m = d.getElementById('wizardModal');
+    return (m && m.classList.contains('show')) ? d : null;
+  }, 30000, 'hub wizard modal shown');
+  const dots = doc.querySelectorAll('#wizardSteps .wizard-step-dot');
+  const step1 = doc.querySelector('.wstep.active[data-wstep="1"]');
+  ok(true, 'B: 直达自定义世界向导弹窗', '?create=world');
+  ok(dots.length === 5, 'B: 向导 5 步圆点', dots.length + ' 步');
+  ok(!!step1, 'B: 第 1 步激活（题材）', step1 ? (step1.querySelector('.wstep-title') || {}).textContent : '(无)');
+}
+
+(async function main(){
+  try {
+    await login();
+    ok(!!token, '登录 smokews');
+    await partA();
+    await partB();
+    const fails = results.filter(r => r.startsWith('FAIL')).length;
+    document.title = fails ? 'SMOKE-FAIL' : 'SMOKE-OK';
+    line('==== 冒烟结果: ' + (fails ? '失败 ' + fails + ' 项' : '全部通过') + ' ====');
+  } catch (e) {
+    line('FATAL: ' + e.message);
+    document.title = 'SMOKE-FAIL';
+  }
+})();
+</script>
+</body>
+</html>
