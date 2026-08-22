@@ -23,6 +23,17 @@ import { TTS_VOICES } from "./tts.js";
 // 所有可用语音 id（创建/保存角色时校验 voice）
 const KNOWN_VOICE_IDS = new Set(TTS_VOICES.map(v => v.id));
 
+// 收费/免费作品列：首次请求自动补列（幂等；正式迁移见 schema/migrate_monetization.sql）
+let monetizationEnsured = false;
+async function ensureMonetizationColumns(env) {
+    if (monetizationEnsured) return;
+    await env.DB.prepare("ALTER TABLE characters ADD COLUMN pricing TEXT DEFAULT 'free'").run().catch(() => {});
+    await env.DB.prepare("ALTER TABLE characters ADD COLUMN price INTEGER DEFAULT 0").run().catch(() => {});
+    await env.DB.prepare("ALTER TABLE worlds ADD COLUMN pricing TEXT DEFAULT 'free'").run().catch(() => {});
+    await env.DB.prepare("ALTER TABLE worlds ADD COLUMN price INTEGER DEFAULT 0").run().catch(() => {});
+    monetizationEnsured = true;
+}
+
 // voice id → 性别（用于“角色性别明确时，声音严格对应性别”）
 const VOICE_GENDER = Object.fromEntries(TTS_VOICES.map(v => [v.id, v.gender]));
 
@@ -56,6 +67,9 @@ export async function handleMvpRoutes(
     helpers
 ) {
     const { json, getAuthenticatedUser, serveHtml } = helpers;
+
+    // 收费/免费作品列自动补列（首次请求）
+    await ensureMonetizationColumns(env).catch(() => {});
 
     /* ----- HTML routes ----- */
 
@@ -500,7 +514,7 @@ export async function handleMvpRoutes(
 
             if (!user) {
                 const result = await env.DB.prepare(
-                    `SELECT id, name, appearance, personality, story_hook, image_url, share_id, world_name, created_at, updated_at
+                    `SELECT id, name, appearance, personality, story_hook, image_url, share_id, world_name, pricing, price, created_at, updated_at
                      FROM characters
                      WHERE share_id IS NOT NULL AND share_id != ''
                      ORDER BY created_at DESC
@@ -515,7 +529,7 @@ export async function handleMvpRoutes(
             }
 
             const result = await env.DB.prepare(
-                `SELECT id, name, appearance, personality, story_hook, image_url, share_id, world_name, created_at, updated_at
+                `SELECT id, name, appearance, personality, story_hook, image_url, share_id, world_name, pricing, price, created_at, updated_at
                  FROM characters
                  WHERE owner_id = ?
                  ORDER BY created_at DESC`
@@ -553,7 +567,7 @@ export async function handleMvpRoutes(
 
             const result = await env.DB.prepare(
                 `SELECT id, name, description, type, cover_image, script_json, cast_ids, settings,
-                        source_conversation, status, share_id, created_at, updated_at
+                        source_conversation, status, share_id, pricing, price, created_at, updated_at
                  FROM worlds
                  WHERE owner_id = ?
                  ORDER BY updated_at DESC`
@@ -615,6 +629,10 @@ export async function handleMvpRoutes(
             const worldId = "world_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
             const shareId = "w" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
 
+            // 收费 / 免费作品（暂未开通支付，仅记录与展示）
+            const pricing = ["free", "paid"].includes(body.pricing) ? body.pricing : "free";
+            const price = Math.max(0, Math.min(100000, Math.floor(Number(body.price) || 0)));
+
             // 生命世界：初始化 world_json（背景 / 原住民 / 关系 / 场景 / 运转配置）
             let worldJson = null;
             if (type === "life") {
@@ -641,14 +659,15 @@ export async function handleMvpRoutes(
 
             await env.DB.prepare(
                 `INSERT INTO worlds
-                 (id, owner_id, name, description, type, cover_image, script_json, cast_ids, settings, source_conversation, status, share_id, world_json, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+                 (id, owner_id, name, description, type, cover_image, script_json, cast_ids, settings, source_conversation, status, share_id, world_json, pricing, price, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
             ).bind(
                 worldId, user.id, name, description, type, coverImage,
                 JSON.stringify([]), JSON.stringify(castIds), JSON.stringify(settings),
                 String(body.source_conversation || "").trim().slice(0, 60),
                 "draft", shareId,
-                JSON.stringify(worldJson || {})
+                JSON.stringify(worldJson || {}),
+                pricing, price
             ).run();
 
             // 生命世界：创建初始「主线」线程并指向它（kind='main'，不可手动删除，删除整个世界除外）
@@ -687,7 +706,9 @@ export async function handleMvpRoutes(
             if (!world) {
                 return json({ success: false, error: "世界不存在。" }, 404);
             }
-            if (!user || world.owner_id !== user.id) {
+            // 已发布的作品对游客公开可读（配合个人主页公开作品）
+            const isOwner = user && world.owner_id === user.id;
+            if (!isOwner && world.status !== "published") {
                 return json({ success: false, error: "无权查看这个世界。" }, 403);
             }
             return json({ success: true, world: await formatWorld(env, world) });
@@ -746,6 +767,14 @@ export async function handleMvpRoutes(
             if (typeof body.status === "string" && ["draft", "published"].includes(body.status)) {
                 sets.push("status = ?");
                 vals.push(body.status);
+            }
+            if (["free", "paid"].includes(body.pricing)) {
+                sets.push("pricing = ?");
+                vals.push(body.pricing);
+            }
+            if (body.price !== undefined) {
+                sets.push("price = ?");
+                vals.push(Math.max(0, Math.min(100000, Math.floor(Number(body.price) || 0))));
             }
 
             if (sets.length) {
@@ -821,27 +850,39 @@ export async function handleMvpRoutes(
     const lifeStoryMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/story$/);
 
     // 校验生命世界归属；返回 { user, world } 或直接返回错误 Response
-    async function requireOwnedLifeWorld(id) {
+    // opts.public=true 时，已发布（status='published'）的世界对游客放行，
+    // user 兜底为 { username:'游客' }（聊天/发言等仅需要展示名的场合可用）
+    async function requireOwnedLifeWorld(id, opts = {}) {
+        const allowPublic = opts.public === true;
         const user = await getAuthenticatedUser(request);
-        if (!user) {
-            return json({ success: false, error: "请先登录。" }, 401);
-        }
         const world = await getWorldById(env, id);
         if (!world) {
             return json({ success: false, error: "世界不存在。" }, 404);
         }
-        if (world.owner_id !== user.id) {
-            return json({ success: false, error: "无权操作这个世界。" }, 403);
-        }
         if (world.type !== "life") {
             return json({ success: false, error: "这个世界不是生命世界。" }, 400);
         }
-        return { user, world };
+        if (user && world.owner_id === user.id) {
+            return { user, world };
+        }
+        if (allowPublic && world.status === "published") {
+            return { user, world, isGuest: true };
+        }
+        if (!user) {
+            return json({ success: false, error: "请先登录。" }, 401);
+        }
+        return json({ success: false, error: "无权操作这个世界。" }, 403);
+    }
+
+    /** 游客兜底身份（公开世界内展示用） */
+    function guestIdentity(world, isGuest) {
+        if (!isGuest) return null;
+        return { id: "", username: "游客", display_name: "游客" };
     }
 
     if (lifeMatch && method === "GET") {
         try {
-            const auth = await requireOwnedLifeWorld(lifeMatch[1]);
+            const auth = await requireOwnedLifeWorld(lifeMatch[1], { public: true });
             if (!auth.world) return auth;
             return json(await formatLifeWorld(env, auth.world));
         } catch (error) {
@@ -1064,7 +1105,7 @@ export async function handleMvpRoutes(
 
     if (lifeThreadsMatch && method === "POST") {
         try {
-            const auth = await requireOwnedLifeWorld(lifeThreadsMatch[1]);
+            const auth = await requireOwnedLifeWorld(lifeThreadsMatch[1], { public: true });
             if (!auth.world) return auth;
             const body = await request.json();
             const kind = ["auto", "scene", "main"].includes(body.kind) ? body.kind : "auto";
@@ -1154,7 +1195,7 @@ export async function handleMvpRoutes(
 
     if (lifeThreadMetaMatch && method === "POST") {
         try {
-            const auth = await requireOwnedLifeWorld(lifeThreadMetaMatch[1]);
+            const auth = await requireOwnedLifeWorld(lifeThreadMetaMatch[1], { public: true });
             if (!auth.world) return auth;
             const body = await request.json();
             const threadId = String(body.thread_id || "").slice(0, 40);
@@ -1206,7 +1247,7 @@ export async function handleMvpRoutes(
 
     if (lifeStoryMatch && method === "GET") {
         try {
-            const auth = await requireOwnedLifeWorld(lifeStoryMatch[1]);
+            const auth = await requireOwnedLifeWorld(lifeStoryMatch[1], { public: true });
             if (!auth.world) return auth;
             const wj = await loadWorldJson(env, auth.world.id);
             const state = wj.state || {};
@@ -1300,9 +1341,10 @@ export async function handleMvpRoutes(
 
     if (lifeChatMatch && method === "POST") {
         try {
-            const auth = await requireOwnedLifeWorld(lifeChatMatch[1]);
+            const auth = await requireOwnedLifeWorld(lifeChatMatch[1], { public: true });
             if (!auth.world) return auth;
-            const { user, world } = auth;
+            const { world } = auth;
+            const userName = auth.isGuest === true ? "游客" : (auth.user ? auth.user.username : "游客");
             const body = await request.json();
             const message = String(body.message || "").trim().slice(0, 2000);
             if (!message) {
@@ -1319,7 +1361,7 @@ export async function handleMvpRoutes(
 
             // 用户发言
             const userMsg = await appendWorldMessages(env, thread.id, [
-                { actor: "user", name: user.username, content: message }
+                { actor: "user", name: userName, content: message }
             ]);
 
             // 在场角色回应 1~2 名
@@ -1327,7 +1369,7 @@ export async function handleMvpRoutes(
             const activeCast = await activeCastForThread(env, world, wj, thread);
             const speakers = pickNextSpeakers(activeCast, recent, activeCast.length >= 3 ? 2 : 1);
             const replies = speakers.length
-                ? await runWorldTurn({ env, world, wj, thread, cast: activeCast, recent, speakers, userName: user.username, opening: false, mock: body.mock === true })
+                ? await runWorldTurn({ env, world, wj, thread, cast: activeCast, recent, speakers, userName, opening: false, mock: body.mock === true })
                 : [];
             await saveWorldJson(env, world.id, wj);
 
@@ -1340,9 +1382,10 @@ export async function handleMvpRoutes(
 
     if (lifeTickMatch && method === "POST") {
         try {
-            const auth = await requireOwnedLifeWorld(lifeTickMatch[1]);
+            const auth = await requireOwnedLifeWorld(lifeTickMatch[1], { public: true });
             if (!auth.world) return auth;
-            const { user, world } = auth;
+            const { world } = auth;
+            const userName = auth.isGuest === true ? "游客" : (auth.user ? auth.user.username : "游客");
             const body = await request.json();
             const wj = await loadWorldJson(env, world.id);
             if (wj.life.paused) {
@@ -1355,7 +1398,7 @@ export async function handleMvpRoutes(
                 wj,
                 2,
                 String(body.thread_id || ""),
-                user.username,
+                userName,
                 body.mock === true
             );
             return json({ success: true, ...result });
@@ -1367,7 +1410,7 @@ export async function handleMvpRoutes(
 
     if (lifeMessagesMatch && method === "GET") {
         try {
-            const auth = await requireOwnedLifeWorld(lifeMessagesMatch[1]);
+            const auth = await requireOwnedLifeWorld(lifeMessagesMatch[1], { public: true });
             if (!auth.world) return auth;
             const url = new URL(request.url);
             const threadId = url.searchParams.get("thread") || "";
@@ -1701,6 +1744,16 @@ export async function handleMvpRoutes(
                     updates.push(`${f} = ?`);
                     values.push(String(body[f]).slice(0, f === "background" || f === "world_description" ? 2000 : 800));
                 }
+            }
+
+            // 收费 / 免费作品（暂未开通支付，仅记录与展示）
+            if (["free", "paid"].includes(body.pricing)) {
+                updates.push("pricing = ?");
+                values.push(body.pricing);
+            }
+            if (body.price !== undefined) {
+                updates.push("price = ?");
+                values.push(Math.max(0, Math.min(100000, Math.floor(Number(body.price) || 0))));
             }
 
             if (updates.length === 0) {
@@ -2350,6 +2403,8 @@ function formatCharacter(row) {
         image_url: row.image_url,
         share_id: row.share_id,
         share_url: row.share_id ? `/s/${row.share_id}` : null,
+        pricing: row.pricing || "free",
+        price: Number(row.price) || 0,
         buddy_url: `/buddy/${row.id}`,
         gender: row.gender || "",
         intimacy: row.intimacy ?? 0,
@@ -2421,6 +2476,8 @@ async function formatWorld(env, row) {
         source_conversation: row.source_conversation,
         status: row.status,
         share_id: row.share_id,
+        pricing: row.pricing || "free",
+        price: Number(row.price) || 0,
         play_url: (row.type === "game" || row.type === "mixed")
             ? `/game-workshop?world=${row.id}`
             : (row.type === "life" ? `/world?world=${row.id}` : null),
@@ -2995,6 +3052,7 @@ async function formatLifeWorld(env, world) {
         success: true,
         world: {
             id: world.id,
+            owner_id: world.owner_id,
             name: world.name,
             description: world.description,
             cover_image: world.cover_image,

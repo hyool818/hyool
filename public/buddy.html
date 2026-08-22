@@ -655,21 +655,45 @@ function extractPlainText(content) {
 
 async function checkAuth() {
   const t = localStorage.getItem("hyool_token");
-  for (let i = 0; i < 2; i++) {
+  if (t) {
     try {
       const h = {};
-      if (t) h["Authorization"] = "Bearer " + t;
+      h["Authorization"] = "Bearer " + t;
       const res = await fetch("/api/me", { credentials: "include", cache: "no-store", headers: h });
       const data = await res.json();
-      if (data.authenticated) return true;
-      if (i === 1) { location.href = "/yonder.html?next=" + encodeURIComponent(location.pathname); return false; }
-    } catch {
-      if (i === 1) { location.href = "/yonder.html?next=" + encodeURIComponent(location.pathname); return false; }
-      await new Promise(r => setTimeout(r, 800));
-    }
+      if (data.authenticated) {
+        // 游客身份标记：用户名为 guest_ 前缀即为游客
+        const isGuestUser = !!(data.user && data.user.username && String(data.user.username).indexOf("guest_") === 0);
+        if (isGuestUser) localStorage.setItem("hyool_is_guest", "1");
+        else localStorage.removeItem("hyool_is_guest");
+        return true;
+      }
+    } catch {}
+  }
+
+  // 未登录 → 游客身份（无需注册即可体验公开作品）
+  for (let i = 0; i < 2; i++) {
+    try {
+      const res = await fetch("/api/guest", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" }
+      });
+      const data = await res.json();
+      if (data.success && data.token) {
+        localStorage.setItem("hyool_token", data.token);
+        localStorage.setItem("hyool_is_guest", "1");
+        return true;
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 600));
   }
   location.href = "/yonder.html?next=" + encodeURIComponent(location.pathname);
   return false;
+}
+
+function isGuestMode() {
+  return localStorage.getItem("hyool_is_guest") === "1";
 }
 
 function intimacyLabel(v) {
@@ -928,7 +952,7 @@ async function loadMessages() {
     $("app").style.display = "flex";
     scrollBottom();
   } catch (e) {
-    $("loading").innerHTML = '<div class="err-screen">加载失败：' + escapeHtml(e.message) + '<br><a href="/hub">返回角色工坊</a></div>';
+    $("loading").innerHTML = '<div class="err-screen">加载失败：' + escapeHtml(e.message) + '<br><a href="/hub">返回我的彼岸</a></div>';
   }
 }
 
@@ -1161,6 +1185,16 @@ async function sendMessage() {
 document.addEventListener("DOMContentLoaded", async () => {
   if (!(await checkAuth())) return;
   if (!getCharId()) { location.href = "/hub"; return; }
+
+  // 游客模式：隐藏仅主人功能（沉淀剧本 / 设置 / 退出 / 更换形象）
+  if (isGuestMode()) {
+    ["scriptBtn", "settingsBtn", "logoutBtn", "changePortraitBtn"].forEach(id => {
+      const el = $(id);
+      if (el) el.style.display = "none";
+    });
+    const bb = $("backBtn");
+    if (bb) bb.textContent = "← 返回彼岸";
+  }
 
   $("backBtn").addEventListener("click", () => { location.href = "/hub"; });
   $("logoutBtn").addEventListener("click", async () => {

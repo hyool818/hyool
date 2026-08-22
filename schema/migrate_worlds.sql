@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS worlds (
     source_conversation TEXT DEFAULT '',  -- 沉淀来源对话 conv_id
     status TEXT DEFAULT 'draft',          -- draft / published
     share_id TEXT UNIQUE,
+    pricing TEXT DEFAULT 'free',          -- free / paid（暂未开通支付）
+    price INTEGER DEFAULT 0,              -- 单位：元
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );

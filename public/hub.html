@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>HYOOL · 角色工坊</title>
+<title>HYOOL · 我的彼岸</title>
 <style>
 :root {
   --accent: #8b8bff;
@@ -312,8 +312,8 @@ input, textarea { color-scheme: dark; }
   <main class="page">
     <div class="page-head">
       <div>
-        <h1>角色工坊</h1>
-        <p id="subTitle">自定义创造 AI 角色，作为你世界剧本的演员。</p>
+        <h1>我的彼岸</h1>
+        <p id="subTitle">你的角色与世界，展示在这片彼岸。</p>
       </div>
     </div>
 
@@ -369,7 +369,7 @@ input, textarea { color-scheme: dark; }
 
     <div class="wstep" data-wstep="3">
       <div class="wstep-title">选择<span style="color:#c9a84c;">角色</span></div>
-      <div class="wstep-desc">从你的角色工坊里挑选世界的演员（可多选，也可跳过稍后补充）。</div>
+      <div class="wstep-desc">从你的彼岸里挑选世界的演员（可多选，也可跳过稍后补充）。</div>
       <button class="btn btn-save" id="wCastPick" style="width:100%;margin-bottom:.5rem;">＋ 从角色库选择角色</button>
       <div class="cast-pick-hint" id="wCastHint">尚未选择角色。</div>
       <div class="cast-picked" id="wCastPicked"></div>
@@ -432,7 +432,18 @@ input, textarea { color-scheme: dark; }
     <p class="detail-desc" id="detailDesc"></p>
     <div class="field-group"><label>世界角色</label><div class="detail-cast" id="detailCast"></div></div>
     <div class="field-group"><label>剧本</label><div id="detailScript"></div></div>
+    <div class="field-group"><label>作品类型</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="detailPricing" style="flex:1;">
+          <option value="free">免费</option>
+          <option value="paid">收费</option>
+        </select>
+        <input type="number" id="detailPrice" min="0" max="100000" step="1" value="0" placeholder="价格（元）" style="flex:1;display:none;">
+      </div>
+      <div class="hint-line">支付暂未开通，收费作品暂时也可直接体验。</div>
+    </div>
     <div class="modal-actions">
+      <button class="btn btn-cancel" id="detailPricingSave" style="flex:1;">保存作品设置</button>
       <button class="btn btn-delete" id="detailDelete">删除世界</button>
       <button class="btn btn-save" id="detailPlay">进入工坊</button>
     </div>
@@ -451,6 +462,16 @@ input, textarea { color-scheme: dark; }
     <div class="field-group"><label>世界名称</label><input type="text" id="editWorldName" maxlength="80"></div>
     <div class="field-group"><label>世界描述</label><textarea id="editWorldDesc" maxlength="1200"></textarea></div>
     <div class="field-group"><label>故事钩子</label><textarea id="editHook" maxlength="400"></textarea></div>
+    <div class="field-group"><label>作品类型</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="editPricing" style="flex:1;">
+          <option value="free">免费</option>
+          <option value="paid">收费</option>
+        </select>
+        <input type="number" id="editPrice" min="0" max="100000" step="1" value="0" placeholder="价格（元）" style="flex:1;display:none;">
+      </div>
+      <div class="hint-line">支付暂未开通，收费作品暂时也可直接体验。</div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-cancel" id="editCancel">取消</button>
       <button class="btn btn-save" id="editSave">保存</button>
@@ -491,6 +512,7 @@ const isSvg = u => u && (u.endsWith(".svg") || u.includes("/portrait"));
 let isGuest = true;
 let allChars = [];
 let allWorlds = [];
+let currentDetailWorld = null;
 let editingChar = null;
 let deletingChar = null;
 let deletingWorld = null;
@@ -585,7 +607,7 @@ function renderChars(chars, guest) {
   $("emptyRole").style.display = "none";
 
   html += allChars.map((c, i) => {
-    const href = guest ? "/yonder.html?next=/buddy/" + escapeHtml(c.id) : "/buddy/" + escapeHtml(c.id);
+    const href = "/buddy/" + escapeHtml(c.id);
     const actions = guest ? "" : `
       <div class="card-actions">
         <button class="card-btn edit" onclick="event.stopPropagation();openEdit(${i})" title="编辑">✏️</button>
@@ -600,7 +622,7 @@ function renderChars(chars, guest) {
         <div class="name">${escapeHtml(c.name || '未名')}</div>
         <div class="world">${escapeHtml(c.world_name || '')}</div>
         <div class="hook">${escapeHtml(c.story_hook || c.appearance || '')}</div>
-        <div class="foot"><span>${c.created_at ? new Date(c.created_at).toLocaleDateString('zh-CN') : ''}</span></div>
+        <div class="foot"><span>${pricingBadgeHtml(c)}</span><span>${c.created_at ? new Date(c.created_at).toLocaleDateString('zh-CN') : ''}</span></div>
       </div>
     </${tag}>`;
   }).join("");
@@ -611,6 +633,12 @@ function renderChars(chars, guest) {
     </button>`;
   }
   grid.innerHTML = html;
+}
+
+function pricingBadgeHtml(c) {
+  if (!c) return "";
+  if (c.pricing === "paid") return `<span class="badge paid" style="background:rgba(201,168,76,.16);color:#e4c46f;">¥${Math.max(0, Number(c.price) || 0)} 收费</span>`;
+  return `<span class="badge free" style="background:rgba(120,220,170,.14);color:#9fdcbb;">免费</span>`;
 }
 
 /* Edit modal */
@@ -626,6 +654,10 @@ function openEdit(idx) {
   $("editWorldName").value = c.world_name || "";
   $("editWorldDesc").value = c.world_description || "";
   $("editHook").value = c.story_hook || "";
+  const isPaid = c.pricing === "paid";
+  $("editPricing").value = isPaid ? "paid" : "free";
+  $("editPrice").value = Number(c.price) || 0;
+  $("editPrice").style.display = isPaid ? "" : "none";
   showModal("editModal", true);
 }
 
@@ -649,7 +681,9 @@ async function saveEdit() {
         speech_style: $("editSpeech").value.trim(),
         world_name: $("editWorldName").value.trim(),
         world_description: $("editWorldDesc").value.trim(),
-        story_hook: $("editHook").value.trim()
+        story_hook: $("editHook").value.trim(),
+        pricing: $("editPricing").value === "paid" ? "paid" : "free",
+        price: parseInt($("editPrice").value, 10) || 0
       })
     });
     if (!res.success) throw new Error(res.error || "保存失败。");
@@ -734,6 +768,7 @@ function renderWorlds(worlds) {
           <span class="badge form">${escapeHtml(formLabel)}</span>
           ${w.type === "life" && w.life_mode ? `<span class="badge">${escapeHtml(LIFE_MODE_LABEL[w.life_mode] || w.life_mode)}</span>` : ""}
           <span class="badge status">${statusLabel}</span>
+          ${pricingBadgeHtml(w)}
         </div>
         <div class="hook">${escapeHtml(w.description || '')}</div>
         <div class="foot"><span>${castInfo}</span><span>${w.updated_at ? new Date(w.updated_at).toLocaleDateString('zh-CN') : ''}</span></div>
@@ -748,6 +783,7 @@ function renderWorlds(worlds) {
 function openWorldDetail(idx) {
   const w = allWorlds[idx];
   if (!w) return;
+  currentDetailWorld = w;
   const genreLabel = GENRE_LABEL[w.settings && w.settings.genre] || (w.settings && w.settings.genreLabel) || "世界";
   const formLabel = FORM_LABEL[w.type] || w.type;
   const statusLabel = w.status === "published" ? "已上线" : "草稿";
@@ -759,7 +795,14 @@ function openWorldDetail(idx) {
     `<span class="badge">${escapeHtml(genreLabel)}</span>` +
     `<span class="badge form">${escapeHtml(formLabel)}</span>` +
     (w.type === "life" && w.life_mode ? `<span class="badge">${escapeHtml(LIFE_MODE_LABEL[w.life_mode] || w.life_mode)}</span>` : "") +
-    `<span class="badge status">${statusLabel}</span>`;
+    `<span class="badge status">${statusLabel}</span>` +
+    pricingBadgeHtml(w);
+
+  // 作品类型：免费 / 收费（支付暂未开通，仅记录与展示）
+  const detailIsPaid = w.pricing === "paid";
+  $("detailPricing").value = detailIsPaid ? "paid" : "free";
+  $("detailPrice").value = Number(w.price) || 0;
+  $("detailPrice").style.display = detailIsPaid ? "" : "none";
 
   const cast = w.cast || [];
   let castHtml = cast.length
@@ -797,6 +840,34 @@ function openWorldDetail(idx) {
     }
   };
   showModal("worldDetailModal", true);
+}
+
+/* 保存世界作品类型（免费/收费，支付暂未开通） */
+async function saveWorldPricing() {
+  if (!allWorlds || !currentDetailWorld) return;
+  const w = currentDetailWorld;
+  const btn = $("detailPricingSave");
+  btn.disabled = true; btn.textContent = "保存中…";
+  try {
+    const res = await api("/api/worlds/" + w.id, {
+      method: "PATCH",
+      body: JSON.stringify({
+        pricing: $("detailPricing").value === "paid" ? "paid" : "free",
+        price: parseInt($("detailPrice").value, 10) || 0
+      })
+    });
+    if (!res.success) throw new Error(res.error || "保存失败。");
+    Object.assign(w, res.world);
+    const idx = allWorlds.findIndex(x => x.id === w.id);
+    if (idx >= 0) allWorlds[idx] = w;
+    renderWorlds(allWorlds);
+    openWorldDetail(allWorlds.findIndex(x => x.id === w.id));
+    toast("作品设置已保存。");
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "保存作品设置";
+  }
 }
 
 function openWorldDelete(idx) {
@@ -1136,6 +1207,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("wizardCoverFile").addEventListener("change", e => { wizardUploadCover(e.target.files[0]); e.target.value = ""; });
   $("editCancel").addEventListener("click", closeEdit);
   $("editSave").addEventListener("click", saveEdit);
+  $("editPricing").addEventListener("change", () => {
+    $("editPrice").style.display = $("editPricing").value === "paid" ? "" : "none";
+  });
+  $("detailPricing").addEventListener("change", () => {
+    $("detailPrice").style.display = $("detailPricing").value === "paid" ? "" : "none";
+  });
+  $("detailPricingSave").addEventListener("click", saveWorldPricing);
   $("deleteCancel").addEventListener("click", closeDelete);
   $("deleteConfirm").addEventListener("click", confirmDelete);
 

@@ -64,7 +64,7 @@ async function main(){
     await sleep(300);
 
     /* ---- 基础 UI ---- */
-    ok(q('h1') && q('h1').textContent.trim() === '角色工坊', 'h1 = 角色工坊');
+    ok(q('h1') && q('h1').textContent.trim() === '我的彼岸', 'h1 = 我的彼岸');
     ok(qa('.tab').length === 2 && q('.tab[data-tab="role"]') && q('.tab[data-tab="world"]'), '角色/世界双 tab');
     ok(q('#createBtn').style.display !== 'none', '登录态显示创造按钮');
     ok(q('#loginLink').style.display === 'none', '登录态隐藏登录链接');

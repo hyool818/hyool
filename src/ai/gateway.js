@@ -560,7 +560,7 @@ function mockScriptFromConversation(character, transcript) {
         text: "这段对话被定格成剧本。你希望接下来……",
         choices: [
             { text: "继续这个故事", next: "" },
-            { text: "回到角色工坊", next: "" }
+            { text: "回到我的彼岸", next: "" }
         ]
     });
 

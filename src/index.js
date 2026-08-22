@@ -1,6 +1,9 @@
 import { handleMvpRoutes, handleWorldCron } from "./mvp.js";
 import { handleTtsRequest, TTS_VOICES } from "./tts.js";
 
+// 收费/免费作品列自动补列（幂等；正式迁移见 schema/migrate_monetization.sql）
+let monetizationEnsured = false;
+
 
 export default {
     async fetch(request, env) {
@@ -306,6 +309,59 @@ export default {
                 return json({
                     success: false,
                     error: "注册失败，请稍后再试。"
+                }, 500);
+            }
+        }
+
+
+        /* =====================================================
+           GUEST（游客身份：任何人无需注册即可体验公开作品）
+        ===================================================== */
+
+        if (pathname === "/api/guest" && request.method === "POST") {
+            try {
+                const rand = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+                const userId = "guest_" + rand;
+                const username = "guest_" + rand;
+
+                const passwordHash =
+                    await hashPassword(
+                        crypto.randomUUID() +
+                        "-" +
+                        Date.now()
+                    );
+
+                await env.DB
+                    .prepare(
+                        "INSERT INTO profiles (id, username, display_name, bio, theme, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    )
+                    .bind(
+                        userId,
+                        username,
+                        "游客",
+                        "这是我偶然路过的一片彼岸。",
+                        "dark",
+                        passwordHash
+                    )
+                    .run();
+
+                await ensureYonderSettings(
+                    env,
+                    userId
+                );
+
+                return createLoginResponse(
+                    env,
+                    userId,
+                    username
+                );
+
+            } catch (error) {
+                console.error("GUEST ERROR:", error);
+
+                return json({
+                    success: false,
+                    error: "游客进入失败，请稍后再试。"
                 }, 500);
             }
         }
@@ -644,13 +700,18 @@ export default {
                     hasPassword;
                 delete safeSettings.access_password;
 
+                const yonderPayload =
+                    await buildYonderPayload(
+                        env,
+                        profile,
+                        isOwner,
+                        postsResult.results || [],
+                        safeSettings
+                    );
+
                 return json({
                     success: true,
-                    yonder: {
-                        profile: profile,
-                        settings: safeSettings,
-                        posts: postsResult.results || []
-                    }
+                    yonder: yonderPayload
                 });
 
             } catch (error) {
@@ -779,13 +840,18 @@ export default {
                     hasPassword;
                 delete safeSettings.access_password;
 
+                const yonderPayload =
+                    await buildYonderPayload(
+                        env,
+                        profile,
+                        true,
+                        postsResult.results || [],
+                        safeSettings
+                    );
+
                 return json({
                     success: true,
-                    yonder: {
-                        profile: profile,
-                        settings: safeSettings,
-                        posts: postsResult.results || []
-                    }
+                    yonder: yonderPayload
                 });
 
             } catch (error) {
@@ -1001,6 +1067,18 @@ export default {
                         20000
                     );
 
+                // 自定义模块区：[{ id, name, content }]，最多 20 个
+                const modules =
+                    Array.isArray(body.modules)
+                        ? body.modules
+                            .slice(0, 20)
+                            .map(m => ({
+                                id: String((m && m.id) || crypto.randomUUID().replace(/-/g, "").slice(0, 8)),
+                                name: String((m && m.name) || "").trim().slice(0, 40),
+                                content: String((m && m.content) || "").slice(0, 5000)
+                            }))
+                        : null;
+
                 const currentSettings =
                     await getYonderSettings(
                         env,
@@ -1036,6 +1114,14 @@ export default {
                     .run()
                     .catch(() => {});
 
+                // 兼容旧库：modules 列不存在时自动补充
+                await env.DB
+                    .prepare(
+                        "ALTER TABLE yonder_settings ADD COLUMN modules TEXT DEFAULT '[]'"
+                    )
+                    .run()
+                    .catch(() => {});
+
                 await env.DB
                     .prepare(
                         `INSERT INTO yonder_settings
@@ -1051,11 +1137,12 @@ export default {
                             show_works,
                             show_infinite,
                             custom_css,
+                            modules,
                             access_password,
                             created_at,
                             updated_at
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         ON CONFLICT(user_id)
                         DO UPDATE SET
                             background_type = excluded.background_type,
@@ -1068,6 +1155,7 @@ export default {
                             show_works = excluded.show_works,
                             show_infinite = excluded.show_infinite,
                             custom_css = excluded.custom_css,
+                            modules = excluded.modules,
                             access_password = excluded.access_password,
                             updated_at = CURRENT_TIMESTAMP`
                     )
@@ -1083,6 +1171,7 @@ export default {
                         showWorks,
                         showInfinite,
                         customCss,
+                        modules === null ? "[]" : JSON.stringify(modules),
                         accessPassword
                     )
                     .run();
@@ -1704,12 +1793,113 @@ async function getYonderSettings(
         userId
     );
 
-    return await env.DB
+    const row = await env.DB
         .prepare(
             "SELECT * FROM yonder_settings WHERE user_id = ? LIMIT 1"
         )
         .bind(userId)
         .first();
+
+    if (!row) {
+        return null;
+    }
+
+    // 归一化：modules 以 JSON 数组形态返回（旧库可能无该列 → 空数组）
+    row.modules = (() => {
+        try {
+            const arr = JSON.parse(row.modules || "[]");
+            return Array.isArray(arr) ? arr : [];
+        } catch {
+            return [];
+        }
+    })();
+
+    return row;
+}
+
+
+/* =========================================================
+   BUILD YONDER PAYLOAD（资料 + 设置 + 作品）
+   isOwner=true 返回全部作品；访客只返回公开作品
+   （角色：share_id 非空；世界：status='published'）
+========================================================= */
+
+async function buildYonderPayload(
+    env,
+    profile,
+    isOwner,
+    posts,
+    safeSettings
+) {
+    // 收费/免费作品列自动补列（幂等；正式迁移见 schema/migrate_monetization.sql）
+    try {
+        if (!monetizationEnsured) {
+            await env.DB.prepare("ALTER TABLE characters ADD COLUMN pricing TEXT DEFAULT 'free'").run().catch(() => {});
+            await env.DB.prepare("ALTER TABLE characters ADD COLUMN price INTEGER DEFAULT 0").run().catch(() => {});
+            await env.DB.prepare("ALTER TABLE worlds ADD COLUMN pricing TEXT DEFAULT 'free'").run().catch(() => {});
+            await env.DB.prepare("ALTER TABLE worlds ADD COLUMN price INTEGER DEFAULT 0").run().catch(() => {});
+            monetizationEnsured = true;
+        }
+    } catch { /* 忽略 */ }
+
+    const works = {
+        characters: [],
+        worlds: []
+    };
+
+    const charSql =
+        isOwner
+            ? "SELECT id, name, image_url, world_name, share_id, pricing, price, created_at FROM characters WHERE owner_id = ? ORDER BY created_at DESC"
+            : "SELECT id, name, image_url, world_name, share_id, pricing, price, created_at FROM characters WHERE owner_id = ? AND share_id IS NOT NULL AND share_id != '' ORDER BY created_at DESC";
+
+    const charResult = await env.DB
+        .prepare(charSql)
+        .bind(profile.id)
+        .all();
+
+    works.characters = (charResult.results || []).map(c => ({
+        id: c.id,
+        name: c.name,
+        image_url: c.image_url,
+        world_name: c.world_name,
+        share_id: c.share_id,
+        pricing: c.pricing || "free",
+        price: Number(c.price) || 0,
+        created_at: c.created_at
+    }));
+
+    const worldSql =
+        isOwner
+            ? "SELECT id, name, description, type, cover_image, settings, status, share_id, pricing, price, created_at FROM worlds WHERE owner_id = ? ORDER BY created_at DESC"
+            : "SELECT id, name, description, type, cover_image, settings, status, share_id, pricing, price, created_at FROM worlds WHERE owner_id = ? AND status = 'published' ORDER BY created_at DESC";
+
+    const worldResult = await env.DB
+        .prepare(worldSql)
+        .bind(profile.id)
+        .all();
+
+    works.worlds = (worldResult.results || []).map(w => ({
+        id: w.id,
+        name: w.name,
+        description: w.description,
+        type: w.type,
+        cover_image: w.cover_image,
+        status: w.status,
+        share_id: w.share_id,
+        pricing: w.pricing || "free",
+        price: Number(w.price) || 0,
+        settings: (() => {
+            try { return JSON.parse(w.settings || "{}"); } catch { return {}; }
+        })(),
+        created_at: w.created_at
+    }));
+
+    return {
+        profile: profile,
+        settings: safeSettings,
+        posts: posts,
+        works: works
+    };
 }
 
 

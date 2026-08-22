@@ -198,7 +198,8 @@ async function partE(){
   }, 25000, 'yonder-home world cards');
   const cards = doc.querySelectorAll('.world-card');
   ok(cards.length >= 1, 'E: 世界卡片展示', cards.length + ' 张');
-  ok(cards[0].getAttribute('href').indexOf('/hub?world=') >= 0, 'E: 卡片直达 hub?world=', cards[0].getAttribute('href'));
+  const href = cards[0].getAttribute('href') || '';
+  ok(href.indexOf('/world?world=') >= 0 || href.indexOf('/game-workshop?world=') >= 0, 'E: 卡片直达进入（不再弹卡片）', href);
   ok(doc.getElementById('worldsSection').style.display !== 'none', 'E: 登录态显示 WORLDS section');
 }
 

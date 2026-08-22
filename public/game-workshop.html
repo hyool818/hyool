@@ -99,7 +99,7 @@ a { color: inherit; text-decoration: none; }
 </head>
 <body>
 <header class="header">
-  <a class="header-link" href="/hub">← 返回角色工坊</a>
+  <a class="header-link" href="/hub">← 返回我的彼岸</a>
   <div style="display:flex;align-items:center;gap:12px;">
     <span style="font-size:.72rem;color:var(--muted);" id="typeLabel"></span>
     <a class="header-link" href="/" style="background:none;padding:0;color:var(--muted);">HYOOL</a>
@@ -247,7 +247,7 @@ function renderWorld() {
 (async function init() {
   const worldId = new URLSearchParams(location.search).get("world");
   if (!worldId) {
-    $("loading").innerHTML = `<div class="empty-state"><div class="big">🌍</div>缺少世界参数。<br><a href="/hub" class="btn btn-accent" style="display:inline-block;text-decoration:none;margin-top:12px;">去角色工坊</a></div>`;
+    $("loading").innerHTML = `<div class="empty-state"><div class="big">🌍</div>缺少世界参数。<br><a href="/hub" class="btn btn-accent" style="display:inline-block;text-decoration:none;margin-top:12px;">去我的彼岸</a></div>`;
     return;
   }
   try {
@@ -255,7 +255,7 @@ function renderWorld() {
     if (!res.success) throw new Error(res.error || "世界不存在。");
     world = res.world;
   } catch (e) {
-    $("loading").innerHTML = `<div class="empty-state"><div class="big">😢</div>${escapeHtml(e.message)}<br><a href="/hub" class="btn btn-accent" style="display:inline-block;text-decoration:none;margin-top:12px;">去角色工坊</a></div>`;
+    $("loading").innerHTML = `<div class="empty-state"><div class="big">😢</div>${escapeHtml(e.message)}<br><a href="/hub" class="btn btn-accent" style="display:inline-block;text-decoration:none;margin-top:12px;">去我的彼岸</a></div>`;
     return;
   }
   $("loading").style.display = "none";

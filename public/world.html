@@ -645,11 +645,13 @@ function fillModelSelects(){
 function renderThreads(){
   const list = S.world.threads || [];
   const cur = S.threadId;
+  const canDel = S.canManage === true;
   let html = "";
   let added = false;
   list.forEach(t => {
     const main = t.kind === "main";
-    html += `<button class="tchip${main?" main":""}${t.id===cur?" active":""}" onclick="switchThread('${t.id}')">${escapeHtml(t.title || "日常")}${main?"":`<span class="x" title="删除线程" onclick="event.stopPropagation();delThread('${t.id}')">✕</span>`}</button>`;
+    const delBtn = (!main && canDel) ? `<span class="x" title="删除线程" onclick="event.stopPropagation();delThread('${t.id}')">✕</span>` : "";
+    html += `<button class="tchip${main?" main":""}${t.id===cur?" active":""}" onclick="switchThread('${t.id}')">${escapeHtml(t.title || "日常")}${delBtn}</button>`;
     if (main) { html += newSceneBtn(); added = true; }
   });
   if (!added) html += newSceneBtn();
@@ -708,12 +710,22 @@ function bubble(m){
 
 async function loadWorld(){
   if (!worldId) {
-    $("feed").innerHTML = '<div class="narrator">缺少世界参数，<a href="/hub" style="color:#b7b7ff">返回工坊</a>。</div>';
+    $("feed").innerHTML = '<div class="narrator">缺少世界参数，<a href="/hub" style="color:#b7b7ff">返回我的彼岸</a>。</div>';
     return;
   }
   try {
     const d = await api("/api/worlds/" + worldId + "/life");
     S.world = d.world;
+    // 管理权限：仅世界主人可操作后台（游客/访客只读 + 参与聊天）
+    S.canManage = false;
+    const guestFlag = localStorage.getItem("hyool_is_guest") === "1";
+    if (!guestFlag && S.world && S.world.owner_id) {
+      try {
+        const me = await api("/api/me");
+        S.canManage = !!(me.authenticated && me.user && me.user.id === S.world.owner_id);
+      } catch { S.canManage = false; }
+    }
+    applyOwnerOnlyUI();
     document.title = S.world.name + " · HYOOL";
     $("wName").textContent = S.world.name;
     const md = await api("/api/models");
@@ -1494,7 +1506,32 @@ function toggleIntro(show){
 }
 
 /* ---- 事件绑定 ---- */
-document.addEventListener("DOMContentLoaded", () => {
+/* ---- 游客 / 非主人：隐藏仅主人功能（世界后台 / 暂停 / 模型 / 管理面板） ---- */
+function applyOwnerOnlyUI() {
+  const manage = S.canManage === true;
+  ["pauseBtn", "openSide", "modelSel", "railOpen"].forEach(id => {
+    const el = $(id);
+    if (el) el.style.display = manage ? "" : "none";
+  });
+  if (!manage) {
+    const rail = $("rail"); if (rail) rail.style.display = "none";
+    const side = $("side"); if (side) side.style.display = "none";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  // 游客身份：无需注册即可进入已发布的公开世界（体验完整功能）
+  if (!localStorage.getItem("hyool_token")) {
+    try {
+      const res = await fetch("/api/guest", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" } });
+      const d = await res.json();
+      if (d.success && d.token) {
+        localStorage.setItem("hyool_token", d.token);
+        localStorage.setItem("hyool_is_guest", "1");
+      }
+    } catch {}
+  }
+
   $("sendBtn").addEventListener("click", send);
   $("msgInput").addEventListener("keydown", e => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }

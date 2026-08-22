@@ -172,6 +172,16 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
    `.\check-home-fast.ps1 -OutFile .\test-out-home-fast.txt`
    13 断言（`@smokews` 页文案/href/区块存在 + 旧文案与已删标识缺失 + hub 向导标识），实测约 1.7s。注意：`.ps1` 含中文须保持 **UTF-8 BOM**（Windows PowerShell 5.1 按 ANSI 读无 BOM 文件会乱码报错）；改脚本请用 .NET ReadAllText/WriteAllText 保留 BOM，勿用编辑器直接覆盖。
 
+## 个人主页·公开作品大改造（2026-08-22 本会话已完成，待部署）
+
+1. **公开作品游客可体验（无需注册）** —— ① 后端新增 `POST /api/guest`：自动创建游客 profile+session（`guest_<hex>`，展示名「游客」），返回 token 并写 cookie；② `GET /api/yonder/:username` 经 `buildYonderPayload()` 返回 `works{characters[],worlds[]}`（主人=全部，访客=公开：角色 `share_id` 非空、世界 `status='published'`）；③ 生命世界 `requireOwnedLifeWorld(id,{public:true})`：已发布世界对游客放行读（GET life / messages / story）与互动（tick / chat / threads / threads-meta），管理接口保持仅主人，游客发言名显示「游客」；④ `GET /api/worlds/:id` 已发布世界对游客可读（game/mixed 工坊页打通）；⑤ `buddy.html`/`world.html` 无 token 时自动 `POST /api/guest`（存 `hyool_token` + `hyool_is_guest`），游客隐藏仅主人功能（沉淀剧本/设置/更换形象/世界后台/暂停/线程删除等），world 页按 `S.canManage`（对比 `world.owner_id` 与 `/api/me`）控制；`formatLifeWorld` 补 `owner_id`。hub 游客卡也直达 `/buddy/:id`。
+2. **底部导航只留「编辑彼岸」** —— `yonder-home.html` 底栏删除 角色工坊/返回幻灵 两个链接，仅剩 `navEditBtn`；非主人不显示底栏。
+3. **角色工坊 → 我的彼岸** —— hub 页 title/h1/副标题、wstep 文案、create/game-workshop/buddy/fantasy/workspace 站内链接、README、hub-check 断言全部改名；URL 仍为 `/hub`。「独立显示预览」= 访客也能看到角色+世界独立预览卡（并入①）。
+4. **主页点世界直接进入** —— 世界卡 `href` 改为 `worldPlayUrl()`：life→`/world?world=`、game/mixed→`/game-workshop?world=`，不再弹详情卡二次选择；story/vn 无入口时回退 `/hub?world=`。
+5. **无限模块 → 自定义模块区** —— 删除 `infiniteSection` 与「无限」开关；`yonder_settings` 新增 `modules` 列（JSON `[{id,name,content}]`，迁移 `schema/migrate_yonder_modules.sql`）；编辑器新增「自定义模块区」（`＋ 添加模块`，名字/内容可改可删，最多 20 个），主页 `renderModules()` 按序渲染为独立区块；保存走 `/api/yonder/settings`（含列兜底 ALTER）。
+6. **收费 / 免费作品（暂不开通支付）** —— `characters`/`worlds` 新增 `pricing`('free'|'paid') + `price`(元) 列（迁移 `schema/migrate_monetization.sql`；`mvp.js ensureMonetizationColumns()` 与 index.js 均带幂等补列兜底）；hub 角色编辑弹窗与世界详情弹窗可设 免费/收费+价格（PATCH `/api/worlds/:id` 与 `/api/characters/:id/update` 支持）；角色/世界卡与主页卡显示 `免费` / `¥xx 收费` 徽章；**支付未开通，收费作品暂可直接体验**。二维码支付 → 待办（见「待办状态」）。
+7. **验证**：`node --check` 通过；`wrangler deploy --dry-run` 通过；`home-check.html` 扩至 22 断言（底栏只留编辑彼岸/无无限/自定义模块区增删改名/我的彼岸 h1），`check-home-fast.ps1` 扩至 21 项，`workshop-smoke-check` Part E 改为断言直达 href，`hub-check` h1 改「我的彼岸」。
+
 ## 验证记录
 
 - `.wrangler/e2e-script-test.ps1`（seed→register→POST script→worlds list）：全绿（mock AI 路径，AI 绑定临时注释）。
@@ -186,6 +196,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **生命世界（type="life"，多角色自主共存）已完成**：后端全链路 + 模型路由 + `world.html` 直播间 + hub 向导第 4 形态 + 三运转模式（watch/hybrid/always + cron）+ 31 断言冒烟 PASS。**已 commit + push（1ab7f51），线上部署确认**：`https://hyool.w910227a.workers.dev/world.html` 与 `/api/models` 均 200。体验路径：`/hub` →「＋ 创造」→ 自定义世界 → 选「生命世界」。
 - 后续可做（用户主动提出再推进）：世界消息清洗/归档（保留最近 N 条）、GPU 后端上线后启用 dsv4pro / XVERSE-Ent-25B / Qwen3-27B-Instruct（配置 `GPU_BASE_URL` + `GPU_API_KEY` 即可，代码已就绪）。
 - **★ 下一步：Batch 4 一键导出**（novel/renpy/storyboard/game）。**Batch 3 故事引擎已完成**（2026-08-21 冒烟全绿，见下方记录）；"关系自动演化"与"剧场回放"已被本设计覆盖，不再单列。
+- **★ 收费作品支付（二维码）—— 用户拍板暂不开通，已加入待办**：数据/徽章层已就绪（`pricing`/`price` 列 + hub 与主页展示），支付渠道未实现。规划：微信/支付宝收款码 → 用户扫码付款 → 凭单号人工/自动解锁，或第三方聚合收单 API。待用户主动提出再推进。
 
 ## 新一批需求（2026-08-21 用户拍板，开发中 —— 本清单已完成「开发中」→每完成一批改标注）
 

@@ -101,6 +101,28 @@ async function partA(){
   ok(!vt.includes('记录'), 'A: 可见文案无「记录」');
   ok(!vt.includes('数字生命'), 'A: 可见文案无「数字生命」');
   ok(vt.includes('Smoke User') || vt.includes('smokews'), 'A: 主页渲染 smokews 信息');
+
+  // ---- 底部导航：只显示「编辑彼岸」 ----
+  const nav = g('bottomNav');
+  ok(!!nav && doc.defaultView.getComputedStyle(nav).display !== 'none', 'A: 登录态显示底部导航');
+  ok(nav.querySelectorAll('a').length === 0, 'A: 底部导航无链接入口（只留编辑彼岸）', nav.querySelectorAll('a').length + ' 个 a');
+  ok(!!g('navEditBtn') && g('navEditBtn').style.display !== 'none', 'A: 底部导航显示「编辑彼岸」按钮');
+  ok(!g('infiniteSection'), 'A: 「无限」区块已移除');
+
+  // ---- 编辑器：自定义模块区（模块名字可修改） ----
+  g('navEditBtn').click();
+  await waitFor(() => g('editorBackdrop') && g('editorBackdrop').classList.contains('active'), 5000, 'editor open');
+  ok(!!g('addModuleBtn') && !!g('moduleList'), 'A: 编辑器「自定义模块区」存在（添加按钮 + 列表）');
+  ok(g('editorBackdrop').textContent.includes('自定义模块区'), 'A: 编辑器含「自定义模块区」文案');
+  g('addModuleBtn').click();
+  await sleep(100);
+  const items = g('moduleList').querySelectorAll('.module-item');
+  ok(items.length === 1, 'A: 点击添加模块出现 1 个模块项', items.length + ' 个');
+  const nameInput = g('moduleList').querySelector('.module-name-input');
+  nameInput.value = '我的相册';
+  nameInput.dispatchEvent(new Event('input'));
+  ok(nameInput.value === '我的相册', 'A: 模块名字可修改');
+  g('closeEditor').click();
 }
 
 /* ================= Part B: /hub?create=world 直达自定义世界向导 ================= */
@@ -117,6 +139,8 @@ async function partB(){
   ok(true, 'B: 直达自定义世界向导弹窗', '?create=world');
   ok(dots.length === 5, 'B: 向导 5 步圆点', dots.length + ' 步');
   ok(!!step1, 'B: 第 1 步激活（题材）', step1 ? (step1.querySelector('.wstep-title') || {}).textContent : '(无)');
+  const h1 = doc.querySelector('h1');
+  ok(h1 && h1.textContent.trim() === '我的彼岸', 'B: 角色工坊已改名「我的彼岸」', h1 ? h1.textContent.trim() : '(无)');
 }
 
 (async function main(){

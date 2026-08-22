@@ -967,6 +967,198 @@ body {
 }
 
 
+/* ---- 自定义模块区（编辑器 + 页面渲染） ---- */
+
+.module-editor-hint {
+
+    margin-bottom: 10px;
+
+    color: rgba(255,255,255,.45);
+
+    font-size: 12px;
+
+    line-height: 1.6;
+}
+
+.module-list {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 10px;
+}
+
+.module-item {
+
+    border: 1px solid rgba(255,255,255,.11);
+
+    border-radius: 12px;
+
+    padding: 10px;
+
+    background:
+
+        rgba(255,255,255,.04);
+}
+
+.module-item-head {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    margin-bottom: 8px;
+}
+
+.module-item-head input {
+
+    flex: 1;
+
+    min-width: 0;
+
+    padding: 8px 10px;
+
+    border-radius: 8px;
+
+    border: 1px solid rgba(255,255,255,.12);
+
+    background: rgba(255,255,255,.06);
+
+    color: var(--text);
+
+    font-size: 13px;
+
+    outline: none;
+}
+
+.module-item-head input:focus {
+
+    border-color: var(--accent);
+}
+
+.module-item-del {
+
+    flex: 0 0 auto;
+
+    border: 0;
+
+    background: rgba(255,80,80,.14);
+
+    color: #ff7a7a;
+
+    padding: 7px 11px;
+
+    border-radius: 8px;
+
+    font-size: 12px;
+
+    cursor: pointer;
+}
+
+.module-item textarea {
+
+    width: 100%;
+
+    min-height: 64px;
+
+    resize: vertical;
+
+    padding: 8px 10px;
+
+    border-radius: 8px;
+
+    border: 1px solid rgba(255,255,255,.12);
+
+    background: rgba(255,255,255,.05);
+
+    color: var(--text);
+
+    font-size: 13px;
+
+    line-height: 1.6;
+
+    outline: none;
+
+    font-family: inherit;
+}
+
+.module-item textarea:focus {
+
+    border-color: var(--accent);
+}
+
+.add-module-btn {
+
+    margin-top: 10px;
+
+    width: 100%;
+
+    padding: 10px;
+
+    border: 1px dashed rgba(139,139,255,.45);
+
+    border-radius: 10px;
+
+    background: rgba(139,139,255,.08);
+
+    color: #b7b7ff;
+
+    font-size: 13px;
+
+    cursor: pointer;
+}
+
+.add-module-btn:hover {
+
+    background: rgba(139,139,255,.16);
+}
+
+.module-body {
+
+    padding: 4px 2px 10px;
+
+    color: rgba(255,255,255,.78);
+
+    font-size: 14px;
+
+    line-height: 1.8;
+
+    white-space: pre-wrap;
+
+    word-break: break-word;
+}
+
+/* 收费 / 免费徽章 */
+.pricing-badge {
+
+    display: inline-block;
+
+    font-size: .62rem;
+
+    padding: 2px 8px;
+
+    border-radius: 999px;
+
+    background: rgba(120,220,170,.14);
+
+    color: #9fdcbb;
+
+    margin-top: 6px;
+
+    margin-right: 6px;
+}
+
+.pricing-badge.paid {
+
+    background: rgba(201,168,76,.16);
+
+    color: #e4c46f;
+}
+
+
 /* =====================================================
    SAVE
 ===================================================== */
@@ -1689,50 +1881,19 @@ body {
     </section>
 
 
-    <!-- INFINITE -->
+    <!-- CUSTOM MODULES（自定义模块区，模块名可改） -->
 
     <section
-        id="infiniteSection"
+        id="modulesSection"
         class="section"
     >
-
-        <div class="section-title">
-
-            <h2>
-                无限
-            </h2>
-
-            <span>
-                EXPLORE
-            </span>
-
-        </div>
-
-
-        <div class="empty">
-
-            发现别人留下的想法与作品。
-
-            <br><br>
-
-            无限正在生长。
-
-        </div>
-
+        <!-- 模块由 JS 按序渲染：<div class="section-title"><h2>模块名</h2></div><div class="module-body">内容</div> -->
     </section>
 
 
 </main>
 
 <nav class="bottom-nav" id="bottomNav" style="display:none;">
-    <a href="/hub">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 4v7a8 8 0 0 0 16 0V4"/>
-            <path d="M4 4h16"/>
-            <path d="M12 19v3"/>
-        </svg>
-        角色工坊
-    </a>
     <button id="navEditBtn" class="nav-edit-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 20h9"/>
@@ -1740,13 +1901,6 @@ body {
         </svg>
         编辑彼岸
     </button>
-    <a href="/?entered=1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-            <path d="M9 22V12h6v10"/>
-        </svg>
-        返回幻灵
-    </a>
 </nav>
 
 </div>
@@ -1978,20 +2132,36 @@ body {
 
                 </label>
 
-
-                <label class="checkbox-item">
-
-                    <input
-                        id="showInfinite"
-                        type="checkbox"
-                        checked
-                    >
-
-                    无限
-
-                </label>
-
             </div>
+
+        </div>
+
+
+        <!-- CUSTOM MODULES（自定义模块区：模块名字可修改） -->
+
+        <div class="form-group">
+
+            <label>
+                自定义模块区
+            </label>
+
+            <div class="module-editor-hint">
+                每个模块会作为独立区块显示在主页底部，模块名字可修改。
+            </div>
+
+            <div
+                id="moduleList"
+                class="module-list"
+            >
+            </div>
+
+            <button
+                id="addModuleBtn"
+                type="button"
+                class="add-module-btn"
+            >
+                ＋ 添加模块
+            </button>
 
         </div>
 
@@ -2109,6 +2279,11 @@ const state = {
     characters: [],
 
     worlds: [],
+
+    works: {
+        characters: [],
+        worlds: []
+    },
 
     isOwner: false
 
@@ -2252,6 +2427,7 @@ async function loadYonder() {
 async function applyYonderData(yonder) {
     state.profile = yonder.profile;
     state.settings = yonder.settings || {};
+    state.works = yonder.works || { characters: [], worlds: [] };
     await checkOwner();
     render();
 }
@@ -2375,7 +2551,9 @@ function render() {
             "bottomNav"
         )
         .style.display =
-            "flex";
+            state.isOwner
+                ? "flex"
+                : "none";
 
     document
         .getElementById(
@@ -2388,9 +2566,11 @@ function render() {
 
     if (state.isOwner) {
         document.getElementById("navEditBtn").addEventListener("click", openEditor);
-        loadCharacters();
-        loadWorlds();
     }
+
+    // 作品（角色 + 世界）主人与访客都渲染：主人=全部，访客=公开作品
+    loadCharacters();
+    loadWorlds();
 
     document
         .getElementById(
@@ -2772,10 +2952,8 @@ function applySettings(
         settings.show_works !== 0
     );
 
-    setVisible(
-        "infiniteSection",
-        settings.show_infinite !== 0
-    );
+    // 自定义模块区（模块名可修改，按序渲染在页面底部）
+    renderModules(settings.modules || []);
 
 
     if (
@@ -2816,22 +2994,15 @@ function applySettings(
 ===================================================== */
 
 async function loadCharacters() {
-    try {
-        const headers = {};
-        const t = localStorage.getItem("hyool_token");
-        if (t) headers["Authorization"] = "Bearer " + t;
-        const res = await fetch("/api/hub", {
-            method: "GET",
-            headers
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || "加载失败");
-        state.characters = data.characters || [];
-        renderCharacters();
-    } catch (e) {
-        state.characters = [];
-        renderCharacters();
+    state.characters = (state.works && state.works.characters) || [];
+    renderCharacters();
+}
+
+function pricingBadge(pricing, price) {
+    if (pricing === "paid") {
+        return `<span class="pricing-badge paid">¥${Math.max(0, Number(price) || 0)} 收费</span>`;
     }
+    return `<span class="pricing-badge">免费</span>`;
 }
 
 function renderCharacters() {
@@ -2839,7 +3010,7 @@ function renderCharacters() {
     const chars = state.characters || [];
 
     const showCount = 3;
-    const visible = chars.slice(0, showCount);
+    const visible = state.isOwner ? chars.slice(0, showCount) : chars;
 
     let html = "";
     if (state.isOwner) {
@@ -2849,24 +3020,25 @@ function renderCharacters() {
         </a>`;
     }
     html += visible.map(c => `
-        <a class="char-card" href="/buddy/${c.id}">
-            <img class="thumb" src="${escapeHtml(c.avatar_url || c.image_url || '/placeholder.png')}" alt="${escapeHtml(c.name || '')}" onerror="this.style.opacity=.3">
+        <a class="char-card" href="/buddy/${encodeURIComponent(c.id)}">
+            <img class="thumb" src="${escapeHtml(c.image_url || c.avatar_url || '/placeholder.png')}" alt="${escapeHtml(c.name || '')}" onerror="this.style.opacity=.3">
             <div class="info">
                 <div class="name">${escapeHtml(c.name || '未命名')}</div>
-                ${c.world ? `<div class="world">${escapeHtml(c.world)}</div>` : ''}
+                ${c.world_name ? `<div class="world">${escapeHtml(c.world_name)}</div>` : ''}
+                ${pricingBadge(c.pricing, c.price)}
             </div>
         </a>
     `).join("");
 
-    if (chars.length > showCount) {
+    if (state.isOwner && chars.length > showCount) {
         html += `<a href="/hub" class="more-card">
             <div class="more-num">+${chars.length - showCount}</div>
             <div class="more-label">查看全部</div>
         </a>`;
     }
 
-    if (!state.isOwner && !chars.length) {
-        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">还没有创造角色。</div>`;
+    if (!chars.length) {
+        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${state.isOwner ? "还没有创造角色。" : "还没有公开的角色。"}</div>`;
     } else {
         grid.innerHTML = html;
     }
@@ -2877,36 +3049,46 @@ function renderCharacters() {
 ===================================================== */
 
 async function loadWorlds() {
-    const section = document.getElementById("worldsSection");
-    if (!state.isOwner) { section.style.display = "none"; return; }
-    try {
-        const headers = {};
-        const t = localStorage.getItem("hyool_token");
-        if (t) headers["Authorization"] = "Bearer " + t;
-        const res = await fetch("/api/worlds", { method: "GET", headers });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || "加载失败");
-        state.worlds = data.worlds || [];
-        renderWorlds();
-    } catch (e) {
-        state.worlds = [];
-        renderWorlds();
+    state.worlds = (state.works && state.works.worlds) || [];
+    renderWorlds();
+}
+
+// 世界点击后直接进入（不再弹卡片二次选择）：
+// 生命世界 → 世界直播间；故事/游戏 → 对应工坊；无入口回退 hub 详情
+function worldPlayUrl(w) {
+    if (w.type === "game" || w.type === "mixed") {
+        return "/game-workshop?world=" + encodeURIComponent(w.id);
     }
+    if (w.type === "life") {
+        return "/world?world=" + encodeURIComponent(w.id);
+    }
+    return "/hub?world=" + encodeURIComponent(w.id);
 }
 
 function renderWorlds() {
     const grid = document.getElementById("worldGrid");
-    const worlds = state.worlds || [];
     const section = document.getElementById("worldsSection");
-    if (!state.isOwner) { section.style.display = "none"; return; }
-    section.style.display = "";
+    const worlds = state.worlds || [];
+    const showWorks = (state.settings && state.settings.show_works !== 0);
+
+    if (!worlds.length && !state.isOwner) {
+        section.style.display = "none";
+        return;
+    }
+    section.style.display = showWorks ? "" : "none";
+
     const formLabelOf = ({ story: "故事剧本", game: "H5 小游戏", mixed: "故事 + 游戏" });
-    let html = `<a href="/hub?create=world" class="create-card">
-        <div class="plus">+</div>
-        <div class="label">创造世界</div>
-    </a>`;
-    html += worlds.slice(0, 6).map(w => `
-        <a class="world-card" href="/hub?world=${encodeURIComponent(w.id)}">
+    const visible = state.isOwner ? worlds.slice(0, 6) : worlds;
+
+    let html = "";
+    if (state.isOwner) {
+        html += `<a href="/hub?create=world" class="create-card">
+            <div class="plus">+</div>
+            <div class="label">创造世界</div>
+        </a>`;
+    }
+    html += visible.map(w => `
+        <a class="world-card" href="${worldPlayUrl(w)}">
             <img class="thumb" src="${escapeHtml(w.cover_image || '/placeholder.png')}" alt="${escapeHtml(w.name || '')}" onerror="this.style.opacity=.3">
             <div class="info">
                 <div class="name">${escapeHtml(w.name || '未命名')}</div>
@@ -2914,11 +3096,90 @@ function renderWorlds() {
                     <span class="badge">${escapeHtml((w.settings && (w.settings.genreLabel || w.settings.genre)) || '世界')}</span>
                     <span class="badge form">${formLabelOf[w.type] || w.type}</span>
                 </div>
+                ${pricingBadge(w.pricing, w.price)}
             </div>
         </a>
     `).join("");
-    grid.innerHTML = html;
+
+    if (!html) {
+        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${state.isOwner ? "还没有创造世界。" : "还没有公开的世界。"}</div>`;
+    } else {
+        grid.innerHTML = html;
+    }
 }
+
+
+/* =====================================================
+   CUSTOM MODULES（自定义模块区：名字可修改，按序渲染）
+===================================================== */
+
+function renderModules(modules) {
+    const container = document.getElementById("modulesSection");
+    const list = Array.isArray(modules) ? modules : [];
+    if (!list.length) {
+        container.style.display = "none";
+        container.innerHTML = "";
+        return;
+    }
+    container.style.display = "";
+    container.innerHTML = list.map(m => `
+        <div class="section-title">
+            <h2>${escapeHtml((m && m.name) || "自定义模块")}</h2>
+            <span>MODULE</span>
+        </div>
+        <div class="module-body">${escapeHtml((m && m.content) || "")}</div>
+    `).join("");
+}
+
+function renderModuleEditor(modules) {
+    const listEl = document.getElementById("moduleList");
+    const list = Array.isArray(modules) ? modules : [];
+    listEl.innerHTML = list.map((m, i) => `
+        <div class="module-item" data-idx="${i}">
+            <div class="module-item-head">
+                <input class="module-name-input" maxlength="40" placeholder="模块名字" value="${escapeHtml((m && m.name) || "")}">
+                <button type="button" class="module-item-del">删除</button>
+            </div>
+            <textarea class="module-content-input" maxlength="5000" placeholder="模块内容（支持多行）">${escapeHtml((m && m.content) || "")}</textarea>
+        </div>
+    `).join("");
+}
+
+function collectModules() {
+    const listEl = document.getElementById("moduleList");
+    const items = Array.prototype.slice.call(listEl.querySelectorAll(".module-item"));
+    return items.map((el) => ({
+        id: el.dataset.idx,
+        name: (el.querySelector(".module-name-input").value || "").trim(),
+        content: el.querySelector(".module-content-input").value || ""
+    })).filter(m => m.name || m.content);
+}
+
+function addModule() {
+    const listEl = document.getElementById("moduleList");
+    const idx = listEl.children.length;
+    const div = document.createElement("div");
+    div.className = "module-item";
+    div.dataset.idx = String(idx);
+    div.innerHTML = `
+        <div class="module-item-head">
+            <input class="module-name-input" maxlength="40" placeholder="模块名字">
+            <button type="button" class="module-item-del">删除</button>
+        </div>
+        <textarea class="module-content-input" maxlength="5000" placeholder="模块内容（支持多行）"></textarea>
+    `;
+    listEl.appendChild(div);
+    div.querySelector(".module-name-input").focus();
+}
+
+document.getElementById("addModuleBtn").addEventListener("click", addModule);
+
+document.getElementById("moduleList").addEventListener("click", (e) => {
+    const del = e.target.closest(".module-item-del");
+    if (!del) return;
+    const item = del.closest(".module-item");
+    if (item) item.remove();
+});
 
 
 /* =====================================================
@@ -3048,12 +3309,8 @@ function openEditor() {
             settings.show_works !== 0;
 
 
-    document
-        .getElementById(
-            "showInfinite"
-        )
-        .checked =
-            settings.show_infinite !== 0;
+    // 自定义模块区：回填模块列表（名字可改）
+    renderModuleEditor(settings.modules || []);
 
     // Access password
     const hasPassword = Boolean(settings.has_access_password);
@@ -3261,12 +3518,7 @@ async function saveSettings() {
                     )
                     .checked,
 
-            show_infinite:
-                document
-                    .getElementById(
-                        "showInfinite"
-                    )
-                    .checked,
+            modules: collectModules(),
 
             custom_css:
                 "",

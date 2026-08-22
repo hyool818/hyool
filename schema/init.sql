@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS yonder_settings (
     show_works INTEGER DEFAULT 1,
     show_infinite INTEGER DEFAULT 1,
     custom_css TEXT DEFAULT '',
+    modules TEXT DEFAULT '[]',
     access_password TEXT DEFAULT '',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -68,6 +69,8 @@ CREATE TABLE IF NOT EXISTS characters (
     source_idea TEXT DEFAULT '',
     image_url TEXT DEFAULT '',
     share_id TEXT UNIQUE,
+    pricing TEXT DEFAULT 'free',
+    price INTEGER DEFAULT 0,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
