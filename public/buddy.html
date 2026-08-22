@@ -539,6 +539,24 @@ const api = (p, o = {}) => {
 const $ = id => document.getElementById(id);
 const escapeHtml = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
 
+/* 返回按钮目标：优先来源页（个人主页 /@…），其余回我的彼岸 /hub */
+function buddyBackTarget() {
+  try {
+    const from = new URLSearchParams(location.search).get("from");
+    if (from && from.charAt(0) === "/" && from.charAt(1) !== "/") {
+      if (from.startsWith("/@") || from.startsWith("/hub")) return from;
+    }
+  } catch {}
+  try {
+    const r = document.referrer;
+    if (r) {
+      const u = new URL(r);
+      if (u.origin === location.origin && u.pathname.startsWith("/@")) return u.pathname + u.search + u.hash;
+    }
+  } catch {}
+  return "/hub";
+}
+
 /* 沉淀为剧本 toast */
 let toastTimer = null;
 function toast(msg, actionEl) {
@@ -1208,8 +1226,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       const el = $(id);
       if (el) el.style.display = "none";
     });
-    const bb = $("backBtn");
-    if (bb) bb.textContent = "← 返回彼岸";
     const cc = $("composer");
     if (cc) cc.style.display = "none";
     const note = document.createElement("div");
@@ -1218,7 +1234,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("chatInner").appendChild(note);
   }
 
-  $("backBtn").addEventListener("click", () => { location.href = "/hub"; });
+  const backBtn = $("backBtn");
+  if (backBtn) {
+    backBtn.textContent = buddyBackTarget().startsWith("/@") ? "← 返回主页" : "← 返回彼岸";
+    backBtn.addEventListener("click", () => { location.href = buddyBackTarget(); });
+  }
   $("logoutBtn").addEventListener("click", async () => {
     localStorage.removeItem("hyool_token");
     try { await api("/api/logout", { method: "POST" }); } catch {}

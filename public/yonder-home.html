@@ -3020,7 +3020,7 @@ function renderCharacters() {
         </a>`;
     }
     html += visible.map(c => `
-        <a class="char-card" href="/buddy/${encodeURIComponent(c.id)}">
+        <a class="char-card" href="/buddy/${encodeURIComponent(c.id)}${state.username ? '?from=' + encodeURIComponent('/@' + state.username) : ''}">
             <img class="thumb" src="${escapeHtml(c.image_url || c.avatar_url || '/placeholder.png')}" alt="${escapeHtml(c.name || '')}" onerror="this.style.opacity=.3">
             <div class="info">
                 <div class="name">${escapeHtml(c.name || '未命名')}</div>
@@ -3060,7 +3060,8 @@ function worldPlayUrl(w) {
         return "/game-workshop?world=" + encodeURIComponent(w.id);
     }
     if (w.type === "life") {
-        return "/world?world=" + encodeURIComponent(w.id);
+        const from = state.username ? "/@" + encodeURIComponent(state.username) : "";
+        return "/world?world=" + encodeURIComponent(w.id) + "&from=" + encodeURIComponent(from);
     }
     return "/hub?world=" + encodeURIComponent(w.id);
 }

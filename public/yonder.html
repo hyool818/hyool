@@ -409,34 +409,6 @@ body::before{
 
 
 /* =========================================================
-   GUEST
-========================================================= */
-
-.action.guest{
-
-    border-color:
-        transparent;
-
-    background:
-        transparent;
-
-    color:
-        rgba(255,255,255,.35);
-
-}
-
-.action.guest:hover{
-
-    border-color:
-        rgba(255,255,255,.12);
-
-    color:
-        rgba(255,255,255,.75);
-
-}
-
-
-/* =========================================================
    FOOTER
 ========================================================= */
 
@@ -1184,14 +1156,6 @@ body::before{
             id="registerButton"
         >
             注册
-        </button>
-
-
-        <button
-            class="action guest"
-            id="guestButton"
-        >
-            游客进入
         </button>
 
     </div>
@@ -2142,20 +2106,6 @@ document
 
 
 /* =========================================================
-   GUEST
-========================================================= */
-
-document
-    .getElementById("guestButton")
-    .addEventListener(
-        "click",
-        () => {
-            window.location.href = "/hub";
-        }
-    );
-
-
-/* =========================================================
    CLOSE MODAL
 ========================================================= */
 
@@ -2195,7 +2145,7 @@ document
         () => {
 
             window.location.href =
-                "/?entered=1";
+                "/";
 
         }
     );

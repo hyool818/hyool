@@ -334,7 +334,7 @@ input, textarea { color-scheme: dark; }
 <body>
 
 <div class="topbar">
-  <button class="tbtn" onclick="location.href='/hub'">← 工坊</button>
+  <button class="tbtn" onclick="goWorldBack()">← 返回</button>
   <div class="tt">
     <h1 id="wName">世界</h1>
     <span class="badge" id="wMode"></span>
@@ -617,6 +617,27 @@ const AGE_OPTIONS = ["", "幼童", "少年", "青年", "中年", "老年"];
 const THREAD_BG_PRESETS = ["街边茶馆","深夜码头","山顶道观","集市一角","祠堂议事","小巷雨夜","洞府静室","市井长街","野外营地","庙会灯会"];
 
 const worldId = new URLSearchParams(location.search).get("world") || "";
+
+/* 返回按钮：优先回来源页（个人主页 /@…），其余回我的彼岸 /hub */
+function goWorldBack() {
+  // 1) 显式 from 参数（个人主页入口会带上 /@用户名）
+  try {
+    const from = new URLSearchParams(location.search).get("from");
+    if (from && from.charAt(0) === "/" && from.charAt(1) !== "/") {
+      if (from.startsWith("/@") || from.startsWith("/hub")) { location.href = from; return; }
+    }
+  } catch {}
+  // 2) 同站 referrer：个人主页
+  try {
+    const r = document.referrer;
+    if (r) {
+      const u = new URL(r);
+      if (u.origin === location.origin && u.pathname.startsWith("/@")) { location.href = u.pathname + u.search + u.hash; return; }
+    }
+  } catch {}
+  // 3) 兜底：我的彼岸
+  location.href = "/hub";
+}
 
 function castMap(){ const m={}; (S.world.cast||[]).forEach(c=>m[c.id]=c); return m; }
 function avatarOf(actor){ const c=castMap()[actor]; return c && c.avatar ? c.avatar : ""; }
