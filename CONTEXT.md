@@ -89,6 +89,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 ## 最近已完成（2026-08-23）
 
+- **★ 全站角色池（前 60）仅管理账户可见（2026-08-23）**：`GET /api/hub` 游客分支不再返回全站公开角色（改 `characters: []`），该公开角色池只在管理账户 `333123`（与邀请码管理同一判定）登录时返回（附 `isAdminView: true`）；普通用户仍只返回自己的角色。前端 `hub.html` `renderChars` 新增 `readOnly` 参数，管理全站视图下角色卡隐藏编辑/删除/创造按钮（后端 update/delete 本有 owner 校验，管理员操作他人角色仍 403）。详见 docs/history.md 末尾。
 - **游客访问 /hub 直接重定向 /plaza（2026-08-23）**：个人创作库（我的彼岸）只对登录用户开放。`public/hub.html` DOMContentLoaded 中 `isGuest` → `location.replace("/plaza")` + return（用 replace 防历史栈残留）；`hub-check.html` 访客断言同步改为「重定向 /plaza + 幻灵世界大标题」；后端 `GET /api/hub` 游客分支保留。详见 docs/history.md 末尾。
 
 

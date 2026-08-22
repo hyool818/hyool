@@ -293,6 +293,22 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 **验证**：`hub.html` / `hub-check.html` 内联脚本 `node --check` 通过；commit + push main（CI 自动部署）。
 
+---
+
+## 全站角色池（前 60）仅管理账户可见（2026-08-23）
+
+**决策**：`/api/hub` 此前游客分支返回全站 `share_id` 非空的前 60 个公开角色（游客在「我的彼岸」可浏览所有用户的角色卡）。用户拍板：**这个全站角色池只对管理账户可见，游客和普通用户都看不见**——普通登录用户在个人创作库只看到自己的作品；游客页面层已重定向 /plaza（见上一条）。
+
+**后端（`src/mvp.js` `GET /api/hub`）**：
+1. 未登录 → `{ success: true, guest: true, characters: [] }`（不再查询全站公开角色）
+2. 管理账户（`user.username === '333123'`，与邀请码管理同一判定）→ 返回全站 `share_id` 非空前 60 角色 + `isAdminView: true`
+3. 普通登录用户 → 仍只返回 `owner_id = 自己` 的角色（不变）
+
+**前端（`public/hub.html`）**：`renderChars(chars, guest, readOnly)` 新增 `readOnly` 参数——管理全站视图（`res.isAdminView`）下角色卡不显示编辑/删除按钮、不追加「创造角色」卡，仅作浏览（点卡片仍可进入 /buddy；后端 update/delete 本身有 owner 校验，管理员操作他人角色仍返回 403「无权操作此角色」）。
+
+**验证**：`node --check`（`mvp.js` + `hub.html` 内联脚本）通过；`node:sqlite` 内存表复现三分支——admin 视图只含 `share_id` 非空角色（隐藏角色被排除）、用户视图含自己全部角色（含隐藏）✓。
+
+
 
 <b>world.html 页面布局优化（本次会话，已完成本地验证，commit 208fe2a）：</b>
 1. **顶部右侧「世界X」tab** —— 移出导轨底部 tab 行，改为顶栏右侧常驻「世界角色 / 世界关系 / 世界故事」三个切换按钮（`.world-tab`，保留 `data-rail` 属性兼容 world-check 断言），切换世界面板分节；「世界后台」按钮（openSide）保留。

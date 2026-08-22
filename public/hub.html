@@ -591,7 +591,7 @@ function toggleCreateMenu(open) {
 }
 
 /* ---------- 角色区 ---------- */
-function renderChars(chars, guest) {
+function renderChars(chars, guest, readOnly) {
   allChars = chars || [];
   $("roleCnt").textContent = allChars.length || "";
   const grid = $("grid");
@@ -613,7 +613,7 @@ function renderChars(chars, guest) {
 
   html += allChars.map((c, i) => {
     const href = "/buddy/" + escapeHtml(c.id);
-    const actions = guest ? "" : `
+    const actions = guest || readOnly ? "" : `
       <div class="card-actions">
         <button class="card-btn edit" onclick="event.stopPropagation();openEdit(${i})" title="编辑">✏️</button>
         <button class="card-btn del" onclick="event.stopPropagation();openDelete(${i})" title="删除">🗑️</button>
@@ -640,7 +640,7 @@ function renderChars(chars, guest) {
     </${tag}>`;
   }).join("");
 
-  if (!guest) {
+  if (!guest && !readOnly) {
     html += `<button class="create-card" onclick="location.href='/create/character/'">
       <div class="plus">+</div><div class="label">创造角色</div>
     </button>`;
@@ -1260,14 +1260,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* 加载数据 */
   try {
     const res = await api("/api/hub");
-    renderChars(res.characters || [], isGuest);
+    renderChars(res.characters || [], isGuest, res.isAdminView === true);
     // Companion inbox：TA 主动留的话 → 卡片角标
     if (!isGuest) {
       try {
         const inb = await api("/api/companion/inbox");
         inboxMap = {};
         (inb.unread || []).forEach(u => { inboxMap[u.character_id] = (inboxMap[u.character_id] || 0) + 1; });
-        renderChars(res.characters || [], isGuest);
+        renderChars(res.characters || [], isGuest, res.isAdminView === true);
       } catch {}
     }
   } catch (e) {

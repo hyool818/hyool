@@ -552,7 +552,18 @@ export async function handleMvpRoutes(
         try {
             const user = await getAuthenticatedUser(request);
 
+            // 全站公开角色池（前 60）仅管理账户（333123）可见：游客 / 普通用户均不可见
+            const isAdmin = !!(user && user.username === "333123");
+
             if (!user) {
+                return json({
+                    success: true,
+                    guest: true,
+                    characters: []
+                });
+            }
+
+            if (isAdmin) {
                 const result = await env.DB.prepare(
                     `SELECT id, name, appearance, personality, story_hook, image_url, share_id, world_name, pricing, price, created_at, updated_at
                      FROM characters
@@ -563,7 +574,7 @@ export async function handleMvpRoutes(
 
                 return json({
                     success: true,
-                    guest: true,
+                    isAdminView: true,
                     characters: (result.results || []).map(formatCharacter)
                 });
             }
