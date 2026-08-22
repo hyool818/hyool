@@ -168,6 +168,9 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 4. **验证（已部署 6c3817b 后线上全绿）**：新增 `public/home-check.html`（16 断言：登录态 @smokews 角色库/世界库标题、创造角色/创造世界卡片 href 与文案、0 世界也显示世界库、无「记录」区块/统计容器/数字生命、`?create=world` 直达向导 5 步第 1 步激活）。**一键复验命令**（无需写临时脚本）：
    `.\run-browser-test.ps1 -Url https://hyool.w910227a.workers.dev/home-check.html -OutFile .\test-out-home.txt`
    实测约 2–10s 出结果；线上冒烟输出见 `test-out-home.txt`（TITLE: SMOKE-OK）。注意：断言用「可见文本遍历」判断文案（跳过 script/style），避免 `body.textContent` 包含内联脚本注释造成误报。
+5. **零浏览器快检（秒级）**：只改静态文案/入口时无需起浏览器，直接查部署产物：
+   `.\check-home-fast.ps1 -OutFile .\test-out-home-fast.txt`
+   13 断言（`@smokews` 页文案/href/区块存在 + 旧文案与已删标识缺失 + hub 向导标识），实测约 1.7s。注意：`.ps1` 含中文须保持 **UTF-8 BOM**（Windows PowerShell 5.1 按 ANSI 读无 BOM 文件会乱码报错）；改脚本请用 .NET ReadAllText/WriteAllText 保留 BOM，勿用编辑器直接覆盖。
 
 ## 验证记录
 
