@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>HYOOL · 生命世界广场</title>
+<title>HYOOL · 幻灵世界</title>
 <style>
 :root {
   --accent: #8b8bff;
@@ -75,7 +75,7 @@ a { color: inherit; text-decoration: none; }
 <body>
 
 <header class="header">
-  <a class="logo" href="/"><img src="/logo1.png" alt="HYOOL"><span>生命世界广场</span></a>
+  <a class="logo" href="/"><img src="/logo1.png" alt="HYOOL"></a>
   <div style="display:flex;gap:.6rem;align-items:center;">
     <a class="header-link" href="/">首页</a>
     <a class="header-link" href="/hub">我的彼岸</a>
@@ -83,6 +83,14 @@ a { color: inherit; text-decoration: none; }
 </header>
 
 <main class="page">
+
+  <div class="page-head">
+    <h1>🌍 幻灵世界</h1>
+    <p>每一位主人发布的生命世界，都在这里自由运转。<span class="cnt" id="cnt"></span></p>
+  </div>
+
+  <div id="status" class="loading">加载中…</div>
+  <div id="grid" class="grid"></div>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -131,14 +139,7 @@ async function loadPlaza() {
 loadPlaza();
 </script>
 
+</main>
+
 </body>
 </html>
-
-  <div class="page-head">
-    <h1>🌍 生命世界广场</h1>
-    <p>每一位主人发布的生命世界，都在这里自由运转。<span class="cnt" id="cnt"></span></p>
-  </div>
-
-  <div id="status" class="loading">加载中…</div>
-  <div id="grid" class="grid"></div>
-</main>
