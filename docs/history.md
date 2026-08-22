@@ -588,3 +588,16 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **验证**：按用户约定不做验证；commit `58d72d4` + push main（CI 自动部署），线上效果待用户确认。
 
+## 创角页 2D动漫风格动图补全（2026-08-23）
+
+**背景**：用户补充日漫动图（`anime.mp4`），4 种生图风格动图齐备。
+
+**改动**（2 个 HTML + 1 个 mp4，无 migration）：
+1. `public/create-art/anime.mp4` 新增（960KB）。
+2. `create.html` anime 风格卡 `.style-icon` 内补 `<video class="style-img" src="/create-art/anime.mp4" autoplay muted loop playsinline preload="metadata" onerror="this.remove()">`（emoji 🌸 兜底保留）。
+3. `create-character.html` STEP1 anime 条目补 `video: "anime.mp4"`。
+
+**至此 4 种生图风格（realistic/3d/anime/guofeng）动图全部接入，两页展示一致。**
+
+**验证**：按用户约定不做验证；commit `7d6b726` + push main（CI 自动部署），线上效果待用户确认。
+
