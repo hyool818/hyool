@@ -82,7 +82,7 @@ a { color: inherit; text-decoration: none; }
 <div id="app" style="display:none;">
   <header class="header">
     <a class="logo" href="/"><img src="/logo1.png" alt="HYOOL"></a>
-    <a class="header-link accent" href="/create">创造我的数字生命</a>
+    <a class="header-link accent" href="/create" id="createLink">创造我的数字生命</a>
   </header>
 
   <main class="page">
@@ -99,7 +99,7 @@ a { color: inherit; text-decoration: none; }
         <div class="field"><div class="k">故事钩子</div><div class="v" id="charHook"></div></div>
         <div class="actions">
           <a class="btn btn-primary" id="meetBtn">与 TA 相遇</a>
-          <a class="btn btn-ghost" href="/create">创造我的</a>
+          <a class="btn btn-ghost" href="/create" id="createBtn">创造我的</a>
         </div>
       </div>
     </div>
@@ -112,6 +112,15 @@ const escapeHtml = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;")
 function getShareId() {
   const parts = location.pathname.split("/").filter(Boolean);
   return parts[1] || "";
+}
+
+/* 从用户主页（/@…）链路进入的分享：返回该主页，避免把访客引去主站 */
+function getFromHome() {
+  try {
+    const f = new URLSearchParams(location.search).get("from");
+    if (f && f.charAt(0) === "/" && f.charAt(1) !== "/" && (f.startsWith("/@") || f.startsWith("/hub"))) return f;
+  } catch {}
+  return "";
 }
 
 async function load() {
@@ -132,7 +141,15 @@ async function load() {
     document.getElementById("charBackground").textContent = c.background || "—";
     document.getElementById("charSpeech").textContent = c.speech_style || "—";
     document.getElementById("charHook").textContent = c.story_hook || "—";
-    document.getElementById("meetBtn").href = "/buddy/" + encodeURIComponent(c.id);
+    document.getElementById("meetBtn").href = "/buddy/" + encodeURIComponent(c.id) + (getFromHome() ? "?from=" + encodeURIComponent(getFromHome()) : "");
+    // 从用户主页进入的分享：把「创造我的」与头部按钮改为返回该主页，访客不离开主页
+    const fromHome = getFromHome();
+    if (fromHome) {
+      const cl = document.getElementById("createLink");
+      const cb = document.getElementById("createBtn");
+      if (cl) { cl.href = fromHome; cl.textContent = "返回主页"; }
+      if (cb) { cb.href = fromHome; cb.textContent = "返回主页"; }
+    }
     document.getElementById("loading").style.display = "none";
     document.getElementById("app").style.display = "block";
     document.title = "HYOOL · " + (c.name || "分享");
@@ -142,7 +159,11 @@ async function load() {
 }
 
 function showError(msg) {
-  document.getElementById("loading").innerHTML = '<div class="err-screen">' + escapeHtml(msg) + '<br><br><a href="/">返回首页</a> · <a href="/create">去创造</a></div>';
+  const home = getFromHome();
+  const links = home
+    ? '<a href="' + home + '">返回主页</a>'
+    : '<a href="/">返回首页</a> · <a href="/create">去创造</a>';
+  document.getElementById("loading").innerHTML = '<div class="err-screen">' + escapeHtml(msg) + '<br><br>' + links + '</div>';
 }
 
 document.addEventListener("DOMContentLoaded", load);

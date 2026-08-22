@@ -731,7 +731,10 @@ function renderCharacter(c) {
     img.style.display = "none";
     if (blur) blur.style.display = "none";
   }
-  if (c.share_url) $("shareLink").href = c.share_url;
+  if (c.share_url) {
+    const bt = buddyBackTarget();
+    $("shareLink").href = c.share_url + (bt.startsWith("/@") ? (c.share_url.indexOf("?") >= 0 ? "&" : "?") + "from=" + encodeURIComponent(bt) : "");
+  }
   characterGender = c.gender || "";
   if (c.chat_config) {
     try { chatConfig = { ...chatConfig, ...(typeof c.chat_config === "string" ? JSON.parse(c.chat_config) : c.chat_config) }; } catch {}
@@ -1230,7 +1233,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (cc) cc.style.display = "none";
     const note = document.createElement("div");
     note.className = "guest-login-note";
-    note.innerHTML = 'TA 的故事从这里开始。登录后与 TA 聊天 → <a href="/yonder.html?next=' + encodeURIComponent(location.pathname) + '">去登录</a>';
+    const bt = buddyBackTarget();
+    const nextPath = location.pathname + (bt.startsWith("/@") ? "?from=" + encodeURIComponent(bt) : "");
+    note.innerHTML = 'TA 的故事从这里开始。登录后与 TA 聊天 → <a href="/yonder.html?next=' + encodeURIComponent(nextPath) + '">去登录</a>';
     $("chatInner").appendChild(note);
   }
 
