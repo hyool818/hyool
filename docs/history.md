@@ -347,4 +347,15 @@ state: {
 
 **验证闭环**：`npx wrangler deploy --dry-run` 通过（D1/Vectorize/AI/ASSETS 绑定正常）→ commit `d012362` + push main（CI 自动部署）。纯 CSS 尺寸改动，未跑浏览器冒烟（用户判定无必要）。
 
+## 首页主 logo 尺寸再放大 5 倍（2026-08-22）
+
+**背景**：用户反馈 160px 仍偏小，要求**至少扩大 5 倍**。
+
+**改动（`public/index.html`，仅 CSS）**：
+1. `.world-logo-main img` 桌面宽度：`160px` → **`800px`**（5 倍），新增 `max-width:88vw` 防止移动端小屏溢出（`height:auto` 保持比例）。
+2. `@media(max-width:700px)` 下：`120px` → **`600px`**（继承 `max-width:88vw` 约束）。
+3. 未动 `.world-logo`（logo1.png）、未改 HTML 结构。
+
+**验证闭环**：`npx wrangler deploy --dry-run` 通过 → commit `9880706` + push main（CI 自动部署）。
+
 
