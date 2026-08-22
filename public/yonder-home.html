@@ -3037,8 +3037,8 @@ function renderCharacters() {
         </a>`;
     }
 
-    if (!chars.length) {
-        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${state.isOwner ? "还没有创造角色。" : "还没有公开的角色。"}</div>`;
+    if (!state.isOwner && !chars.length) {
+        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">还没有公开的角色。</div>`;
     } else {
         grid.innerHTML = html;
     }
