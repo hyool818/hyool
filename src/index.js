@@ -315,59 +315,6 @@ export default {
 
 
         /* =====================================================
-           GUEST（游客身份：任何人无需注册即可体验公开作品）
-        ===================================================== */
-
-        if (pathname === "/api/guest" && request.method === "POST") {
-            try {
-                const rand = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
-                const userId = "guest_" + rand;
-                const username = "guest_" + rand;
-
-                const passwordHash =
-                    await hashPassword(
-                        crypto.randomUUID() +
-                        "-" +
-                        Date.now()
-                    );
-
-                await env.DB
-                    .prepare(
-                        "INSERT INTO profiles (id, username, display_name, bio, theme, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
-                    )
-                    .bind(
-                        userId,
-                        username,
-                        "游客",
-                        "这是我偶然路过的一片彼岸。",
-                        "dark",
-                        passwordHash
-                    )
-                    .run();
-
-                await ensureYonderSettings(
-                    env,
-                    userId
-                );
-
-                return createLoginResponse(
-                    env,
-                    userId,
-                    username
-                );
-
-            } catch (error) {
-                console.error("GUEST ERROR:", error);
-
-                return json({
-                    success: false,
-                    error: "游客进入失败，请稍后再试。"
-                }, 500);
-            }
-        }
-
-
-        /* =====================================================
            LOGIN
         ===================================================== */
 
@@ -1737,6 +1684,11 @@ async function getAuthenticatedUser(
             .bind(token)
             .run();
 
+        return null;
+    }
+
+    // 游客身份已废弃（零数据浏览）：历史 guest_ 会话一律视为未登录
+    if (session.username && String(session.username).indexOf("guest_") === 0) {
         return null;
     }
 

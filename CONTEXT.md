@@ -172,9 +172,17 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
    `.\check-home-fast.ps1 -OutFile .\test-out-home-fast.txt`
    13 断言（`@smokews` 页文案/href/区块存在 + 旧文案与已删标识缺失 + hub 向导标识），实测约 1.7s。注意：`.ps1` 含中文须保持 **UTF-8 BOM**（Windows PowerShell 5.1 按 ANSI 读无 BOM 文件会乱码报错）；改脚本请用 .NET ReadAllText/WriteAllText 保留 BOM，勿用编辑器直接覆盖。
 
+## 公开作品「零数据浏览」调整（2026-08-22 收尾，已部署 <commit>）
+
+1. **取消自动游客身份** —— 删除后端 `POST /api/guest` 路由与前端自动创建逻辑（`world.html`/`buddy.html` 不再请求 `/api/guest`，不建任何 profile/session）；`getAuthenticatedUser` 对历史 `guest_` 前缀会话一律视为未登录（旧游客 token 自然失效，访客变纯匿名）。「无需注册体验公开作品」收敛为「**零数据浏览**」：纯浏览/看公开作品不产生任何数据。
+2. **浏览不受影响** —— 公开作品读取本就对匿名放行：主页 `GET /api/yonder/:username`、世界详情 `GET /api/worlds/:id`（published）、生命世界 `GET /life` / `messages` / `story`。
+3. **生命世界互动保留** —— `requireOwnedLifeWorld(id,{public:true})` 对已发布世界继续放行匿名读+互动（chat / tick / 建线程），`user=null` 时发言署名「游客」；`world.html` 无 token 直接可进世界发言，仅主人后台按 `S.canManage`（`/api/me` 对比 `world.owner_id`）隐藏。
+4. **角色页（buddy）访客只读** —— 未登录/游客会话已清理：隐藏聊天框与仅主人按钮（沉淀剧本/设置/退出/更换形象），经公开接口 `GET /api/characters/:id` 渲染角色卡（仅 `share_id` 非空的公开角色；未公开角色提示「这个角色没有公开」），聊天区显示「登录后与 TA 聊天 → 去登录」链接；不再跳转登录页。
+5. **验证**：`node --check`（含 HTML 内联脚本抽取校验）全绿；`npx wrangler deploy --dry-run` 通过；线上验证记录见下方「验证记录」。
+
 ## 个人主页·公开作品大改造（2026-08-22 本会话已完成，已部署 e0f3244）
 
-1. **公开作品游客可体验（无需注册）** —— ① 后端新增 `POST /api/guest`：自动创建游客 profile+session（`guest_<hex>`，展示名「游客」），返回 token 并写 cookie；② `GET /api/yonder/:username` 经 `buildYonderPayload()` 返回 `works{characters[],worlds[]}`（主人=全部，访客=公开：角色 `share_id` 非空、世界 `status='published'`）；③ 生命世界 `requireOwnedLifeWorld(id,{public:true})`：已发布世界对游客放行读（GET life / messages / story）与互动（tick / chat / threads / threads-meta），管理接口保持仅主人，游客发言名显示「游客」；④ `GET /api/worlds/:id` 已发布世界对游客可读（game/mixed 工坊页打通）；⑤ `buddy.html`/`world.html` 无 token 时自动 `POST /api/guest`（存 `hyool_token` + `hyool_is_guest`），游客隐藏仅主人功能（沉淀剧本/设置/更换形象/世界后台/暂停/线程删除等），world 页按 `S.canManage`（对比 `world.owner_id` 与 `/api/me`）控制；`formatLifeWorld` 补 `owner_id`。hub 游客卡也直达 `/buddy/:id`。
+1. **公开作品游客可体验（无需注册）** —— ① 后端曾新增 `POST /api/guest` 自动创建游客 profile+session，**后已随「零数据浏览」调整移除**（见上方章节）：改为纯匿名放行；② `GET /api/yonder/:username` 经 `buildYonderPayload()` 返回 `works{characters[],worlds[]}`（主人=全部，访客=公开：角色 `share_id` 非空、世界 `status='published'`）；③ 生命世界 `requireOwnedLifeWorld(id,{public:true})`：已发布世界对匿名放行读（GET life / messages / story）与互动（tick / chat / threads / threads-meta），管理接口保持仅主人，匿名发言名显示「游客」；④ `GET /api/worlds/:id` 已发布世界对匿名可读（game/mixed 工坊页打通）；⑤ `buddy.html` 访客只读角色卡 + 「登录后聊天」提示，`world.html` 匿名可进已发布世界发言，二者都隐藏仅主人功能（沉淀剧本/设置/更换形象/世界后台/暂停/线程删除等），world 页按 `S.canManage`（对比 `world.owner_id` 与 `/api/me`）控制；`formatLifeWorld` 补 `owner_id`。hub 游客卡也直达 `/buddy/:id`。
 2. **底部导航只留「编辑彼岸」** —— `yonder-home.html` 底栏删除 角色工坊/返回幻灵 两个链接，仅剩 `navEditBtn`；非主人不显示底栏。
 3. **角色工坊 → 我的彼岸** —— hub 页 title/h1/副标题、wstep 文案、create/game-workshop/buddy/fantasy/workspace 站内链接、README、hub-check 断言全部改名；URL 仍为 `/hub`。「独立显示预览」= 访客也能看到角色+世界独立预览卡（并入①）。
 4. **主页点世界直接进入** —— 世界卡 `href` 改为 `worldPlayUrl()`：life→`/world?world=`、game/mixed→`/game-workshop?world=`，不再弹详情卡二次选择；story/vn 无入口时回退 `/hub?world=`。

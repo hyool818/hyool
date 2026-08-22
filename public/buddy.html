@@ -364,6 +364,12 @@ a { color: inherit; text-decoration: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .err-screen { text-align: center; padding: 2rem; }
 .err-screen a { color: var(--accent); }
+/* 访客只读卡提示（零数据浏览：不建游客身份） */
+.guest-login-note {
+  padding: 36px 20px; text-align: center; color: rgba(255,255,255,.55);
+  font-size: .92rem; line-height: 1.9;
+}
+.guest-login-note a { color: var(--accent); text-decoration: none; }
 
 /* Mobile: portrait becomes overlay */
 @media (max-width: 768px) {
@@ -429,7 +435,7 @@ a { color: inherit; text-decoration: none; }
       <div class="chat-area" id="chatArea">
         <div class="chat-inner" id="chatInner"></div>
       </div>
-      <div class="composer">
+      <div class="composer" id="composer">
         <div class="composer-inner">
           <textarea id="msgInput" placeholder="对 TA 说点什么……" rows="1"></textarea>
           <button class="send-btn" id="sendBtn">发送</button>
@@ -654,6 +660,8 @@ function extractPlainText(content) {
 }
 
 async function checkAuth() {
+  // 零数据浏览：不再自动创建游客身份（guest 档案已废弃）。
+  // 有 token 才尝试验证，否则一律按访客只读处理。
   const t = localStorage.getItem("hyool_token");
   if (t) {
     try {
@@ -662,38 +670,24 @@ async function checkAuth() {
       const res = await fetch("/api/me", { credentials: "include", cache: "no-store", headers: h });
       const data = await res.json();
       if (data.authenticated) {
-        // 游客身份标记：用户名为 guest_ 前缀即为游客
+        // 历史游客身份（guest_ 前缀）已被后端废弃：清除后按访客处理
         const isGuestUser = !!(data.user && data.user.username && String(data.user.username).indexOf("guest_") === 0);
-        if (isGuestUser) localStorage.setItem("hyool_is_guest", "1");
-        else localStorage.removeItem("hyool_is_guest");
+        if (isGuestUser) {
+          localStorage.removeItem("hyool_token");
+          localStorage.removeItem("hyool_is_guest");
+          return false;
+        }
+        localStorage.removeItem("hyool_is_guest");
         return true;
       }
+      // token 已失效（过期/废弃会话）：清掉，避免每次请求都带假 token
+      localStorage.removeItem("hyool_token");
+      localStorage.removeItem("hyool_is_guest");
     } catch {}
+  } else {
+    localStorage.removeItem("hyool_is_guest");
   }
-
-  // 未登录 → 游客身份（无需注册即可体验公开作品）
-  for (let i = 0; i < 2; i++) {
-    try {
-      const res = await fetch("/api/guest", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" }
-      });
-      const data = await res.json();
-      if (data.success && data.token) {
-        localStorage.setItem("hyool_token", data.token);
-        localStorage.setItem("hyool_is_guest", "1");
-        return true;
-      }
-    } catch {}
-    await new Promise(r => setTimeout(r, 600));
-  }
-  location.href = "/yonder.html?next=" + encodeURIComponent(location.pathname);
   return false;
-}
-
-function isGuestMode() {
-  return localStorage.getItem("hyool_is_guest") === "1";
 }
 
 function intimacyLabel(v) {
@@ -956,6 +950,28 @@ async function loadMessages() {
   }
 }
 
+/* 访客只读：仅公开角色卡（share_id 非空），不加载聊天历史、不可发言 */
+async function loadVisitorCharacter() {
+  const id = getCharId();
+  try {
+    const res = await api("/api/characters/" + id);
+    if (!res.success || !res.character) throw new Error((res && res.error) || "角色不存在。");
+    const c = res.character;
+    if (!c.share_id) {
+      $("loading").innerHTML = '<div class="err-screen">这个角色没有公开。<br><a href="/hub">返回我的彼岸</a></div>';
+      return;
+    }
+    character = c;
+    renderCharacter(c);
+    addMessage("assistant", "（TA 的故事从这里开始。登录后与 TA 聊天吧。）", false);
+    $("loading").style.display = "none";
+    $("app").style.display = "flex";
+    scrollBottom();
+  } catch (e) {
+    $("loading").innerHTML = '<div class="err-screen">加载失败：' + escapeHtml(e.message) + '<br><a href="/hub">返回我的彼岸</a></div>';
+  }
+}
+
 /* ---------- 更换角色形象（本地上传 → 竖版裁剪 → 更新形象） ---------- */
 const PORTRAIT_MAX_BYTES = 5 * 1024 * 1024; // 单文件 5MB
 let portraitCropCb = null; // 裁剪完成回调（收到裁剪后的 Blob）
@@ -1183,17 +1199,23 @@ async function sendMessage() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  if (!(await checkAuth())) return;
+  const isOwner = await checkAuth();
   if (!getCharId()) { location.href = "/hub"; return; }
 
-  // 游客模式：隐藏仅主人功能（沉淀剧本 / 设置 / 退出 / 更换形象）
-  if (isGuestMode()) {
+  // 访客（未登录 / 历史游客已清理）：只读展示角色卡，隐藏仅主人功能与聊天
+  if (!isOwner) {
     ["scriptBtn", "settingsBtn", "logoutBtn", "changePortraitBtn"].forEach(id => {
       const el = $(id);
       if (el) el.style.display = "none";
     });
     const bb = $("backBtn");
     if (bb) bb.textContent = "← 返回彼岸";
+    const cc = $("composer");
+    if (cc) cc.style.display = "none";
+    const note = document.createElement("div");
+    note.className = "guest-login-note";
+    note.innerHTML = 'TA 的故事从这里开始。登录后与 TA 聊天 → <a href="/yonder.html?next=' + encodeURIComponent(location.pathname) + '">去登录</a>';
+    $("chatInner").appendChild(note);
   }
 
   $("backBtn").addEventListener("click", () => { location.href = "/hub"; });
@@ -1333,7 +1355,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   }, { passive: true });
   window.addEventListener("touchend", () => { cropState.drag = false; });
 
-  await loadMessages();
+  if (isOwner) {
+    await loadMessages();
+  } else {
+    await loadVisitorCharacter();
+  }
 });
 </script>
 </body>

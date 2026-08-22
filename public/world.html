@@ -716,10 +716,9 @@ async function loadWorld(){
   try {
     const d = await api("/api/worlds/" + worldId + "/life");
     S.world = d.world;
-    // 管理权限：仅世界主人可操作后台（游客/访客只读 + 参与聊天）
+    // 管理权限：仅世界主人可操作后台（访客只读 + 可参与聊天）
     S.canManage = false;
-    const guestFlag = localStorage.getItem("hyool_is_guest") === "1";
-    if (!guestFlag && S.world && S.world.owner_id) {
+    if (S.world && S.world.owner_id) {
       try {
         const me = await api("/api/me");
         S.canManage = !!(me.authenticated && me.user && me.user.id === S.world.owner_id);
@@ -1520,16 +1519,10 @@ function applyOwnerOnlyUI() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // 游客身份：无需注册即可进入已发布的公开世界（体验完整功能）
-  if (!localStorage.getItem("hyool_token")) {
-    try {
-      const res = await fetch("/api/guest", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" } });
-      const d = await res.json();
-      if (d.success && d.token) {
-        localStorage.setItem("hyool_token", d.token);
-        localStorage.setItem("hyool_is_guest", "1");
-      }
-    } catch {}
+  // 零数据浏览：不再自动创建游客身份（guest 档案已废弃）；清掉历史游客残留标记
+  if (localStorage.getItem("hyool_is_guest") === "1") {
+    localStorage.removeItem("hyool_token");
+    localStorage.removeItem("hyool_is_guest");
   }
 
   $("sendBtn").addEventListener("click", send);
