@@ -23,6 +23,7 @@ import {
     loadCompanionState,
     emotionAt,
     applyEmotionToMessage,
+    applyWorldMood,
     autoAdvanceRelation,
     applyRelationAction,
     advanceFamilyState,
@@ -871,6 +872,7 @@ export async function handleMvpRoutes(
     const lifeMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life$/);
     const lifeNativesMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/natives$/);
     const lifeNativeMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/natives\/(wc_[a-z0-9]+)\/(update|delete)$/);
+    const lifeNativePromoteMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/natives\/(wc_[a-z0-9]+)\/promote$/);
     const lifeBackgroundMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/background$/);
     const lifeRelationsMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/relations$/);
     const lifeScenesMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/scenes$/);
@@ -1018,6 +1020,73 @@ export async function handleMvpRoutes(
         } catch (error) {
             console.error("LIFE NATIVE UPDATE ERROR:", error);
             return json({ success: false, error: "操作失败。" }, 500);
+        }
+    }
+
+    /* 原住民转正：把世界里的角色复制进角色库（characters 行，companion_state 从零初始化）。
+       原住民本身保留在世界里（复制而非移动）；转正后可在 buddy 一对一继续发展。
+       方向与「角色库 → 世界（cast 邀请）」互补，构成世界 ↔ 角色库闭环。 */
+    if (lifeNativePromoteMatch && method === "POST") {
+        try {
+            const auth = await requireOwnedLifeWorld(lifeNativePromoteMatch[1]);
+            if (!auth.world) return auth;
+            const nativeId = lifeNativePromoteMatch[2];
+            const wj = await loadWorldJson(env, auth.world.id);
+            const native = (wj.natives || []).find((n) => n.id === nativeId);
+            if (!native) {
+                return json({ success: false, error: "原住民不存在。" }, 404);
+            }
+
+            // Companion Engine 列兜底（幂等；正式迁移见 schema/migrate_companion.sql）
+            await ensureCompanionColumns(env);
+
+            const characterId = "char_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+            const shareId = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+            const storyHook = String(native.background || "").slice(0, 80) || `来自生命世界「${auth.world.name}」的原住民。`;
+            const chatConfigJson = JSON.stringify({
+                temperature: 0.9,
+                max_tokens: 150,
+                proactivity: "balanced",
+                rate: 0,
+                ...((native.chat_config && typeof native.chat_config === "object") ? native.chat_config : {})
+            });
+
+            await env.DB.prepare(
+                `INSERT INTO characters (
+                    id, owner_id, name, appearance, personality, background,
+                    speech_style, world_name, world_description, story_hook,
+                    source_idea, image_url, share_id, gender, chat_config,
+                    intimacy, companion_state, parent_id, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '{}', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+            ).bind(
+                characterId,
+                auth.user.id,
+                String(native.name || "").trim().slice(0, 40),
+                String(native.appearance || "").slice(0, 800),
+                String(native.personality || "").slice(0, 800),
+                String(native.background || "").slice(0, 2000),
+                String(native.speech_style || "").slice(0, 400),
+                String(auth.world.name || "").slice(0, 80),
+                String(auth.world.description || "").slice(0, 1200),
+                storyHook,
+                "由生命世界转正的原住民",
+                String(native.avatar || "").slice(0, 2000),
+                shareId,
+                ["female", "male", "neutral"].includes(native.gender) ? native.gender : "",
+                chatConfigJson
+            ).run();
+
+            const character = await getCharacterById(env, characterId);
+
+            return json({
+                success: true,
+                character: formatCharacter(character),
+                buddy_url: `/buddy/${characterId}`,
+                note: `「${native.name}」已转正进角色库，可与其一对一发展；原住民仍保留在这个世界里。`
+            });
+        } catch (error) {
+            console.error("LIFE NATIVE PROMOTE ERROR:", error);
+            return json({ success: false, error: "转正失败，请稍后再试。" }, 500);
         }
     }
 
@@ -1290,6 +1359,7 @@ export async function handleMvpRoutes(
             if (!auth.world) return auth;
             const wj = await loadWorldJson(env, auth.world.id);
             const state = wj.state || {};
+            const cast = await resolveWorldCast(env, auth.world, wj);
             return json({
                 success: true,
                 story: state.story || {},
@@ -1299,7 +1369,11 @@ export async function handleMvpRoutes(
                 plots: Array.isArray(state.plots) ? state.plots : [],
                 timeline: Array.isArray(state.timeline) ? state.timeline : [],
                 relations: wj.relations || [],
-                lastPulseSeq: Number(state.lastPulseSeq) || 0
+                lastPulseSeq: Number(state.lastPulseSeq) || 0,
+                // 角色弧光：世界内情绪（引擎确定性落账；带名字供前端直接渲染）
+                castMoods: cast
+                    .map(c => ({ id: c.id, name: c.name, mood: c.mood || null }))
+                    .filter(x => x.mood && x.mood.label && x.mood.label !== "平静")
             });
         } catch (error) {
             console.error("LIFE STORY ERROR:", error);
@@ -2937,6 +3011,8 @@ function parseWorldJson(row) {
     wj.state.dayIndex = Number(wj.state.dayIndex) || 0;
     wj.state.schedules = (wj.state.schedules && typeof wj.state.schedules === "object" && !Array.isArray(wj.state.schedules)) ? wj.state.schedules : {};
     wj.state.ambient = (wj.state.ambient && typeof wj.state.ambient === "object" && !Array.isArray(wj.state.ambient)) ? wj.state.ambient : {};
+    // Companion 层·角色弧光（Batch 7）：世界内情绪，按角色 id 存 { label, intensity, day }
+    wj.state.moods = (wj.state.moods && typeof wj.state.moods === "object" && !Array.isArray(wj.state.moods)) ? wj.state.moods : {};
     return wj;
 }
 
@@ -2954,6 +3030,8 @@ async function saveWorldJson(env, worldId, wj) {
 /** 世界全体角色：原住民（wc_）+ 邀请的公共角色（char_） */
 async function resolveWorldCast(env, world, wj) {
     const cast = [];
+    // 角色弧光：世界内情绪（引擎确定性落账；attach 到 cast 供 prompt/前端读取）
+    const moods = (wj.state && wj.state.moods && typeof wj.state.moods === "object" && !Array.isArray(wj.state.moods)) ? wj.state.moods : {};
     (wj.natives || []).forEach((n) => {
         cast.push({
             id: n.id,
@@ -2967,6 +3045,7 @@ async function resolveWorldCast(env, world, wj) {
             age: n.age || "",
             tags: Array.isArray(n.tags) ? n.tags : [],
             chat_config: (n.chat_config && typeof n.chat_config === "object") ? n.chat_config : {},
+            mood: moods[n.id] || null,
             source: "native"
         });
     });
@@ -2998,6 +3077,7 @@ async function resolveWorldCast(env, world, wj) {
                     age: (cc && cc.age) || "",
                     tags: Array.isArray(cc.tags) ? cc.tags : [],
                     chat_config: cc,
+                    mood: moods[r.id] || null,
                     source: "global"
                 });
             }
@@ -3124,6 +3204,9 @@ async function runWorldTurn({ env, world, wj, thread, cast, recent, speakers, us
     }
 
     const inserted = await appendWorldMessages(env, thread.id, newMessages);
+    // 角色弧光：发言台词 → 世界内情绪落账（chat 回应路径）
+    recordWorldMoods(wj, new Map((Array.isArray(cast) ? cast : []).map(c => [c.id, c])),
+        newMessages.map(m => ({ id: m.actor, text: m.content })));
     if (inserted.length) {
         const now = Date.now();
         const day = new Date().toISOString().slice(0, 10);
@@ -3465,6 +3548,35 @@ function recordBeatKnowledge(wj, beat, cast) {
     wj.state.knowledge = wj.state.knowledge.filter((k) => k.secret || keep.has(k.id)).slice(-120);
 }
 
+/**
+ * 世界内情绪确定性落账（角色弧光）：
+ * - applyWorldMood 用台词中文关键词规则置情绪，按世界日衰减
+ * - 显著情绪变化（命中规则、强度≥2、label 变化且非平静）→ 记入 timeline（故事档案素材）
+ * 存 world_json.state.moods[id] = { label, intensity, day }
+ */
+function recordWorldMoods(wj, castById, lines) {
+    if (!wj.state) wj.state = {};
+    const moods = (wj.state.moods && typeof wj.state.moods === "object" && !Array.isArray(wj.state.moods))
+        ? wj.state.moods
+        : (wj.state.moods = {});
+    const day = Number(wj.state.dayIndex) || 0;
+    wj.state.timeline = Array.isArray(wj.state.timeline) ? wj.state.timeline : [];
+    let appended = false;
+    (Array.isArray(lines) ? lines : []).forEach(({ id, text }) => {
+        if (!id || !String(text || "").trim()) return;
+        const prev = moods[id] || null;
+        const next = applyWorldMood(prev, text, day);
+        moods[id] = { label: next.label, intensity: next.intensity, day: next.day };
+        const name = (castById && castById.get(id) && castById.get(id).name) || id;
+        if (next.changed && next.label !== "平静" && next.intensity >= 2 && (!prev || prev.label !== next.label)) {
+            wj.state.timeline.push({ at: new Date().toISOString(), text: `${name}的情绪转为「${next.label}」` });
+            appended = true;
+        }
+    });
+    if (appended) wj.state.timeline = wj.state.timeline.slice(-200);
+    return appended;
+}
+
 /** 把一个故事节拍落为世界消息（旁白 narrator + 在场角色台词），并立即落账 affects/reveal/hide */
 async function applyStoryBeat(env, world, wj, thread, cast, beat) {
     const castById = new Map((Array.isArray(cast) ? cast : []).map((c) => [c.id, c]));
@@ -3545,6 +3657,12 @@ async function applyStoryBeat(env, world, wj, thread, cast, beat) {
         });
     });
     wj.state.secrets = wj.state.secrets.slice(-100);
+
+    // 角色弧光：节拍台词 → 世界内情绪落账（确定性规则；显著变化记入 timeline）
+    recordWorldMoods(wj, castById, (Array.isArray(beat.who) ? beat.who : []).map((cid, i) => ({
+        id: cid,
+        text: (Array.isArray(beat.text) && beat.text[i]) || ""
+    })));
 
     return inserted;
 }

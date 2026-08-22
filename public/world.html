@@ -50,6 +50,12 @@ input, textarea { color-scheme: dark; }
   background: rgba(139,139,255,.16); color: #b7b7ff; white-space: nowrap;
 }
 .badge.pause { background: rgba(255,190,90,.16); color: #f0c37f; }
+/* 角色弧光：世界内情绪 chip（引擎确定性落账，随角色发言/世界日变化） */
+.mood-chip {
+  font-size: .68rem; padding: 1px 8px; border-radius: 999px; letter-spacing: .02em;
+  background: rgba(255,190,90,.14); color: #f0c37f; white-space: nowrap;
+  border: 1px solid rgba(255,190,90,.28); display: inline-block; vertical-align: middle;
+}
 .tr { display: flex; align-items: center; gap: 8px; }
 .tr select.tbtn { max-width: 180px; }
 
@@ -969,6 +975,9 @@ async function renderStory(){
       `<div class="story-plot"><span class="phase-badge">${escapeHtml(p.status || "进行中")}</span> ${escapeHtml(p.desc || "")}</div>`).join("");
     const timeline = (d.timeline || []).slice(-6).map(t =>
       `<div class="story-time">· ${escapeHtml(t && t.text ? t.text : t)}</div>`).join("");
+    // 角色弧光：世界内情绪（引擎确定性落账；castMoods 来自 /life/story 接口）
+    const castMoods = (d.castMoods || []).map(x =>
+      `<span class="mood-chip">${escapeHtml(x.name)} · ${escapeHtml(x.mood.label)}</span>`).join(" ");
     const chapters = (d.chapters || []).map(c =>
       `<div class="story-chapter"><b>${escapeHtml(c.title || "")}</b><div class="story-chapter-sum">${escapeHtml(c.summary || "")}</div></div>`).join("");
     const beats = (d.beats || []).slice(-8).reverse().map(b =>
@@ -984,6 +993,7 @@ async function renderStory(){
     if (secrets) parts.push(`<div class="story-sec"><b>🕯 秘密</b>${secrets}</div>`);
     if (plots) parts.push(`<div class="story-sec"><b>🌱 支线</b>${plots}</div>`);
     if (timeline) parts.push(`<div class="story-sec"><b>⏳ 时间线</b>${timeline}</div>`);
+    if (castMoods) parts.push(`<div class="story-sec"><b>🎭 角色情绪</b><div style="display:flex;flex-wrap:wrap;gap:6px">${castMoods}</div></div>`);
     if (chapters) parts.push(`<div class="story-sec"><b>📖 章节</b>${chapters}</div>`);
     if (beats) parts.push(`<div class="story-sec"><b>🎬 节拍</b>${beats}</div>`);
     if (!beats && !secrets) parts.push(`<div class="hint" style="font-size:.78rem;color:var(--muted)">世界运转后会在这里沉淀主线、节拍、秘密与时间线。</div>`);
@@ -1045,12 +1055,22 @@ function renderIntro(){
 function renderCastList(){
   const natives = S.world.natives || [];
   const globals = (S.world.cast || []).filter(c => c.source === "global");
+  // 角色弧光：世界内情绪（引擎确定性落账，attach 在 cast 上；无则显示无）
+  const moodOf = (id) => {
+    const c = (S.world.cast || []).find(x => x.id === id);
+    return (c && c.mood && c.mood.label && c.mood.label !== "平静") ? c.mood : null;
+  };
+  const moodChip = (id) => {
+    const m = moodOf(id);
+    return m ? ` · <span class="mood-chip">${escapeHtml(m.label)}</span>` : "";
+  };
   let html = "";
   natives.forEach(n => {
     html += `<div class="cast-card">
       ${n.avatar ? `<img src="${escapeHtml(n.avatar)}" onerror="this.style.opacity=.2">` : `<div style="width:36px;height:36px;border-radius:50%;background:hsl(${hashHue(n.id)},40%,22%);flex-shrink:0"></div>`}
-      <div class="cc"><b>${escapeHtml(n.name)}</b><small>世界原住民${n.age ? " · " + escapeHtml(n.age) : ""}</small><p>${escapeHtml((n.personality || n.background || "").slice(0, 30))}</p></div>
+      <div class="cc"><b>${escapeHtml(n.name)}</b><small>世界原住民${n.age ? " · " + escapeHtml(n.age) : ""}${moodChip(n.id)}</small><p>${escapeHtml((n.personality || n.background || "").slice(0, 30))}</p></div>
       <div class="row">
+        <button class="btn ghost" title="转正进角色库（保留世界观，可在角色库与其一对一发展）" onclick="promoteNative('${escapeHtml(n.id)}')">⭐</button>
         <button class="btn ghost" onclick="editNative('${escapeHtml(n.id)}')">✏️</button>
         <button class="btn del" onclick="delNative('${escapeHtml(n.id)}')">🗑️</button>
       </div>
@@ -1059,11 +1079,24 @@ function renderCastList(){
   globals.forEach(c => {
     html += `<div class="cast-card">
       ${c.avatar ? `<img src="${escapeHtml(c.avatar)}" onerror="this.style.opacity=.2">` : `<div style="width:36px;height:36px;border-radius:50%;background:hsl(${hashHue(c.id)},40%,22%);flex-shrink:0"></div>`}
-      <div class="cc"><b>${escapeHtml(c.name)}</b><small>角色库</small><p>${escapeHtml((c.personality || "").slice(0, 30))}</p></div>
+      <div class="cc"><b>${escapeHtml(c.name)}</b><small>角色库${moodChip(c.id)}</small><p>${escapeHtml((c.personality || "").slice(0, 30))}</p></div>
       <button class="btn ghost" title="移出世界（保留在角色库）" onclick="removeCast('${escapeHtml(c.id)}')">↩</button>
     </div>`;
   });
   $("castList").innerHTML = html || '<p style="color:var(--muted);font-size:.8rem">还没有角色。AI 生成原住民、手动添加，或从角色库邀请。</p>';
+}
+
+/* 原住民转正：复制进角色库（companion_state 从零初始化），原住民保留在世界 */
+async function promoteNative(id){
+  const n = (S.world.natives || []).find(x => x.id === id);
+  if (!n) return;
+  if (!confirm(`把「${n.name}」转正进角色库？\n\n转正后 TA 会以独立副本加入你的角色库，可在 buddy 页面与其一对一发展（Companion 的情绪/关系/家庭从零开始）；TA 也仍保留在这个世界里参与故事。`)) return;
+  try {
+    const d = await api("/api/worlds/" + worldId + "/life/natives/" + id + "/promote", { method: "POST" });
+    if (!d.success) throw new Error(d.error || "转正失败");
+    toast(`已转正「${(d.character && d.character.name) || n.name}」到角色库 → ${d.buddy_url || ""}`);
+    if (d.buddy_url) setTimeout(() => location.href = d.buddy_url, 900);
+  } catch (e) { toast(e.message); }
 }
 
 function renderTagChips(){

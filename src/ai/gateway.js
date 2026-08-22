@@ -996,6 +996,14 @@ export function buildLifeSystemPrompt({ character, world, scene, relations = [],
         ? `\n- 性格标签：${character.tags.join("、")}（这些标签是你的底色，必须在言行中自然流露）`
         : "";
 
+    // 角色弧光：世界内情绪（引擎确定性落账，读 world_json.state.moods，只给现状，模型按心情演绎）
+    const moodLine = (() => {
+        const m = (character && character.mood && typeof character.mood === "object" && character.mood.label) ? character.mood : null;
+        if (!m || m.label === "平静" || !Number(m.intensity)) return "";
+        const tone = Number(m.intensity) >= 4 ? "，此刻心情强烈" : Number(m.intensity) >= 2 ? "，情绪明显" : "";
+        return `\n- 当前心情：${m.label}${tone}（心情是你的底色，让它自然流露在言行里）`;
+    })();
+
     // 世界状态注入（故事孵化器）：主线焦点/阶段 + 已揭露线索，让角色言行顺着故事走
     const st = (state && typeof state === "object" && !Array.isArray(state)) ? state : null;
     const stateBlock = (() => {
@@ -1024,7 +1032,7 @@ export function buildLifeSystemPrompt({ character, world, scene, relations = [],
         `- 年龄：${character.age || "未知"}`,
         `- 性格：${character.personality || "未知"}${tagText}`,
         `- 背景：${character.background || "未知"}`,
-        `- 说话风格：${character.speech_style || "自然"}`,
+        `- 说话风格：${character.speech_style || "自然"}${moodLine}`,
         "",
         "# 世界",
         (bgLines.length ? bgLines.join("\n") : "你熟悉这里的每一寸土地，这里是你的家。"),
@@ -1431,6 +1439,17 @@ export function buildStoryBeatPrompt({ world, wj, thread, cast, recent, offCast 
         })
         .filter(Boolean)
         .join("\n");
+    // 在场角色情绪：角色弧光（引擎确定性落账，模型按心情演绎剧情走向）
+    const moods = (state.moods && typeof state.moods === "object" && !Array.isArray(state.moods)) ? state.moods : {};
+    const moodLines = (Array.isArray(cast) ? cast : [])
+        .map(c => {
+            const m = moods[c.id];
+            if (!m || !m.label || m.label === "平静") return null;
+            const note = Number(m.intensity) >= 4 ? "（情绪强烈，可能主导言行）" : Number(m.intensity) >= 2 ? "（情绪明显）" : "";
+            return `- ${c.name}（${c.id}）：${m.label}${note}`;
+        })
+        .filter(Boolean)
+        .join("\n");
     // 发酵中的后果：后果生命周期（引擎推进状态，模型负责演绎）
     const consLines = (state.consequences || [])
         .filter(cn => cn.state !== "resolved")
@@ -1452,6 +1471,7 @@ export function buildStoryBeatPrompt({ world, wj, thread, cast, recent, offCast 
         `在场角色：${castNames || "无"}`,
         `当前现场：${thread && thread.title ? `「${thread.title}」` : ""}${thread && thread.desc ? thread.desc : ""}`,
         npcLines ? `在场角色状态：\n${npcLines}` : "",
+        moodLines ? `在场角色情绪：\n${moodLines}` : "",
         consLines ? `发酵中的后果：\n${consLines}` : "",
         hereLines.length ? `今日在场：\n${hereLines.join("\n")}` : "",
         awayLines.length ? `此刻不在（别处各有各事）：\n${awayLines.join("\n")}` : "",

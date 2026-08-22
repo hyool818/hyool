@@ -161,6 +161,41 @@ export function applyEmotionToMessage(state, userMessage, now = Date.now()) {
 }
 
 /* ---------------------------------------------------------
+   世界演剧版情绪（角色弧光，存 world_json.state.moods）
+   - 与 buddy 情绪的差别：按「世界日」（dayIndex，每 8 tick 一日）衰减，
+     而不是现实时间（世界演剧节奏快，现实时间会让情绪瞬间归零）。
+   - 同样确定性：引擎落账，LLM 只演绎，不维护状态。
+   - 存 { label, intensity, day }，day = 落账时的世界日 dayIndex。
+--------------------------------------------------------- */
+
+/** 世界日衰减：距落账日每过 1 个世界日 -1 强度；掉到 0 归「平静」 */
+export function decayWorldMood(mood, nowDay = 0) {
+    const m = (mood && typeof mood === "object" && !Array.isArray(mood) && mood.label) ? mood : null;
+    if (!m) return { label: DEFAULT_EMOTION.label, intensity: 0, day: Number(nowDay) || 0 };
+    const days = Math.max(0, Number(nowDay || 0) - Number(m.day || 0));
+    const intensity = Math.max(0, (Number(m.intensity) || 0) - days);
+    return { label: intensity > 0 ? m.label : DEFAULT_EMOTION.label, intensity, day: Number(nowDay) || 0 };
+}
+
+/** 世界演剧情绪落账：先按世界日衰减，再命中关键词则置情绪（label 变化 = 角色弧光节点） */
+export function applyWorldMood(mood, text, nowDay = 0) {
+    const base = decayWorldMood(mood, nowDay);
+    const t = String(text || "");
+    const day = Number(nowDay) || 0;
+    for (const rule of EMOTION_RULES) {
+        if (rule.words.some(w => t.includes(w))) {
+            return {
+                label: rule.label,
+                intensity: Math.max(1, Math.min(5, base.intensity + rule.delta)),
+                day,
+                changed: true
+            };
+        }
+    }
+    return { ...base, day, changed: false };
+}
+
+/* ---------------------------------------------------------
    关系自动升温（intimacy 驱动，仅推进不倒退；manual 后引擎不再自动动）
 --------------------------------------------------------- */
 export function autoAdvanceRelation(state, intimacy, now = Date.now()) {

@@ -46,6 +46,8 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **关系**：acquaintance→friends（亲密≥10 自动）→close（≥30 自动）→confession/dating/engaged/married（手动确认，manual 优先引擎不再自动动）。API：`POST /api/buddy/:id/relation`。
 - **家庭**：婚后「想要孩子」→2 天怀孕→再 3 天出生（`advanceFamilyState` 惰性推进）；孩子=characters 新行（`parent_id` 标记，FNV-1a 确定性取名），可与孩子聊天。
 - **主动找你**：亲密里程碑 10/30/50/70/90（chat 落账即时生成）/ 3 天未聊想念 / 关系纪念日 7·30·100·365 天（读取时惰性生成）。API：`GET /api/companion/inbox`、`POST /api/companion/inbox/read`。
+- **世界内情绪（角色弧光，Batch 7）**：世界原住民也有心情——`world_json.state.moods[id]={label,intensity,day}`，复用同一套中文关键词规则 + **世界日衰减**（dayIndex 每 8 tick 一日，非现实时间）；发言/节拍台词确定性落账，注入 `buildLifeSystemPrompt`（发言带心情）与 `buildStoryBeatPrompt`（心情驱动节拍走向）；显著情绪变化记入 story timeline 作为角色弧光素材（导出小说/VN/游戏可用）。world.html 角色卡片与「世界故事」面板显示情绪 chip。
+- **原住民转正（世界 → 角色库）**：`POST /api/worlds/:id/life/natives/:id/promote`（仅 owner）把原住民复制进角色库（companion_state 从零初始化、世界观保留），buddy 可继续一对一发展；原住民仍留在世界。与「角色库→世界（cast 邀请）」互补成闭环。
 - 前端：buddy.html 情绪/关系状态行 + 设置面板「你们的关系」按钮组 + 未读留言条；hub.html 角色卡片情绪 chip/关系 chip/💌 角标。
 
 ## 生命世界·故事孵化器（当前核心）
@@ -88,6 +90,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 ## 最近已完成（2026-08-23）
 
 - **★ Companion Engine（数字生命「一对一」层，Batch 5，2026-08-23）**：情绪状态机（20 标签 + 关键词规则确定性落账 + 现实时间衰减）+ 主动找你 inbox（亲密里程碑 10/30/50/70/90 / 3 天未聊想念 / 关系纪念日 7·30·100·365 天）+ 恋爱/结婚/家庭生命周期（表白→在一起→求婚→结婚，用户手动拍板 manual 优先；婚后「想要孩子」→2 天后怀孕→再 3 天孩子出生，孩子=characters 新行 parent_id 标记可与 TA 聊天）。全部状态挂 `characters.companion_state`（JSON），`src/companion.js` 引擎确定性落账，LLM 只演绎。详见 docs/history.md「Companion Engine」。
+- **★ 世界角色弧光 + 原住民转正（Batch 7，2026-08-23）**：世界内情绪（`world_json.state.moods`，关键词规则 + 世界日衰减，发言/节拍落账，注入发言与节拍 prompt，显著变化进 story timeline）+ 原住民转正 API（`POST /api/worlds/:id/life/natives/:id/promote`，世界 → 角色库，companion_state 从零）。world.html 情绪 chip + ⭐ 转正按钮 + 故事面板「角色情绪」。无 migration。详见 docs/history.md。
 - **World Engine 知识边界 + NPC 日程/场景填充（Batch 4.6）**：`state.knowledge[]`（witness 戳）+ `state.schedules/ambient`（确定性种子日程+背景填充）；`buildStoryBeatPrompt` 注入信息边界块。无 migration。详见 docs/history.md。
 
 - **首页主 logo 放大 + 间距优化**：`public/index.html` `.world-logo-main img` 桌面 96px→**160px**→**800px**、移动 72px→**120px**→**600px**（`logo.png` 主 logo，`logo1.png` 左上角未动，`max-width:88vw` 防溢出）；随后上下间距拉开：logo `top:4%`（移 3.5%）、上入口 fantasy `top:28%`（移 26%）、下入口 life `bottom:28%`（移 27%）。已 commit `12f2939`，CI 部署后线上生效。详见 docs/history.md。

@@ -472,3 +472,35 @@ state: {
 
 
 
+## Companion 层·世界角色弧光 + 原住民转正（Batch 7，2026-08-23）
+
+**背景**：用户确认 Companion 改动覆盖范围（全部挂在 `characters` 表）后指出定位——**世界的主要目的是「完善故事，以便形成小说，为后续视觉小说/游戏剧情打底」**。据此修正方案：世界原住民（wc_）不吃 buddy 的恋爱/结婚/家庭/主动找你（那是「你与 TA」的私人叙事），而是把 **情绪作为「角色弧光」喂给故事引擎**，外加 **转正桥**（世界 → 角色库，让故事里出彩的角色走出来继续一对一发展）。方向：「情绪服务故事，转正连通 Companion」。
+
+**改动**（4 文件，+210 行；无 migration）：
+
+1. `src/companion.js`：新增世界演剧版情绪 API（与 buddy 情绪同规则集、不同衰减时钟）：
+   - `decayWorldMood(mood, nowDay)`：按「世界日」（dayIndex，每 8 tick 一日）衰减，每天 -1，掉 0 归「平静」——不用现实时间（世界演剧节奏快，现实时间会让情绪瞬间归零）。
+   - `applyWorldMood(mood, text, nowDay)`：先衰减再命中中文关键词置情绪（20 标签复用），返回 `{ label, intensity, day, changed }`。
+2. `src/ai/gateway.js`：
+   - `buildLifeSystemPrompt`：「身份」块加「- 当前心情：xx（心情是你的底色，让它自然流露在言行里）」，读 `character.mood`。
+   - `buildStoryBeatPrompt`：新增「在场角色情绪」块（名字 + label + 强度提示），情绪直接驱动节拍走向（愤怒 → 冲突节拍、失意 → 低沉事件）。
+3. `src/mvp.js`：
+   - `parseWorldJson` 兜底 `state.moods = {}`；`resolveWorldCast` 给每个 cast 元素 attach `mood`（前端 + prompt 共用）。
+   - 新增 `recordWorldMoods(wj, castById, lines)`：台词 → `applyWorldMood` 落账 `state.moods[id] = {label,intensity,day}`；显著变化（命中规则、强度≥2、label 变化且非平静）记入 `state.timeline`（「XX 的情绪转为「难过」」）作为角色弧光素材。
+   - `applyStoryBeat`（节拍路径）与 `runWorldTurn`（chat 回应路径）发言后均落账情绪。
+   - `GET /api/worlds/:id/life/story` 返回 `castMoods`（id/name/mood，过滤「平静」）。
+   - 新 API `POST /api/worlds/:id/life/natives/:id/promote`（转正桥，仅 owner）：把原住民复制成 characters 行（companion_state='{}' 从零初始化，world_name/world_description 带世界名，chat_config 保留，share_id 生成）；原住民本身保留在世界（复制而非移动）。转正后 buddy 一对一即可享受完整 Companion（情绪/关系/家庭/主动找你）。
+4. `public/world.html`：
+   - 「世界角色」tab 原生民与角色库角色卡片均显示情绪 chip（`mood-chip` 样式）。
+   - 原生民卡片新增 ⭐「转正」按钮（`promoteNative`，confirm 后调 API，成功后 toast + 自动跳转 buddy）。
+   - 「世界故事」tab 新增「🎭 角色情绪」区块（来自 `/life/story` 的 castMoods）。
+
+**设计要点**：
+- 情绪 = 故事原料不是恋爱模拟：关系推进仍归 Director 层（pulse relations delta），恋爱/家庭/主动找你不进入世界原住民。
+- 世界内情绪按世界日衰减、buddy 情绪按现实时间衰减——同一套关键词规则、两套时钟，互不污染。
+- 转正 = 世界 ↔ 角色库闭环的另一半（原方向：角色库 → 世界 cast 邀请）；转正副本从零开始 Companion，不继承世界内情绪/关系（避免跨层状态耦合）。
+
+**验证**：按用户约定不做验证；改完直接 commit + push main（CI 自动部署），线上效果待用户确认。
+
+**待办**：Batch 4 一键导出不做；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑（运行时幂等兜底已存在）；换窗口后新会话读 CONTEXT.md + git log 继续。
+
