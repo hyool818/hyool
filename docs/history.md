@@ -601,3 +601,22 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **验证**：按用户约定不做验证；commit `7d6b726` + push main（CI 自动部署），线上效果待用户确认。
 
+## 手机端邀请码不显示 + 聊天记录重进错位修复（2026-08-23）
+
+**背景**：用户线上反馈两个 bug——① 手机端「编辑彼岸」页面看不到「邀请码管理/生成邀请码」；② 与角色聊天后退出，过一会儿再进，聊天消息顺序错位。
+
+**修复 1：邀请码管理在手机端不显示（`public/yonder-home.html`）**
+- 根因：`checkAdminAccess()` 的 `fetch('/api/me')` 与 4 个 `/api/invite-codes` 请求（load/generate/toggle/delete）都**不带 `Authorization` header**（只依赖 cookie），而该页其它所有请求都从 `localStorage.getItem("hyool_token")` 取 token 放 header。手机端浏览器 cookie 与桌面不一致时 `/api/me` 判定未登录 → `inviteCodeSection`（`user.username === '333123'` 才显示）永不出现。
+- 改动：新增 `authHeaders()` 辅助函数，`checkAdminAccess` / `loadInviteCodes` / `generateInviteCode` / `toggleInviteCode` / `deleteInviteCode` 共 5 处请求统一补 `Authorization: Bearer <hyool_token>`（与页面其它请求一致）。
+- 注意：邀请码管理仍为管理员专属（后端 `/api/invite-codes*` 均校验 `username === '333123'`，403）；手机若登录的是其它账号，仍不会显示入口。
+
+**修复 2：聊天记录重进错位（`src/mvp.js`）**
+- 根因：`messages.created_at` 是 SQLite `CURRENT_TIMESTAMP`（**秒级精度**）。一次 chat 里 user/assistant 两条消息在同一 batch 同秒写入，`ORDER BY created_at DESC LIMIT N` + `reverse()` 对同秒多行排序不确定——实测同秒时 assistant 会排到 user 前面，重进聊天即出现「角色回复出现在用户消息前」的错位。
+- 改动：三处读取统一 `ORDER BY created_at DESC` → `ORDER BY rowid DESC`（SQLite 隐式自增 rowid = 物理插入顺序，稳定且与聊天先后天然一致）：
+  1. `GET /api/buddy/:id/messages`（UI 聊天列表，LIMIT 100）——本次用户报告的错位点；
+  2. `POST /api/buddy/:id/script`（沉淀剧本最近 60 条，LIMIT 60）；
+  3. chat 路由 `recentMessages`（LLM 上下文，LIMIT 12）。
+- 验证（node:sqlite 内存表复现）：同秒插入 user/assistant 两条——旧查询输出 `assistant | user`（错位复现）；新查询稳定输出 `user | assistant` ✓。
+
+**提交**：`efdc7f8`（聊天排序）、`daf180c`（邀请码 header）。push main（CI 自动部署），线上待用户验证。
+
