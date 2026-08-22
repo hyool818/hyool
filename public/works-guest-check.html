@@ -82,7 +82,8 @@ let worldId = '';
       ok(false, '创建公开角色异常', e.message.slice(0, 80));
     }
 
-    // ---- 游客视角：清除登录 token，访问 /@smokews ----
+    // ---- 游客视角：清 cookie + token 后访问 /@smokews（真游客） ----
+    try { await api('/api/logout', { method:'POST' }); } catch {}
     localStorage.removeItem('hyool_token');
     localStorage.removeItem('hyool_is_guest');
     await loadIframe('/@smokews?v=' + Date.now());
