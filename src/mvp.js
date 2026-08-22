@@ -2599,6 +2599,12 @@ function parseWorldJson(row) {
     wj.state.npcs = (wj.state.npcs && typeof wj.state.npcs === "object" && !Array.isArray(wj.state.npcs)) ? wj.state.npcs : {};
     wj.state.consequences = Array.isArray(wj.state.consequences) ? wj.state.consequences : [];
     wj.state.tickCount = Number(wj.state.tickCount) || 0;
+    // World Engine 扩展（Batch 4.6）：知识边界（witness 戳）+ NPC 日程/场景填充（确定性种子）
+    wj.state.knowledge = Array.isArray(wj.state.knowledge) ? wj.state.knowledge : [];
+    wj.state.seed = String(wj.state.seed || "");
+    wj.state.dayIndex = Number(wj.state.dayIndex) || 0;
+    wj.state.schedules = (wj.state.schedules && typeof wj.state.schedules === "object" && !Array.isArray(wj.state.schedules)) ? wj.state.schedules : {};
+    wj.state.ambient = (wj.state.ambient && typeof wj.state.ambient === "object" && !Array.isArray(wj.state.ambient)) ? wj.state.ambient : {};
     return wj;
 }
 
@@ -2746,17 +2752,19 @@ async function pickLifeThread(env, worldId, wj, threadId) {
     return list[0];
 }
 
-/** 线程限定在场角色（场景线程按 scene.present 过滤） */
-async function activeCastForThread(env, world, wj, thread) {
-    const cast = await resolveWorldCast(env, world, wj);
+/** 线程限定在场角色（场景线程按 scene.present 过滤；多地点世界按当日日程过滤） */
+async function activeCastForThread(env, world, wj, thread, cast) {
+    const all = cast || await resolveWorldCast(env, world, wj);
     if (thread.kind === "scene" && thread.scene_id) {
         const scene = (wj.scenes || []).find((s) => s.id === thread.scene_id);
         if (scene && Array.isArray(scene.present) && scene.present.length) {
-            const filtered = cast.filter((c) => scene.present.includes(c.id));
+            const filtered = all.filter((c) => scene.present.includes(c.id));
             if (filtered.length) return filtered;
         }
     }
-    return cast;
+    ensureWorldSchedule(wj, world.id, all);
+    const scheduled = applySchedulePresence(wj, all, thread);
+    return scheduled && scheduled.length ? scheduled : all;
 }
 
 /** 让 1~2 名角色在给定线程里各说一句（共享：chat 回应 / tick / cron） */
@@ -2996,6 +3004,135 @@ function advanceWorldConsequences(wj) {
     }
 }
 
+/* =========================================================
+ * World Engine 扩展（Batch 4.6）：知识边界（witness 戳）+ NPC 日程/场景填充
+ * 引擎确定性落账，LLM 只演绎；种子固定 → 同世界 reroll 可复现。
+ * ========================================================= */
+
+const SCHEDULE_DAY_TICKS = 8; // 每 8 个 tick 换一个「世界日」，日程随之轮换
+const ACTIVITY_POOL = ["采买", "赶路", "议事", "静修", "巡查", "赴约", "小憩", "忙碌"];
+const AMBIENT_ROLES = ["客栈掌柜", "跑堂伙计", "摊贩", "巡夜的更夫", "闲聊的老者", "赶路的货郎", "好奇的孩童", "路过的旅人", "打盹的猫", "凑热闹的闲汉"];
+
+/** FNV-1a 字符串哈希（确定性种子，同世界 reroll 可复现） */
+function worldHash(str) {
+    let h = 2166136261 >>> 0;
+    const s = String(str || "");
+    for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+}
+
+/** 当前线程归属的「日程地点」：场景线程=场景名，其余=主线 */
+function scheduleLocationFor(wj, thread) {
+    if (thread && thread.kind === "scene" && thread.scene_id) {
+        const scene = (wj.scenes || []).find((s) => s.id === thread.scene_id);
+        if (scene && String(scene.name || "").trim()) return String(scene.name).trim();
+    }
+    return "主线";
+}
+
+/** 生成（或沿用）当前世界日的日程 + 场景填充：确定性、纯引擎落账 */
+function ensureWorldSchedule(wj, worldId, cast) {
+    if (!wj.state) wj.state = {};
+    const dayIndex = Math.floor((Number(wj.state.tickCount) || 0) / SCHEDULE_DAY_TICKS);
+    if (!String(wj.state.seed || "").trim()) wj.state.seed = String(worldId || "hyool").slice(0, 40);
+    if (wj.state.dayIndex === dayIndex && wj.state.schedules && wj.state.schedules[dayIndex]) return;
+    const seed = wj.state.seed;
+    wj.state.dayIndex = dayIndex;
+    if (!wj.state.schedules || typeof wj.state.schedules !== "object" || Array.isArray(wj.state.schedules)) wj.state.schedules = {};
+    if (!wj.state.ambient || typeof wj.state.ambient !== "object" || Array.isArray(wj.state.ambient)) wj.state.ambient = {};
+    // 地点池 = 场景名 + 主线；无场景的世界只有「主线」一个地点 → 全员在场（维持现状）
+    const sceneNames = [...new Set((wj.scenes || []).map((s) => String(s.name || "").trim()).filter(Boolean))];
+    const pool = [...new Set([...sceneNames, "主线"])].sort();
+    const today = {};
+    (Array.isArray(cast) ? cast : []).forEach((c) => {
+        if (!c || !c.id) return;
+        const loc = pool[worldHash(`${seed}|${dayIndex}|${c.id}`) % pool.length];
+        const activity = ACTIVITY_POOL[worldHash(`${seed}|act|${dayIndex}|${c.id}`) % ACTIVITY_POOL.length];
+        today[c.id] = { location: loc, activity };
+    });
+    wj.state.schedules[dayIndex] = today;
+    // 场景填充：每个地点确定性生成 1~2 名背景角色（不发言，只做环境）
+    const ambient = {};
+    [...new Set(Object.values(today).map((s) => s.location))].forEach((loc) => {
+        const count = (worldHash(`${seed}|amb|${dayIndex}|${loc}`) % 2) + 1;
+        const roles = [];
+        for (let i = 0; i < count; i++) {
+            roles.push(AMBIENT_ROLES[worldHash(`${seed}|amb|${dayIndex}|${i}|${loc}`) % AMBIENT_ROLES.length]);
+        }
+        ambient[loc] = [...new Set(roles)];
+    });
+    wj.state.ambient[dayIndex] = ambient;
+    // 只保留最近 7 个世界日
+    Object.keys(wj.state.schedules).forEach((d) => {
+        if (Number(d) < dayIndex - 7) {
+            delete wj.state.schedules[d];
+            delete wj.state.ambient[d];
+        }
+    });
+}
+
+/** 多地点世界：按当日日程限定「此刻在场」；单地点世界返回 null（保持全员在场） */
+function applySchedulePresence(wj, cast, thread) {
+    const today = wj.state.schedules && wj.state.schedules[wj.state.dayIndex];
+    if (!today) return null;
+    const loc = scheduleLocationFor(wj, thread);
+    const distinct = new Set(Object.values(today).map((s) => s && s.location));
+    if (distinct.size < 2) return null;
+    const here = (Array.isArray(cast) ? cast : []).filter((c) => today[c.id] && today[c.id].location === loc);
+    return here.length ? here : null;
+}
+
+/** 节拍落账为知识条目（witness 戳）：事件 + 目击者；同场对话会传播消息 */
+function recordBeatKnowledge(wj, beat, cast) {
+    if (!wj.state) wj.state = {};
+    if (!Array.isArray(wj.state.knowledge)) wj.state.knowledge = [];
+    let text = String((beat && beat.narration) || "").trim();
+    let secret = false;
+    if (Array.isArray(beat && beat.reveal) && beat.reveal.length) {
+        const s = (wj.state.secrets || []).find((x) => x.id === beat.reveal[0]);
+        if (s && String(s.desc || "").trim()) {
+            text = "秘密揭露：" + String(s.desc).trim().slice(0, 120);
+            secret = true;
+        }
+    } else if (!text) {
+        // 无旁白：以台词摘录作知识
+        const parts = [];
+        (Array.isArray(beat && beat.who) ? beat.who : []).forEach((cid, i) => {
+            const c = (Array.isArray(cast) ? cast : []).find((x) => x.id === cid);
+            const line = (Array.isArray(beat && beat.text) && beat.text[i]) || "";
+            if (c && line) parts.push(`${c.name}：${String(line).slice(0, 60)}`);
+        });
+        text = parts.slice(0, 2).join("｜");
+    }
+    if (!text) return;
+    // 目击者：具体互动=参与角色；纯旁白（无 who）=在场全体（环境性叙事大家共见）
+    let witnesses = (Array.isArray(beat && beat.who) ? beat.who : []).map(String).slice(0, 4);
+    if (!witnesses.length) {
+        witnesses = (Array.isArray(cast) ? cast : []).map((c) => c.id).slice(0, 12);
+    }
+    // 消息传播：本场有目击者在场，则同场对话者也随之知晓
+    const speakers = new Set(witnesses);
+    wj.state.knowledge.forEach((entry) => {
+        if (!entry || !Array.isArray(entry.seen) || !entry.seen.some((id) => speakers.has(id))) return;
+        entry.seen = [...new Set([...entry.seen, ...speakers])].slice(0, 12);
+    });
+    wj.state.knowledge.push({
+        id: "kn_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8),
+        text: text.slice(0, 120),
+        turn: Number(wj.state.tickCount) || 0,
+        seen: witnesses,
+        secret: !!secret,
+        at: new Date().toISOString()
+    });
+    // 普通事件最多留 60 条；秘密条目保留（供「已揭露线索」追溯目击者）
+    const normal = wj.state.knowledge.filter((k) => !k.secret);
+    const keep = new Set(normal.slice(-60).map((k) => k.id));
+    wj.state.knowledge = wj.state.knowledge.filter((k) => k.secret || keep.has(k.id)).slice(-120);
+}
+
 /** 把一个故事节拍落为世界消息（旁白 narrator + 在场角色台词），并立即落账 affects/reveal/hide */
 async function applyStoryBeat(env, world, wj, thread, cast, beat) {
     const castById = new Map((Array.isArray(cast) ? cast : []).map((c) => [c.id, c]));
@@ -3131,21 +3268,24 @@ async function runWorldTickCore(env, world, wj, speakerCount, threadId, userName
     }
     // 运转的线程记为当前线程
     wj.life.currentThreadId = thread.id;
-    const activeCast = await activeCastForThread(env, world, wj, thread);
+    ensureWorldSchedule(wj, world.id, cast);
+    const activeCast = await activeCastForThread(env, world, wj, thread, cast);
+    const offCast = cast.filter((c) => !activeCast.some((a) => a.id === c.id));
     const recent = await loadThreadMessages(env, thread.id, 24);
     // NPC 目标状态机：先兜底在场角色状态槽，节拍才能读到并演绎
     ensureNpcStates(wj, activeCast);
 
     // 节拍化运转：每个 tick 推进一个故事节拍（旁白 + 1~2 名在场角色），而非“挑人说一句”
     const beat = await generateStoryBeat({
-        env, world, wj, thread, cast: activeCast, recent,
+        env, world, wj, thread, cast: activeCast, offCast, recent,
         modelId: wj.life.model, mock
     });
     const messages = await applyStoryBeat(env, world, wj, thread, activeCast, beat);
 
-    // World Engine：累计 tick 推进 + 后果生命周期老化（有消息产出才算一 tick）
+    // World Engine：累计 tick 推进 + 知识落账（witness 戳）+ 后果生命周期老化（有消息产出才算一 tick）
     if (messages.length) {
         wj.state.tickCount = (Number(wj.state.tickCount) || 0) + 1;
+        recordBeatKnowledge(wj, beat, activeCast);
         advanceWorldConsequences(wj);
     }
 

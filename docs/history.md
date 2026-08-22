@@ -418,6 +418,27 @@ state: {
 
 **验证**：用户指示不做验证、改完直接部署 → commit `3533a94` + push main（CI 自动部署）。线上效果待用户确认，不行再改。
 
+## World Engine 知识边界 + NPC 日程/场景填充（Batch 4.6，2026-08-23）
+
+**背景**：Batch 4.5（NPC 目标状态机 + 后果生命周期）上线后，用户按上轮候选清单指示「接着完成 2、3」：② 知识边界（witness 戳 + 「NPC 不知道的事」注入，治「NPC 全知/轮流说话」）；③ NPC 日程 + 场景填充（确定性种子，reroll 可复现）。延续定案：引擎确定性落账，LLM 只演绎；只加状态不碰 UI/DB（无 migration）。
+
+**改动**（2 文件，+207/-14，无 migration）：
+1. `src/mvp.js`
+   - `parseWorldJson`：兜底新增 `state.knowledge = []` / `state.seed = ""` / `state.dayIndex = 0` / `state.schedules = {}` / `state.ambient = {}`（旧 world 无新键照常）。
+   - 新增 5 个引擎函数（顶层模块作用域）：`worldHash`（FNV-1a 确定性哈希）、`scheduleLocationFor`（场景线程=场景名、其余=主线）、`ensureWorldSchedule`（每 8 tick 换「世界日」，seed=world.id 锚定，npcId→{location,activity}，地点池=场景名+主线；单地点世界全员在场；场景填充 `state.ambient[day][loc]` 确定性 1~2 名背景角色；只留最近 7 个世界日）、`applySchedulePresence`（多地点世界按日程限定在场，空则回退全员）、`recordBeatKnowledge`（witness 戳落账：有 who=参与角色、纯旁白=在场全体；同场对话自动传播消息；普通事件留 60 条、秘密条目永久保留供「已揭露线索」追溯目击者）。
+   - `activeCastForThread`：支持预解析 cast 参数；场景线程仍按 scene.present 过滤；非场景线程按当日日程过滤（多地点世界）。
+   - `runWorldTickCore`：`ensureWorldSchedule` → `activeCastForThread`（带 cast）→ `offCast = cast - activeCast` 透传给 `generateStoryBeat`；tick 后 `recordBeatKnowledge(wj, beat, activeCast)`。
+2. `src/ai/gateway.js`
+   - `buildStoryBeatPrompt`：注入「近期世界动态」（非秘密事件+目睹者）「已揭露线索」（秘密+目睹者，slice(-8)）「在场角色不知道的近期事」（每角色至多 2 条、全局 ≤6 行，信息边界）；「今日在场」（日程活动）「此刻不在（别处各有各事）」（offCast，≤6 行）；「现场还有」（背景角色，不发言）；规则新增硬性约束：不知情角色不得说出不可能知道的事（除非本幕当面告知）、此刻不在角色只进旁白不进 who。
+   - `generateStoryBeat`：透传 `offCast`。
+
+**设计要点**：
+- 知识 witness 规则引擎化：具体互动只有参与者知情，纯旁白（环境叙事）在场共见；消息靠「同场对话」传播（有目击者在场则同场者知晓）——对应 Horde 思想「News travels by witness」。
+- 日程确定性：`seed=world.id` + `dayIndex=floor(tickCount/8)`，FNV-1a 哈希逐 NPC 取地点/活动，同世界重开（reroll 新 id）前 8 个 tick 的日程序列完全一致。
+- 单地点世界（无场景）日程不改变在场（维持 Batch 3/4 行为）；只有场景名+主线 ≥2 的世界才按日程切分在场，空则回退全员，杜绝空场卡死。
+
+**验证**：用户约定不做验证；仅临时 `.mjs` 语法 sanity（gateway/mvp 均 exit=0，测完已删）。commit + push main（CI 自动部署），线上效果待用户确认。
+
 ## 工作约定变更：取消全部验证环节（2026-08-22）
 
 **背景**：用户反馈验证流程（node --check → dry-run → CDP 冒烟 → 线上验证）太耗时太慢，明确拍板：**之后的任务一律不做验证**。

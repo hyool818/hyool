@@ -66,8 +66,17 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - `generateStoryBeat` 输出新增可选 `goals[]`/`consequence{}`（sanitize 白名单 + clamp）；`buildStoryBeatPrompt` 注入「在场角色状态」+「发酵中的后果」
 - 引擎落账：`applyBeatNpcUpdates` / `applyBeatConsequence` / `advanceWorldConsequences`；LLM 只演绎不维护状态
 
+### ★ Batch 4.6 World Engine：知识边界 + NPC 日程/场景填充（已 commit，未线上验证）
 
-## 最近已完成（2026-08-22）
+- **知识边界（治「NPC 全知」）**：`world_json.state` 新增 `knowledge[]`（text/turn/seen=目击者 id[]/secret）；引擎在 tick 后落账 witness 戳——具体互动（有 who）=参与角色，纯旁白=在场全体，同场对话自动传播消息；普通事件留 60 条、秘密条目永久保留
+- `buildStoryBeatPrompt` 注入「近期世界动态 / 已揭露线索（带目睹者）/ 在场角色不知道的近期事」+ 硬性信息边界规则（不知情角色不得替其说出不可能知道的事；此刻不在角色不得进 who）
+- **NPC 日程（确定性种子）**：`state.seed`（=world.id 锚定）+ `state.dayIndex`（每 8 tick 一世界日）+ `state.schedules[day]`（npcId→location/activity，FNV-1a 哈希，reroll 可复现）；多地点世界（场景名+主线 ≥2）按日程限定在场角色，单地点世界维持全员在场（现状不变）；`activeCastForThread` 支持预解析 cast 参数 + `offCast` 透传
+- **场景填充**：`state.ambient[day][location]` 确定性生成 1~2 名背景角色，注入「现场还有…（只做环境不发言）」
+- 无 migration、无 UI/DB 改动（全部在 `world_json.state`），向后兼容
+
+## 最近已完成（2026-08-23）
+
+- **World Engine 知识边界 + NPC 日程/场景填充（Batch 4.6）**：`state.knowledge[]`（witness 戳）+ `state.schedules/ambient`（确定性种子日程+背景填充）；`buildStoryBeatPrompt` 注入信息边界块。无 migration。详见上方「生命世界·故事孵化器」与 docs/history.md。
 
 - **首页主 logo 放大 + 间距优化**：`public/index.html` `.world-logo-main img` 桌面 96px→**160px**→**800px**、移动 72px→**120px**→**600px**（`logo.png` 主 logo，`logo1.png` 左上角未动，`max-width:88vw` 防溢出）；随后上下间距拉开：logo `top:4%`（移 3.5%）、上入口 fantasy `top:28%`（移 26%）、下入口 life `bottom:28%`（移 27%）。已 commit `12f2939`，CI 部署后线上生效。详见 docs/history.md。
 - **用户主页分享链路限定在主页（`3533a94`）**：规则=游客在用户主页无论怎么操作都留在主页，仅点 LOGO 可回主站。改动：`buddy.html` 分享链接/游客登录提示携带 `?from=/@…`；`share.html` 识别 `from`，「与 TA 相遇」带回 from，「创造我的」/header/错误页按钮改为返回主页；`yonder-home.html` 门禁下 LOGO 可见可点（header z 100→810 高于 gate 800），移除门禁非 LOGO 的「返回首页」。详见 docs/history.md。

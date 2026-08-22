@@ -1356,11 +1356,59 @@ function mockStatePulse({ world, wj, messages }) {
 /* __STORY_ENGINE_CHUNK_5__ */
 
 /** 故事节拍的系统提示：输入世界状态 + 现场 → 输出下一个节拍 */
-export function buildStoryBeatPrompt({ world, wj, thread, cast, recent }) {
+export function buildStoryBeatPrompt({ world, wj, thread, cast, recent, offCast }) {
     const state = (wj && wj.state) || {};
     const story = state.story || {};
     const beatLines = (state.beats || []).slice(-6).map(b => `[${b.t}] ${b.text || (Array.isArray(b.who) ? b.who.join("、") : "") || ""}`).join("\n");
-    const secretLines = (state.secrets || []).filter(s => s.revealed).map(s => `- ${s.desc}`).join("\n") || "无";
+    // 知识边界（Batch 4.6）：witness 戳 + 「NPC 不知道的事」——引擎落账，模型只按信息边界演绎
+    const knowledge = (Array.isArray(state.knowledge) ? state.knowledge : []).filter(k => k && k.text);
+    const nameById = new Map([...(Array.isArray(cast) ? cast : []), ...(Array.isArray(offCast) ? offCast : [])].map(c => [c.id, c.name]));
+    const seenNames = (entry) => (Array.isArray(entry.seen) && entry.seen.length
+        ? entry.seen.map(id => nameById.get(id) || id).join("、")
+        : "无人目睹");
+    const newsLines = knowledge.filter(k => !k.secret).slice(-5)
+        .map(k => `- ${String(k.text).slice(0, 80)}（目睹：${seenNames(k)}）`)
+        .join("\n");
+    const secretLines = (state.secrets || []).filter(s => s.revealed).slice(-8).map(s => {
+        const entry = [...knowledge].reverse().find(k => k.secret && String(k.text).includes(String(s.desc || "").slice(0, 30)));
+        return `- ${String(s.desc || "").slice(0, 80)}（目睹：${entry ? seenNames(entry) : "不详"}）`;
+    }).join("\n") || "无";
+    const unknownLines = [];
+    {
+        const done = new Set();
+        const items = [...knowledge].reverse();
+        for (const entry of items) {
+            if (unknownLines.length >= 6) break;
+            const unseen = (Array.isArray(cast) ? cast : []).filter(c => !(entry.seen || []).includes(c.id));
+            for (const c of unseen.slice(0, 2)) {
+                if (done.has(c.id)) continue;
+                done.add(c.id);
+                unknownLines.push(`${c.name}不知道：${String(entry.text).slice(0, 60)}（目睹：${seenNames(entry)}）`);
+                if (unknownLines.length >= 6) break;
+            }
+        }
+    }
+    const unknownText = unknownLines.join("\n");
+    // NPC 日程 + 场景填充（Batch 4.6）：引擎确定性种子，reroll 可复现
+    const dayIndex = Number(state.dayIndex) || 0;
+    const today = (state.schedules && state.schedules[dayIndex]) || {};
+    const currentLoc = (() => {
+        if (thread && thread.kind === "scene" && thread.scene_id) {
+            const sc = ((wj && wj.scenes) || []).find(s => s.id === thread.scene_id);
+            if (sc && String(sc.name || "").trim()) return String(sc.name).trim();
+        }
+        return "主线";
+    })();
+    const hereLines = (Array.isArray(cast) ? cast : []).map(c => {
+        const s = today[c.id];
+        return s ? `- ${c.name}（${String(s.activity || "在场").slice(0, 20)}）` : null;
+    }).filter(Boolean);
+    const awayLines = (Array.isArray(offCast) ? offCast : []).map(c => {
+        const s = today[c.id];
+        return s ? `- ${c.name}此刻在〈${String(s.location || "别处").slice(0, 20)}〉（${String(s.activity || "忙自己的事").slice(0, 20)}）` : null;
+    }).filter(Boolean).slice(0, 6);
+    const ambient = (state.ambient && state.ambient[dayIndex] && state.ambient[dayIndex][currentLoc]) || [];
+    const ambientText = ambient.length ? `现场还有：${ambient.join("、")}（背景人物，只做环境衬托，不要让他们发言或参与）` : "";
     const castNames = (Array.isArray(cast) ? cast : []).map(c => `${c.id}（${c.name}）`).join("、");
     const transcript = (Array.isArray(recent) ? recent : [])
         .map(m => `【${m.name || (m.actor === "user" ? "用户" : m.actor)}】${String(m.content || "").slice(0, 300)}`)
@@ -1391,32 +1439,37 @@ export function buildStoryBeatPrompt({ world, wj, thread, cast, recent }) {
         "",
         "# 世界状态",
         `主线：${story.title || "尚未成形"}｜阶段：${story.phase || "opening"}｜焦点：${story.focus || "尚未形成"}`,
-        `已揭露线索：${secretLines}`,
+        `已揭露线索：\n${secretLines}`,
+        newsLines ? `近期世界动态：\n${newsLines}` : "",
         beatLines ? `最近节拍：\n${beatLines}` : "最近节拍：无",
         `在场角色：${castNames || "无"}`,
         `当前现场：${thread && thread.title ? `「${thread.title}」` : ""}${thread && thread.desc ? thread.desc : ""}`,
         npcLines ? `在场角色状态：\n${npcLines}` : "",
         consLines ? `发酵中的后果：\n${consLines}` : "",
+        hereLines.length ? `今日在场：\n${hereLines.join("\n")}` : "",
+        awayLines.length ? `此刻不在（别处各有各事）：\n${awayLines.join("\n")}` : "",
+        ambientText,
+        unknownText ? `在场角色不知道的近期事（信息边界，务必遵守）：\n${unknownText}` : "",
         "",
         "# 最近消息",
         transcript || "（开场，还没有人说话）",
         "",
         "# 输出要求（只输出 JSON，不要 markdown 与解释）",
         `{"t":"event|action|dialogue|decision|consequence|narration","narration":"可选，一句有画面感的旁白","who":["角色id"],"text":["与 who 一一对应的台词或行动"],"affects":[{"a":"角色id","b":"角色id","kind":"关系标签","bond":0~100,"note":"一句话理由"}],"reveal":["已存在未揭露秘密的id"],"hide":["新秘密一句话"],"goals":[{"id":"在场角色id","goal":"新目标，留空则沿用当前","progress":0~100,"status":"active|blocked|achieved|abandoned"}],"consequence":{"title":"后果一句话","severity":0~100}}`,
-        "规则：t 决定节拍类型——event 事件 / action 行动 / dialogue 对白 / decision 决定 / consequence 后果 / narration 纯旁白；narration 可选，有旁白时写一句；who/text 一一对应、各不超过 2 条，只能输出上面「在场角色」里出现的 id；affects 最多 1 条（关系变化）；reveal 只能列「已揭露线索」之外、世界状态秘密列表里已存在且未揭露的 id；hide 埋一个新秘密（最多 1 条）；goals 最多 2 条，只能输出「在场角色状态」里出现过的 id，只声明本次目标变化（新目标 / 进展推进 / 达成 / 受阻 / 放弃），无变化则留空数组；只有 t=consequence 且要新建或继续发酵后果时才输出 consequence，其余情况输出 null；推动主线，不要原地闲聊。"
+        "规则：t 决定节拍类型——event 事件 / action 行动 / dialogue 对白 / decision 决定 / consequence 后果 / narration 纯旁白；narration 可选，有旁白时写一句；who/text 一一对应、各不超过 2 条，只能输出上面「在场角色」里出现的 id；affects 最多 1 条（关系变化）；reveal 只能列「已揭露线索」之外、世界状态秘密列表里已存在且未揭露的 id；hide 埋一个新秘密（最多 1 条）；goals 最多 2 条，只能输出「在场角色状态」里出现过的 id，只声明本次目标变化（新目标 / 进展推进 / 达成 / 受阻 / 放弃），无变化则留空数组；只有 t=consequence 且要新建或继续发酵后果时才输出 consequence，其余情况输出 null；「在场角色不知道的近期事」是硬性信息边界：不要替不知情的角色说出他们不可能知道的事，除非本幕恰好由知情者当面告知；「此刻不在」的角色只能出现在旁白里，不得进入 who。推动主线，不要原地闲聊。"
     ].filter(Boolean).join("\n");
 }
 
 /* __STORY_ENGINE_CHUNK_6__ */
 
 /** 生成下一个故事节拍：推进一个 beat，而非“挑人说一句” */
-export async function generateStoryBeat({ world, wj, thread, cast, recent, modelId, env, mock }) {
+export async function generateStoryBeat({ world, wj, thread, cast, recent, modelId, env, mock, offCast }) {
     const fallback = () => mockStoryBeat({ world, wj, cast, recent });
     if (!env.AI || mock) return fallback();
     try {
         const model = normalizeModelId(modelId);
         const info = resolveModel(model);
-        const system = buildStoryBeatPrompt({ world, wj, thread, cast, recent });
+        const system = buildStoryBeatPrompt({ world, wj, thread, cast, recent, offCast });
         const content = await chatCompletions(
             env,
             [
