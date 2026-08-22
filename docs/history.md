@@ -531,3 +531,36 @@ state: {
 
 **待办**：Batch 4 一键导出不做；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑；换窗口后新会话读 CONTEXT.md + git log 继续。
 
+## 世界后台输入丢失修复（Batch 8.1，2026-08-23）
+
+**问题**：用户反馈「大世界背景所有输入栏无法输入」，进一步澄清为「输入时代背景后切换到下一栏，上一栏输入的字自动消失、恢复 placeholder」。
+
+**根因**（`public/world.html` 世界后台侧栏 `change` 委托处理器，1 处，+2/-1，无 migration）：
+
+```js
+sideEl.addEventListener("change", async e => {
+  const id = e.target.id;
+  try {
+    if (id === "bgCoverFile") { ... }
+    else if (id === "bgImageFile") { ... }
+  } catch (err) { toast(err.message); }
+  e.target.value = "";   // ← BUG
+});
+```
+
+- 本意：文件上传后清空 file input 的 value，便于重复选择同一文件。
+- 实际：`e.target.value = ""` 在 try/catch **之外无条件执行**——side 内**任何**输入控件失焦（值改变触发 `change`，冒泡到 sideEl）都会被立即清空。
+- 受影响范围：`🌍 大世界背景` 面板全部输入（bgEra/bgRule/bgFaction/bgPower/bgTone/bgPlace/bgNote/bgImage）+ `⚙ 运转` 面板（runTickSec 数字、runModel 下拉、模式 radio）。用户看到的「无法输入」= 每输一个字段、切到下一栏时上一栏被清空（最后一个输入因未再失焦而保留）。
+- 复现路径：CDP 真实 IME 输入（`Input.insertText`）+ 真实鼠标点击切换焦点；diag 显示 `change` 事件时 value 正常、紧接着 `blur` 时 value 已空，元素未被替换、无任何 render 调用——清空只来自该委托处理器。
+
+**修复**：清空仅对文件上传控件生效：
+
+```js
+if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
+```
+
+**验证**（本次破例做真实浏览器验证以定位 bug）：CDP 无头 Chrome 真实输入后——bgEra「灵气枯竭的修炼世界」→ 点击 bgRule → 保留 ✓；bgRule「雾里藏着记忆」、bgPlace「雾港」均保留 ✓；runTickSec 数字输入与 runModel 下拉变更均不再被清空 ✓；`world-check.html` 冒烟 44 断言 PASS（含背景锁定 disabled 断言未受影响）✓。
+
+**待办**：Batch 4 一键导出不做；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑；换窗口后新会话读 CONTEXT.md + git log 继续。
+
+

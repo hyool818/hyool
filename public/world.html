@@ -1613,7 +1613,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (id === "bgCoverFile") { const url = await uploadImageFile(e.target.files[0]); await saveCover(url); toast("封面已更新。"); }
       else if (id === "bgImageFile") { $("bgImage").value = await uploadImageFile(e.target.files[0]); }
     } catch (err) { toast(err.message); }
-    e.target.value = "";
+    // 仅清空文件输入（否则无法重复选择同一文件）；文本/数字/下拉等输入的值必须保留
+    if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
   });
 
   // 新线程弹窗
