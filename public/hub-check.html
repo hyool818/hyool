@@ -162,7 +162,7 @@ async function main(){
     await sleep(150);
     ok(q('#roleSection').style.display !== 'none', '切回角色 tab 生效');
 
-    /* ---- 访客态：登出 + 清 token 重载 ---- */
+    /* ---- 访客态：登出 + 清 token 重载 → 重定向到幻灵世界广场 ---- */
     await fetch('/api/logout', { method: 'POST', credentials: 'include' });
     localStorage.removeItem('hyool_token');
     f.src = '/hub';
@@ -172,12 +172,11 @@ async function main(){
     });
     const gdoc = await waitFor(() => {
       const d = document.getElementById('fa').contentDocument;
-      return (d.getElementById('app').style.display === 'block') ? d : null;
-    }, 20000, 'hub guest app ready');
+      return (d && d.location && d.location.pathname === '/plaza') ? d : null;
+    }, 20000, 'hub guest redirected to /plaza');
     await sleep(300);
-    ok(gdoc.getElementById('createBtn').style.display === 'none', '访客态隐藏创造按钮');
-    ok(gdoc.getElementById('logoutBtn').style.display === 'none', '访客态隐藏退出');
-    ok(gdoc.getElementById('loginLink').style.display !== 'none', '访客态显示登录链接');
+    ok(true, '游客 /hub 重定向到 /plaza', gdoc.location.pathname);
+    ok(gdoc.querySelector('h1') && gdoc.querySelector('h1').textContent.includes('幻灵世界'), '幻灵世界广场大标题');
 
     // 恢复 token（清理用）
     if (token) localStorage.setItem('hyool_token', token);

@@ -1196,6 +1196,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const auth = await checkAuthSoft();
   isGuest = !auth;
 
+  /* 游客不进入「我的彼岸」：个人创作库只对登录用户开放，游客统一导向幻灵世界广场 /plaza */
+  if (isGuest) { location.replace("/plaza"); return; }
+
   if (auth && auth.user && auth.user.username) {
     $("backLink").href = "/@" + auth.user.username;
   }

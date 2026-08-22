@@ -89,6 +89,9 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 ## 最近已完成（2026-08-23）
 
+- **游客访问 /hub 直接重定向 /plaza（2026-08-23）**：个人创作库（我的彼岸）只对登录用户开放。`public/hub.html` DOMContentLoaded 中 `isGuest` → `location.replace("/plaza")` + return（用 replace 防历史栈残留）；`hub-check.html` 访客断言同步改为「重定向 /plaza + 幻灵世界大标题」；后端 `GET /api/hub` 游客分支保留。详见 docs/history.md 末尾。
+
+
 - **★ 主站生命世界广场 + 发布/下架 + 显示/隐藏解耦（2026-08-23）**：新建 `public/plaza.html`（主站广场，聚合所有已发布 life 世界）+ `GET /api/plaza`（`status='published' AND type='life'` + 主人信息 + natives_count）；首页「生命」入口从 `/hub` 改跳 `/plaza`。语义解耦：**`status`=发布/下架**（published 进主站广场、draft 移除；`PATCH /api/worlds/:id` 原有字段），**主页显示/隐藏=share_id 非空**（世界 PATCH 新增 `visible` 字段，清空/生成 share_id；主页访客世界过滤从 `status='published'` 改为 `share_id IS NOT NULL AND share_id != ''`，与角色一致）。按钮：主页世界卡右上角「发布/下架」（绿/红）+ 右下角「显示/隐藏」，hub 世界卡右上角「发布/下架」。迁移 `schema/migrate_plaza_share.sql` 已对 remote 执行（存量 published 世界补 share_id）。详见 docs/history.md「生命世界广场」。
 
 - **★ Companion Engine（数字生命「一对一」层，Batch 5，2026-08-23）**：情绪状态机（20 标签 + 关键词规则确定性落账 + 现实时间衰减）+ 主动找你 inbox（亲密里程碑 10/30/50/70/90 / 3 天未聊想念 / 关系纪念日 7·30·100·365 天）+ 恋爱/结婚/家庭生命周期（表白→在一起→求婚→结婚，用户手动拍板 manual 优先；婚后「想要孩子」→2 天后怀孕→再 3 天孩子出生，孩子=characters 新行 parent_id 标记可与 TA 聊天）。全部状态挂 `characters.companion_state`（JSON），`src/companion.js` 引擎确定性落账，LLM 只演绎。详见 docs/history.md「Companion Engine」。

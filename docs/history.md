@@ -274,6 +274,25 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 5. **world.html「故事」tab**——世界面板 rail-tabs 新增「故事」，renderStory 拉取 `/life/story` 渲染主线卡（标题/阶段徽章/梗概/焦点）、秘密（🔒/☀）、支线、时间线、章节、节拍流（类型标签+旁白+台词）；随 8s refreshWorld 自动刷新。
 6. **world-check 扩充 partH**（19 条断言）——`/life` 返回 `world.state` 对象；`state.story.phase` 合法阶段；`state.beats/secrets/plots/timeline` 落账；`lastPulseSeq` 推进；关系自动演化（`auto:true`）写入；节拍类型合法+含台词/旁白；`/life/story` 200 且 chapters/beats/secrets/plots/timeline 与 state 一致；partD 增「故事」tab/面板存在+可切换 3 条断言。
 7. **验证**：`node --check`（mvp.js/gateway.js）通过；本地 dev 启动后 CDP 冒烟 **world-check 84 断言 PASS（SMOKE-OK）**——含节拍化 tick 产出「旁白+2 角色」3 条、pulse 后 state.story=opening、beats=2、secrets=1、lastPulseSeq=11、`/life/story` 档案与 state 一致；唯一 SKIP 为「角色创建失败/超时（本地 AI 挂起）」既有项。**已部署（35848a2，CI 自动）并线上验证通过**：`https://hyool.w910227a.workers.dev/world-check.html` CDP 冒烟 **91 断言 PASS（SMOKE-OK，0 SKIP）**——含此前线上失败的「关系自动演化（auto）写入 relations」、`lastPulseSeq=11`、`/life/story` 档案与 state 一致；修复为 partH 收敛循环（轮询 /life + 重复 mock tick，直到 N1-N2 auto 关系落账，≤120s），规避 iframe 真实 hybrid auto-tick 抢跑消耗积压消息导致脉动阈值不足的竞态。
+---
+
+## 游客访问 /hub 重定向到幻灵世界广场（2026-08-23）
+
+**现象（用户报告）**：游客从幻灵世界广场（`/plaza`）点世界卡片进入 `/world`（带 `from=/plaza`），点「← 返回」后到达 `https://hyool.com/hub`，且游客在 `/hub` 看到「角色、世界全出来」。
+
+**排查结论**：
+1. **返回回 /hub**：`goWorldBack`（`world.html`）已在上轮修复（`f2d9635`）加入 `/plaza` 白名单（from 参数 + 同站 referrer 双保险），线上已验证包含修复；仅当入口 URL 无 `from` 参数（直接收藏/分享 `/world?world=xxx`）或浏览器缓存旧页面时，才走兜底回 `/hub`（设计行为）。
+2. **游客在 /hub 看到角色**：`GET /api/hub` 游客分支（`src/mvp.js`）返回**全站 `share_id` 非空（主页显示开启）的前 60 个公开角色**，`hub.html` 游客态副标题本就是「浏览大家创造的角色，登录后即可定制你的世界。」；世界 tab 对游客实为空态+登录提示。每张角色卡下方的紫色小字是该角色所属世界名，故观感为「角色、世界全出来」——这是既定设计，非数据泄露。
+
+**用户拍板**：游客访问 `/hub` 直接重定向到 `/plaza`（幻灵世界广场），个人创作库只对登录用户开放。
+
+**改动**：
+1. `public/hub.html`：DOMContentLoaded 中 `checkAuthSoft()` 后若 `isGuest` → `location.replace("/plaza")` + `return`（用 `replace` 避免历史栈残留 /hub，从世界返回再后退不会回到 /hub；原游客 UI 分支保留为防御但已不可达）。
+2. `public/hub-check.html`：访客断言从「隐藏创造/退出按钮 + 显示登录链接」改为「iframe 内 /hub 重定向到 /plaza + 幻灵世界大标题」（`waitFor` 轮询 `contentDocument.location.pathname === '/plaza'`）。
+3. 后端 `GET /api/hub` 游客分支**保留**（`guest: true` + share_id 非空角色），仅页面层重定向，其它 API 调用方（world.html 角色库弹窗等，均为登录态）不受影响。
+
+**验证**：`hub.html` / `hub-check.html` 内联脚本 `node --check` 通过；commit + push main（CI 自动部署）。
+
 
 <b>world.html 页面布局优化（本次会话，已完成本地验证，commit 208fe2a）：</b>
 1. **顶部右侧「世界X」tab** —— 移出导轨底部 tab 行，改为顶栏右侧常驻「世界角色 / 世界关系 / 世界故事」三个切换按钮（`.world-tab`，保留 `data-rail` 属性兼容 world-check 断言），切换世界面板分节；「世界后台」按钮（openSide）保留。
