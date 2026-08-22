@@ -1318,6 +1318,40 @@ body {
 .world-card .badge { font-size: .62rem; padding: 2px 8px; border-radius: 999px; background: rgba(139,139,255,.16); color: #b7b7ff; }
 .world-card .badge.form { background: rgba(120,220,170,.14); color: #9fdcbb; }
 
+/* 显示/隐藏按钮（主人视图：角色卡 / 世界卡） */
+.char-card, .world-card { position: relative; }
+.vis-toggle {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 3;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: .72rem;
+    background: rgba(12,13,20,.82);
+    color: #cfe4ff;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.vis-toggle:hover { background: rgba(90,130,255,.32); }
+.vis-toggle.off { color: #ffe1b8; border-color: rgba(255,180,90,.45); background: rgba(70,45,15,.82); }
+.vis-toggle.off:hover { background: rgba(150,100,30,.55); }
+.char-card.hidden-card, .world-card.hidden-card { opacity: .55; filter: grayscale(.25); }
+.hidden-tag {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    z-index: 3;
+    background: rgba(255,110,70,.88);
+    color: #fff;
+    font-size: .62rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: .04em;
+}
+
 .create-card {
     border: 1px dashed rgba(255,255,255,.15);
     border-radius: 16px;
@@ -3018,16 +3052,23 @@ function renderCharacters() {
             <div class="label">创造角色</div>
         </a>`;
     }
-    html += visible.map(c => `
-        <a class="char-card" href="/buddy/${encodeURIComponent(c.id)}${state.username ? '?from=' + encodeURIComponent('/@' + state.username) : ''}">
+    html += visible.map(c => {
+        const cVisible = !!(c.share_id && c.share_id !== "");
+        const ownerBtns = state.isOwner ? `
+            ${cVisible ? '' : `<div class="hidden-tag">已隐藏</div>`}
+            <button class="vis-toggle ${cVisible ? '' : 'off'}" onclick="toggleCharVisible('${c.id}', ${!cVisible}, event)">${cVisible ? '隐藏' : '显示'}</button>` : "";
+        return `
+        <a class="char-card${cVisible ? '' : ' hidden-card'}" href="/buddy/${encodeURIComponent(c.id)}${state.username ? '?from=' + encodeURIComponent('/@' + state.username) : ''}">
             <img class="thumb" src="${escapeHtml(c.image_url || c.avatar_url || '/placeholder.png')}" alt="${escapeHtml(c.name || '')}" onerror="this.style.opacity=.3">
+            ${ownerBtns}
             <div class="info">
                 <div class="name">${escapeHtml(c.name || '未命名')}</div>
                 ${c.world_name ? `<div class="world">${escapeHtml(c.world_name)}</div>` : ''}
                 ${pricingBadge(c.pricing, c.price)}
             </div>
         </a>
-    `).join("");
+    `;
+    }).join("");
 
     if (state.isOwner && chars.length > showCount) {
         html += `<a href="/hub" class="more-card">
@@ -3087,9 +3128,15 @@ function renderWorlds() {
             <div class="label">创造世界</div>
         </a>`;
     }
-    html += visible.map(w => `
-        <a class="world-card" href="${worldPlayUrl(w)}">
+    html += visible.map(w => {
+        const wVisible = w.status === "published";
+        const ownerBtns = state.isOwner ? `
+            ${wVisible ? '' : `<div class="hidden-tag">已隐藏</div>`}
+            <button class="vis-toggle ${wVisible ? '' : 'off'}" onclick="toggleWorldVisible('${w.id}', ${!wVisible}, event)">${wVisible ? '隐藏' : '显示'}</button>` : "";
+        return `
+        <a class="world-card${wVisible ? '' : ' hidden-card'}" href="${worldPlayUrl(w)}">
             <img class="thumb" src="${escapeHtml(w.cover_image || '/placeholder.png')}" alt="${escapeHtml(w.name || '')}" onerror="this.style.opacity=.3">
+            ${ownerBtns}
             <div class="info">
                 <div class="name">${escapeHtml(w.name || '未命名')}</div>
                 <div class="badges">
@@ -3099,12 +3146,58 @@ function renderWorlds() {
                 ${pricingBadge(w.pricing, w.price)}
             </div>
         </a>
-    `).join("");
+    `;
+    }).join("");
 
     if (!html) {
         grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${state.isOwner ? "还没有创造世界。" : "还没有公开的世界。"}</div>`;
     } else {
         grid.innerHTML = html;
+    }
+}
+
+/* =====================================================
+   WORKS VISIBILITY（角色卡 / 世界卡 显示·隐藏）
+   ===================================================== */
+
+// 角色：公开 = share_id 非空（世界同表字段）；世界：公开 = status='published'
+async function toggleCharVisible(id, targetVisible, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    try {
+        const res = await fetch('/api/characters/' + encodeURIComponent(id) + '/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ visible: !!targetVisible })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || '操作失败。');
+        const c = (state.characters || []).find(x => x.id === id);
+        if (c) {
+            c.share_id = data.character && data.character.share_id ? data.character.share_id : (targetVisible ? 'pub' : '');
+        }
+        renderCharacters();
+    } catch (e) {
+        console.error('TOGGLE CHAR VISIBLE ERROR:', e);
+        alert(e.message || '操作失败，请稍后再试。');
+    }
+}
+
+async function toggleWorldVisible(id, targetVisible, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    try {
+        const res = await fetch('/api/worlds/' + encodeURIComponent(id), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ status: targetVisible ? 'published' : 'draft' })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || '操作失败。');
+        const w = (state.worlds || []).find(x => x.id === id);
+        if (w) w.status = targetVisible ? 'published' : 'draft';
+        renderWorlds();
+    } catch (e) {
+        console.error('TOGGLE WORLD VISIBLE ERROR:', e);
+        alert(e.message || '操作失败，请稍后再试。');
     }
 }
 

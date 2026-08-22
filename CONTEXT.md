@@ -95,6 +95,8 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **★ 世界后台输入丢失修复（Batch 8.1，2026-08-23）**：修「大世界背景所有输入栏无法输入/输入的字切栏即消失」= `world.html` 世界后台侧栏的 `change` 委托处理器在 try/catch 外无条件执行 `e.target.value=""`，导致 side 内**所有**输入控件（时代/规则/势力/力量/氛围/地点/补充/背景图 + 运转面板 tick 秒数 + 模型下拉）在失焦（change 冒泡）瞬间被清空。修复：仅对文件上传控件（bgCoverFile/bgImageFile）清空 value。无 migration。详见 docs/history.md。
 - **★ 创角页生图风格动图预览（2026-08-23）**：新增 `public/create-art/`（realistic.mp4 / 3d.mp4 / anime.mp4 / guofeng.mp4，**4 种生图风格动图齐备**）；`create.html` 风格卡与 `create-character.html` STEP1 艺术风格卡片用 `<video autoplay muted loop playsinline>` 展示生图风格动图（缺图 onerror 移除，create.html 保留 emoji 兜底）；引用路径 `/create-art/*.mp4` 按风格 id（realistic/3d/anime/guofeng）。动图尺寸已放大（桌面 2 列 / 移动单列，对标角色卡观感，commit `58d72d4`）。已 commit `a759424` + anime 补全 `7d6b726`，CI 部署后线上生效。详见 docs/history.md。
 - **★ 手机端邀请码 + 聊天错位修复（2026-08-23）**：① 手机端「编辑彼岸」看不到邀请码管理 = `yonder-home.html` 的 `checkAdminAccess` 与 4 个 invite-codes 请求未带 `Authorization` header（依赖 cookie，页面其它请求都从 `localStorage.hyool_token` 取），已新增 `authHeaders()` 并给 5 处请求统一补上；② 与角色聊天退出过会儿再进消息错位 = `messages.created_at` 秒级精度，同轮 user/assistant 同秒插入时 `ORDER BY created_at DESC` 不稳定（实测 assistant 排到 user 前），`src/mvp.js` 三处读取（列表 LIMIT 100 / 沉淀 LIMIT 60 / 上下文 LIMIT 12）改 `ORDER BY rowid DESC`。commit `efdc7f8` + `daf180c`，CI 部署后线上生效。详见 docs/history.md。
+- **★ 角色卡/世界卡显示·隐藏按钮（2026-08-23）**：主页（yonder-home.html）主人视图下每张角色卡/世界卡新增「显示/隐藏」按钮——隐藏=卡片半透明 + 红色「已隐藏」角标（角色清空 `share_id`、世界置 `status='draft'`，访客视图即消失）；再点「显示」恢复公开（角色重新生成 `share_id`、世界 `status='published'`）。后端角色 update 路由新增 `visible` 字段支持（`src/mvp.js`），世界沿用已有 `PATCH /api/worlds/:id` 的 `status`。详见 docs/history.md。
+
 
 
 

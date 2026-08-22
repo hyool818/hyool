@@ -620,3 +620,28 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：`efdc7f8`（聊天排序）、`daf180c`（邀请码 header）。push main（CI 自动部署），线上待用户验证。
 
+## 角色卡/世界卡显示·隐藏按钮（2026-08-23）
+
+**背景**：用户需求——个人主页（`/@用户名`，yonder-home.html）的角色卡与世界卡各加一个「显示/隐藏」按钮，让主人可以直接控制每个作品对访客是否公开，不必去 hub 管理页。
+
+**可见性模型（沿用现有公开规则，无新字段）**：
+- 角色公开 = `characters.share_id` 非空（创建时自动生成）；访客查询 `WHERE share_id IS NOT NULL AND share_id != ''`
+- 世界公开 = `worlds.status = 'published'`；访客查询 `AND status = 'published'`（draft = 草稿/隐藏）
+
+**后端（`src/mvp.js`）**：`POST /api/characters/:id/update` 新增支持 `body.visible`：
+- `visible: true` → 若当前 `share_id` 为空则生成新的 10 位随机 shareId，保证公开
+- `visible: false` → `share_id = ''`，对访客立即隐藏、分享链接 `/s/xxx` 失效
+- 世界不需要改后端：沿用已有 `PATCH /api/worlds/:id` 的 `body.status`（'published'/'draft'，仅 owner 可改）
+
+**前端（`public/yonder-home.html`，仅主人视图 isOwner 显示按钮）**：
+1. `renderCharacters()` / `renderWorlds()` 的卡片模板：公开卡右下角「隐藏」按钮；隐藏卡半透明（`.hidden-card`）+ 左上角红色「已隐藏」角标（`.hidden-tag`）+ 右下角橙色「显示」按钮（`.vis-toggle.off`）。按钮 `onclick` 传 `event`，handler 里 `preventDefault + stopPropagation` 阻止 `<a>` 卡片跳转。
+2. 新增 `toggleCharVisible(id, targetVisible, ev)`（POST `/api/characters/:id/update` `{visible}`）与 `toggleWorldVisible(id, targetVisible, ev)`（PATCH `/api/worlds/:id` `{status}`），请求带 `authHeaders()`；成功后更新 `state` 并即时重渲染。
+3. CSS：`.vis-toggle` 绝对定位右下、毛玻璃小圆按钮；`.hidden-card { opacity:.55; filter:grayscale(.25) }`；`.hidden-tag` 红色角标。
+
+**边界情况**：访客视图完全看不到按钮与隐藏角标（后端也不返回隐藏作品）；隐藏的角色在 `buddy.html` 公开接口已按原逻辑提示「这个角色没有公开」；世界 draft 时主人仍可点卡进入管理，访客按原逻辑 403。
+
+**验证**：`node --check src/mvp.js` ✓；yonder-home.html 内联脚本语法抽取校验 ✓；`npx wrangler deploy --dry-run` ✓；node:sqlite 内存表模拟「隐藏→访客 0 / 主人 1；显示→访客 1」全链路 PASS ✓。
+
+**提交**：push main（CI 自动部署），线上待用户验证。
+
+

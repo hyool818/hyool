@@ -1869,6 +1869,18 @@ export async function handleMvpRoutes(
                 values.push(Math.max(0, Math.min(100000, Math.floor(Number(body.price) || 0))));
             }
 
+            // 公开 / 隐藏（主页角色卡「显示/隐藏」按钮）：
+            // visible=true  → 确保 share_id 非空（公开，访客可见）
+            // visible=false → 清空 share_id（隐藏，仅自己可见，分享链接失效）
+            if (body.visible === true) {
+                const keep = character.share_id && character.share_id !== "" ? character.share_id : "";
+                updates.push("share_id = ?");
+                values.push(keep || crypto.randomUUID().replace(/-/g, "").slice(0, 10));
+            } else if (body.visible === false) {
+                updates.push("share_id = ?");
+                values.push("");
+            }
+
             if (updates.length === 0) {
                 return json({ success: false, error: "没有需要更新的字段。" }, 400);
             }
