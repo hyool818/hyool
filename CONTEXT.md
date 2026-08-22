@@ -165,6 +165,9 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 1. **「记录」区块移除** —— 判断依据：全产品无任何「创建记录」入口（后端仅只读 `GET /api/yonder/:username/posts`，全库无 `INSERT INTO yonder_posts`），个人主页「记录」永远空态占位，无存在必要。已从 `yonder-home.html` 移除：记录区块 + 个人介绍下方数量统计（stats 行）+ 设置面板「动态」开关；同步清理 `postsSection`/`renderPosts`/`renderPost`/`state.posts`/`show_posts` 相关 JS。**数据表与接口保留**，日后做动态功能可随时恢复。
 2. **文案改名** —— 「数字生命」→「角色库」（区块标题）、「创造数字生命」→「创造角色」（卡片 + 空态文案）；「世界」→「世界库」（区块标题）。
 3. **世界库新增「创造世界」入口** —— worldGrid 最前加「＋创造世界」create-card（`/hub?create=world`）；登录态即使无世界也显示世界库区块；`hub.html` 支持 `?create=world` 直达自定义世界向导（`openWizard()`）。
+4. **验证（已部署 6c3817b 后线上全绿）**：新增 `public/home-check.html`（16 断言：登录态 @smokews 角色库/世界库标题、创造角色/创造世界卡片 href 与文案、0 世界也显示世界库、无「记录」区块/统计容器/数字生命、`?create=world` 直达向导 5 步第 1 步激活）。**一键复验命令**（无需写临时脚本）：
+   `.\run-browser-test.ps1 -Url https://hyool.w910227a.workers.dev/home-check.html -OutFile .\test-out-home.txt`
+   实测约 2–10s 出结果；线上冒烟输出见 `test-out-home.txt`（TITLE: SMOKE-OK）。注意：断言用「可见文本遍历」判断文案（跳过 script/style），避免 `body.textContent` 包含内联脚本注释造成误报。
 
 ## 验证记录
 
