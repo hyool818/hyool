@@ -172,7 +172,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
    `.\check-home-fast.ps1 -OutFile .\test-out-home-fast.txt`
    13 断言（`@smokews` 页文案/href/区块存在 + 旧文案与已删标识缺失 + hub 向导标识），实测约 1.7s。注意：`.ps1` 含中文须保持 **UTF-8 BOM**（Windows PowerShell 5.1 按 ANSI 读无 BOM 文件会乱码报错）；改脚本请用 .NET ReadAllText/WriteAllText 保留 BOM，勿用编辑器直接覆盖。
 
-## 公开作品「零数据浏览」调整（2026-08-22 收尾，已部署 <commit>）
+## 公开作品「零数据浏览」调整（2026-08-22 收尾，已部署 e2c5e7d）
 
 1. **取消自动游客身份** —— 删除后端 `POST /api/guest` 路由与前端自动创建逻辑（`world.html`/`buddy.html` 不再请求 `/api/guest`，不建任何 profile/session）；`getAuthenticatedUser` 对历史 `guest_` 前缀会话一律视为未登录（旧游客 token 自然失效，访客变纯匿名）。「无需注册体验公开作品」收敛为「**零数据浏览**」：纯浏览/看公开作品不产生任何数据。
 2. **浏览不受影响** —— 公开作品读取本就对匿名放行：主页 `GET /api/yonder/:username`、世界详情 `GET /api/worlds/:id`（published）、生命世界 `GET /life` / `messages` / `story`。
@@ -197,6 +197,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - 回归：patch-check / crop-compare-check（复跑后 OK）/ ui-check / hub-check / fantasy-check 全部 SMOKE-OK。
 - Live：`https://hyool.w910227a.workers.dev`（v c63e567e）注册→建 mixed 世界→列表→详情→`/game-workshop?world=` 200 全通。
 - **生命世界（本会话）**：`public/world-check.html`（CDP，31 断言）全部 PASS；回归 hub-check 34 断言 PASS、game-studio-check 29 断言 PASS；`/cdn-cgi/local/scheduled` 触发 200；`npx wrangler deploy --dry-run` 通过；`schema/migrate_life_worlds.sql` 已对 remote（22 表）+ local 执行成功。
+- **零数据浏览（本会话）**：一次性线上冒烟 `zero-browse-check.html`（CDP，35/35 SMOKE-OK，验证后已删）——smokelife 现场建 life 世界→PATCH 发布→登出零身份后：匿名 /@smokelife 见公开角色+世界卡且底栏/编辑按钮隐藏；匿名进 /world?world= 可读可发言、署名「游客」、rail/side 隐藏；匿名 buddy 只读卡（聊天框/沉淀剧本/设置/退出/更换形象隐藏+登录提示）；POST /api/guest→404、/api/me 未认证、无 token/无 cookie；测试世界已清理。遗留噪音：匿名世界页 `/api/tts/voices` 401（既有行为，不影响零数据浏览）。临时提交已 squash 清理，远端回到 e2c5e7d。
 
 ## 待办状态
 
