@@ -8,7 +8,7 @@
 1. **开工前**：读本文件 + `git log --oneline -10` + 只读与任务相关的源码，不做全项目宽泛检索
 2. **收尾时**：每次完成任务并 commit 后，必须同步更新本文件（已完成写一行摘要 + 详细追加 `docs/history.md`），保持文档与代码一致
 3. **决策红线**：已确认的架构决策不得推翻；需要调整必须先问用户
-4. **验证闭环**：`node --check` + `npx wrangler deploy --dry-run`（涉及 DB 用 `wrangler d1 execute --remote`）→ CDP 冒烟 → commit + push main（CI 自动部署）→ 线上验证 → 本文件同步
+4. **不做验证（2026-08-22 用户拍板）**：取消 node --check / dry-run / CDP 冒烟 / 线上验证等一切验证环节（太耗时太慢）；改完直接 commit + push main（CI 自动部署），线上不行再改。验证相关命令仍在「常用命令」备用，确有必要才用
 5. **临时验证脚本**：放 `.wrangler/` 下，测完即删，不提交
 6. **换窗口（硬性）**：每完成 1 个任务就主动提醒换窗口；长任务中途或上下文明显变长时立即提醒；换后说「读 CONTEXT.md 和 git log 继续」即可。禁止因怕丢对话而拖延。
 7. **检索/读取纪律**：搜索用精准 pattern；`.wrangler/` 是构建产物不参与检索；大文件用小段 `read_files`（≤400 行）；冒烟输出写文件，只报 PASS/FAIL 计数，不拉全文
@@ -57,7 +57,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **新增** `POST /api/worlds/:id/life/export`：`target = novel|renpy|storyboard|game`
 - **world.html「生成作品」区**：类型选择 → 生成 → 预览 + Blob 下载
 - **新增** `public/story-export-check.html` 冒烟
-- 验证闭环：node --check → dry-run → 本地 CDP 冒烟 → 部署 → 线上验证 → 本文件同步
+- 验证：不做验证（见约定 4），生成后直接部署，线上由用户确认
 
 ## 最近已完成（2026-08-22）
 
