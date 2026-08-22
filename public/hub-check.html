@@ -51,6 +51,7 @@ async function main(){
     await new Promise((res, rej) => {
       const to = setTimeout(() => rej(new Error('iframe load timeout')), 60000);
       f.addEventListener('load', () => { clearTimeout(to); res(); }, { once: true });
+      f.src = '/hub'; // 重新加载，保证 load 事件在监听器之后触发（避免早期加载完成导致竞态超时）
     });
 
     // 等待登录态 + 数据加载完成
