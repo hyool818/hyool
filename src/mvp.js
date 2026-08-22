@@ -1969,7 +1969,7 @@ export async function handleMvpRoutes(
                 `SELECT id, role, content, created_at
                  FROM messages
                  WHERE conversation_id = ?
-                 ORDER BY created_at DESC
+                 ORDER BY rowid DESC
                  LIMIT 100`
             ).bind(conversation.id).all();
             (result.results || []).reverse();
@@ -2031,7 +2031,7 @@ export async function handleMvpRoutes(
                 `SELECT role, content, created_at
                  FROM messages
                  WHERE conversation_id = ?
-                 ORDER BY created_at DESC
+                 ORDER BY rowid DESC
                  LIMIT 60`
             ).bind(conversation.id).all();
             const rows = (result.results || []).reverse();
@@ -2193,7 +2193,7 @@ export async function handleMvpRoutes(
                 `SELECT role, content
                  FROM messages
                  WHERE conversation_id = ?
-                 ORDER BY created_at DESC
+                 ORDER BY rowid DESC
                  LIMIT 12`
             ).bind(conversation.id).all();
 
