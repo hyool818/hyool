@@ -2595,6 +2595,10 @@ function parseWorldJson(row) {
     wj.state.timeline = Array.isArray(wj.state.timeline) ? wj.state.timeline : [];
     wj.state.chapters = Array.isArray(wj.state.chapters) ? wj.state.chapters : [];
     wj.state.lastPulseSeq = Number(wj.state.lastPulseSeq) || 0;
+    // World Engine 核心（Batch 4.5）：NPC 目标状态机 + 后果生命周期 + 累计 tick
+    wj.state.npcs = (wj.state.npcs && typeof wj.state.npcs === "object" && !Array.isArray(wj.state.npcs)) ? wj.state.npcs : {};
+    wj.state.consequences = Array.isArray(wj.state.consequences) ? wj.state.consequences : [];
+    wj.state.tickCount = Number(wj.state.tickCount) || 0;
     return wj;
 }
 
@@ -2895,6 +2899,103 @@ function applyStatePulse(wj, pulse) {
     }
 }
 
+/* =========================================================
+ * World Engine 核心（Batch 4.5）：NPC 目标状态机 + 后果生命周期
+ * 引擎确定性维护状态，模型只在节拍里「演绎」——不靠模型自觉。
+ * ========================================================= */
+
+const NPC_GOAL_STATUSES = ["active", "blocked", "achieved", "abandoned"];
+
+/** 为在场角色兜底初始化目标状态槽 */
+function ensureNpcStates(wj, cast) {
+    if (!wj.state) wj.state = {};
+    if (!wj.state.npcs || typeof wj.state.npcs !== "object" || Array.isArray(wj.state.npcs)) wj.state.npcs = {};
+    (Array.isArray(cast) ? cast : []).forEach((c) => {
+        if (!c || !c.id) return;
+        const ns = wj.state.npcs[c.id] || (wj.state.npcs[c.id] = {});
+        if (!ns.goal) ns.goal = "";
+        ns.progress = Math.max(0, Math.min(100, Number(ns.progress) || 0));
+        if (!NPC_GOAL_STATUSES.includes(ns.status)) ns.status = "active";
+    });
+    return wj.state.npcs;
+}
+
+/** 把节拍声明的 NPC 目标增量落账到状态机（clamp + 白名单） */
+function applyBeatNpcUpdates(wj, beat) {
+    if (!beat || !Array.isArray(beat.goals) || !beat.goals.length) return;
+    if (!wj.state) wj.state = {};
+    if (!wj.state.npcs || typeof wj.state.npcs !== "object" || Array.isArray(wj.state.npcs)) wj.state.npcs = {};
+    const now = Date.now();
+    beat.goals.forEach((g) => {
+        if (!g || !g.id) return;
+        const ns = wj.state.npcs[g.id] || (wj.state.npcs[g.id] = { goal: "", progress: 0, status: "active" });
+        if (g.goal) ns.goal = String(g.goal).slice(0, 80);
+        if (g.progress !== undefined && g.progress !== null) ns.progress = Math.max(0, Math.min(100, Number(g.progress) || 0));
+        if (g.status && NPC_GOAL_STATUSES.includes(g.status)) ns.status = g.status;
+        if (ns.status === "achieved" || ns.status === "abandoned") ns.endedAt = now;
+        ns.updatedAt = now;
+    });
+}
+
+/** 后果生命周期：t=consequence 且带 consequence 声明时，新建或继续发酵 */
+function applyBeatConsequence(wj, beat) {
+    if (!beat || !beat.consequence || !beat.consequence.title) return;
+    if (!wj.state) wj.state = {};
+    if (!Array.isArray(wj.state.consequences)) wj.state.consequences = [];
+    const title = String(beat.consequence.title).trim().slice(0, 120);
+    if (!title) return;
+    const severity = Math.max(0, Math.min(100, Number(beat.consequence.severity) || 50));
+    const existing = wj.state.consequences.find((cn) => cn.state !== "resolved" && cn.title === title);
+    if (existing) {
+        existing.severity = severity;
+        existing.updatedAt = Date.now();
+    } else {
+        wj.state.consequences.push({
+            id: "cns_" + crypto.randomUUID().replace(/-/g, "").slice(0, 8),
+            title,
+            severity,
+            state: "created",
+            turn: Number(wj.state.tickCount) || 0,
+            updatedAt: Date.now()
+        });
+    }
+    wj.state.consequences = wj.state.consequences.slice(-30);
+}
+
+/** 后果推进（每次 tick 调用）：created→active→escalating/decaying→resolved */
+function advanceWorldConsequences(wj) {
+    if (!wj.state) return;
+    if (!Array.isArray(wj.state.consequences)) wj.state.consequences = [];
+    if (!wj.state.consequences.length) return;
+    const turn = Number(wj.state.tickCount) || 0;
+    wj.state.consequences.forEach((cn) => {
+        const age = turn - (Number(cn.turn) || turn);
+        if (cn.state === "created") {
+            cn.state = "active";
+            cn.updatedAt = Date.now();
+        } else if (cn.state === "active" && age >= 2) {
+            cn.state = Number(cn.severity) >= 50 ? "escalating" : "decaying";
+            cn.updatedAt = Date.now();
+        } else if (cn.state === "escalating" && age >= 5) {
+            cn.state = "resolved";
+            cn.updatedAt = Date.now();
+        } else if (cn.state === "decaying" && age >= 4) {
+            cn.state = "resolved";
+            cn.updatedAt = Date.now();
+        }
+    });
+    // 发酵中的后果最多 8 条（按严重度保留），避免失控堆积
+    const activeCount = wj.state.consequences.filter((cn) => cn.state !== "resolved").length;
+    if (activeCount > 8) {
+        const active = wj.state.consequences
+            .filter((cn) => cn.state !== "resolved")
+            .sort((a, b) => (Number(b.severity) || 0) - (Number(a.severity) || 0))
+            .slice(0, 8);
+        const resolved = wj.state.consequences.filter((cn) => cn.state === "resolved").slice(-20);
+        wj.state.consequences = [...active, ...resolved];
+    }
+}
+
 /** 把一个故事节拍落为世界消息（旁白 narrator + 在场角色台词），并立即落账 affects/reveal/hide */
 async function applyStoryBeat(env, world, wj, thread, cast, beat) {
     const castById = new Map((Array.isArray(cast) ? cast : []).map((c) => [c.id, c]));
@@ -2930,6 +3031,8 @@ async function applyStoryBeat(env, world, wj, thread, cast, beat) {
         affects: Array.isArray(beat.affects) ? beat.affects.slice(0, 1) : [],
         reveal: Array.isArray(beat.reveal) ? beat.reveal.slice(0, 2) : [],
         hide: Array.isArray(beat.hide) ? beat.hide.slice(0, 2) : [],
+        goals: Array.isArray(beat.goals) ? beat.goals.slice(0, 2) : [],
+        consequence: beat.consequence || null,
         at: new Date().toISOString()
     });
     wj.state.beats = wj.state.beats.slice(-200);
@@ -2953,6 +3056,10 @@ async function applyStoryBeat(env, world, wj, thread, cast, beat) {
             });
         }
     });
+
+    // NPC 目标状态机 + 后果生命周期：引擎确定性落账（模型只演绎，不靠自觉）
+    applyBeatNpcUpdates(wj, beat);
+    applyBeatConsequence(wj, beat);
 
     // reveal → 揭晓秘密；hide → 埋新秘密
     wj.state.secrets = Array.isArray(wj.state.secrets) ? wj.state.secrets : [];
@@ -3026,6 +3133,8 @@ async function runWorldTickCore(env, world, wj, speakerCount, threadId, userName
     wj.life.currentThreadId = thread.id;
     const activeCast = await activeCastForThread(env, world, wj, thread);
     const recent = await loadThreadMessages(env, thread.id, 24);
+    // NPC 目标状态机：先兜底在场角色状态槽，节拍才能读到并演绎
+    ensureNpcStates(wj, activeCast);
 
     // 节拍化运转：每个 tick 推进一个故事节拍（旁白 + 1~2 名在场角色），而非“挑人说一句”
     const beat = await generateStoryBeat({
@@ -3033,6 +3142,12 @@ async function runWorldTickCore(env, world, wj, speakerCount, threadId, userName
         modelId: wj.life.model, mock
     });
     const messages = await applyStoryBeat(env, world, wj, thread, activeCast, beat);
+
+    // World Engine：累计 tick 推进 + 后果生命周期老化（有消息产出才算一 tick）
+    if (messages.length) {
+        wj.state.tickCount = (Number(wj.state.tickCount) || 0) + 1;
+        advanceWorldConsequences(wj);
+    }
 
     // 故事状态增量脉动：消化新消息，推进 world_json.state 并持久化
     await maybeRunStatePulse(env, world, wj, mock);

@@ -1365,6 +1365,26 @@ export function buildStoryBeatPrompt({ world, wj, thread, cast, recent }) {
     const transcript = (Array.isArray(recent) ? recent : [])
         .map(m => `【${m.name || (m.actor === "user" ? "用户" : m.actor)}】${String(m.content || "").slice(0, 300)}`)
         .join("\n");
+    // 在场角色状态：NPC 目标状态机（引擎维护，只给现状，模型负责演绎）
+    const npcStates = (state.npcs && typeof state.npcs === "object" && !Array.isArray(state.npcs)) ? state.npcs : {};
+    const npcLines = (Array.isArray(cast) ? cast : [])
+        .map(c => {
+            const ns = npcStates[c.id];
+            if (!ns || !ns.goal) return null;
+            const st = ns.status === "achieved" ? "已达成" : ns.status === "abandoned" ? "已放弃" : ns.status === "blocked" ? "受阻" : "";
+            return `- ${c.name}（${c.id}）：目标「${String(ns.goal).slice(0, 60)}」${st}，进展 ${Math.max(0, Math.min(100, Number(ns.progress) || 0))}%`;
+        })
+        .filter(Boolean)
+        .join("\n");
+    // 发酵中的后果：后果生命周期（引擎推进状态，模型负责演绎）
+    const consLines = (state.consequences || [])
+        .filter(cn => cn.state !== "resolved")
+        .slice(-5)
+        .map(cn => {
+            const st = cn.state === "escalating" ? "正在升级" : cn.state === "decaying" ? "正在消退" : cn.state === "active" ? "持续发酵" : "刚刚发生";
+            return `- ${String(cn.title || "").slice(0, 80)}（严重度 ${Math.max(0, Math.min(100, Number(cn.severity) || 0))}，${st}）`;
+        })
+        .join("\n");
     return [
         "# 角色：故事节拍引擎",
         `你是「${world?.name || "生命世界"}」的故事节拍引擎。世界不是聊天室，你要不断推进一个连贯的故事——每一次都推进一步。`,
@@ -1375,13 +1395,15 @@ export function buildStoryBeatPrompt({ world, wj, thread, cast, recent }) {
         beatLines ? `最近节拍：\n${beatLines}` : "最近节拍：无",
         `在场角色：${castNames || "无"}`,
         `当前现场：${thread && thread.title ? `「${thread.title}」` : ""}${thread && thread.desc ? thread.desc : ""}`,
+        npcLines ? `在场角色状态：\n${npcLines}` : "",
+        consLines ? `发酵中的后果：\n${consLines}` : "",
         "",
         "# 最近消息",
         transcript || "（开场，还没有人说话）",
         "",
         "# 输出要求（只输出 JSON，不要 markdown 与解释）",
-        `{"t":"event|action|dialogue|decision|consequence|narration","narration":"可选，一句有画面感的旁白","who":["角色id"],"text":["与 who 一一对应的台词或行动"],"affects":[{"a":"角色id","b":"角色id","kind":"关系标签","bond":0~100,"note":"一句话理由"}],"reveal":["已存在未揭露秘密的id"],"hide":["新秘密一句话"]}`,
-        "规则：t 决定节拍类型——event 事件 / action 行动 / dialogue 对白 / decision 决定 / consequence 后果 / narration 纯旁白；narration 可选，有旁白时写一句；who/text 一一对应、各不超过 2 条，只能输出上面「在场角色」里出现的 id；affects 最多 1 条（关系变化）；reveal 只能列「已揭露线索」之外、世界状态秘密列表里已存在且未揭露的 id；hide 埋一个新秘密（最多 1 条）；推动主线，不要原地闲聊。"
+        `{"t":"event|action|dialogue|decision|consequence|narration","narration":"可选，一句有画面感的旁白","who":["角色id"],"text":["与 who 一一对应的台词或行动"],"affects":[{"a":"角色id","b":"角色id","kind":"关系标签","bond":0~100,"note":"一句话理由"}],"reveal":["已存在未揭露秘密的id"],"hide":["新秘密一句话"],"goals":[{"id":"在场角色id","goal":"新目标，留空则沿用当前","progress":0~100,"status":"active|blocked|achieved|abandoned"}],"consequence":{"title":"后果一句话","severity":0~100}}`,
+        "规则：t 决定节拍类型——event 事件 / action 行动 / dialogue 对白 / decision 决定 / consequence 后果 / narration 纯旁白；narration 可选，有旁白时写一句；who/text 一一对应、各不超过 2 条，只能输出上面「在场角色」里出现的 id；affects 最多 1 条（关系变化）；reveal 只能列「已揭露线索」之外、世界状态秘密列表里已存在且未揭露的 id；hide 埋一个新秘密（最多 1 条）；goals 最多 2 条，只能输出「在场角色状态」里出现过的 id，只声明本次目标变化（新目标 / 进展推进 / 达成 / 受阻 / 放弃），无变化则留空数组；只有 t=consequence 且要新建或继续发酵后果时才输出 consequence，其余情况输出 null；推动主线，不要原地闲聊。"
     ].filter(Boolean).join("\n");
 }
 
@@ -1435,11 +1457,26 @@ function sanitizeStoryBeat(raw, { wj, cast, recent, world }) {
     const knownSecretIds = new Set((state.secrets || []).filter(s => !s.revealed).map(s => s.id));
     const reveal = (Array.isArray(raw.reveal) ? raw.reveal : []).map(String).filter(id => knownSecretIds.has(id)).slice(0, 2);
     const hide = (Array.isArray(raw.hide) ? raw.hide : []).map(s => String(s && s.desc ? s.desc : s).trim().slice(0, 200)).filter(Boolean).slice(0, 2);
+    // NPC 目标增量（引擎落账，只收在场角色 + 白名单状态）
+    const GOAL_STATUS = ["active", "blocked", "achieved", "abandoned"];
+    const goals = (Array.isArray(raw.goals) ? raw.goals : []).slice(0, 2).map(g => ({
+        id: String(g.id || "").slice(0, 40),
+        goal: String(g.goal || "").trim().slice(0, 80),
+        progress: Math.max(0, Math.min(100, Number(g.progress) || 0)),
+        status: GOAL_STATUS.includes(String(g.status)) ? String(g.status) : null
+    })).filter(g => castIds.has(g.id) && (g.goal || g.progress || g.status));
+    // 后果声明（只有 t=consequence 且给了才落账）
+    const consequence = raw && raw.consequence && typeof raw.consequence === "object"
+        ? {
+            title: String(raw.consequence.title || "").trim().slice(0, 120),
+            severity: Math.max(0, Math.min(100, Number(raw.consequence.severity) || 50))
+        }
+        : null;
 
     if (!who.length && !narration) {
-        return { ...mockStoryBeat({ world, wj, cast, recent }), affects, reveal, hide };
+        return { ...mockStoryBeat({ world, wj, cast, recent }), affects, reveal, hide, goals, consequence };
     }
-    return { t, narration, who, text, affects, reveal, hide };
+    return { t, narration, who, text, affects, reveal, hide, goals, consequence };
 }
 
 /** mock 故事节拍（冒烟测试 / 无 AI 环境兜底）：按类型轮转，保证有消息产出 */

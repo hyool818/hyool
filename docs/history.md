@@ -156,6 +156,28 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **mvp.js** `/api/worlds/:id/life/*`：`GET`（完整视图）/ `natives` 增改删 / `background` / `relations` / `scenes` / `threads` / `chat`（用户插话+回应）/ `tick`（自主运转，10s 冷却）/ `messages?after=`（增量拉取）/ `settings` / `summary`（补播摘要）。`POST /api/worlds` 放行 `life` 类型并初始化 world_json+初始线程；`formatWorld` 返回 `world_json`/`life_mode`/各计数，`play_url` → `/world?world=id`。
 - **运转三模式**（创建时可选，后台可切换）：watch=在线运转（页面开着才 tick）、hybrid=在线实时+离线补播（cron 慢节奏 + 打开时「期间摘要」）、always=24h 后台（cron 持续）。Cron：`wrangler.toml [triggers] crons = ["*/15 * * * *"]`，`index.js` 新增 `scheduled` → `handleWorldCron(env)`（按各世界冷却间隔+每日 60 次上限+单次最多 20 世界收敛成本）。
 - **前端**：`public/world.html`（新建）世界直播间——顶栏模式徽章/暂停/模型选择（带擅长领域提示）、线程栏、角色彩色气泡对话流、插话框（Enter 发送）、侧栏世界后台（背景/原住民 AI 生成+手动/关系/场景/运转设置）、watch/hybrid 在线 tick 循环 + visibilitychange 暂停 + 8s 轮询增量、always 仅轮询、hybrid 打开时补播摘要。
+
+## World Engine 核心：NPC 目标状态机 + 后果生命周期（Batch 4.5，2026-08-23）
+
+**背景**：调研 Horde Studio / Soul of Waifu / Shikigami 后确认，HYOOL 故事孵化器缺的是「World State → NPC State → Relationship → Goal → Event → Consequence」链条的中段：没有 per-NPC 持久状态，`consequence` 类型节拍是一次性旁白，关系只有 bond 无数值态度。用户拍板：只抽 Horde 的 World Engine 思想做最小移植，不整套套、不碰现有 UI / 数据结构 / DB 表；AGPL 代码只读思想、自己重实现。
+
+**改动**（2 文件，+156/-4，无 migration）：
+1. `src/ai/gateway.js`
+   - `buildStoryBeatPrompt`：注入「在场角色状态」（`state.npcs` 里在场角色有 goal 时输出 目标/进展/状态）+「发酵中的后果」（`state.consequences` 未 resolved 的 title/严重度/阶段）；输出模板与规则新增 `goals[{id,goal,progress,status}]`（最多 2 条、只能是在场角色）+ `consequence{title,severity}`（仅 t=consequence 时输出）。
+   - `sanitizeStoryBeat`：清洗 `goals`（castIds 白名单、progress clamp 0~100、status 白名单 active|blocked|achieved|abandoned）与 `consequence`（title/severity clamp）；空节拍 fallback 分支透传新字段。
+2. `src/mvp.js`
+   - `parseWorldJson`：兜底 `state.npcs = {}` / `state.consequences = []` / `state.tickCount = 0`（向后兼容，旧 world 无新键照常）。
+   - 新增 4 个引擎函数（顶层模块作用域）：`ensureNpcStates`（在场角色状态槽兜底）、`applyBeatNpcUpdates`（beat.goals 落账：clamp + 白名单，achieved/abandoned 记 endedAt）、`applyBeatConsequence`（同标题未 resolved 合并、否则新建 created）、`advanceWorldConsequences`（每 tick 推进：created→active→severity≥50 escalating / <50 decaying→resolved；发酵中最多 8 条按严重度保留，resolved 保底 20 条）。
+   - `applyStoryBeat`：beat 记录携带 `goals`/`consequence` 字段；affects 落账后调用 `applyBeatNpcUpdates` + `applyBeatConsequence`（引擎确定性落账，不靠模型自觉）。
+   - `runWorldTickCore`：`generateStoryBeat` 前 `ensureNpcStates(wj, activeCast)`；有消息产出后 `tickCount++` + `advanceWorldConsequences(wj)`。
+
+**设计要点**：
+- 只加状态、不改任何现有字段/表/UI；旧世界照常运转。
+- LLM 只负责「演绎」：prompt 给现状（目标/后果），模型在节拍里推进并声明增量，引擎校验后落账——不靠模型自觉。
+- 后果生命周期解决「consequence 是一次性旁白」：严重度≥50 升级、<50 消退，最终 resolved；发酵中的后果持续注入节拍上下文让模型持续演绎。
+
+**验证**：用户约定不做验证；仅临时 `.mjs` 语法 sanity（通过）。commit + push main（CI 自动部署），线上效果待用户确认。
+
 - **hub.html**：载体新增「🌱 生命世界」；向导第 3 步在 life 形态显示「运转模式+对话模型」（标注建议）；卡片/详情徽章显示模式；详情「进入世界」→ `/world?world=id`。
 - **冒烟测试**：`public/world-check.html`（CDP，31 断言）：创建 life 世界→原住民 AI/手动→背景→关系→场景→场景线程→tick 自主发言→用户插话→增量拉取→运转设置切换→world.html 页面渲染（模式徽章/线程栏/消息流/侧栏/模型选择器）→清理，**全部 PASS**（走 `mock:true` 测试钩子，不依赖真实 LLM）。
 

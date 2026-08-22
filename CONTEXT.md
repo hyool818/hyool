@@ -59,6 +59,14 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **新增** `public/story-export-check.html` 冒烟
 - 验证：不做验证（见约定 4），生成后直接部署，线上由用户确认
 
+### ★ Batch 4.5 World Engine 核心：NPC 目标状态机 + 后果生命周期（已 commit，未线上验证）
+
+- 只抽 Horde Studio World Engine 思想的最小移植：不碰 UI / 现有字段 / DB 表，无 migration
+- `world_json.state` 新增 `npcs{}`（goal/progress/status=active|blocked|achieved|abandoned）+ `consequences[]`（created→active→escalating/decaying→resolved，按 tick 老化）+ `tickCount`
+- `generateStoryBeat` 输出新增可选 `goals[]`/`consequence{}`（sanitize 白名单 + clamp）；`buildStoryBeatPrompt` 注入「在场角色状态」+「发酵中的后果」
+- 引擎落账：`applyBeatNpcUpdates` / `applyBeatConsequence` / `advanceWorldConsequences`；LLM 只演绎不维护状态
+
+
 ## 最近已完成（2026-08-22）
 
 - **首页主 logo 放大 + 间距优化**：`public/index.html` `.world-logo-main img` 桌面 96px→**160px**→**800px**、移动 72px→**120px**→**600px**（`logo.png` 主 logo，`logo1.png` 左上角未动，`max-width:88vw` 防溢出）；随后上下间距拉开：logo `top:4%`（移 3.5%）、上入口 fantasy `top:28%`（移 26%）、下入口 life `bottom:28%`（移 27%）。已 commit `12f2939`，CI 部署后线上生效。详见 docs/history.md。
