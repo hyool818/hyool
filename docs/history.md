@@ -564,3 +564,17 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 **待办**：Batch 4 一键导出不做；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑；换窗口后新会话读 CONTEXT.md + git log 继续。
 
 
+## 创角页生图风格动图预览（2026-08-23）
+
+**背景**：用户制作了 3 张生图风格演示动图（MP4），希望放在创角页的艺术风格选择区，对应 4 种模型生图风格（写实 realistic / 3D / 动漫 anime / 国风 guofeng）；动漫暂无动图。用户强调 AI 不识别图片内容，只按文件名放置。
+
+**改动**（2 个 HTML + 3 个 mp4，无 migration）：
+1. 新增 `public/create-art/`：`realistic.mp4` / `3d.mp4` / `guofeng.mp4`（用户提供；初版命名 `guofen.mp4` 少了 g，已按风格 id 统一为 `guofeng.mp4`）。
+2. `public/create.html`（快速创角）：4 张 `.style-card` 的 `.style-icon` 内新增 `<video class="style-img" src="/create-art/xxx.mp4" autoplay muted loop playsinline preload="metadata" onerror="this.remove()">`，emoji（`.style-emoji`）保留为兜底——video 加载失败自动移除、露出 emoji；anime 卡片无动图保持纯 emoji。CSS：`.style-icon` 改 flex 居中，新增 `.style-card .style-img { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:10px }` 与 `.style-card .style-emoji { font-size:1.8rem }`。
+3. `public/create-character.html`（高级创角）：STEP1 数据 realistic/3d/guofeng 三项新增 `video: "xxx.mp4"` 字段（anime 暂缺）；`renderCards` 渲染时若 `item.video` 存在则输出同样属性的 `<video class="art-img">`——复用通用渲染逻辑，其它网格条目无 video 字段不受影响。CSS：新增 `.option-card .art-img { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:8px; background:var(--surface2) }`。
+
+**待办**：动漫动图后补——届时 STEP1 加 `video: "anime.mp4"` + create.html anime 卡片加 video 即可。
+
+**验证**：按用户约定不做验证；commit `a759424` + push main（CI 自动部署），线上效果待用户确认。
+
+
