@@ -358,4 +358,20 @@ state: {
 
 **验证闭环**：`npx wrangler deploy --dry-run` 通过 → commit `9880706` + push main（CI 自动部署）。
 
+## 首页主 logo 上下间距优化（2026-08-22）
+
+**背景**：用户确认 800px/600px 大小合适，但 logo 与四个世界入口、以及下方文字之间上下太挤。
+
+**改动（`public/index.html`，仅 6 处 CSS 定位）**：
+| 元素 | 桌面改前 | 桌面改后 | 移动改前 | 移动改后 |
+|---|---|---|---|---|
+| `.world-logo-main`（主 logo） | top:9% | **top:4%** | top:6.5% | **top:3.5%** |
+| `.light.fantasy`（上入口） | top:20% | **top:28%** | top:19% | **top:26%** |
+| `.light.life`（下入口） | bottom:19% | **bottom:28%** | bottom:20% | **bottom:27%** |
+
+- 效果：logo 上移、上下两个菱形入口向外移，`core` 中心文字（top:50%）与 slogan（top:50%+150px）位置不变，但与其上下入口的净间距均拉开约 8~9%。
+- 左右入口（yonder/infinite，top 约 50%）不动；`logo1.png` 未动；HTML 结构未改。
+
+**验证闭环**：`npx wrangler deploy --dry-run` 通过 → commit `12f2939` + push main（CI 自动部署）。
+
 

@@ -61,7 +61,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 ## 最近已完成（2026-08-22）
 
-- **首页主 logo 放大**：`public/index.html` `.world-logo-main img` 桌面 96px→**160px**→**800px**、移动 72px→**120px**→**600px**（`logo.png` 为主 logo，`logo1.png` 左上角未动；另加 `max-width:88vw` 防小屏溢出）。已 commit `9880706`，CI 部署后线上生效。详见 docs/history.md。
+- **首页主 logo 放大 + 间距优化**：`public/index.html` `.world-logo-main img` 桌面 96px→**160px**→**800px**、移动 72px→**120px**→**600px**（`logo.png` 主 logo，`logo1.png` 左上角未动，`max-width:88vw` 防溢出）；随后上下间距拉开：logo `top:4%`（移 3.5%）、上入口 fantasy `top:28%`（移 26%）、下入口 life `bottom:28%`（移 27%）。已 commit `12f2939`，CI 部署后线上生效。详见 docs/history.md。
 
 ## 当前待办
 
