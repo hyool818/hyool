@@ -315,4 +315,23 @@ state: {
 - **Batch 3 故事引擎**：state 结构 + `updateWorldState` + 节拍化 tick + `GET /life/story` + 「故事」tab + world-check 扩充断言（节拍类型 / 状态更新 / 封章 / 关系自动变化）。
 - **Batch 4 一键导出**：四个 export + `POST /life/export` + 前端预览下载 + story-export-check 冒烟。
 
+---
+
+## 主站首页补 logo（2026-08-22）
+
+**背景**：上一会话因「对比 logo1.png 与 logo.png 图片差异」导致 AI 无法识别图片而中断，工作区遗留一批未提交的首页重构改动。用户本次明确指示：**不要对比图片差异，直接把 `logo.png` 用上**，且 **不修改原有的 `./logo1.png`**。
+
+**改动（`public/index.html`）**：
+1. 新增 `.world-logo-main`（CSS）：`position:absolute; left:50%; top:9%; transform:translateX(-50%)`，位于四个世界入口（`.light` 菱形布局：幻想上/彼岸左/无限右/生命下）正上方、顶部居中；`z-index:10`、`pointer-events:none`，随 `#world.show` 以 `opacity 1.5s` + `delay 2.5s` 淡入（与 `.world-logo` 同节奏）；`img` 桌面 96px、移动端 72px。
+2. HTML：`#world` 内 `<!-- LOGO -->` 区块之后新增 `<!-- MAIN LOGO -->` → `<div class="world-logo-main"><img src="./logo.png" alt="HYOOL"></div>`。
+3. 移动端（`@media(max-width:700px)`）：`.world-logo-main{top:6.5%}` + `img{width:72px}`。
+4. **左上角原有 `.world-logo`（logo1.png）完全保留未动**。
+
+**附带收尾**（上一会话遗留未提交批次，一并 `4b873f6` 提交）：
+- `index.html` PAGE 1（ENTER HYOOL 入口页）CSS/HTML/JS 移除，首页直接进入世界选择页（注释已标明）。
+- 各页 logo 链接 `/?entered=1` → `/`（create.html / hub.html / create-character.html）。
+- 个人主页（`/@…`）回退导航：`yonder-home.html` 角色卡/世界卡带 `?from=/@用户名`；`buddy.html` `buddyBackTarget()`（优先 from 参数→同站 referrer→/hub）；`world.html` `goWorldBack()` 同逻辑；`yonder.html` 移除 GUEST 样式。
+
+**验证闭环**：`npx wrangler deploy --dry-run` 通过（236 文件 / 257.20 KiB）→ commit + push main（`4b873f6`，CI 自动部署）→ 线上验证：`hyool.w910227a.workers.dev/` HTTP 200 且含 `world-logo-main` + `src="./logo.png"`，原 `src="./logo1.png"` 仍在；`/logo.png` HTTP 200。
+
 

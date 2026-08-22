@@ -59,6 +59,10 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **新增** `public/story-export-check.html` 冒烟
 - 验证闭环：node --check → dry-run → 本地 CDP 冒烟 → 部署 → 线上验证 → 本文件同步
 
+## 最近已完成（2026-08-22）
+
+- **主站首页补 logo**：`public/index.html` 新增 `.world-logo-main` 元素，`logo.png` 置于四个世界入口（幻想/彼岸/无限/生命）上方、顶部居中（桌面 96px / 移动 72px，随 `#world.show` 淡入），**左上角原有 `logo1.png` 未动**。已部署 + 线上验证（首页 HTTP 200 含 `src="./logo.png"`，logo.png 可访问）。一并收尾提交了上一会话遗留的首页重构批次（PAGE 1 入口移除、buddy/world 返回按钮 `?from=/@…` 回退逻辑、各页 logo 链接 `/?entered=1`→`/`）。详见 docs/history.md。
+
 ## 当前待办
 
 - **★ Batch 4 一键导出**（见上，未开工）
