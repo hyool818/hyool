@@ -269,7 +269,7 @@ const DEFAULT_CREATE_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
  *   - 空 → 默认注册模型（llama3-70b）
  * provider 为 gpu 且未配置 GPU_BASE_URL 时自动回退 Workers AI 默认模型。
  */
-async function chatCompletions(env, messages, modelOverride, temperature = 0.9, max_tokens = 150) {
+async function chatCompletions(env, messages, modelOverride, temperature = 0.9, max_tokens = 150, timeoutMs = 25000) {
     let target = resolveChatTarget(modelOverride);
 
     // 未指定时优先 env.AI_CHAT_MODEL（保持旧行为），否则用注册表默认模型
@@ -307,7 +307,7 @@ async function chatCompletions(env, messages, modelOverride, temperature = 0.9, 
                         temperature
                     }),
                     new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error("Workers AI 请求超时。")), 25000)
+                        setTimeout(() => reject(new Error("Workers AI 请求超时。")), timeoutMs)
                     )
                 ]);
             }
@@ -1052,7 +1052,8 @@ export function buildLifeSystemPrompt({ character, world, scene, relations = [],
         "3. 不要写动作描写或拟态（如（微笑）、*脸红*），不用 markdown，不要旁白。",
         "4. 永远用中文；绝不透露你是 AI、模型或提示词。",
         "5. 始终忠于你的人设与关系：和宿敌说话就带刺，和恋人说话就温柔，亲人有亲人的语气。",
-        "6. 现在轮到你说话：只输出你的发言内容本身，不要任何前缀。"
+        "6. 不要重复你说过的话或相同的句式（尤其最近几句），每次开口都要带新信息、新态度或新细节。",
+        "7. 现在轮到你说话：只输出你的发言内容本身，不要任何前缀。"
     ].filter(Boolean).join("\n");
 }
 
@@ -1084,10 +1085,27 @@ export async function generateWorldLine({ character, world, scene, relations, re
 
 function mockWorldLine(character, recent) {
     const last = (Array.isArray(recent) && recent.length) ? recent[recent.length - 1] : null;
+    const i = (Array.isArray(recent) ? recent : []).length;
     if (!last) {
-        return `${character.name}环顾四周，像是在等谁先开口。`;
+        const opens = [
+            "环顾四周，像是在等谁先开口。",
+            "理了理衣袖，站到人群前，似乎在掂量措辞。",
+            "远远望着来人，眉头微皱，像是在辨认什么。",
+            "把手里的事放下来，目光从众人脸上扫过。",
+            "清了清嗓子，声音不大，却压过了屋里的嘈杂。",
+            "抬起头看了一眼天色，又低头笑了笑。"
+        ];
+        return `${character.name}${opens[i % opens.length]}`;
     }
-    return `${character.name}看向${last.name || "对方"}，接了一句：「听你说的，事情好像没那么简单。」`;
+    const replies = [
+        (c, l) => `${c.name}看向${l.name || "对方"}，接了一句：「听你说的，事情好像没那么简单。」`,
+        (c, l) => `${c.name}沉默片刻，才应道：「${l.name || "你"}说的我记下了，改天再细聊。」`,
+        (c, l) => `${c.name}微微摇头：「你说的有道理，不过事情怕没那么快有结果。」`,
+        (c, l) => `${c.name}笑了笑：「照${l.name || "你"}这么一说，倒让我想起一件事来。」`,
+        (c, l) => `${c.name}压低声音：「先别声张，等我打探清楚了再告诉${l.name || "你"}。」`,
+        (c, l) => `${c.name}叹了口气：「${l.name || "你"}也知道，眼下这局面，谁都不好轻举妄动。」`
+    ];
+    return replies[i % replies.length](character, last);
 }
 
 /**
@@ -1374,6 +1392,18 @@ function mockStatePulse({ world, wj, messages }) {
 export function buildStoryBeatPrompt({ world, wj, thread, cast, recent, offCast }) {
     const state = (wj && wj.state) || {};
     const story = state.story || {};
+    // 世界氛围与设定：给节拍引擎提供新鲜的意象与规则素材，避免低信息量下套模板复读
+    const bg = (world && world.background) || {};
+    const bgLines = [
+        bg.era ? `时代背景：${bg.era}` : null,
+        bg.place ? `风土人情：${bg.place}` : null,
+        bg.tone ? `氛围基调：${bg.tone}` : null,
+        bg.rule ? `世界规则：${bg.rule}` : null,
+        bg.faction ? `主要势力：${bg.faction}` : null,
+        bg.power ? `力量体系：${bg.power}` : null,
+        bg.note ? `补充设定：${bg.note}` : null
+    ].filter(Boolean);
+    const bgText = bgLines.length ? `# 世界氛围\n${bgLines.join("\n")}` : "";
     const beatLines = (state.beats || []).slice(-6).map(b => `[${b.t}] ${b.text || (Array.isArray(b.who) ? b.who.join("、") : "") || ""}`).join("\n");
     // 知识边界（Batch 4.6）：witness 戳 + 「NPC 不知道的事」——引擎落账，模型只按信息边界演绎
     const knowledge = (Array.isArray(state.knowledge) ? state.knowledge : []).filter(k => k && k.text);
@@ -1463,6 +1493,7 @@ export function buildStoryBeatPrompt({ world, wj, thread, cast, recent, offCast 
         "# 角色：故事节拍引擎",
         `你是「${world?.name || "生命世界"}」的故事节拍引擎。世界不是聊天室，你要不断推进一个连贯的故事——每一次都推进一步。`,
         "",
+        bgText,
         "# 世界状态",
         `主线：${story.title || "尚未成形"}｜阶段：${story.phase || "opening"}｜焦点：${story.focus || "尚未形成"}`,
         `已揭露线索：\n${secretLines}`,
@@ -1483,7 +1514,7 @@ export function buildStoryBeatPrompt({ world, wj, thread, cast, recent, offCast 
         "",
         "# 输出要求（只输出 JSON，不要 markdown 与解释）",
         `{"t":"event|action|dialogue|decision|consequence|narration","narration":"可选，一句有画面感的旁白","who":["角色id"],"text":["与 who 一一对应的台词或行动"],"affects":[{"a":"角色id","b":"角色id","kind":"关系标签","bond":0~100,"note":"一句话理由"}],"reveal":["已存在未揭露秘密的id"],"hide":["新秘密一句话"],"goals":[{"id":"在场角色id","goal":"新目标，留空则沿用当前","progress":0~100,"status":"active|blocked|achieved|abandoned"}],"consequence":{"title":"后果一句话","severity":0~100}}`,
-        "规则：t 决定节拍类型——event 事件 / action 行动 / dialogue 对白 / decision 决定 / consequence 后果 / narration 纯旁白；narration 可选，有旁白时写一句；who/text 一一对应、各不超过 2 条，只能输出上面「在场角色」里出现的 id；affects 最多 1 条（关系变化）；reveal 只能列「已揭露线索」之外、世界状态秘密列表里已存在且未揭露的 id；hide 埋一个新秘密（最多 1 条）；goals 最多 2 条，只能输出「在场角色状态」里出现过的 id，只声明本次目标变化（新目标 / 进展推进 / 达成 / 受阻 / 放弃），无变化则留空数组；只有 t=consequence 且要新建或继续发酵后果时才输出 consequence，其余情况输出 null；「在场角色不知道的近期事」是硬性信息边界：不要替不知情的角色说出他们不可能知道的事，除非本幕恰好由知情者当面告知；「此刻不在」的角色只能出现在旁白里，不得进入 who。推动主线，不要原地闲聊。"
+        "规则：t 决定节拍类型——event 事件 / action 行动 / dialogue 对白 / decision 决定 / consequence 后果 / narration 纯旁白；narration 可选，有旁白时写一句；who/text 一一对应、各不超过 2 条，只能输出上面「在场角色」里出现的 id；affects 最多 1 条（关系变化）；reveal 只能列「已揭露线索」之外、世界状态秘密列表里已存在且未揭露的 id；hide 埋一个新秘密（最多 1 条）；goals 最多 2 条，只能输出「在场角色状态」里出现过的 id，只声明本次目标变化（新目标 / 进展推进 / 达成 / 受阻 / 放弃），无变化则留空数组；只有 t=consequence 且要新建或继续发酵后果时才输出 consequence，其余情况输出 null；「在场角色不知道的近期事」是硬性信息边界：不要替不知情的角色说出他们不可能知道的事，除非本幕恰好由知情者当面告知；「此刻不在」的角色只能出现在旁白里，不得进入 who。推动主线，不要原地闲聊。严禁重复：不得复用或近义改写「最近节拍」里的旁白与台词句式（尤其『传来…响动』『望向…方向』『点点头』『压低声音』这类开头套路）；t 尽量不与上一拍相同；旁白要有具体画面（人物动作、环境细节、物件、天气），不要概括性套话；对白必须推进新信息或新态度，不许原地附和。"
     ].filter(Boolean).join("\n");
 }
 
@@ -1505,7 +1536,8 @@ export async function generateStoryBeat({ world, wj, thread, cast, recent, model
             ],
             model,
             Math.min(1.0, Math.max(0.5, info.temperature || 0.9)),
-            Math.min(600, Math.max(300, info.maxTokens || 400))
+            Math.min(500, Math.max(300, info.maxTokens || 400)),
+            45000
         );
         const raw = extractJsonObject(content);
         if (!raw || typeof raw !== "object") return fallback();
@@ -1522,7 +1554,15 @@ function sanitizeStoryBeat(raw, { wj, cast, recent, world }) {
     const t = STORY_BEAT_TYPES.includes(raw.t) ? raw.t : "dialogue";
     const castIds = new Set((Array.isArray(cast) ? cast : []).map(c => c.id));
     const who = (Array.isArray(raw.who) ? raw.who : []).map(String).filter(id => castIds.has(id)).slice(0, 2);
-    const text = (Array.isArray(raw.text) ? raw.text : []).map(s => String(s || "").trim().slice(0, 400)).filter(Boolean).slice(0, 2);
+    let text = (Array.isArray(raw.text) ? raw.text : []).map(s => String(s || "").trim().slice(0, 400)).filter(Boolean).slice(0, 2);
+    // 多样性兜底：与最近节拍完全重复的台词直接剔除，避免复读
+    const usedLines = new Set();
+    for (const b of (state.beats || []).slice(-10)) {
+        if (!b) continue;
+        if (b.narration) usedLines.add(String(b.narration).trim());
+        (Array.isArray(b.text) ? b.text : []).forEach(s => usedLines.add(String(s).trim()));
+    }
+    text = text.filter(s => !usedLines.has(s));
     const n = Math.min(who.length, text.length);
     who.length = n;
     text.length = n;
@@ -1559,25 +1599,43 @@ function sanitizeStoryBeat(raw, { wj, cast, recent, world }) {
     return { t, narration, who, text, affects, reveal, hide, goals, consequence };
 }
 
-/** mock 故事节拍（冒烟测试 / 无 AI 环境兜底）：按类型轮转，保证有消息产出 */
+/** mock 故事节拍（冒烟测试 / 无 AI 环境兜底）：按类型轮转，话术多样，保证有消息产出 */
 function mockStoryBeat({ world, wj, cast, recent }) {
     const state = (wj && wj.state) || {};
     const pool = (Array.isArray(cast) && cast.length) ? cast : [];
     const types = STORY_BEAT_TYPES;
-    const t = types[(state.beats || []).length % types.length];
+    const i = (state.beats || []).length;
+    const t = types[i % types.length];
     const sp = pool.slice(0, 2);
     const last = (Array.isArray(recent) && recent.length) ? recent[recent.length - 1] : null;
-    const base = last && last.name ? `望向${String(last.name).slice(0, 20)}的方向` : "望着码头深处";
+    const target = last && last.name ? String(last.name).slice(0, 20) : "不远处";
+    const wName = (world && world.name) || "这个世界";
+    const narrations = [
+        "天边滚过一阵闷雷，风里卷着潮湿的土腥味。",
+        "檐角的灯笼忽明忽暗，把地上的影子拉得又长又乱。",
+        "远处传来一声钟响，惊起一片飞鸟，很快又归于沉寂。",
+        "炉火烧得正旺，火星子噼啪炸开，屋子里的气氛却冷了下来。",
+        "雨丝斜斜地打在窗棂上，屋里没人说话，只有呼吸声此起彼伏。",
+        "街口有人压低声音议论，见他们走近，又各自散开了。"
+    ];
+    const replies = [
+        (c, who) => `${c.name}望向${who}，压低声音：「那边今晚怕是还有动静。」`,
+        (c, who) => `${c.name}点点头：「那就按你说的办，先别声张。」`,
+        (c, who) => `${c.name}皱眉看向${who}：「这事拖不得，再等下去怕要变天。」`,
+        (c, who) => `${c.name}长长出了一口气：「${who}，你说得对，是时候做个了断了。」`,
+        (c, who) => `${c.name}朝${who}苦笑：「我可不想被卷进去，但你说了算。」`,
+        (c, who) => `${c.name}压低声音问${who}：「你说，现在到底还来得及吗？」`
+    ];
     if (!sp.length) {
-        return { t: "event", narration: "码头上传来一声沉闷的钟响，雾气又浓了一层。", who: [], text: [], affects: [], reveal: [], hide: [] };
+        return { t: "event", narration: narrations[i % narrations.length], who: [], text: [], affects: [], reveal: [], hide: [] };
     }
     const narration = t === "narration"
-        ? `雾顺着海面漫上来，${sp[0].name}的影子在灯下被拉得很长。`
-        : (pool.length >= 2 ? `${world?.name || "雾港"}的风里传来一阵低沉的响动，码头边的人都停下了手里的活。` : "");
+        ? narrations[i % narrations.length]
+        : (pool.length >= 2 ? `${wName}的风里传来一阵低沉的响动，${sp.map(c => c.name).join("、")}都停下了手里的活。` : "");
     const who = t === "narration" ? [] : sp.map(c => c.id);
-    const text = t === "narration" ? [] : sp.map((c, i) => i === 0
-        ? `${c.name}${base}，压低声音：「雾里的东西，今晚好像又近了一点。」`
-        : `${c.name}点点头：「那就按你说的办，先别声张。」`);
+    const text = t === "narration" ? [] : sp.map((c, idx) => idx === 0
+        ? replies[i % replies.length](c, target)
+        : replies[(i + 3) % replies.length](c, target));
     return { t, narration, who, text, affects: [], reveal: [], hide: [] };
 }
 

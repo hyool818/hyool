@@ -504,3 +504,30 @@ state: {
 
 **待办**：Batch 4 一键导出不做；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑（运行时幂等兜底已存在）；换窗口后新会话读 CONTEXT.md + git log 继续。
 
+## 世界 AI 发言/节拍多样性优化（Batch 8，2026-08-23）
+
+**问题**：用户反馈「世界AI反复就那么两句引导词，NPC也差不多」。
+
+**根因分析**：
+1. **fallback 话术固定**（主因）：`mockStoryBeat` / `mockWorldLine` 只有固定几句话（「雾里的东西，今晚好像又近了一点」「那就按你说的办，先别声张」「环顾四周，像是在等谁先开口」）。llama-3.3-70b 生成 600 token 节拍 JSON 很慢，极易超过 `chatCompletions` 25s 超时（3 次重试共 ~75s）；超时 / `extractJsonObject` 解析失败 / 模型安全层拒答都会静默 fallback 到 mock——用户线上看到的就是这几句反复出现。
+2. **prompt 无多样性约束**：`buildStoryBeatPrompt` 未注入世界背景素材（低信息量时模型只能套模板），也没有「禁重复句式」的硬规则；`buildLifeSystemPrompt` 同样缺「不复读」。
+3. **token 上限偏高**：600 token 的 JSON 生成时长推高超时概率。
+
+**改动**（1 文件，`src/ai/gateway.js`，+75/-17，无 migration）：
+1. `chatCompletions`：新增第 6 个可选参数 `timeoutMs`（默认 25000 不变，其他调用无影响）。
+2. `generateStoryBeat`：调用 `chatCompletions` 传 `timeoutMs=45000`（放宽超时，显著降低 fallback 概率）+ max_tokens 上限 600→500（缩短生成时长）。
+3. `mockStoryBeat`：旁白 6 组 + 台词 6 组模板，按 beats 数量确定性轮转、双角色错位选词，不再连续复读同一句。
+4. `mockWorldLine`：开场 6 组 + 接话 6 组模板，按最近消息数轮转。
+5. `buildStoryBeatPrompt`：注入「# 世界氛围」块（时代背景/风土人情/氛围基调/世界规则/主要势力/力量体系/补充设定）作为新鲜意象素材；规则区新增硬约束——不得复用或近义改写最近节拍句式（『传来…响动』『望向…方向』『点点头』『压低声音』等套路开头）、t 尽量不与上一拍相同、旁白要有具体画面、对白必须推进新信息不许原地附和。
+6. `buildLifeSystemPrompt`：回复规则新增第 6 条「不要重复你说过的话或相同句式，每次开口带新信息/新态度/新细节」（原第 6 条顺延为第 7 条）。
+7. `sanitizeStoryBeat`：台词与最近 10 个节拍的旁白/台词完全重复时直接剔除（复读兜底）。
+
+**设计要点**：
+- 多样性兜底全部确定性（按 beats 数/消息数轮转），延续「引擎确定性落账」风格，mock 冒烟可复现。
+- 放宽超时只作用于 story beat 调用，不影响 buddy 聊天等常规路径的响应时长。
+- 信息边界（知识/日程/情绪）与多样性不冲突：约束的是「怎么说」，不放松「谁能知道什么」。
+
+**验证**：按用户约定不做验证；改完直接 commit + push main（CI 自动部署），线上效果待用户确认。
+
+**待办**：Batch 4 一键导出不做；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑；换窗口后新会话读 CONTEXT.md + git log 继续。
+
