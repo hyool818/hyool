@@ -624,21 +624,21 @@ const THREAD_BG_PRESETS = ["街边茶馆","深夜码头","山顶道观","集市�
 
 const worldId = new URLSearchParams(location.search).get("world") || "";
 
-/* 返回按钮：优先回来源页（个人主页 /@…），其余回我的彼岸 /hub */
+/* 返回按钮：优先回来源页（个人主页 /@…、幻灵世界广场 /plaza），其余回我的彼岸 /hub */
 function goWorldBack() {
-  // 1) 显式 from 参数（个人主页入口会带上 /@用户名）
+  // 1) 显式 from 参数（个人主页入口带 /@用户名，幻灵世界广场带 /plaza）
   try {
     const from = new URLSearchParams(location.search).get("from");
     if (from && from.charAt(0) === "/" && from.charAt(1) !== "/") {
-      if (from.startsWith("/@") || from.startsWith("/hub")) { location.href = from; return; }
+      if (from.startsWith("/@") || from.startsWith("/hub") || from.startsWith("/plaza")) { location.href = from; return; }
     }
   } catch {}
-  // 2) 同站 referrer：个人主页
+  // 2) 同站 referrer：个人主页 / 幻灵世界广场
   try {
     const r = document.referrer;
     if (r) {
       const u = new URL(r);
-      if (u.origin === location.origin && u.pathname.startsWith("/@")) { location.href = u.pathname + u.search + u.hash; return; }
+      if (u.origin === location.origin && (u.pathname.startsWith("/@") || u.pathname.startsWith("/plaza"))) { location.href = u.pathname + u.search + u.hash; return; }
     }
   } catch {}
   // 3) 兜底：我的彼岸

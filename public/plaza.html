@@ -114,7 +114,7 @@ async function loadPlaza() {
       const natives = Number(w.natives_count) || 0;
       const scenes = Number(w.scenes_count) || 0;
       const updated = w.updated_at ? new Date(w.updated_at).toLocaleDateString("zh-CN") : "";
-      return `<div class="card" onclick="location.href='/world?world=${w.id}'">
+      return `<div class="card" onclick="location.href='/world?world=${w.id}&from=/plaza'">
         <img class="thumb" src="${escapeHtml(w.cover_image || '')}" alt="" loading="lazy" onerror="this.style.opacity=.2">
         <div class="body">
           <div class="name">${name}<span class="badge life">生命世界</span></div>
