@@ -858,8 +858,10 @@ export async function handleMvpRoutes(
                     sets.push("share_id = ?");
                     vals.push(shareId);
                 } else {
+                    // 隐藏 = share_id 置 NULL（share_id 列有 UNIQUE 约束，空串 '' 全表只能有一行，
+                    // 用 NULL 才能支持任意多个隐藏世界；公开判定统一按「非空」过滤，语义不变）
                     sets.push("share_id = ?");
-                    vals.push("");
+                    vals.push(null);
                 }
             }
             if (["free", "paid"].includes(body.pricing)) {
@@ -1931,8 +1933,10 @@ export async function handleMvpRoutes(
                 updates.push("share_id = ?");
                 values.push(keep || crypto.randomUUID().replace(/-/g, "").slice(0, 10));
             } else if (body.visible === false) {
+                // 隐藏 = share_id 置 NULL（share_id 列有 UNIQUE 约束，空串 '' 全表只能有一行，
+                // 用 NULL 才能支持任意多个隐藏角色；公开判定统一按「非空」过滤，语义不变）
                 updates.push("share_id = ?");
-                values.push("");
+                values.push(null);
             }
 
             if (updates.length === 0) {

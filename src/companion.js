@@ -311,7 +311,7 @@ export async function createChildCharacter(env, { character, ownerId, now = Date
             id, owner_id, name, appearance, personality, background, speech_style,
             world_name, world_description, story_hook, source_idea, image_url, share_id,
             gender, chat_config, intimacy, companion_state, parent_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', '', ?, 0, '{}', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', NULL, '', ?, 0, '{}', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
     ).bind(
         id,
         ownerId,

@@ -90,6 +90,8 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 ## 最近已完成（2026-08-23）
 
+- **★ 修复：角色库/世界库「隐藏第二个作品」报更新失败（2026-08-23）**：隐藏逻辑把 `share_id` 写成空串 `''`，而 `characters.share_id`/`worlds.share_id` 有 **UNIQUE 约束**——SQLite 不允许两行相同值，空串也算「相同值」。一旦全库已有任意一个隐藏作品（share_id=''），再隐藏第二个就 `UNIQUE constraint failed` → 500「更新失败，请稍后再试。」（线上 D1 确认 worlds 表已有 1 行存量空串）。修复：隐藏一律改用 **NULL**（UNIQUE 允许多个 NULL），`src/mvp.js` 角色 update 与世界 PATCH `visible:false` 均 `push(null)`；`src/companion.js` 孩子角色创建 share_id 从 `''` 改 `NULL`；新增幂等迁移 `schema/migrate_share_null.sql`（存量空串→NULL，已对 remote D1 执行 changes=3）。公开判定统一按「非空」过滤，语义不变。本地复现+修复后 8/8 CDP 浏览器冒烟通过。详见 docs/history.md 末尾。
+
 - **★ 全站角色池（前 60）仅管理账户可见（2026-08-23）**：`GET /api/hub` 游客分支不再返回全站公开角色（改 `characters: []`），该公开角色池只在管理账户 `333123`（与邀请码管理同一判定）登录时返回（附 `isAdminView: true`）；普通用户仍只返回自己的角色。前端 `hub.html` `renderChars` 新增 `readOnly` 参数，管理全站视图下角色卡隐藏编辑/删除/创造按钮（后端 update/delete 本有 owner 校验，管理员操作他人角色仍 403）。详见 docs/history.md 末尾。
 - **游客访问 /hub 直接重定向 /plaza（2026-08-23）**：个人创作库（我的彼岸）只对登录用户开放。`public/hub.html` DOMContentLoaded 中 `isGuest` → `location.replace("/plaza")` + return（用 replace 防历史栈残留）；`hub-check.html` 访客断言同步改为「重定向 /plaza + 幻灵世界大标题」；后端 `GET /api/hub` 游客分支保留。详见 docs/history.md 末尾。
 

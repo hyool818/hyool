@@ -727,4 +727,33 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：push main（CI 自动部署），线上待用户验证。
 
+---
+
+## 修复：角色库/世界库隐藏第二个作品报「更新失败」（2026-08-23）
+
+**现象（用户报告）**：个人主页角色库，隐藏第一个角色成功，隐藏第二个角色时弹窗报错「更新失败，请稍后再试。」。
+
+**排查结论（本地完整复现）**：
+1. 后端日志根因：`D1_ERROR: UNIQUE constraint failed: characters.share_id: SQLITE_CONSTRAINT`。
+2. `characters.share_id` / `worlds.share_id` 列均有 **UNIQUE 约束**（`schema/init.sql`、`schema/migrate_worlds.sql`）。SQLite 的 UNIQUE 约束**不允许同一表出现两行相同值**——而空字符串 `''` 也是「相同值」。
+3. 隐藏逻辑（`src/mvp.js` 角色 update `body.visible=false` → `share_id=''`；世界 PATCH `visible:false` → `share_id=''`）把 share_id 写成空串。**一旦全库已有任意一个隐藏角色/世界（share_id=''），再隐藏任何角色/世界都会与已有空串冲突** → 500「更新失败」。孩子角色创建（`src/companion.js` `createChildCharacter`）也写 `share_id=''`，同样会被这个「唯一空串」卡住。
+4. 线上 D1 查询确认：`worlds` 表已有 1 行 `share_id=''`（存量隐藏世界）——正是「再隐藏第二个就报错」的直接原因。
+
+**修复（隐藏一律改用 NULL，而非空串）**：
+- SQLite UNIQUE 约束**允许多个 NULL**（NULL ≠ NULL），可支持任意多个隐藏作品。
+- 所有公开判定统一按「非空」过滤（后端 `share_id IS NOT NULL AND share_id != ''`、前端 `!!(share_id && share_id !== "")`），NULL 与空串语义一致（均为隐藏），无副作用。
+1. `src/mvp.js` 角色 update `visible:false`：`values.push("")` → `values.push(null)`（附注释说明 UNIQUE 背景）。
+2. `src/mvp.js` 世界 PATCH `visible:false`：`vals.push("")` → `vals.push(null)`。
+3. `src/companion.js` `createChildCharacter`：孩子角色 `share_id` 从 `''` 改为 `NULL`（避免与隐藏作品抢唯一空串）。
+4. 新增 `schema/migrate_share_null.sql`（幂等）：`UPDATE characters SET share_id=NULL WHERE share_id=''`；`UPDATE worlds SET share_id=NULL WHERE share_id=''`。**已对 remote D1 执行成功**（changes=3，存量空串清零）。
+
+**验证**：
+- `node --check`（mvp.js / companion.js / index.js）通过；`npx wrangler deploy --dry-run` 通过。
+- 本地 D1 构造「1 隐藏 + 2 公开」数据：修复前隐藏任意公开角色均 500（复现）；修复后**角色隐藏×2 + 世界隐藏×2 全部 200**，显示恢复正常（角色生成新 10 位 shareId、世界生成 `w`+8 位）。
+- 真实浏览器 CDP 冒烟（`vis-toggle-check.html`，一次性测试页已删）：**8/8 SMOKE-OK**——登录主人视图 → 隐藏第 2 张角色卡（出现 hidden-card + 已隐藏角标 + 按钮变「显示」）→ 再点显示恢复 → 连续隐藏两张角色卡均成功（回归），无 500 / 无 console error。
+- 线上 D1 复查：`empty_chars=0`、`empty_worlds=0`，原空串世界已为 NULL。
+
+**提交**：push main（CI 自动部署）。
+
+
 
