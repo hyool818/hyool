@@ -871,3 +871,23 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：push main（CI 自动部署）。
 
+
+---
+
+## 作品编辑器 · 分辨率（16:9 / 9:16）+ 画面压缩
+
+**日期**：2026-08-23
+
+**背景**：用户要求创建编辑器时选择 2 种分辨率（16:9 横屏 / 9:16 竖屏）适配电脑与手机，并询问图片规格。确认方案：两档可调——默认 1280×720（横）/ 1080×1920（竖），编辑器内可选高清 1920×1080（横）/ 1440×2560（竖）。
+
+**改动**：
+- `public/story-editor.js`：作品级新字段 `orientation`（'landscape'|'portrait'，旧作品默认横屏）与 `imgQuality`（'standard'|'hd'，默认标准），`normalizeStories` 补默认迁移；新建作品记录所选分辨率并写入；编辑器侧边栏画面方向/画质按钮组即时保存，作品库卡片显示徽标；上传压缩 `compressImageFile`（cover 居中裁剪到目标分辨率、webp q0.85 回退 jpeg、只缩不放、GIF/SVG 保留、无收益回退原文件），`uploadFile(file, {compress})` 仅压缩图片；播放按方向加 `orient-portrait/landscape` class，`play()` 快照含 orientation/imgQuality；测试 API 增 `setStoryOrientationById/setStoryImgQualityById/create(title,orientation)`。
+- `public/story-editor.html`：新建区分辨率选择卡（16:9 / 9:16）、编辑器方向/画质切换按钮、竖屏播放适配（前景/字幕收窄）。
+- `.wrangler/story-av-smoke.cjs`（本地冒烟，不入库）：J 段新增 17 条断言。
+
+**验证**（本地 CDP 真实浏览器冒烟 `.wrangler/story-av-smoke.cjs`）：**78/78 PASS**，无功能性 console error（favicon 404 与 /api/tts/voices 404 为静态 mock 服务器已知噪音）。
+- J 段覆盖：创建时选竖屏 9:16 + 默认标准画质；新建区/编辑器按钮高亮同步；横屏标准压缩 2000×1200 → 1280×720；高清档 → 1920×1080；竖图 cover 裁剪为 16:9（800×450）；GIF 不压缩保留 1×1；竖屏 1600×2844 → 1080×1920；竖屏/横屏播放画幅 class；play() 报告方向；方向/画质切换持久化。
+
+**说明**：无数据库迁移、无后端改动（/api/upload 白名单已含 image/webp，压缩产物可直接入库）。按约定不做线上验证，做了本地 CDP 冒烟，脚本在 .wrangler/ 不入库。
+
+**提交**：push main（CI 自动部署）。

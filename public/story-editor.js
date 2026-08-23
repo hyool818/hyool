@@ -4,7 +4,10 @@
 // media（可选）：{url, type} —— url 为 /api/upload 上传后的 /img/xxx 引用（二进制存服务端，localStorage 只存引用）
 //   type: 'image'（图片/GIF/WebP）| 'video'（MP4）
 // audio（可选）：{url, type:'audio'} —— 配音（MP3/WAV/M4A/OGG），同一套 /api/upload 上传与引用
-// sfx（可选）：{url, type:'audio'} —— 音效（进入该积木自动播放一次，切幕停止）
+// sfxList（可选）：[{id, url, offsetMs, loop, volume, label}] —— 音效轨（可多条叠加；offsetMs=进入本幕多少毫秒后触发，loop=true 持续到切幕）
+//   旧字段 sfx（单对象 {url}）读取时自动迁移为 sfxList 单条
+// bgmOverride（可选，积木）：{url, type:'audio', volume} —— 幕级 BGM（有则本幕替换章节 BGM；离开本幕后无覆盖的幕自动恢复章节曲）
+// cast（可选，作品级）：{角色名: {kind:'tts'|'audio'|'none', voice?, url?, volume}} —— 角色声音表（AI 音色或手动音频）
 // subtitle（可选，对白）：{on, text, pos:'bottom'|'top'|'mid', size:'sm'|'md'|'lg'} —— 字幕（缺省=默认开启、角色名+对白、底部、中）
 // 章节 bgm（可选）：{url, type:'audio', volume(0~1)} —— BGM（进入章节自动循环播放，同章节切幕不重启）
 import { $, toast } from '/workspace/js/ui.js';
@@ -12,6 +15,14 @@ import { $, toast } from '/workspace/js/ui.js';
 const SAVE_KEY = 'hyool_stories_v1';
 const DEFAULT_SPEAKER = '角色名';
 const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 与后端 /api/upload 一致
+// 画面压缩目标（上传前按作品「方向 × 画质」前端自动等比 cover 压缩；standard=默认档，hd=高清档）
+const IMG_TARGETS = {
+  landscape: { standard: { w: 1280, h: 720 }, hd: { w: 1920, h: 1080 } },
+  portrait:  { standard: { w: 1080, h: 1920 }, hd: { w: 1440, h: 2560 } },
+};
+const IMG_COMPRESS_QUALITY = 0.85; // 图片压缩质量（webp，回退 jpeg）
+const ORIENT_LABEL = { landscape: '🖥 16:9 横屏', portrait: '📱 9:16 竖屏' };
+const QUAL_LABEL = { standard: '标准', hd: '高清' };
 const ALLOWED_MEDIA = { // MIME → media.type
   'image/jpeg': 'image',
   'image/png': 'image',
@@ -29,16 +40,22 @@ const ALLOWED_AUDIO = { // MIME → audio.type（配音）
 };
 const AUDIO_TYPES_LABEL = '配音：MP3 / WAV / M4A / OGG（限 5MB）';
 
-let stories = loadStories();
+let stories = normalizeStories(loadStories());
 let currentId = null;   // 当前打开的作品 id
 let chapterId = null;   // 当前打开的章节 id
 let playFlat = [];      // 播放列表（跨章节展开后的积木）
 let playIdx = 0;
 let modalOk = null;     // 当前弹窗的「确定」回调
 let playAudio = null;   // 播放中积木的配音（Audio 实例，切幕/退出时先停掉避免叠音）
-let playSfx = null;     // 当前幕音效（Audio 实例，切幕停止）
+let playSfxSet = new Set();  // 当前幕音效实例集合（多轨可叠加，切幕全部停止）
+let playSfxTimers = [];      // 当前幕音效的延迟触发定时器（offsetMs 调度）
 let playBgm = null;     // 当前章节 BGM（Audio 实例，同章节连续播放）
+let playBgmUrl = null;  // 当前 BGM 的 url（判断是否真的需要切换）
 let playBgmChapter = null; // 当前 BGM 所属章节 id（跨章节才切换）
+let ttsCache = new Map();  // TTS 预合成缓存：key(story|block|voice|content前40字) → blobUrl
+let ttsVoices = [];        // /api/tts/voices 列表缓存
+let selectedSfxId = null;  // 时间轴弹窗中当前选中的音效条目 id
+let createOrientation = 'landscape'; // 新建作品时选定的画面方向
 
 // ---------- 本地存储 ----------
 function loadStories() {
@@ -47,6 +64,34 @@ function loadStories() {
     const arr = raw ? JSON.parse(raw) : [];
     return Array.isArray(arr) ? arr : [];
   } catch (e) { return []; }
+}
+// 兼容迁移：旧字段 sfx（单对象）→ sfxList（音效轨数组）；补全 sfxList 条目与 cast/bgmOverride 结构
+function normalizeStories(arr) {
+  if (!Array.isArray(arr)) return [];
+  arr.forEach(s => {
+    if (s.orientation !== 'landscape' && s.orientation !== 'portrait') s.orientation = 'landscape'; // 旧作品默认 16:9 横屏
+    if (s.imgQuality !== 'hd') s.imgQuality = 'standard'; // 默认标准画质（1280 档）
+    if (!s.cast || typeof s.cast !== 'object') s.cast = {};
+    (s.chapters || []).forEach(c => {
+      (c.blocks || []).forEach(b => {
+        if (b.sfx && b.sfx.url) {
+          b.sfxList = [{ id: 'sfx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: b.sfx.url, type: 'audio', offsetMs: 0, loop: false, volume: 0.8 }];
+          delete b.sfx;
+        }
+        if (!Array.isArray(b.sfxList)) b.sfxList = [];
+        b.sfxList = b.sfxList.map(sf => sf && sf.url ? {
+          id: sf.id || 'sfx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          url: sf.url, type: 'audio',
+          offsetMs: Math.max(0, Number(sf.offsetMs) || 0),
+          loop: !!sf.loop,
+          volume: Math.min(1, Math.max(0, Number(sf.volume) || 0.8)),
+          label: sf.label || '',
+        } : null).filter(Boolean);
+        if (b.bgmOverride && !b.bgmOverride.url) delete b.bgmOverride;
+      });
+    });
+  });
+  return arr;
 }
 function persist() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(stories)); }
@@ -92,7 +137,7 @@ function renderLibrary() {
     t.textContent = s.title;
     const m = document.createElement('div');
     m.className = 'm';
-    m.textContent = `${s.chapters.length} 章 · ${total} 块积木`;
+    m.textContent = `${s.chapters.length} 章 · ${total} 块积木 · ${ORIENT_LABEL[s.orientation] || '🖥 16:9 横屏'} · ${QUAL_LABEL[s.imgQuality] || '标准'}画质`;
     const ops = document.createElement('div');
     ops.className = 'ops';
     const openBtn = document.createElement('button');
@@ -123,7 +168,7 @@ function createStory() {
   const input = $('#newTitle');
   const title = input.value.trim();
   if (!title) { toast('请先输入作品名称', true); input.focus(); return; }
-  const s = { id: uid(), title, chapters: [{ id: uid(), title: '第一章', blocks: [] }] };
+  const s = { id: uid(), title, orientation: createOrientation, imgQuality: 'standard', cast: {}, chapters: [{ id: uid(), title: '第一章', blocks: [] }] };
   stories.unshift(s);
   persist();
   input.value = '';
@@ -161,6 +206,9 @@ function renderEditor() {
   const s = story();
   if (!s) return;
   $('#storyTitle').value = s.title;
+  // 方向 / 画质切换按钮高亮
+  document.querySelectorAll('#storyOrient .orient-btn').forEach(b => b.classList.toggle('active', b.dataset.orient === s.orientation));
+  document.querySelectorAll('#storyQual .qual-btn').forEach(b => b.classList.toggle('active', b.dataset.qual === s.imgQuality));
   renderChapters();
   renderBlocks();
 }
@@ -263,6 +311,8 @@ function renderBlocks() {
       const subOn = !b.subtitle || b.subtitle.on !== false;
       mkBtn('💬 字幕' + (subOn ? '' : '·关'), '字幕：开启/关闭、文字、位置、大小', () => openSubtitleEditor(b));
     }
+    mkBtn('🎵', '本幕 BGM（可覆盖章节曲）', () => openBlockBgmEditor(b));
+    mkBtn('🎼', '声音时间轴（配音 / 音效 / BGM 三轨可视化）', () => openTimelineEditor(b));
 
     mkBtn('删除', '删除', () => deleteBlock(b.id));
 
@@ -345,28 +395,28 @@ function renderBlocks() {
     }
 
     el.append(tag, main, ops, mediaWrap, audioWrap);
-    // 音效：无 →「🔊 添加音效」；有 → 试听条 + 更换/删除（与配音同结构）
+    // 音效轨：摘要 + 打开声音时间轴（三轨可视化编辑）
     const sfxWrap = document.createElement('div');
     sfxWrap.className = 'block-audio';
-    if (b.sfx && b.sfx.url) {
+    const sfxList = b.sfxList || [];
+    if (sfxList.length) {
       const prev = document.createElement('div');
       prev.className = 'ba-preview';
-      const au = document.createElement('audio');
-      au.src = b.sfx.url;
-      au.controls = true;
-      au.preload = 'metadata';
-      prev.appendChild(au);
+      const sum = document.createElement('div');
+      sum.className = 'sfx-summary';
+      sum.textContent = '🔊 ' + sfxList.length + ' 条音效' + sfxList.map(sf => ' · ' + (sf.offsetMs ? (sf.offsetMs / 1000).toFixed(1) + 's' : '0s') + (sf.loop ? ' 循环' : '')).join('');
+      prev.appendChild(sum);
       const opsRow = document.createElement('div');
       opsRow.className = 'bm-ops';
-      const chg = document.createElement('button');
-      chg.className = 'btn tiny';
-      chg.textContent = '更换音效';
-      chg.addEventListener('click', () => pickSfx(b, chg));
+      const tl = document.createElement('button');
+      tl.className = 'btn tiny';
+      tl.textContent = '🎼 打开声音轨';
+      tl.addEventListener('click', () => openTimelineEditor(b));
       const rm = document.createElement('button');
       rm.className = 'btn tiny danger';
-      rm.textContent = '删除音效';
+      rm.textContent = '清空音效';
       rm.addEventListener('click', () => removeBlockSfx(b));
-      opsRow.append(chg, rm);
+      opsRow.append(tl, rm);
       sfxWrap.append(prev, opsRow);
     } else {
       const add = document.createElement('button');
@@ -469,12 +519,55 @@ function authHeaders() {
   if (t) h['Authorization'] = 'Bearer ' + t;
   return h;
 }
+// 按作品「方向 × 画质」压缩图片（cover 居中裁剪到目标比例；GIF 保留动画、SVG 保持矢量、解析失败或压缩无收益时回退原文件）
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片解析失败')); };
+    img.src = url;
+  });
+}
+function blobToCanvasCover(img, tw, th) {
+  const sw = img.naturalWidth, sh = img.naturalHeight;
+  const tr = tw / th;
+  let sx = 0, sy = 0, sw2 = sw, sh2 = sh;
+  if (sw / sh > tr) { sw2 = sh * tr; sx = (sw - sw2) / 2; }       // 源太宽 → 裁左右
+  else if (sw / sh < tr) { sh2 = sw / tr; sy = (sh - sh2) / 2; }  // 源太高 → 裁上下
+  const scale = Math.min(1, tw / sw2, th / sh2);                  // 只缩不放
+  const dw = Math.max(1, Math.round(sw2 * scale));
+  const dh = Math.max(1, Math.round(sh2 * scale));
+  const c = document.createElement('canvas');
+  c.width = dw; c.height = dh;
+  c.getContext('2d').drawImage(img, sx, sy, sw2, sh2, 0, 0, dw, dh);
+  return c;
+}
+async function compressImageFile(file, orientation, quality) {
+  if (file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
+  const t = (IMG_TARGETS[orientation] || IMG_TARGETS.landscape)[quality === 'hd' ? 'hd' : 'standard'];
+  try {
+    const img = await loadImageFromFile(file);
+    const canvas = blobToCanvasCover(img, t.w, t.h);
+    let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', IMG_COMPRESS_QUALITY));
+    if (!blob) blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', IMG_COMPRESS_QUALITY));
+    if (!blob || blob.size <= 0 || blob.size >= file.size) return file; // 压缩无收益 → 原样上传
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.webp', { type: blob.type });
+  } catch (e) {
+    return file; // 解析失败等异常 → 原样上传，不阻断
+  }
+}
 // 上传到现有 /api/upload（D1 分块存储），成功返回 {url,type}，失败返回 null 并 toast
-async function uploadFile(file) {
+// opts.compress = { orientation, quality }：图片画面按作品方向/画质前端压缩后再上传（GIF/视频/音频不压缩）
+async function uploadFile(file, opts) {
   const kind = ALLOWED_MEDIA[file.type] || ALLOWED_AUDIO[file.type] || null;
   if (!kind) { toast('仅支持 ' + MEDIA_TYPES_LABEL + '，或 ' + AUDIO_TYPES_LABEL, true); return null; }
   if (file.size > MAX_MEDIA_SIZE) { toast('文件过大（限 5MB 以内）', true); return null; }
   if (!localStorage.getItem('hyool_token')) { toast('上传需要先登录', true); return null; }
+  if (kind === 'image' && opts && opts.compress) {
+    const compressed = await compressImageFile(file, opts.compress.orientation, opts.compress.quality);
+    if (compressed !== file) file = compressed; // 压缩成功则上传压缩结果
+  }
   const fd = new FormData();
   fd.append('file', file);
   let res;
@@ -511,10 +604,11 @@ function pickMedia(block, btn) {
       const file = mediaInput.files && mediaInput.files[0];
       mediaInput.value = '';
       if (!file) return;
+      const sCur = story();
       const uploading = btn;
       const oldText = uploading ? uploading.textContent : '';
       if (uploading) { uploading.disabled = true; uploading.textContent = '上传中…'; }
-      const result = await uploadFile(file);
+      const result = await uploadFile(file, { compress: { orientation: sCur ? sCur.orientation : 'landscape', quality: sCur ? sCur.imgQuality : 'standard' } });
       if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
       if (result) {
         block.media = result;
@@ -566,11 +660,11 @@ function pickAudio(block, btn) {
 
 // ---------- 音效 ----------
 function removeBlockSfx(b) {
-  if (!b.sfx) return;
-  delete b.sfx;
+  if (!b.sfxList || !b.sfxList.length) return;
+  b.sfxList = [];
   persist();
   renderBlocks();
-  toast('音效已删除');
+  toast('音效已清空');
 }
 let sfxInput = null;
 function pickSfx(block, btn) {
@@ -589,7 +683,8 @@ function pickSfx(block, btn) {
       const result = await uploadFile(file);
       if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
       if (result) {
-        block.sfx = result;
+        if (!Array.isArray(block.sfxList)) block.sfxList = [];
+        block.sfxList.push({ id: 'sfx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: result.url, type: 'audio', offsetMs: 0, loop: false, volume: 0.8 });
         persist();
         renderBlocks();
         toast('音效已添加');
@@ -806,6 +901,230 @@ function openBlockEditor(block) {
   }
 }
 
+// ---------- 角色声音表 + 幕级 BGM + 三轨时间轴 ----------
+// 收集当前故事中出现的对白角色（去重）
+function castSpeakers() {
+  const s = story();
+  const out = [];
+  (s.chapters || []).forEach(c => (c.blocks || []).forEach(b => {
+    if (b.type !== 'dialogue') return;
+    const sp = (b.speaker || DEFAULT_SPEAKER).trim();
+    if (sp && !out.includes(sp)) out.push(sp);
+  }));
+  return out;
+}
+// 读取音频真实时长（loadedmetadata；3 秒超时返回 0）
+function loadAudioDuration(url) {
+  return new Promise((resolve) => {
+    if (!url) { resolve(0); return; }
+    const a = new Audio();
+    a.preload = 'metadata';
+    const done = () => { clearTimeout(t); try { a.removeAttribute('src'); } catch (e) {} resolve(isFinite(a.duration) ? a.duration : 0); };
+    a.onloadedmetadata = done;
+    a.onerror = done;
+    const t = setTimeout(done, 3000);
+    a.src = url;
+  });
+}
+// 试听一段文本的 AI 音色
+let castPreviewAudio = null;
+async function playVoicePreviewText(text, voice, btn) {
+  if (castPreviewAudio) { try { castPreviewAudio.pause(); } catch (e) {} castPreviewAudio = null; }
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = '⋯';
+  try {
+    const t = localStorage.getItem('hyool_token');
+    const res = await fetch('/api/tts', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: 'Bearer ' + t } : {}) },
+      body: JSON.stringify({ text, voice }),
+    });
+    if (!res.ok) throw new Error('tts fail');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    castPreviewAudio = new Audio(url);
+    const done = () => { URL.revokeObjectURL(url); if (btn) { btn.disabled = false; btn.textContent = '▶ 试听'; } };
+    castPreviewAudio.addEventListener('ended', done);
+    castPreviewAudio.addEventListener('error', done);
+    await castPreviewAudio.play();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ 试听'; }
+    toast('AI 音色试听失败：请确认已登录', true);
+  }
+}
+// 角色声音表弹窗：列出作品全部对白角色，逐个配置声音
+function openCastEditor() {
+  const s = story();
+  if (!s) return;
+  openModal('🎭 角色声音表', (body) => {
+    const tip = document.createElement('div');
+    tip.className = 'cast-tip';
+    tip.textContent = '为角色统一配置声音。播放优先级：积木配音 > 角色声音表。AI 音色需登录，未就绪时该角色静音。';
+    body.appendChild(tip);
+    const host = document.createElement('div');
+    host.className = 'cast-list';
+    host.id = 'castList';
+    body.appendChild(host);
+    const refresh = document.createElement('button');
+    refresh.className = 'btn tiny';
+    refresh.textContent = '↻ 重新收集角色';
+    refresh.addEventListener('click', () => { closeModal(); openCastEditor(); });
+    body.appendChild(refresh);
+    buildCastList(host);
+  });
+  loadTtsVoices();
+}
+async function buildCastList(host) {
+  const s = story();
+  if (!s) return;
+  const speakers = castSpeakers();
+  if (!speakers.length) {
+    const d = document.createElement('div');
+    d.className = 'cast-empty';
+    d.textContent = '还没有对白角色。先在对白积木里填写角色名字，再回来配置声音。';
+    host.appendChild(d);
+    return;
+  }
+  const voices = await loadTtsVoices();
+  speakers.forEach(sp => host.appendChild(buildCastRow(sp, voices)));
+}
+function buildCastRow(sp, voices) {
+  const s = story();
+  const entry = (s.cast || {})[sp];
+  const row = document.createElement('div');
+  row.className = 'cast-row';
+  const name = document.createElement('div');
+  name.className = 'cast-name';
+  name.textContent = sp;
+  const kindSel = document.createElement('select');
+  kindSel.className = 'txt cast-kind';
+  kindSel.innerHTML = '<option value="none">无声音</option><option value="tts">AI 音色</option><option value="audio">上传音频</option>';
+  kindSel.value = entry ? entry.kind : 'none';
+  row.append(name, kindSel);
+  const conf = document.createElement('div');
+  conf.className = 'cast-conf';
+  row.appendChild(conf);
+  const renderConf = () => {
+    conf.innerHTML = '';
+    const kind = kindSel.value;
+    if (kind === 'tts') {
+      const vs = document.createElement('select');
+      vs.className = 'txt';
+      const mk = (g) => {
+        const grp = document.createElement('optgroup');
+        grp.label = g === 'female' ? '女声' : '男声';
+        voices.filter(v => (v.gender || '') === g).forEach(v => {
+          const o = document.createElement('option');
+          o.value = v.id; o.textContent = v.name; grp.appendChild(o);
+        });
+        if (grp.children.length) vs.appendChild(grp);
+      };
+      mk('female'); mk('male');
+      if (entry && entry.voice) vs.value = entry.voice;
+      const play = document.createElement('button');
+      play.className = 'btn tiny';
+      play.textContent = '▶ 试听';
+      play.addEventListener('click', () => playVoicePreviewText('这是一句用于试听的声音。', vs.value, play));
+      const vol = makeVolSlider(entry && entry.volume, (v) => { saveCast(sp, { kind: 'tts', voice: vs.value, volume: v }); });
+      const rm = makeRemoveCast(sp, row);
+      conf.append(vs, play, vol, rm);
+    } else if (kind === 'audio') {
+      const add = document.createElement('button');
+      add.className = 'btn tiny';
+      add.textContent = entry && entry.url ? '更换音频' : '上传音频';
+      add.addEventListener('click', () => pickCastAudio(sp, add));
+      const play = document.createElement('button');
+      play.className = 'btn tiny';
+      play.textContent = '▶ 试听';
+      play.addEventListener('click', () => {
+        if (entry && entry.url) {
+          if (castPreviewAudio) { try { castPreviewAudio.pause(); } catch (e) {} }
+          castPreviewAudio = new Audio(entry.url);
+          castPreviewAudio.play().catch(() => {});
+        }
+      });
+      const vol = makeVolSlider(entry && entry.volume, (v) => { saveCast(sp, { kind: 'audio', url: entry && entry.url, volume: v }); });
+      const rm = makeRemoveCast(sp, row);
+      conf.append(add, play, vol, rm);
+    }
+  };
+  kindSel.addEventListener('change', () => {
+    const kind = kindSel.value;
+    if (kind === 'none') { removeCastEntry(sp); row.remove(); return; }
+    if (kind === 'tts') saveCast(sp, { kind: 'tts', voice: '', volume: 0.8 });
+    if (kind === 'audio') saveCast(sp, { kind: 'audio', url: '', volume: 0.8 });
+    renderConf();
+  });
+  renderConf();
+  return row;
+}
+// 角色声音表：保存/移除/通用控件
+function saveCast(sp, entry) {
+  const s = story();
+  if (!s) return;
+  if (!s.cast || typeof s.cast !== 'object') s.cast = {};
+  s.cast[sp] = entry;
+  persist();
+  clearTtsCache();
+}
+function removeCastEntry(sp) {
+  const s = story();
+  if (!s) return;
+  delete s.cast[sp];
+  persist();
+  clearTtsCache();
+  toast('已移除「' + sp + '」的声音');
+}
+function makeVolSlider(cur, onInput) {
+  const wrap = document.createElement('div');
+  wrap.className = 'bgm-vol';
+  const l = document.createElement('span');
+  l.textContent = '音量';
+  const range = document.createElement('input');
+  range.type = 'range'; range.min = 0; range.max = 100;
+  range.value = Math.round((Number(cur) || 0.8) * 100);
+  range.addEventListener('input', () => onInput(Number(range.value) / 100));
+  wrap.append(l, range);
+  return wrap;
+}
+function makeRemoveCast(sp, row) {
+  const rm = document.createElement('button');
+  rm.className = 'btn tiny danger';
+  rm.textContent = '移除声音';
+  rm.addEventListener('click', () => { removeCastEntry(sp); row.remove(); });
+  return rm;
+}
+let castAudioInput = null;
+function pickCastAudio(sp, btn) {
+  if (!castAudioInput) {
+    castAudioInput = document.createElement('input');
+    castAudioInput.type = 'file';
+    castAudioInput.accept = 'audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,audio/ogg';
+    castAudioInput.style.display = 'none';
+    castAudioInput.addEventListener('change', async () => {
+      const file = castAudioInput.files && castAudioInput.files[0];
+      castAudioInput.value = '';
+      if (!file) return;
+      const oldText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '上传中…'; }
+      const result = await uploadFile(file);
+      if (btn) { btn.disabled = false; btn.textContent = oldText; }
+      if (result) {
+        const s = story();
+        if (!s.cast || typeof s.cast !== 'object') s.cast = {};
+        const cur = s.cast[sp] || {};
+        s.cast[sp] = { kind: 'audio', url: result.url, volume: cur.volume || 0.8 };
+        persist();
+        clearTtsCache();
+        toast('角色音频已设置');
+      }
+    });
+    document.body.appendChild(castAudioInput);
+  }
+  castAudioInput.click();
+}
+
 // ---------- 弹窗 ----------
 function openModal(title, buildBody, okHandler) {
   $('#modalTitle').textContent = title;
@@ -816,10 +1135,210 @@ function openModal(title, buildBody, okHandler) {
   $('#modalOk').classList.toggle('hidden', !modalOk);
   $('#modal').classList.remove('hidden');
 }
+// 幕级 BGM（积木上覆盖章节 BGM）
+let blockBgmInput = null;
+function pickBlockBgm(b, btn) {
+  if (!blockBgmInput) {
+    blockBgmInput = document.createElement('input');
+    blockBgmInput.type = 'file';
+    blockBgmInput.accept = 'audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,audio/ogg';
+    blockBgmInput.style.display = 'none';
+    blockBgmInput.addEventListener('change', async () => {
+      const file = blockBgmInput.files && blockBgmInput.files[0];
+      blockBgmInput.value = '';
+      if (!file) return;
+      const oldText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '上传中…'; }
+      const result = await uploadFile(file);
+      if (btn) { btn.disabled = false; btn.textContent = oldText; }
+      if (result) {
+        b.bgmOverride = { ...result, volume: b.bgmOverride && b.bgmOverride.volume != null ? b.bgmOverride.volume : 0.6 };
+        persist();
+        renderBlocks();
+        toast('本幕 BGM 已设置');
+      }
+    });
+    document.body.appendChild(blockBgmInput);
+  }
+  blockBgmInput.click();
+}
+function openBlockBgmEditor(b) {
+  const ch = chapter();
+  if (!ch) return;
+  openModal('🎵 本幕 BGM', (body) => {
+    const tip = document.createElement('div');
+    tip.className = 'cast-tip';
+    tip.textContent = '章节 BGM：' + (ch.bgm && ch.bgm.url ? '已设置（本幕默认跟随章节曲）' : '未设置');
+    body.appendChild(tip);
+    const mode = document.createElement('div');
+    mode.className = 'field';
+    const l = document.createElement('label');
+    l.textContent = '本幕 BGM';
+    const sel = document.createElement('select');
+    sel.className = 'txt';
+    sel.innerHTML = '<option value="follow">跟随章节 BGM</option><option value="override">本幕指定 BGM</option>';
+    sel.value = b.bgmOverride ? 'override' : 'follow';
+    mode.append(l, sel);
+    body.appendChild(mode);
+    const conf = document.createElement('div');
+    body.appendChild(conf);
+    const renderConf = () => {
+      conf.innerHTML = '';
+      if (sel.value !== 'override') return;
+      if (b.bgmOverride && b.bgmOverride.url) {
+        const prev = document.createElement('div');
+        prev.className = 'ba-preview';
+        const au = document.createElement('audio');
+        au.src = b.bgmOverride.url; au.controls = true; au.preload = 'metadata';
+        prev.appendChild(au);
+        const vol = makeVolSlider(b.bgmOverride.volume, (v) => { b.bgmOverride.volume = v; persist(); });
+        const opsRow = document.createElement('div');
+        opsRow.className = 'bm-ops';
+        const chg = document.createElement('button');
+        chg.className = 'btn tiny';
+        chg.textContent = '更换 BGM';
+        chg.addEventListener('click', () => pickBlockBgm(b, chg));
+        const rm = document.createElement('button');
+        rm.className = 'btn tiny danger';
+        rm.textContent = '移除覆盖（回到章节曲）';
+        rm.addEventListener('click', () => { delete b.bgmOverride; persist(); renderBlocks(); renderConf(); });
+        opsRow.append(chg, rm);
+        conf.append(prev, vol, opsRow);
+      } else {
+        const add = document.createElement('button');
+        add.className = 'media-add';
+        add.textContent = '🎵 选择本幕 BGM';
+        add.addEventListener('click', () => pickBlockBgm(b, add));
+        conf.appendChild(add);
+      }
+    };
+    sel.addEventListener('change', () => {
+      if (sel.value === 'follow') { delete b.bgmOverride; persist(); renderBlocks(); }
+      else if (!b.bgmOverride) { b.bgmOverride = { url: '', type: 'audio', volume: 0.6 }; persist(); }
+      renderConf();
+    });
+    renderConf();
+  }, () => { persist(); renderBlocks(); });
+}
+
 function closeModal() {
   $('#modal').classList.add('hidden');
+  const card = document.querySelector('#modal .modal-card');
+  if (card) card.classList.remove('modal-wide');
   $('#modalBody').innerHTML = '';
+  $('#modalBody').className = 'modal-body';
   modalOk = null;
+}
+// ---------- 三轨时间轴（配音 / 音效 / BGM 可视化） ----------
+let tlState = null; // 时间轴弹窗运行状态
+function openTimelineEditor(b) {
+  if (!b) return;
+  const card = document.querySelector('#modal .modal-card');
+  if (card) card.classList.add('modal-wide');
+  selectedSfxId = null;
+  tlState = { b, totalMs: 10000, playing: false, voiceDur: 0, sfxDurs: [], bgm: null, voice: null, sfx: [], sfxTimers: [], raf: 0 };
+  openModal('🎼 声音时间轴（三轨）', (body) => {
+    body.innerHTML = `
+      <div class="tl">
+        <div class="tl-head">
+          <button class="btn tiny" id="tlPlayBtn">▶ 试听本幕</button>
+          <button class="btn tiny hidden" id="tlStopBtn">⏹ 停止</button>
+          <span class="tl-time" id="tlTime">0.00s</span>
+          <span class="tl-total" id="tlTotal"></span>
+          <span style="flex:1"></span>
+          <button class="btn tiny" id="tlAddSfx">＋ 添加音效</button>
+        </div>
+        <div class="tl-board">
+          <div class="tl-playhead" id="tlPlayhead"></div>
+          <div class="tl-lane">
+            <div class="tl-label"></div>
+            <div class="tl-track"><div class="tl-ruler" id="tlRuler"></div></div>
+          </div>
+          <div class="tl-lane">
+            <div class="tl-label">🎵 BGM</div>
+            <div class="tl-track"><div class="tl-clip tl-bgm" id="tlBgmClip"></div></div>
+          </div>
+          <div class="tl-lane">
+            <div class="tl-label">🎙 配音</div>
+            <div class="tl-track"><div class="tl-clip tl-voice" id="tlVoiceClip"></div></div>
+          </div>
+          <div class="tl-lane">
+            <div class="tl-label">🔊 音效</div>
+            <div class="tl-track" id="tlSfxTrack"></div>
+          </div>
+        </div>
+        <div class="tl-edit" id="tlEdit"></div>
+      </div>`;
+    $('#tlPlayBtn').addEventListener('click', tlPlay);
+    $('#tlStopBtn').addEventListener('click', tlStop);
+    $('#tlAddSfx').addEventListener('click', () => pickTimelineSfx(b));
+    // 加载音频真实时长后首绘
+    const ch = chapter();
+    const bgm = b.bgmOverride || (ch && ch.bgm) || null;
+    const voice = resolveBlockVoice(b);
+    const durJobs = (b.sfxList || []).map(sf => loadAudioDuration(sf.url));
+    Promise.all([loadAudioDuration(bgm && bgm.url), loadAudioDuration(voice && voice.url), Promise.all(durJobs)])
+      .then(([bgmDur, voiceDur, sfxDurs]) => {
+        tlState.voiceDur = voiceDur || 0;
+        tlState.sfxDurs = (b.sfxList || []).map((sf, i) => ({ id: sf.id, dur: sfxDurs[i] || 0 }));
+        const maxSfxEnd = Math.max(0, ...(b.sfxList || []).map((sf, i) => {
+          const d = sf.loop ? 2000 : Math.max(300, sf.durationMs || (sfxDurs[i] || 0) * 1000 || 800);
+          return (sf.offsetMs || 0) + d;
+        }));
+        const voiceEnd = Math.round((voiceDur || 0) * 1000) + 600;
+        tlState.totalMs = Math.max(10000, maxSfxEnd, voiceEnd);
+        tlRender(b);
+      });
+  }, () => { tlStop(); persist(); renderBlocks(); });
+}
+function tlRender(b) {
+  const st = tlState;
+  if (!st || !st.b) return;
+  const totalSec = st.totalMs / 1000;
+  const totalEl = $('#tlTotal');
+  if (totalEl) totalEl.textContent = '总长 ' + totalSec.toFixed(1) + 's';
+  // 标尺
+  const ruler = $('#tlRuler');
+  if (ruler) {
+    ruler.innerHTML = '';
+    const step = totalSec <= 12 ? 1 : totalSec <= 30 ? 2 : totalSec <= 60 ? 5 : 10;
+    for (let s = 0; s <= totalSec + 0.001; s += step) {
+      const m = document.createElement('div');
+      m.className = 'tl-tick';
+      m.style.left = (s / totalSec * 100) + '%';
+      m.textContent = s + 's';
+      ruler.appendChild(m);
+    }
+  }
+  // BGM 轨：幕级覆盖 > 章节曲
+  const ch = chapter();
+  const bgm = b.bgmOverride || (ch && ch.bgm) || null;
+  const bgmClip = $('#tlBgmClip');
+  if (bgmClip) {
+    if (bgm && bgm.url) {
+      bgmClip.style.display = 'block';
+      bgmClip.style.left = '0';
+      bgmClip.style.width = '100%';
+      bgmClip.textContent = (b.bgmOverride ? '本幕 BGM · ' : '章节 BGM · ') + (bgm.url.split('/').pop() || '');
+    } else bgmClip.style.display = 'none';
+  }
+  // 配音轨
+  const voice = resolveBlockVoice(b);
+  const voiceClip = $('#tlVoiceClip');
+  if (voiceClip) {
+    if (voice && voice.url) {
+      const label = voice.kind === 'tts' ? 'AI 音色' : voice.kind === 'block' ? '积木配音' : '角色音频';
+      voiceClip.style.display = 'block';
+      const width = Math.max(3, st.voiceDur / totalSec * 100);
+      voiceClip.style.left = '0';
+      voiceClip.style.width = Math.min(width, 100) + '%';
+      voiceClip.classList.toggle('tl-est', !st.voiceDur);
+      voiceClip.textContent = (b.speaker || DEFAULT_SPEAKER) + ' · ' + label + (st.voiceDur ? '（' + st.voiceDur.toFixed(1) + 's）' : '');
+    } else voiceClip.style.display = 'none';
+  }
+  // 音效轨
+  renderSfxClips();
+  renderSfxEdit();
 }
 function formatDialogue(b) {
   if (b.type !== 'dialogue') return b.content || '';
@@ -828,6 +1347,247 @@ function formatDialogue(b) {
 }
 
 // ---------- 播放 ----------
+
+// ---------- AI 音色（角色声音表 · TTS 预合成） ----------
+const FALLBACK_VOICES = [
+  { id: 'zh-CN-XiaoxiaoNeural', name: '普通话 · 晓晓', gender: 'female' },
+  { id: 'zh-CN-XiaoyiNeural', name: '普通话 · 晓伊', gender: 'female' },
+  { id: 'zh-CN-YunjianNeural', name: '普通话 · 云健', gender: 'male' },
+  { id: 'zh-CN-YunxiNeural', name: '普通话 · 云希', gender: 'male' },
+];
+async function loadTtsVoices() {
+  if (ttsVoices.length) return ttsVoices;
+  try {
+    const t = localStorage.getItem('hyool_token');
+    const res = await fetch('/api/tts/voices', {
+      credentials: 'include',
+      headers: t ? { Authorization: 'Bearer ' + t } : {},
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d && Array.isArray(d.voices) && d.voices.length) ttsVoices = d.voices;
+    }
+  } catch (e) { /* 离线/未登录时用内置音色兜底 */ }
+  if (!ttsVoices.length) ttsVoices = FALLBACK_VOICES;
+  return ttsVoices;
+}
+function ttsKey(b) {
+  const s = story();
+  const entry = s && s.cast && s.cast[b.speaker || DEFAULT_SPEAKER];
+  return `${currentId}|${b.id}|${(entry && entry.voice) || ''}|${(b.content || '').slice(0, 40)}`;
+}
+async function synthTts(b) {
+  const s = story();
+  if (!s || !s.cast) return null;
+  const entry = s.cast[b.speaker || DEFAULT_SPEAKER];
+  if (!entry || entry.kind !== 'tts' || !entry.voice) return null;
+  const key = ttsKey(b);
+  if (ttsCache.has(key)) return ttsCache.get(key);
+  const t = localStorage.getItem('hyool_token');
+  if (!t) return null; // 未登录：静默降级，不阻塞播放
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+      body: JSON.stringify({ text: b.content || '', voice: entry.voice }),
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    ttsCache.set(key, url);
+    return url;
+  } catch (e) { return null; }
+}
+// 选中音效的编辑表单
+function renderSfxEdit() {
+  const host = $('#tlEdit');
+  if (!host) return;
+  const b = tlState && tlState.b;
+  if (!b) { host.innerHTML = ''; return; }
+  const sf = (b.sfxList || []).find(x => x.id === selectedSfxId);
+  if (!sf) {
+    host.innerHTML = '<div class="tl-edit-empty">点击音效条选中编辑：拖动条身调整触发时间，拖动条右侧小柄调整时长；＋ 添加音效上传新音效。</div>';
+    return;
+  }
+  host.innerHTML = '';
+  const row1 = document.createElement('div');
+  row1.className = 'tl-edit-row';
+  const fOffset = tlField('延迟触发（毫秒）', sf.offsetMs || 0);
+  fOffset.input.addEventListener('change', () => { sf.offsetMs = Math.max(0, Number(fOffset.input.value) || 0); persist(); renderSfxClips(); });
+  const fDur = tlField('时长（毫秒，循环忽略）', sf.durationMs || Math.round(durMsOf(sf)));
+  fDur.input.addEventListener('change', () => { sf.durationMs = Math.max(300, Number(fDur.input.value) || 800); persist(); renderSfxClips(); });
+  const loopWrap = document.createElement('div');
+  loopWrap.className = 'field tl-field-check';
+  const lLoop = document.createElement('label');
+  lLoop.textContent = '循环';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = !!sf.loop;
+  cb.addEventListener('change', () => { sf.loop = cb.checked; persist(); renderSfxClips(); });
+  loopWrap.append(lLoop, cb);
+  row1.append(fOffset.wrap, fDur.wrap, loopWrap);
+  const row2 = document.createElement('div');
+  row2.className = 'tl-edit-row';
+  const prev = document.createElement('audio');
+  prev.src = sf.url; prev.controls = true; prev.preload = 'metadata';
+  const vol = makeVolSlider(sf.volume, (v) => { sf.volume = v; persist(); });
+  const ops = document.createElement('div');
+  ops.className = 'bm-ops';
+  const chg = document.createElement('button');
+  chg.className = 'btn tiny';
+  chg.textContent = '更换';
+  chg.addEventListener('click', () => pickTimelineSfx(tlState.b, sf));
+  const rm = document.createElement('button');
+  rm.className = 'btn tiny danger';
+  rm.textContent = '删除音效';
+  rm.addEventListener('click', () => {
+    tlState.b.sfxList = tlState.b.sfxList.filter(x => x.id !== sf.id);
+    selectedSfxId = null;
+    persist();
+    renderBlocks();
+    tlRender(tlState.b);
+  });
+  ops.append(chg, rm);
+  row2.append(prev, vol, ops);
+  host.append(row1, row2);
+}
+function tlField(label, value) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  const l = document.createElement('label');
+  l.textContent = label;
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = 0;
+  input.value = value;
+  wrap.append(l, input);
+  return { wrap, input };
+}
+function clearTtsCache() {
+  ttsCache.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) { /* ignore */ } });
+  ttsCache.clear();
+}
+// 添加/更换音效（时间轴弹窗内）
+let tlSfxInput = null;
+function pickTimelineSfx(b, targetSfx) {
+  if (!tlSfxInput) {
+    tlSfxInput = document.createElement('input');
+    tlSfxInput.type = 'file';
+    tlSfxInput.accept = 'audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,audio/ogg';
+    tlSfxInput.style.display = 'none';
+    tlSfxInput.addEventListener('change', async () => {
+      const file = tlSfxInput.files && tlSfxInput.files[0];
+      tlSfxInput.value = '';
+      if (!file) return;
+      const result = await uploadFile(file);
+      if (!result) return;
+      const cur = tlState && tlState.b;
+      if (!cur) return;
+      if (targetSfx) {
+        targetSfx.url = result.url;
+        delete targetSfx.durationMs;
+        toast('音效已更换');
+      } else {
+        const sf = { id: 'sfx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: result.url, type: 'audio', offsetMs: 0, loop: false, volume: 0.8 };
+        cur.sfxList.push(sf);
+        selectedSfxId = sf.id;
+        toast('音效已添加，可在轨道上拖动调整');
+      }
+      persist();
+      renderBlocks();
+      const dur = await loadAudioDuration(result.url);
+      const targetId = targetSfx ? targetSfx.id : selectedSfxId;
+      tlState.sfxDurs = tlState.sfxDurs.filter(x => x.id !== targetId);
+      tlState.sfxDurs.push({ id: targetId, dur });
+      tlRender(cur);
+    });
+    document.body.appendChild(tlSfxInput);
+  }
+  tlSfxInput.click();
+}
+// 时间轴试听：配音 + 音效（带 offset 调度）+ BGM 同步播放，播放头动画
+function tlStop() {
+  const st = tlState;
+  if (!st) return;
+  st.playing = false;
+  if (st.raf) cancelAnimationFrame(st.raf);
+  if (st.bgm) { try { st.bgm.pause(); } catch (e) {} st.bgm = null; }
+  if (st.voice) { try { st.voice.pause(); } catch (e) {} st.voice = null; }
+  (st.sfx || []).forEach(a => { try { a.pause(); } catch (e) {} });
+  st.sfx = [];
+  (st.sfxTimers || []).forEach(t => clearTimeout(t));
+  st.sfxTimers = [];
+  const playBtn = $('#tlPlayBtn');
+  if (playBtn) { playBtn.classList.remove('hidden'); playBtn.textContent = '▶ 试听本幕'; }
+  const stopBtn = $('#tlStopBtn');
+  if (stopBtn) stopBtn.classList.add('hidden');
+}
+function tlPlay() {
+  const st = tlState;
+  if (!st || !st.b) return;
+  tlStop();
+  const b = st.b;
+  const ch = chapter();
+  const bgm = b.bgmOverride || (ch && ch.bgm) || null;
+  const voice = resolveBlockVoice(b);
+  st.playing = true;
+  const playBtn = $('#tlPlayBtn');
+  const stopBtn = $('#tlStopBtn');
+  if (playBtn) playBtn.classList.add('hidden');
+  if (stopBtn) stopBtn.classList.remove('hidden');
+  const t0 = performance.now();
+  if (voice && voice.url) {
+    st.voice = new Audio(voice.url);
+    st.voice.volume = Math.min(1, Math.max(0, Number(voice.volume) || 1));
+    st.voice.play().catch(() => {});
+  }
+  if (bgm && bgm.url) {
+    st.bgm = new Audio(bgm.url);
+    st.bgm.loop = true;
+    st.bgm.volume = Math.min(1, Math.max(0, Number(bgm.volume) || 0.6));
+    st.bgm.play().catch(() => {});
+  }
+  st.sfx = [];
+  st.sfxTimers = [];
+  (b.sfxList || []).forEach(sf => {
+    if (!sf.url) return;
+    const t = setTimeout(() => {
+      const a = new Audio(sf.url);
+      a.loop = !!sf.loop;
+      a.volume = Math.min(1, Math.max(0, Number(sf.volume) || 0.8));
+      a.play().catch(() => {});
+      st.sfx.push(a);
+    }, Math.max(0, Number(sf.offsetMs) || 0));
+    st.sfxTimers.push(t);
+  });
+  const tick = () => {
+    if (!st.playing) return;
+    const el = Math.min(1, (performance.now() - t0) / st.totalMs);
+    const ph = $('#tlPlayhead');
+    if (ph) ph.style.left = (el * 100) + '%';
+    const tEl = $('#tlTime');
+    if (tEl) tEl.textContent = (el * st.totalMs / 1000).toFixed(2) + 's';
+    if (el >= 1) { tlStop(); if (tEl) tEl.textContent = (st.totalMs / 1000).toFixed(1) + 's'; return; }
+    st.raf = requestAnimationFrame(tick);
+  };
+  tick();
+}
+// 开始播放时后台预合成所有 AI 音色对白（并发 2 防限流），未就绪的幕静默降级
+async function prewarmTts(s) {
+  const jobs = [];
+  (s.chapters || []).forEach(c => (c.blocks || []).forEach(b => {
+    if (b.type !== 'dialogue') return;
+    const entry = s.cast && s.cast[b.speaker || DEFAULT_SPEAKER];
+    if (entry && entry.kind === 'tts' && entry.voice) jobs.push(b);
+  }));
+  let idx = 0;
+  const workers = Array.from({ length: Math.min(2, jobs.length) }, async () => {
+    while (idx < jobs.length) { const b = jobs[idx++]; try { await synthTts(b); } catch (e) { /* ignore */ } }
+  });
+  await Promise.all(workers);
+}
+
 function buildPlayFlat() {
   const s = story();
   const flat = [];
@@ -842,6 +1602,7 @@ function startPlay() {
   playIdx = 0;
   renderPlay();
   $('#playOverlay').classList.remove('hidden');
+  prewarmTts(story()); // 后台预合成 AI 音色对白（异步不阻塞播放）
 }
 function stopPlayAudio() {
   if (playAudio) {
@@ -852,14 +1613,142 @@ function stopPlayAudio() {
     playAudio = null;
   }
 }
-function stopPlaySfx() {
-  if (playSfx) {
-    try { playSfx.pause(); } catch (e) { /* ignore */ }
-    playSfx.onended = null;
-    playSfx.onerror = null;
-    playSfx.removeAttribute('src');
-    playSfx = null;
+function stopPlaySfxAll() {
+  playSfxTimers.forEach(t => clearTimeout(t));
+  playSfxTimers = [];
+  playSfxSet.forEach(a => {
+    try { a.pause(); } catch (e) { /* ignore */ }
+    a.onended = null;
+    a.onerror = null;
+    try { a.removeAttribute('src'); } catch (e) { /* ignore */ }
+  });
+  playSfxSet.clear();
+}
+// 音效轨调度：进入本幕时按 offsetMs 依次触发（loop 持续到切幕），多轨可叠加
+function playSfxListForBlock(b) {
+  const list = (b && b.sfxList) || [];
+  list.forEach(sf => {
+    if (!sf || !sf.url) return;
+    const delay = Math.max(0, Number(sf.offsetMs) || 0);
+    const t = setTimeout(() => {
+      const a = new Audio(sf.url);
+      a.loop = !!sf.loop;
+      a.preload = 'auto';
+      a.volume = Math.min(1, Math.max(0, Number(sf.volume) || 0.8));
+      a.play().catch(() => { /* 自动播放被拦截/加载失败时静默 */ });
+      playSfxSet.add(a);
+    }, delay);
+    playSfxTimers.push(t);
+  });
+}
+// 声音配置信息（供 play() 快照 / 时间轴展示；含 ready 标志，tts 未合成时 url 为 null）
+function voicePlanOf(b) {
+  if (b.audio && b.audio.url) return { kind: 'block', url: b.audio.url, ready: true };
+  const s = story();
+  if (!s || !s.cast) return null;
+  const entry = s.cast[b.speaker || DEFAULT_SPEAKER];
+  if (!entry) return null;
+  if (entry.kind === 'audio' && entry.url) return { kind: 'audio', url: entry.url, ready: true, volume: entry.volume };
+  if (entry.kind === 'tts' && entry.voice) {
+    const url = ttsCache.get(ttsKey(b)) || null;
+    return { kind: 'tts', voice: entry.voice, url, ready: !!url, volume: entry.volume };
   }
+  return null;
+}
+// 角色声音解析：积木配音 > cast[角色]（audio / tts），都无 → 静音
+function resolveBlockVoice(b) {
+  if (b.audio && b.audio.url) return { url: b.audio.url, kind: 'block' };
+  const s = story();
+  if (!s || !s.cast) return null;
+  const entry = s.cast[b.speaker || DEFAULT_SPEAKER];
+  if (!entry) return null;
+  if (entry.kind === 'audio' && entry.url) return { url: entry.url, kind: 'audio', volume: entry.volume };
+  if (entry.kind === 'tts' && entry.voice) {
+    const url = ttsCache.get(ttsKey(b));
+    if (url) return { url, kind: 'tts', volume: entry.volume };
+  }
+  return null;
+}
+// 音效轨渲染：每条音效一个横条（可拖动位置 / 拖右缘调时长 / 循环标记）
+function durMsOf(sf) {
+  const rec = (tlState.sfxDurs || []).find(x => x.id === sf.id);
+  return sf.loop ? 2000 : (sf.durationMs || (rec ? rec.dur * 1000 : 0) || 800);
+}
+function renderSfxClips() {
+  const track = $('#tlSfxTrack');
+  if (!track) return;
+  track.innerHTML = '';
+  const b = tlState.b;
+  const totalSec = tlState.totalMs / 1000;
+  (b.sfxList || []).forEach(sf => {
+    const clip = document.createElement('div');
+    clip.className = 'tl-clip tl-sfx' + (sf.loop ? ' loop' : '') + (selectedSfxId === sf.id ? ' sel' : '');
+    const left = ((sf.offsetMs || 0) / 1000 / totalSec) * 100;
+    const width = Math.max(2, Math.min(durMsOf(sf) / 1000 / totalSec * 100, 100 - left));
+    clip.style.left = left + '%';
+    clip.style.width = width + '%';
+    const label = document.createElement('span');
+    label.className = 'tl-clip-label';
+    label.textContent = (sf.label || sf.url.split('/').pop() || '音效') + (sf.loop ? ' ∞' : '');
+    clip.appendChild(label);
+    const handle = document.createElement('div');
+    handle.className = 'tl-handle';
+    handle.title = '拖动调整时长';
+    clip.appendChild(handle);
+    clip.addEventListener('pointerdown', (e) => tlDragStart(e, sf));
+    clip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectedSfxId = sf.id;
+      renderSfxClips();
+      renderSfxEdit();
+    });
+    track.appendChild(clip);
+  });
+}
+let tlDrag = null;
+function tlDragStart(e, sf) {
+  e.stopPropagation();
+  if (!tlState) return;
+  const resizing = e.target.classList.contains('tl-handle');
+  const track = $('#tlSfxTrack');
+  const rect = track.getBoundingClientRect();
+  const totalSec = tlState.totalMs / 1000;
+  const pxPerSec = rect.width / totalSec;
+  const startX = e.clientX;
+  const startOffset = sf.offsetMs || 0;
+  const startDur = durMsOf(sf);
+  tlDrag = { sf, resizing, startX, startOffset, startDur, pxPerSec };
+  track.setPointerCapture(e.pointerId);
+  const onMove = (ev) => {
+    if (!tlDrag) return;
+    const dx = (ev.clientX - startX) / pxPerSec * 1000;
+    if (tlDrag.resizing) {
+      tlDrag.sf.durationMs = Math.max(300, Math.min(20000, Math.round(startDur + dx)));
+    } else {
+      tlDrag.sf.offsetMs = Math.max(0, Math.min(tlState.totalMs - 300, Math.round(startOffset + dx)));
+    }
+    renderSfxClips();
+  };
+  const onUp = () => {
+    if (!tlDrag) return;
+    tlDrag = null;
+    track.removeEventListener('pointermove', onMove);
+    track.removeEventListener('pointerup', onUp);
+    persist();
+    renderSfxClips();
+    renderSfxEdit();
+  };
+  track.addEventListener('pointermove', onMove);
+  track.addEventListener('pointerup', onUp);
+}
+function playVoiceForBlock(b) {
+  const v = resolveBlockVoice(b);
+  if (!v || !v.url) return;
+  const au = new Audio(v.url);
+  au.preload = 'auto';
+  au.volume = Math.min(1, Math.max(0, Number(v.volume) || 1));
+  au.play().catch(() => { /* 自动播放被拦截/加载失败时静默，不影响点击推进 */ });
+  playAudio = au;
 }
 function stopPlayBgm() {
   if (playBgm) {
@@ -879,19 +1768,23 @@ function switchBgm(bgm, chapterId) {
     au.volume = Math.min(1, Math.max(0, Number(bgm.volume) || 0.6));
     au.play().catch(() => { /* 自动播放被拦截时静默，不影响推进 */ });
     playBgm = au;
+    playBgmUrl = bgm.url;
+  } else {
+    playBgmUrl = null;
   }
   playBgmChapter = chapterId;
 }
 function stopPlay() {
   stopPlayAudio();
-  stopPlaySfx();
+  stopPlaySfxAll();
   stopPlayBgm();
   playBgmChapter = null;
+  playBgmUrl = null;
   $('#playOverlay').classList.add('hidden');
 }
 function renderPlay() {
   stopPlayAudio(); // 先停掉上一幕的配音，避免两个声音同时播放
-  stopPlaySfx();   // 音效：切幕时停止不需要继续播放的音效
+  stopPlaySfxAll();   // 音效轨：切幕时停止本幕全部音效（含延迟定时器）
   if (!playFlat.length) return;
   $('#playProgress').textContent = `第 ${playIdx + 1} 条 · 共 ${playFlat.length} 条`;
   $('#playChapter').textContent = playFlat[playIdx].chapterTitle;
@@ -900,8 +1793,18 @@ function renderPlay() {
   body.innerHTML = '';
   const b = playFlat[playIdx];
   const overlay = $('#playOverlay');
-  // BGM 属于章节：跨章节才切换；同章节内点击推进保持连续播放、不重新开始
-  if (b.chapterId !== playBgmChapter) switchBgm(b.bgm, b.chapterId);
+  // 按作品方向适配播放画幅（16:9 横屏 / 9:16 竖屏）
+  const sPlay = story();
+  overlay.classList.toggle('orient-portrait', !!(sPlay && sPlay.orientation === 'portrait'));
+  overlay.classList.toggle('orient-landscape', !(sPlay && sPlay.orientation === 'portrait'));
+  // BGM：默认跟随章节（同章节连续不重启）；幕级 bgmOverride 优先，覆盖仅本幕生效（离开本幕后自动恢复章节曲）
+  const targetBgm = b.bgmOverride || b.bgm || null;
+  const targetUrl = targetBgm && targetBgm.url ? targetBgm.url : null;
+  if (targetUrl !== playBgmUrl) {
+    switchBgm(targetBgm, b.chapterId);
+  } else if (b.chapterId !== playBgmChapter) {
+    playBgmChapter = b.chapterId; // 同一首曲跨章节不重启，仅更新章节标记
+  }
   // 视觉素材 → 全屏背景（图片/GIF/WebP 直接铺满；MP4 自动播放循环，播完不自动下一幕）
   if (b.media && b.media.url) {
     overlay.classList.add('has-media');
@@ -964,20 +1867,10 @@ function renderPlay() {
   }
   $('#playPrev').disabled = playIdx === 0;
   $('#playNext').disabled = playIdx >= playFlat.length - 1;
-  // 当前幕有配音 → 自动播放（无配音的积木完全保持原有逻辑）
-  if (b.audio && b.audio.url) {
-    const au = new Audio(b.audio.url);
-    au.preload = 'auto';
-    au.play().catch(() => { /* 自动播放被拦截/加载失败时静默，不影响点击推进 */ });
-    playAudio = au;
-  }
-  // 音效：进入该积木自动播放一次
-  if (b.sfx && b.sfx.url) {
-    const sfx = new Audio(b.sfx.url);
-    sfx.preload = 'auto';
-    sfx.play().catch(() => { /* 自动播放被拦截时静默 */ });
-    playSfx = sfx;
-  }
+  // 配音：积木配音 > 角色声音表（AI 音色 / 手动音频），都无则静音；播放失败不影响点击推进
+  playVoiceForBlock(b);
+  // 音效轨：按 sfxList 调度（offsetMs 延迟触发、loop 持续到切幕、多轨叠加）
+  playSfxListForBlock(b);
 }
 function playNext() { if (playIdx < playFlat.length - 1) { playIdx++; renderPlay(); } }
 function playPrev() { if (playIdx > 0) { playIdx--; renderPlay(); } }
@@ -1006,6 +1899,7 @@ function init() {
     if (c) renameChapter(c);
   });
   $('#bgmBtn').addEventListener('click', openBgmEditor);
+  $('#castBtn').addEventListener('click', openCastEditor);
   $('#addBlockBtn').addEventListener('click', openAddPicker);
   $('#playBtn').addEventListener('click', startPlay);
   $('#playExit').addEventListener('click', stopPlay);
@@ -1022,6 +1916,33 @@ function init() {
     }
   });
   $('#libBtn').addEventListener('click', backToLibrary);
+  // 新建作品：分辨率选择卡（16:9 横屏 / 9:16 竖屏）
+  document.querySelectorAll('#createOrient .orient-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      createOrientation = btn.dataset.orient === 'portrait' ? 'portrait' : 'landscape';
+      document.querySelectorAll('#createOrient .orient-card').forEach(x => x.classList.toggle('active', x === btn));
+    });
+  });
+  // 编辑器：画面方向（影响播放画幅与后续上传压缩）
+  document.querySelectorAll('#storyOrient .orient-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const s = story();
+      if (!s) return;
+      s.orientation = btn.dataset.orient === 'portrait' ? 'portrait' : 'landscape';
+      persist(); renderEditor(); renderLibrary();
+      toast('画面方向：' + ORIENT_LABEL[s.orientation]);
+    });
+  });
+  // 编辑器：画质（标准 1280 / 高清 1920，影响后续上传图片压缩规格）
+  document.querySelectorAll('#storyQual .qual-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const s = story();
+      if (!s) return;
+      s.imgQuality = btn.dataset.qual === 'hd' ? 'hd' : 'standard';
+      persist(); renderEditor(); renderLibrary();
+      toast('画质：' + QUAL_LABEL[s.imgQuality] + '（此后新上传的画面按此规格压缩）');
+    });
+  });
   renderLibrary();
 }
 
@@ -1029,10 +1950,19 @@ function init() {
 window.StoryEditor = {
   ready: true,
   list: () => stories.map(s => ({
-    id: s.id, title: s.title,
+    id: s.id, title: s.title, orientation: s.orientation, imgQuality: s.imgQuality, cast: s.cast || {},
     chapters: s.chapters.map(c => ({ id: c.id, title: c.title, bgm: c.bgm || null, blocks: c.blocks.map(b => ({ ...b })) })),
   })),
-  create: (title) => { $('#newTitle').value = title; createStory(); return story() ? story().id : null; },
+  create: (title, orientation) => {
+    $('#newTitle').value = title;
+    if (orientation === 'portrait' || orientation === 'landscape') {
+      createOrientation = orientation;
+      // API 创建路径同步新建区选择卡高亮，与点击行为一致
+      document.querySelectorAll('#createOrient .orient-card').forEach(x => x.classList.toggle('active', x.dataset.orient === orientation));
+    }
+    createStory();
+    return story() ? story().id : null;
+  },
   open: (id) => openStory(id),
   backToLibrary,
   current: () => {
@@ -1059,6 +1989,11 @@ window.StoryEditor = {
     persist(); renderBlocks(); return true;
   },
   upload: (file) => uploadFile(file),
+  // 带当前作品方向/画质的压缩上传（供测试与需要按作品规格压缩的调用）
+  uploadCompressed: (file) => {
+    const s = story();
+    return uploadFile(file, { compress: { orientation: s ? s.orientation : 'landscape', quality: s ? s.imgQuality : 'standard' } });
+  },
   removeBlockMediaById: (blockId) => {
     const b = findBlock(blockId);
     if (!b || !b.media) return false;
@@ -1086,14 +2021,63 @@ window.StoryEditor = {
   setBlockSfxById: (blockId, url) => {
     const b = findBlock(blockId);
     if (!b) return false;
-    if (!url) { delete b.sfx; }
-    else { b.sfx = { url, type: 'audio' }; }
+    if (!url) { b.sfxList = []; }
+    else {
+      b.sfxList = [{ id: 'sfx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url, type: 'audio', offsetMs: 0, loop: false, volume: 0.8 }];
+    }
     persist(); renderBlocks(); return true;
   },
   removeBlockSfxById: (blockId) => {
     const b = findBlock(blockId);
-    if (!b || !b.sfx) return false;
-    delete b.sfx; persist(); renderBlocks(); return true;
+    if (!b || !b.sfxList || !b.sfxList.length) return false;
+    b.sfxList = []; persist(); renderBlocks(); return true;
+  },
+  setBlockSfxListById: (blockId, list) => {
+    const b = findBlock(blockId);
+    if (!b) return false;
+    b.sfxList = normalizeStories([{ chapters: [{ blocks: [{ sfxList: list }] }] }])[0].chapters[0].blocks[0].sfxList;
+    persist(); renderBlocks(); return true;
+  },
+  addBlockSfxById: (blockId, entry) => {
+    const b = findBlock(blockId);
+    if (!b || !entry || !entry.url) return false;
+    if (!Array.isArray(b.sfxList)) b.sfxList = [];
+    b.sfxList.push({ id: 'sfx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: entry.url, type: 'audio', offsetMs: entry.offsetMs || 0, loop: !!entry.loop, volume: entry.volume != null ? entry.volume : 0.8 });
+    persist(); renderBlocks(); return true;
+  },
+  setCastEntry: (speaker, entry) => {
+    const s = story();
+    if (!s || !speaker) return false;
+    if (!s.cast || typeof s.cast !== 'object') s.cast = {};
+    s.cast[speaker] = entry;
+    persist(); clearTtsCache(); renderBlocks(); return true;
+  },
+  removeCastEntry,
+  setStoryOrientationById: (id, orientation) => {
+    if (orientation !== 'landscape' && orientation !== 'portrait') return false;
+    const s = stories.find(x => x.id === id);
+    if (!s) return false;
+    s.orientation = orientation; persist(); renderEditor(); renderLibrary();
+    return true;
+  },
+  setStoryImgQualityById: (id, quality) => {
+    if (quality !== 'standard' && quality !== 'hd') return false;
+    const s = stories.find(x => x.id === id);
+    if (!s) return false;
+    s.imgQuality = quality; persist(); renderEditor(); renderLibrary();
+    return true;
+  },
+  setBlockBgmOverrideById: (blockId, override) => {
+    const b = findBlock(blockId);
+    if (!b) return false;
+    if (!override) { delete b.bgmOverride; }
+    else { b.bgmOverride = { url: override.url, type: 'audio', volume: override.volume != null ? override.volume : 0.6 }; }
+    persist(); renderBlocks(); return true;
+  },
+  removeBlockBgmOverrideById: (blockId) => {
+    const b = findBlock(blockId);
+    if (!b || !b.bgmOverride) return false;
+    delete b.bgmOverride; persist(); renderBlocks(); return true;
   },
   setChapterBgmById: (chapterId, url, volume) => {
     const s = story();
@@ -1131,14 +2115,23 @@ window.StoryEditor = {
   stopPlay,
   play: () => ({
     idx: playIdx, total: playFlat.length,
+    orientation: (story() || {}).orientation || 'landscape',
+    imgQuality: (story() || {}).imgQuality || 'standard',
     current: playFlat[playIdx] ? {
       type: playFlat[playIdx].type, speaker: playFlat[playIdx].speaker || '', content: playFlat[playIdx].content,
-      media: playFlat[playIdx].media || null, audio: playFlat[playIdx].audio || null, sfx: playFlat[playIdx].sfx || null,
+      media: playFlat[playIdx].media || null, audio: playFlat[playIdx].audio || null,
+      sfxList: (playFlat[playIdx].sfxList || []).map(x => ({ ...x })),
+      bgmOverride: playFlat[playIdx].bgmOverride || null,
+      voice: voicePlanOf(playFlat[playIdx]),
       subtitle: playFlat[playIdx].subtitle || null, chapterId: playFlat[playIdx].chapterId || null, bgm: playFlat[playIdx].bgm || null,
     } : null,
   }),
   playNext,
   playPrev,
+  openCastEditor,
+  openBlockBgmEditor,
+  openTimelineEditor,
+  normalizeStories,
   localStorage: () => { try { return localStorage.getItem(SAVE_KEY); } catch (e) { return null; } },
 };
 

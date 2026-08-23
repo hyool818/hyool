@@ -18,6 +18,19 @@ textarea.txt{min-height:120px;resize:vertical}
 /* ---------- 视图1：作品库 ---------- */
 .new-story{display:flex;gap:10px;flex-wrap:wrap}
 .new-story .txt{flex:1 1 280px;width:auto}
+/* 新建作品：分辨率选择卡（16:9 横屏 / 9:16 竖屏） */
+.orient-pick{display:flex;gap:10px;flex:0 0 auto}
+.orient-card{display:flex;flex-direction:column;align-items:center;gap:3px;background:#171726;
+  border:1px solid var(--line2);border-radius:10px;padding:9px 14px;cursor:pointer;font-family:inherit;
+  color:var(--text);transition:.15s;font-size:12.5px;font-weight:600;line-height:1.4}
+.orient-card span{font-size:10.5px;font-weight:400;color:var(--muted)}
+.orient-card:hover{border-color:var(--accent)}
+.orient-card.active{border-color:var(--accent);background:rgba(139,123,255,.14)}
+/* 编辑器侧边栏：方向 / 画质切换 */
+.orient-row{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.orient-row .mini-btn{visibility:visible}
+.mini-btn.active{border-color:var(--accent);background:rgba(139,123,255,.18);color:var(--accent)}
+.orient-row-label{margin-left:auto;font-size:10.5px;color:var(--muted)}
 .story-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
 .story-card{background:linear-gradient(180deg,#12121c,#0d0d16);border:1px solid var(--line2);border-radius:12px;
   padding:14px 16px;display:flex;flex-direction:column;gap:10px;transition:.18s}
@@ -159,9 +172,62 @@ textarea.txt{min-height:120px;resize:vertical}
   .play-sub.size-md .ps-box{font-size:15px}
   .play-sub.size-lg .ps-box{font-size:19px}
 
+  /* 播放：竖屏（9:16）适配 —— 前景/字幕收窄，贴合手机画幅 */
+  .play-overlay.orient-portrait .play-fore{max-width:460px}
+  .play-overlay.orient-portrait .play-scene{max-width:440px;font-size:clamp(15px,3vw,19px)}
+  .play-overlay.orient-portrait .play-dialogue{max-width:440px}
+  .play-overlay.orient-portrait .play-sub .ps-box{max-width:500px}
+
   /* BGM 弹窗：音量行 */
   .bgm-vol{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
   .bgm-vol input[type=range]{flex:1;accent-color:var(--accent)}
+
+  /* 角色声音表 */
+  .cast-tip{font-size:11.5px;color:var(--muted);line-height:1.7;border:1px dashed var(--line2);border-radius:8px;padding:8px 10px}
+  .cast-empty{color:var(--muted);text-align:center;padding:20px;font-size:12.5px}
+  .cast-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border:1px solid var(--line);background:var(--bg3);border-radius:10px;padding:10px}
+  .cast-name{flex:0 0 90px;font-weight:600;color:var(--text)}
+  .cast-kind{flex:0 0 110px}
+  .cast-conf{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:8px}
+  .cast-conf .bgm-vol{min-width:150px;flex:1}
+
+  /* 宽弹窗（三轨时间轴） */
+  .modal-card.modal-wide{max-width:920px}
+
+  /* 三轨时间轴 */
+  .tl{display:flex;flex-direction:column;gap:10px}
+  .tl-head{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+  .tl-time{font-variant-numeric:tabular-nums;min-width:58px}
+  .tl-total{color:var(--muted)}
+  .tl-board{position:relative;display:flex;flex-direction:column;gap:6px;background:#0d0d15;border:1px solid var(--line);border-radius:10px;padding:10px}
+  .tl-playhead{position:absolute;top:6px;bottom:6px;left:0;width:1px;background:var(--accent2);z-index:5;pointer-events:none;box-shadow:0 0 6px rgba(95,200,255,.6)}
+  .tl-playhead::after{content:"";position:absolute;top:-2px;left:-3px;width:7px;height:7px;border-radius:50%;background:var(--accent2)}
+  .tl-lane{display:grid;grid-template-columns:64px 1fr;align-items:center;gap:8px}
+  .tl-label{font-size:11px;color:var(--muted);text-align:right}
+  .tl-track{position:relative;height:26px;background:#15151f;border-radius:6px;overflow:hidden}
+  .tl-ruler-row .tl-track{height:20px;background:transparent}
+  .tl-ruler{position:absolute;inset:0}
+  .tl-tick{position:absolute;top:0;bottom:0;font-size:9px;color:var(--muted);border-left:1px solid var(--line2);padding-left:3px;line-height:1.4}
+  .tl-clip{position:absolute;top:3px;bottom:3px;border-radius:5px;font-size:10px;display:flex;align-items:center;padding:0 6px;white-space:nowrap;overflow:hidden;cursor:pointer;user-select:none;min-width:10px}
+  .tl-bgm{background:rgba(255,170,80,.22);border:1px solid rgba(255,170,80,.6);color:#ffd9a8}
+  .tl-voice{background:rgba(139,123,255,.25);border:1px solid rgba(139,123,255,.6);color:#cfc8ff}
+  .tl-voice.tl-est{border-style:dashed}
+  .tl-sfx{background:rgba(95,200,255,.2);border:1px solid rgba(95,200,255,.55);color:#bfe9ff}
+  .tl-sfx.loop{background:rgba(80,220,160,.2);border-color:rgba(80,220,160,.6);color:#c2f5de}
+  .tl-sfx.sel{border-color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.5)}
+  .tl-clip-label{pointer-events:none;overflow:hidden;text-overflow:ellipsis}
+  .tl-handle{position:absolute;right:0;top:0;bottom:0;width:8px;background:rgba(255,255,255,.35);cursor:ew-resize;border-radius:0 5px 5px 0}
+  .tl-edit{border:1px dashed var(--line2);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px}
+  .tl-edit-empty{color:var(--muted);font-size:11.5px;line-height:1.7}
+  .tl-edit-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+  .tl-edit-row .field{flex:0 0 170px}
+  .tl-edit-row audio{height:32px;flex:1;min-width:180px}
+  .tl-field-check{display:flex;align-items:center;gap:6px;flex-direction:row}
+  .tl-field-check label{margin:0}
+  .tl-field-check input{width:auto}
+
+  /* 积木音效摘要 */
+  .sfx-summary{font-size:11.5px;color:var(--muted);line-height:1.6;word-break:break-all}
 
 @keyframes blockIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
@@ -201,6 +267,10 @@ textarea.txt{min-height:120px;resize:vertical}
       <h2 class="hub-sec-title">新建作品 <span>从第一个章节开始</span></h2>
       <div class="new-story">
         <input type="text" class="txt" id="newTitle" maxlength="40" placeholder="输入作品名称，例如：长安雨">
+        <div class="orient-pick" id="createOrient">
+          <button type="button" class="orient-card active" data-orient="landscape">🖥 16:9 横屏<span>电脑 · 宽幅</span></button>
+          <button type="button" class="orient-card" data-orient="portrait">📱 9:16 竖屏<span>手机 · 短视频</span></button>
+        </div>
         <button class="btn primary" id="createBtn">＋ 创建作品</button>
       </div>
     </section>
@@ -221,6 +291,17 @@ textarea.txt{min-height:120px;resize:vertical}
         <div class="field" style="margin:0">
           <input type="text" class="txt" id="storyTitle" maxlength="40">
         </div>
+        <div class="orient-row" id="storyOrient" title="画面方向：16:9 横屏（电脑）/ 9:16 竖屏（手机），影响播放画幅与后续上传压缩">
+          <button type="button" class="mini-btn orient-btn" data-orient="landscape">🖥 16:9</button>
+          <button type="button" class="mini-btn orient-btn" data-orient="portrait">📱 9:16</button>
+          <span class="orient-row-label">画面方向</span>
+        </div>
+        <div class="orient-row" id="storyQual" title="上传画面压缩规格：标准（1280 档）/ 高清（1920 档）">
+          <button type="button" class="mini-btn qual-btn" data-qual="standard">标准</button>
+          <button type="button" class="mini-btn qual-btn" data-qual="hd">高清</button>
+          <span class="orient-row-label">画面画质</span>
+        </div>
+        <button class="btn wide" id="castBtn" style="margin-top:10px">🎭 角色声音</button>
       </section>
       <section>
         <h3>章节</h3>
