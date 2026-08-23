@@ -941,3 +941,23 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 - **N 段**：新积木走「🎼」按钮打开时间轴 → 「＋添加音效」1 条 → 点 clip「更换」→ 仍 1 条且 url 已更新（修复前更换误新增第 2 条；未修复数组初始化时添加直接抛错）。
 
 **补充**：上轮条目（f53236c）对 `pickTimelineSfx` "不受影响"的判定有误，以本条为准。
+
+## 作品编辑器 · 播放：切幕转场渐入淡出（消除黑屏闪烁）
+
+**日期**：2026-08-23
+
+**背景**：用户反馈「转场能不能渐入淡出？目前转场屏幕总会黑一下」。播放切幕时 `renderPlay()` 直接 `body.innerHTML = ''` 清空重建，新幕图片/视频异步加载完成前露出的播放区底色为纯黑（`.play-media-bg` 背景 #000、竖屏 `#playBody` 背景 #000）→ 每次切幕瞬间闪黑。
+
+**改动**：
+- `public/story-editor.html`：`.play-frame` 增加 `animation: playFadeIn .32s ease both`（每次重建渐入）；新增 `@keyframes playFadeIn/playFadeOut` 与 `.play-frame.tl-leave`（0.18s 淡出 + pointer-events 禁用，淡出期间不再响应点击）。
+- `public/story-editor.js`：
+  - `renderPlay` 不再 `body.innerHTML = ''`：改为把所有残留旧画幅标记 `tl-leave` 淡出、`setTimeout` 260ms 后移除，新画幅追加在其上 → 两层叠加交叉淡化，中间无黑帧；快速连点也不累积（每次把全部残留标记）。
+  - 末尾预取下一幕视觉素材（Image / muted video preload 进缓存），渐入期间新画面立即可见，进一步缩短黑屏窗口。
+  - `startPlay`/`stopPlay` 进入/退出播放时清空 `playBody`：重启播放不叠加旧帧，也避免旧画幅撑出播放区滚动条压缩新画幅宽度（L 段横屏断言曾因此 749px ≠ 764px）。
+- `.wrangler/story-av-smoke.cjs`（本地回归，不入库）：新增 **O 段** 7 条转场断言（切幕瞬间新旧画幅叠加、旧画幅 tl-leave、新画幅 playFadeIn、淡出结束后移除、快速连点不堆积且收敛为 1、退出播放后播放区清空）；`#playBody` 内 `.play-sub`/`.play-frame`/`.play-media-bg` 选择器改取 `:last-child`（交叉淡化期间旧画幅短暂残留，按「最新画幅」语义断言）。
+
+**验证**（本地 CDP 真实浏览器冒烟 `.wrangler/story-av-smoke.cjs`）：**100 PASS / 0 FAIL · SMOKE-OK**，无功能性 console error（favicon 与 `/api/tts/voices` 404 为已知 mock 噪音）。原 93 条断言全部保持，新增 O 段 7 条。
+
+**说明**：无数据库迁移、无后端改动。按约定本地 CDP 冒烟，脚本在 .wrangler/ 不入库。
+
+**提交**：push main（CI 自动部署）。

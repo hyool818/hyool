@@ -1626,6 +1626,7 @@ function startPlay() {
   playFlat = buildPlayFlat();
   if (!playFlat.length) { toast('这个作品还没有积木，先去添加内容吧', true); return; }
   playIdx = 0;
+  $('#playBody').innerHTML = ''; // 进入播放先清空画幅残留（重复 startPlay 直接换画面不叠加，避免旧画幅撑出滚动条压缩新画幅）
   $('#playOverlay').classList.remove('hidden'); // 先显示再渲染，确保竖屏画幅能按实际播放区尺寸计算
   renderPlay();
   prewarmTts(story()); // 后台预合成 AI 音色对白（异步不阻塞播放）
@@ -1806,6 +1807,7 @@ function stopPlay() {
   stopPlayBgm();
   playBgmChapter = null;
   playBgmUrl = null;
+  $('#playBody').innerHTML = ''; // 清空画幅残留，避免下次播放叠加旧帧
   $('#playOverlay').classList.add('hidden');
 }
 function renderPlay() {
@@ -1816,7 +1818,11 @@ function renderPlay() {
   $('#playChapter').textContent = playFlat[playIdx].chapterTitle;
   $('#playCount').textContent = `${playIdx + 1} / ${playFlat.length}`;
   const body = $('#playBody');
-  body.innerHTML = '';
+  // 转场交叉淡化：所有残留旧画幅淡出后延迟移除（叠加在新画幅下层），不再直接清空 DOM，避免切幕瞬间露出黑底
+  body.querySelectorAll('.play-frame').forEach((f) => {
+    if (!f.classList.contains('tl-leave')) f.classList.add('tl-leave');
+    setTimeout(() => f.remove(), 260);
+  });
   const b = playFlat[playIdx];
   const overlay = $('#playOverlay');
   // 按作品方向适配播放画幅（16:9 横屏 / 9:16 竖屏）
@@ -1908,6 +1914,18 @@ function renderPlay() {
   playVoiceForBlock(b);
   // 音效轨：按 sfxList 调度（offsetMs 延迟触发、loop 持续到切幕、多轨叠加）
   playSfxListForBlock(b);
+  // 预取下一幕视觉素材（图片/视频进浏览器缓存），渐入期间立即可见，进一步消除黑屏窗口
+  const nxt = playFlat[playIdx + 1];
+  if (nxt && nxt.media && nxt.media.url) {
+    if (nxt.media.type === 'video') {
+      const pv = document.createElement('video');
+      pv.preload = 'auto'; pv.muted = true;
+      pv.src = nxt.media.url;
+    } else {
+      const pi = new Image();
+      pi.src = nxt.media.url;
+    }
+  }
 }
 function playNext() { if (playIdx < playFlat.length - 1) { playIdx++; renderPlay(); } }
 function playPrev() { if (playIdx > 0) { playIdx--; renderPlay(); } }

@@ -148,8 +148,14 @@ textarea.txt{min-height:120px;resize:vertical}
 
 /* 播放：画幅容器 + 视觉素材背景 + 前景文字 */
 /* 画幅容器：横屏铺满播放区；竖屏（9:16）时按比例居中收窄，两侧留黑，不再全屏拉伸裁剪 */
-.play-frame{position:absolute;inset:0;margin:auto;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;pointer-events:none}
+.play-frame{position:absolute;inset:0;margin:auto;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;pointer-events:none;animation:playFadeIn .32s ease both}
 .play-frame .play-fore{pointer-events:auto}
+/* 转场：切幕交叉淡化 —— 新画幅每次重建渐入；旧画幅标记 tl-leave 淡出后由 JS 延迟移除。
+   两层叠加（新画幅在后即在顶层）交叉淡化，避免清空重建瞬间露出黑色画底 */
+@keyframes playFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes playFadeOut{from{opacity:1}to{opacity:0}}
+.play-frame.tl-leave{animation:playFadeOut .18s ease both;pointer-events:none}
+.play-frame.tl-leave .play-fore{pointer-events:none}
 .play-media-bg{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden;background:#000}
 .play-media-bg img,.play-media-bg video{width:100%;height:100%;object-fit:cover;display:block}
 .play-fore{position:relative;z-index:2;max-width:680px;width:100%;display:flex;flex-direction:column;
