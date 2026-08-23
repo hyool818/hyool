@@ -4,6 +4,9 @@
 // media（可选）：{url, type} —— url 为 /api/upload 上传后的 /img/xxx 引用（二进制存服务端，localStorage 只存引用）
 //   type: 'image'（图片/GIF/WebP）| 'video'（MP4）
 // audio（可选）：{url, type:'audio'} —— 配音（MP3/WAV/M4A/OGG），同一套 /api/upload 上传与引用
+// sfx（可选）：{url, type:'audio'} —— 音效（进入该积木自动播放一次，切幕停止）
+// subtitle（可选，对白）：{on, text, pos:'bottom'|'top'|'mid', size:'sm'|'md'|'lg'} —— 字幕（缺省=默认开启、角色名+对白、底部、中）
+// 章节 bgm（可选）：{url, type:'audio', volume(0~1)} —— BGM（进入章节自动循环播放，同章节切幕不重启）
 import { $, toast } from '/workspace/js/ui.js';
 
 const SAVE_KEY = 'hyool_stories_v1';
@@ -33,6 +36,9 @@ let playFlat = [];      // 播放列表（跨章节展开后的积木）
 let playIdx = 0;
 let modalOk = null;     // 当前弹窗的「确定」回调
 let playAudio = null;   // 播放中积木的配音（Audio 实例，切幕/退出时先停掉避免叠音）
+let playSfx = null;     // 当前幕音效（Audio 实例，切幕停止）
+let playBgm = null;     // 当前章节 BGM（Audio 实例，同章节连续播放）
+let playBgmChapter = null; // 当前 BGM 所属章节 id（跨章节才切换）
 
 // ---------- 本地存储 ----------
 function loadStories() {
@@ -253,6 +259,11 @@ function renderBlocks() {
     mkBtn('↑', '上移', () => moveBlock(i, -1), i === 0);
     mkBtn('↓', '下移', () => moveBlock(i, 1), i === ch.blocks.length - 1);
     mkBtn('编辑', '编辑', () => openBlockEditor(b));
+    if (b.type === 'dialogue') {
+      const subOn = !b.subtitle || b.subtitle.on !== false;
+      mkBtn('💬 字幕' + (subOn ? '' : '·关'), '字幕：开启/关闭、文字、位置、大小', () => openSubtitleEditor(b));
+    }
+
     mkBtn('删除', '删除', () => deleteBlock(b.id));
 
     // 视觉素材（画面）：无 →「添加画面」按钮；有 → 预览 + 更换/移除
@@ -334,6 +345,39 @@ function renderBlocks() {
     }
 
     el.append(tag, main, ops, mediaWrap, audioWrap);
+    // 音效：无 →「🔊 添加音效」；有 → 试听条 + 更换/删除（与配音同结构）
+    const sfxWrap = document.createElement('div');
+    sfxWrap.className = 'block-audio';
+    if (b.sfx && b.sfx.url) {
+      const prev = document.createElement('div');
+      prev.className = 'ba-preview';
+      const au = document.createElement('audio');
+      au.src = b.sfx.url;
+      au.controls = true;
+      au.preload = 'metadata';
+      prev.appendChild(au);
+      const opsRow = document.createElement('div');
+      opsRow.className = 'bm-ops';
+      const chg = document.createElement('button');
+      chg.className = 'btn tiny';
+      chg.textContent = '更换音效';
+      chg.addEventListener('click', () => pickSfx(b, chg));
+      const rm = document.createElement('button');
+      rm.className = 'btn tiny danger';
+      rm.textContent = '删除音效';
+      rm.addEventListener('click', () => removeBlockSfx(b));
+      opsRow.append(chg, rm);
+      sfxWrap.append(prev, opsRow);
+    } else {
+      const add = document.createElement('button');
+      add.className = 'media-add';
+      add.textContent = '🔊 添加音效';
+      add.title = AUDIO_TYPES_LABEL;
+      add.addEventListener('click', () => pickSfx(b, add));
+      sfxWrap.appendChild(add);
+    }
+
+    el.append(sfxWrap);
     host.appendChild(el);
   });
 }
@@ -520,6 +564,194 @@ function pickAudio(block, btn) {
   audioInput.click();
 }
 
+// ---------- 音效 ----------
+function removeBlockSfx(b) {
+  if (!b.sfx) return;
+  delete b.sfx;
+  persist();
+  renderBlocks();
+  toast('音效已删除');
+}
+let sfxInput = null;
+function pickSfx(block, btn) {
+  if (!sfxInput) {
+    sfxInput = document.createElement('input');
+    sfxInput.type = 'file';
+    sfxInput.accept = 'audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,audio/ogg';
+    sfxInput.style.display = 'none';
+    sfxInput.addEventListener('change', async () => {
+      const file = sfxInput.files && sfxInput.files[0];
+      sfxInput.value = '';
+      if (!file) return;
+      const uploading = btn;
+      const oldText = uploading ? uploading.textContent : '';
+      if (uploading) { uploading.disabled = true; uploading.textContent = '上传中…'; }
+      const result = await uploadFile(file);
+      if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
+      if (result) {
+        block.sfx = result;
+        persist();
+        renderBlocks();
+        toast('音效已添加');
+      }
+    });
+    document.body.appendChild(sfxInput);
+  }
+  sfxInput.click();
+}
+
+// ---------- 字幕（对白积木） ----------
+function openSubtitleEditor(b) {
+  const cur = b.subtitle || {};
+  const on = cur.on !== false;
+  const text = cur.text || '';
+  const pos = cur.pos || 'bottom';
+  const size = cur.size || 'md';
+  openModal('字幕设置', (body) => {
+    const f1 = document.createElement('div');
+    f1.className = 'field';
+    f1.style.margin = '0';
+    const l1 = document.createElement('label');
+    l1.textContent = '开启字幕';
+    const onSel = document.createElement('select');
+    onSel.className = 'txt';
+    onSel.innerHTML = '<option value="1">开启</option><option value="0">关闭</option>';
+    onSel.value = on ? '1' : '0';
+    f1.append(l1, onSel);
+    const f2 = document.createElement('div');
+    f2.className = 'field';
+    f2.style.margin = '0';
+    const l2 = document.createElement('label');
+    l2.textContent = '字幕文字（留空 = 使用「角色名：对白内容」）';
+    const ta = document.createElement('textarea');
+    ta.className = 'txt';
+    ta.maxLength = 120;
+    ta.placeholder = '默认：' + (b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || '');
+    ta.value = text;
+    f2.append(l2, ta);
+    const f3 = document.createElement('div');
+    f3.className = 'field';
+    f3.style.margin = '0';
+    const l3 = document.createElement('label');
+    l3.textContent = '位置';
+    const posSel = document.createElement('select');
+    posSel.className = 'txt';
+    posSel.innerHTML = '<option value="bottom">底部</option><option value="top">顶部</option><option value="mid">中部偏下</option>';
+    posSel.value = pos === 'top' ? 'top' : pos === 'mid' ? 'mid' : 'bottom';
+    f3.append(l3, posSel);
+    const f4 = document.createElement('div');
+    f4.className = 'field';
+    f4.style.margin = '0';
+    const l4 = document.createElement('label');
+    l4.textContent = '大小';
+    const sizeSel = document.createElement('select');
+    sizeSel.className = 'txt';
+    sizeSel.innerHTML = '<option value="sm">小</option><option value="md">中</option><option value="lg">大</option>';
+    sizeSel.value = size === 'sm' ? 'sm' : size === 'lg' ? 'lg' : 'md';
+    f4.append(l4, sizeSel);
+    body.append(f1, f2, f3, f4);
+  }, () => {
+    const sels = $('#modalBody select');
+    const onNow = sels[0].value === '1';
+    const textNow = $('#modalBody textarea.txt').value.trim();
+    const posNow = sels[1].value;
+    const sizeNow = sels[2].value;
+    if (onNow && !textNow && posNow === 'bottom' && sizeNow === 'md') {
+      delete b.subtitle; // 全默认 → 存空，播放端按默认处理
+    } else {
+      b.subtitle = { on: onNow, text: textNow, pos: posNow, size: sizeNow };
+    }
+    persist();
+    renderBlocks();
+    toast('字幕已更新');
+  });
+}
+
+// ---------- 章节 BGM ----------
+function removeChapterBgm(ch) {
+  if (!ch.bgm) return;
+  delete ch.bgm;
+  persist();
+  renderEditor();
+  toast('BGM 已删除');
+}
+let bgmInput = null;
+function pickBgm(ch, btn) {
+  if (!bgmInput) {
+    bgmInput = document.createElement('input');
+    bgmInput.type = 'file';
+    bgmInput.accept = 'audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,audio/ogg';
+    bgmInput.style.display = 'none';
+    bgmInput.addEventListener('change', async () => {
+      const file = bgmInput.files && bgmInput.files[0];
+      bgmInput.value = '';
+      if (!file) return;
+      const uploading = btn;
+      const oldText = uploading ? uploading.textContent : '';
+      if (uploading) { uploading.disabled = true; uploading.textContent = '上传中…'; }
+      const result = await uploadFile(file);
+      if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
+      if (result) {
+        ch.bgm = { ...result, volume: ch.bgm && ch.bgm.volume != null ? ch.bgm.volume : 0.6 };
+        persist();
+        renderEditor();
+        openBgmEditor(); // 重开弹窗展示新 BGM 的试听条/音量/更换/删除
+        toast('BGM 已添加');
+      }
+    });
+    document.body.appendChild(bgmInput);
+  }
+  bgmInput.click();
+}
+function openBgmEditor() {
+  const ch = chapter();
+  if (!ch) return;
+  openModal('章节 BGM', (body) => {
+    if (ch.bgm && ch.bgm.url) {
+      const prev = document.createElement('div');
+      prev.className = 'ba-preview';
+      const au = document.createElement('audio');
+      au.src = ch.bgm.url;
+      au.controls = true;
+      au.preload = 'metadata';
+      prev.appendChild(au);
+      const vol = document.createElement('div');
+      vol.className = 'bgm-vol';
+      const vl = document.createElement('span');
+      vl.textContent = '音量';
+      const range = document.createElement('input');
+      range.type = 'range';
+      range.min = 0;
+      range.max = 100;
+      range.value = Math.round((Number(ch.bgm.volume) || 0.6) * 100);
+      range.addEventListener('input', () => {
+        ch.bgm.volume = Number(range.value) / 100;
+        persist();
+      });
+      vol.append(vl, range);
+      const opsRow = document.createElement('div');
+      opsRow.className = 'bm-ops';
+      const chg = document.createElement('button');
+      chg.className = 'btn tiny';
+      chg.textContent = '更换 BGM';
+      chg.addEventListener('click', () => pickBgm(ch, chg));
+      const rm = document.createElement('button');
+      rm.className = 'btn tiny danger';
+      rm.textContent = '删除 BGM';
+      rm.addEventListener('click', () => { removeChapterBgm(ch); closeModal(); });
+      opsRow.append(chg, rm);
+      body.append(prev, vol, opsRow);
+    } else {
+      const add = document.createElement('button');
+      add.className = 'media-add';
+      add.textContent = '🎵 添加 BGM';
+      add.title = AUDIO_TYPES_LABEL;
+      add.addEventListener('click', () => pickBgm(ch, add));
+      body.appendChild(add);
+    }
+  });
+}
+
 function openBlockEditor(block) {
   if (block.type === 'scene') {
     openModal('编辑场景', (body) => {
@@ -600,7 +832,7 @@ function buildPlayFlat() {
   const s = story();
   const flat = [];
   for (const ch of s.chapters) {
-    for (const b of ch.blocks) flat.push({ ...b, chapterTitle: ch.title });
+    for (const b of ch.blocks) flat.push({ ...b, chapterTitle: ch.title, chapterId: ch.id, bgm: ch.bgm || null });
   }
   return flat;
 }
@@ -620,12 +852,46 @@ function stopPlayAudio() {
     playAudio = null;
   }
 }
+function stopPlaySfx() {
+  if (playSfx) {
+    try { playSfx.pause(); } catch (e) { /* ignore */ }
+    playSfx.onended = null;
+    playSfx.onerror = null;
+    playSfx.removeAttribute('src');
+    playSfx = null;
+  }
+}
+function stopPlayBgm() {
+  if (playBgm) {
+    try { playBgm.pause(); } catch (e) { /* ignore */ }
+    playBgm.onended = null;
+    playBgm.onerror = null;
+    playBgm.removeAttribute('src');
+    playBgm = null;
+  }
+}
+function switchBgm(bgm, chapterId) {
+  stopPlayBgm();
+  if (bgm && bgm.url) {
+    const au = new Audio(bgm.url);
+    au.loop = true; // BGM 循环播放
+    au.preload = 'auto';
+    au.volume = Math.min(1, Math.max(0, Number(bgm.volume) || 0.6));
+    au.play().catch(() => { /* 自动播放被拦截时静默，不影响推进 */ });
+    playBgm = au;
+  }
+  playBgmChapter = chapterId;
+}
 function stopPlay() {
   stopPlayAudio();
+  stopPlaySfx();
+  stopPlayBgm();
+  playBgmChapter = null;
   $('#playOverlay').classList.add('hidden');
 }
 function renderPlay() {
   stopPlayAudio(); // 先停掉上一幕的配音，避免两个声音同时播放
+  stopPlaySfx();   // 音效：切幕时停止不需要继续播放的音效
   if (!playFlat.length) return;
   $('#playProgress').textContent = `第 ${playIdx + 1} 条 · 共 ${playFlat.length} 条`;
   $('#playChapter').textContent = playFlat[playIdx].chapterTitle;
@@ -634,6 +900,8 @@ function renderPlay() {
   body.innerHTML = '';
   const b = playFlat[playIdx];
   const overlay = $('#playOverlay');
+  // BGM 属于章节：跨章节才切换；同章节内点击推进保持连续播放、不重新开始
+  if (b.chapterId !== playBgmChapter) switchBgm(b.bgm, b.chapterId);
   // 视觉素材 → 全屏背景（图片/GIF/WebP 直接铺满；MP4 自动播放循环，播完不自动下一幕）
   if (b.media && b.media.url) {
     overlay.classList.add('has-media');
@@ -680,6 +948,20 @@ function renderPlay() {
     fore.appendChild(d);
   }
   body.appendChild(fore);
+  // 字幕（对白积木）：画面前景底部/顶部/中部，不遮挡主画面；跟随当前剧情一起切换
+  const subOn = !b.subtitle || b.subtitle.on !== false;
+  if (b.type === 'dialogue' && subOn) {
+    const sub = b.subtitle || {};
+    const subEl = document.createElement('div');
+    subEl.className = 'play-sub ' + (sub.pos === 'top' ? 'top' : sub.pos === 'mid' ? 'mid' : 'bot') +
+      ' size-' + (sub.size === 'sm' ? 'sm' : sub.size === 'lg' ? 'lg' : 'md');
+    const box = document.createElement('div');
+    box.className = 'ps-box';
+    const custom = (sub.text || '').trim();
+    box.textContent = custom || ((b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || ''));
+    subEl.appendChild(box);
+    body.appendChild(subEl);
+  }
   $('#playPrev').disabled = playIdx === 0;
   $('#playNext').disabled = playIdx >= playFlat.length - 1;
   // 当前幕有配音 → 自动播放（无配音的积木完全保持原有逻辑）
@@ -688,6 +970,13 @@ function renderPlay() {
     au.preload = 'auto';
     au.play().catch(() => { /* 自动播放被拦截/加载失败时静默，不影响点击推进 */ });
     playAudio = au;
+  }
+  // 音效：进入该积木自动播放一次
+  if (b.sfx && b.sfx.url) {
+    const sfx = new Audio(b.sfx.url);
+    sfx.preload = 'auto';
+    sfx.play().catch(() => { /* 自动播放被拦截时静默 */ });
+    playSfx = sfx;
   }
 }
 function playNext() { if (playIdx < playFlat.length - 1) { playIdx++; renderPlay(); } }
@@ -716,6 +1005,7 @@ function init() {
     const c = chapter();
     if (c) renameChapter(c);
   });
+  $('#bgmBtn').addEventListener('click', openBgmEditor);
   $('#addBlockBtn').addEventListener('click', openAddPicker);
   $('#playBtn').addEventListener('click', startPlay);
   $('#playExit').addEventListener('click', stopPlay);
@@ -740,7 +1030,7 @@ window.StoryEditor = {
   ready: true,
   list: () => stories.map(s => ({
     id: s.id, title: s.title,
-    chapters: s.chapters.map(c => ({ id: c.id, title: c.title, blocks: c.blocks.map(b => ({ ...b })) })),
+    chapters: s.chapters.map(c => ({ id: c.id, title: c.title, bgm: c.bgm || null, blocks: c.blocks.map(b => ({ ...b })) })),
   })),
   create: (title) => { $('#newTitle').value = title; createStory(); return story() ? story().id : null; },
   open: (id) => openStory(id),
@@ -786,6 +1076,41 @@ window.StoryEditor = {
     if (!b || !b.audio) return false;
     delete b.audio; persist(); renderBlocks(); return true;
   },
+  setBlockSubtitleById: (blockId, subtitle) => {
+    const b = findBlock(blockId);
+    if (!b) return false;
+    if (!subtitle) { delete b.subtitle; }
+    else { b.subtitle = { on: subtitle.on !== false, text: subtitle.text || '', pos: subtitle.pos || 'bottom', size: subtitle.size || 'md' }; }
+    persist(); renderBlocks(); return true;
+  },
+  setBlockSfxById: (blockId, url) => {
+    const b = findBlock(blockId);
+    if (!b) return false;
+    if (!url) { delete b.sfx; }
+    else { b.sfx = { url, type: 'audio' }; }
+    persist(); renderBlocks(); return true;
+  },
+  removeBlockSfxById: (blockId) => {
+    const b = findBlock(blockId);
+    if (!b || !b.sfx) return false;
+    delete b.sfx; persist(); renderBlocks(); return true;
+  },
+  setChapterBgmById: (chapterId, url, volume) => {
+    const s = story();
+    if (!s) return false;
+    const c = s.chapters.find(x => x.id === chapterId);
+    if (!c) return false;
+    if (!url) { delete c.bgm; }
+    else { c.bgm = { url, type: 'audio', volume: volume != null ? volume : 0.6 }; }
+    persist(); renderEditor(); return true;
+  },
+  removeChapterBgmById: (chapterId) => {
+    const s = story();
+    if (!s) return false;
+    const c = s.chapters.find(x => x.id === chapterId);
+    if (!c || !c.bgm) return false;
+    delete c.bgm; persist(); renderEditor(); return true;
+  },
   moveBlockById: (blockId, dir) => {
     const i = blockIndex(blockId);
     if (i >= 0) { moveBlock(i, dir); return true; }
@@ -806,7 +1131,11 @@ window.StoryEditor = {
   stopPlay,
   play: () => ({
     idx: playIdx, total: playFlat.length,
-    current: playFlat[playIdx] ? { type: playFlat[playIdx].type, speaker: playFlat[playIdx].speaker || '', content: playFlat[playIdx].content, media: playFlat[playIdx].media || null, audio: playFlat[playIdx].audio || null } : null,
+    current: playFlat[playIdx] ? {
+      type: playFlat[playIdx].type, speaker: playFlat[playIdx].speaker || '', content: playFlat[playIdx].content,
+      media: playFlat[playIdx].media || null, audio: playFlat[playIdx].audio || null, sfx: playFlat[playIdx].sfx || null,
+      subtitle: playFlat[playIdx].subtitle || null, chapterId: playFlat[playIdx].chapterId || null, bgm: playFlat[playIdx].bgm || null,
+    } : null,
   }),
   playNext,
   playPrev,

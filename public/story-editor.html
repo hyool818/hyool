@@ -147,6 +147,22 @@ textarea.txt{min-height:120px;resize:vertical}
 .play-nav{flex:0 0 auto;position:relative;z-index:3;display:flex;align-items:center;gap:14px;justify-content:center;
   padding:14px 22px;border-top:1px solid var(--line);background:rgba(5,5,10,.7)}
 .play-nav .pn-count{font-size:12px;color:var(--muted);min-width:110px;text-align:center;font-variant-numeric:tabular-nums}
+  /* 播放：字幕（画面前景底部/顶部/中部，不遮挡主画面） */
+  .play-sub{position:absolute;z-index:3;left:0;right:0;pointer-events:none;display:flex;justify-content:center;padding:0 24px}
+  .play-sub.bot{bottom:18px}
+  .play-sub.top{top:18px}
+  .play-sub.mid{bottom:26%}
+  .play-sub .ps-box{max-width:720px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.08);border-radius:10px;
+    padding:8px 16px;font-size:15px;line-height:1.7;color:#fff;text-align:center;white-space:pre-wrap;word-break:break-word;
+    text-shadow:0 1px 4px rgba(0,0,0,.8)}
+  .play-sub.size-sm .ps-box{font-size:12px}
+  .play-sub.size-md .ps-box{font-size:15px}
+  .play-sub.size-lg .ps-box{font-size:19px}
+
+  /* BGM 弹窗：音量行 */
+  .bgm-vol{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+  .bgm-vol input[type=range]{flex:1;accent-color:var(--accent)}
+
 @keyframes blockIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
 @media (max-width:760px){
@@ -221,6 +237,7 @@ textarea.txt{min-height:120px;resize:vertical}
       <span class="ch-title" id="chapterTitle"></span>
       <span class="ch-count" id="chapterCount"></span>
       <span style="flex:1"></span>
+      <button class="btn small ghost" id="bgmBtn">🎵 BGM</button>
       <button class="btn small ghost" id="renameChapterBtn">重命名章节</button>
     </div>
     <div class="stage-scroll" id="blockList"></div>

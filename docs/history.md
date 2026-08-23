@@ -840,3 +840,34 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：b6933c9
 
+
+---
+
+## 作品编辑器 · 字幕 + BGM + 音效（第四阶段）
+
+**日期**：2026-08-23
+
+**背景**：配音（第三阶段）完成后，用户要求同时增加字幕与作品级 BGM、积木级音效，播放结构：全屏背景 + 剧情文字 + 配音 + 字幕 + BGM + 音效。字幕属于对白积木（默认直接用角色名+对白文字，显示在画面前景底部、不遮挡主画面，支持开/关、改文字/位置/大小，点击推进时跟随切换）；BGM 属于章节（MP3/WAV/M4A/OGG，添加/删除/更换/播放暂停试听/音量控制，进入章节自动播放，用户点击剧情进下一幕时 BGM 不重新开始、保持连续播放）；音效属于单个剧情积木（进入该积木自动播放，点击进入下一幕时停止不需要继续播放的音效）。剧情推进仍由用户点击。
+
+**数据模型**（均无需数据库迁移，二进制走现有 `POST /api/upload` → D1，localStorage 只存引用）：
+- 章节 `ch.bgm = {url, type:'audio', volume(0~1，默认 0.6)}` —— BGM 属章节；进入章节自动循环播放，同一章节内切幕（playNext/playPrev）不重启，跨章节（chapterId 变化）才切换/停止。
+- 积木 `b.sfx = {url, type:'audio'}` —— 音效，进入该幕自动播放一次，切幕即停。
+- 积木 `b.subtitle = {on, text, pos:'bottom'|'top'|'mid', size:'sm'|'md'|'lg'}` —— 字幕，仅对白积木；缺省 = 默认开启 + 默认文字「角色名：对白内容」+ 底部 + 中；全默认时存空（播放端按默认处理）。
+
+**改动**：
+- `public/story-editor.js`：
+  - 积木渲染：对白积木 ops 新增「💬 字幕」按钮（关闭态显示「💬 字幕·关」，打开字幕设置弹窗）；配音区下方新增音效区（无 →「🔊 添加音效」，有 → 试听条 + 更换/删除）。
+  - 新增函数：`openSubtitleEditor`（开启/文字/位置/大小四选单，全默认时删除字段）；`pickSfx/removeBlockSfx`、`pickBgm/removeChapterBgm/openBgmEditor`（BGM 弹窗内试听条 + 实时音量滑条 + 更换/删除，上传成功重开弹窗刷新）。
+  - 播放：`buildPlayFlat` 每条带 `chapterId`/`bgm`；新增 `playSfx/playBgm/playBgmChapter` 全局引用与 `stopPlaySfx/stopPlayBgm/switchBgm`；`renderPlay` 开头停旧配音+旧音效，`chapterId` 变化才 `switchBgm`（同章节连续播放），对白积木渲染 `.play-sub` 字幕层（跟随当前剧情切换），当前幕有音效自动播放一次，退出 `stopPlay` 全部停止；无配音/音效/BGM/字幕的积木完全保持原逻辑。
+  - `StoryEditor` 测试 API：`list()` 的 chapters 补 `bgm`；新增 `setBlockSubtitleById(传null=恢复默认)/setBlockSfxById/removeBlockSfxById/setChapterBgmById/removeChapterBgmById`；`play()` 返回带 `sfx/subtitle/chapterId/bgm`。
+- `public/story-editor.html`：stage-head 新增「🎵 BGM」按钮（当前章节）；字幕样式 `.play-sub`（absolute 前景层、bottom/top/mid 三位置、sm/md/lg 三字号、半透明底条、pointer-events:none 不拦截点击推进）；BGM 弹窗音量行 `.bgm-vol`。
+- `.wrangler/serve-static.js`（本地 mock，不入库）：无改动（白名单第三阶段已含音频）。
+
+**验证**（本地 CDP 真实浏览器冒烟 `.wrangler/story-av-smoke.cjs`，真实上传 WAV ×4 + Audio 探针注入）：**37/37 PASS**，无 console error。
+- 覆盖：场景幕无字幕；对白幕默认字幕「角色名：对白内容」+ 底部/中；进入章节自动播放 BGM；同章节 playNext 两次 BGM 不重启；配音/音效进入自动播放、切幕停止；跨章节切到第二章 BGM 切换（新 BGM 启动 + 旧 BGM 停止）；退出停止 BGM；字幕自定义文字/顶部/大号、关闭不显示、恢复默认；数据模型（audio/sfx/subtitle 在积木、bgm 在章节含 volume、localStorage 持久化）；删除音效/删除章节 BGM 后字段独立移除（不影响配音）。
+- 过程中发现并修正：测试脚本 `BLOCK_ID_AT` 在作品数组里查找章节 id（应 `s[0].chapters.find`）；`playFlat` 在 `startPlay` 时构建 → 跨章节用例需先建好第二章；产品 `list()` 漏复制章节 `bgm` 字段。
+
+**说明**：无数据库迁移、无后端改动。按约定不做线上验证（本次为确有必要，做了本地 CDP 冒烟，脚本在 `.wrangler/` 不入库）。
+
+**提交**：push main（CI 自动部署）。
+
