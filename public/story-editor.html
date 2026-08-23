@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>作品编辑器 · 幻想世界 · HYOOL</title>
+<link rel="stylesheet" href="/workspace/css/workspace.css">
+<style>
+/* =========================================================
+   作品编辑器 · 专用样式（沿用 workspace.css 变量与组件语言）
+   ========================================================= */
+/* 文本输入 */
+input.txt, textarea.txt{width:100%;min-width:0;background:var(--bg3);border:1px solid var(--line2);color:var(--text);
+  border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;line-height:1.6}
+input.txt:focus, textarea.txt:focus{outline:none;border-color:var(--accent)}
+textarea.txt{min-height:120px;resize:vertical}
+
+/* ---------- 视图1：作品库 ---------- */
+.new-story{display:flex;gap:10px;flex-wrap:wrap}
+.new-story .txt{flex:1 1 280px;width:auto}
+.story-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.story-card{background:linear-gradient(180deg,#12121c,#0d0d16);border:1px solid var(--line2);border-radius:12px;
+  padding:14px 16px;display:flex;flex-direction:column;gap:10px;transition:.18s}
+.story-card:hover{border-color:rgba(139,123,255,.5)}
+.story-card .t{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.story-card .m{font-size:11px;color:var(--muted)}
+.story-card .ops{display:flex;gap:8px;margin-top:auto}
+.story-card .ops .btn{flex:1}
+
+/* ---------- 视图2：编辑器 ---------- */
+.editor-wrap{flex:1 1 auto;display:flex;min-height:0}
+.editor-side{flex:0 0 300px;max-width:40vw;display:flex;flex-direction:column;min-height:0;
+  border-right:1px solid var(--line);background:var(--bg2)}
+.editor-side .side-scroll{flex:1 1 auto;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:20px}
+.editor-side h3{font-size:12px;letter-spacing:.12em;color:var(--muted);margin-bottom:10px;font-weight:600}
+.editor-stage{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;min-height:0;
+  background:
+    radial-gradient(1200px 600px at 20% 0%,rgba(139,123,255,.06),transparent 60%),
+    radial-gradient(900px 500px at 90% 100%,rgba(95,200,255,.05),transparent 60%),
+    var(--bg)}
+.stage-head{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:12px 20px;
+  border-bottom:1px solid var(--line);background:rgba(5,5,10,.5)}
+.stage-head .ch-title{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stage-head .ch-count{font-size:11px;color:var(--muted)}
+.stage-scroll{flex:1 1 auto;overflow-y:auto;padding:16px 20px 6px;display:flex;flex-direction:column;gap:12px}
+
+/* 剧情积木 */
+.block{display:flex;gap:12px;border:1px solid var(--line2);border-radius:12px;background:#12121c;
+  padding:13px 14px;transition:.15s;animation:blockIn .18s ease}
+.block:hover{border-color:rgba(139,123,255,.5)}
+.block.scene{border-left:3px solid var(--accent2)}
+.block.dialogue{border-left:3px solid var(--accent)}
+.block-tag{flex:0 0 60px;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:3px}
+.block-tag .bt-label{font-size:10px;letter-spacing:.12em;color:var(--muted)}
+.block-tag .bt-speaker{font-size:13px;font-weight:700;color:var(--accent);line-height:1.4;
+  overflow:hidden;max-width:60px;word-break:break-all}
+.block-main{flex:1 1 auto;min-width:0;display:flex;align-items:center}
+.block-text{font-size:13.5px;color:#e8e8f0;line-height:1.75;white-space:pre-wrap;word-break:break-word}
+.block.dialogue .block-text{color:#d9d9e6}
+.block-ops{flex:0 0 auto;display:flex;flex-direction:column;gap:5px;justify-content:center}
+.block-ops .btn{text-align:center}
+.add-block{flex:0 0 auto;border:1px dashed var(--line2);background:transparent;color:var(--muted);
+  border-radius:12px;padding:15px;font-size:13.5px;cursor:pointer;font-family:inherit;transition:.15s;width:100%}
+.add-block:hover{color:var(--accent2);border-color:var(--accent2);background:rgba(95,200,255,.05)}
+.block-empty{text-align:center;color:var(--muted);padding:36px 12px;line-height:2;font-size:12.5px}
+
+/* 章节列表 */
+.ch-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);
+  background:var(--bg3);margin-bottom:6px;font-size:12.5px;cursor:pointer;transition:.15s;color:var(--text)}
+.ch-item:hover{border-color:var(--line2)}
+.ch-item.active{border-color:var(--accent);background:rgba(139,123,255,.12)}
+.ch-item .ch-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-item .mini-btn{visibility:hidden}
+.ch-item:hover .mini-btn{visibility:visible}
+.ch-item .mini-btn.danger{color:var(--bad)}
+.ch-item .mini-btn.danger:hover{border-color:var(--bad)}
+
+/* 弹窗 */
+.modal{position:fixed;inset:0;z-index:120;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);padding:20px}
+.modal-card{width:100%;max-width:480px;max-height:84vh;overflow-y:auto;background:#14141f;
+  border:1px solid var(--line2);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:14px;
+  box-shadow:0 16px 50px rgba(0,0,0,.55)}
+.modal-title{font-size:15px;font-weight:700}
+.modal-body{display:flex;flex-direction:column;gap:14px}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px}
+.pick-row{display:flex;gap:10px}
+.pick-block{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;background:#171726;
+  border:1px solid var(--line2);border-radius:12px;padding:18px 12px;cursor:pointer;font-family:inherit;
+  color:var(--text);transition:.15s}
+.pick-block:hover{border-color:var(--accent);background:#1e1e30}
+.pick-block .pb-icon{font-size:24px}
+.pick-block .pb-name{font-size:13px;font-weight:600}
+.pick-block .pb-desc{font-size:11px;color:var(--muted)}
+
+/* 播放 */
+.play-overlay{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;
+  background:
+    radial-gradient(1100px 600px at 50% 0%,rgba(139,123,255,.10),transparent 60%),
+    var(--bg)}
+.play-head{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:12px 22px;
+  border-bottom:1px solid var(--line);background:rgba(5,5,10,.7)}
+.play-head .ph-progress{font-size:12px;color:var(--accent2);font-variant-numeric:tabular-nums}
+.play-head .ph-chapter{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.play-head .spacer{flex:1 1 auto}
+.play-body{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px;overflow-y:auto}
+.play-scene{max-width:660px;text-align:center;font-size:clamp(17px,2.6vw,22px);line-height:2;color:#e8e8f0;
+  white-space:pre-wrap;word-break:break-word}
+.play-scene::before{content:"【场景】";display:block;font-size:11px;letter-spacing:.3em;color:var(--accent2);margin-bottom:16px}
+.play-dialogue{max-width:660px;width:100%;text-align:center}
+.play-dialogue .pd-speaker{font-size:clamp(18px,3vw,26px);font-weight:700;color:var(--accent);
+  margin-bottom:22px;letter-spacing:.08em}
+.play-dialogue .pd-line{font-size:clamp(15px,2.4vw,19px);line-height:2;color:#e8e8f0;white-space:pre-wrap;word-break:break-word}
+.play-empty{color:var(--muted);text-align:center;line-height:2}
+.play-nav{flex:0 0 auto;display:flex;align-items:center;gap:14px;justify-content:center;
+  padding:14px 22px;border-top:1px solid var(--line);background:rgba(5,5,10,.7)}
+.play-nav .pn-count{font-size:12px;color:var(--muted);min-width:110px;text-align:center;font-variant-numeric:tabular-nums}
+@keyframes blockIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+@media (max-width:760px){
+  .editor-wrap{flex-direction:column}
+  .editor-side{flex:0 0 auto;max-width:none;border-right:none;border-bottom:1px solid var(--line)}
+  .editor-side .side-scroll{max-height:220px}
+  .play-body{padding:18px}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="back" href="/fantasy.html">← 返回</a>
+  <div class="brand">
+    <span class="brand-name">作品编辑器</span>
+    <span class="brand-sub">STORY BUILDER · 文字剧情积木</span>
+  </div>
+  <div class="topbar-right">
+    <button class="btn ghost hidden" id="libBtn">⬅ 作品库</button>
+    <button class="btn primary hidden" id="playBtn">▶ 播放作品</button>
+  </div>
+</header>
+
+<!-- ============ 视图1：作品库 ============ -->
+<div class="hub" id="viewLibrary">
+  <main class="hub-main">
+    <section class="hub-hero">
+      <div class="hub-hero-kicker">STORY BUILDER</div>
+      <h1 class="hub-hero-name">作品编辑器</h1>
+      <p class="hub-hero-meaning">像搭积木一样，搭出你的文字剧情。</p>
+      <p class="hub-hero-tags">场景 · 对白 · 章节 · 播放</p>
+    </section>
+
+    <section class="hub-section">
+      <h2 class="hub-sec-title">新建作品 <span>从第一个章节开始</span></h2>
+      <div class="new-story">
+        <input type="text" class="txt" id="newTitle" maxlength="40" placeholder="输入作品名称，例如：长安雨">
+        <button class="btn primary" id="createBtn">＋ 创建作品</button>
+      </div>
+    </section>
+
+    <section class="hub-section">
+      <h2 class="hub-sec-title">我的作品 <span id="storyCount"></span></h2>
+      <div class="story-grid" id="storyList"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ 视图2：编辑器 ============ -->
+<div class="editor-wrap hidden" id="viewEditor">
+  <aside class="editor-side">
+    <div class="side-scroll">
+      <section>
+        <h3>作品信息</h3>
+        <div class="field" style="margin:0">
+          <input type="text" class="txt" id="storyTitle" maxlength="40">
+        </div>
+      </section>
+      <section>
+        <h3>章节</h3>
+        <button class="btn wide" id="addChapterBtn">＋ 新建章节</button>
+        <div id="chapterList" style="margin-top:10px"></div>
+      </section>
+      <section style="font-size:11px;color:var(--muted);line-height:1.8">
+        积木改动会自动保存到浏览器本地（localStorage），刷新页面不会丢失。
+      </section>
+    </div>
+  </aside>
+  <div class="editor-stage">
+    <div class="stage-head">
+      <span class="ch-title" id="chapterTitle"></span>
+      <span class="ch-count" id="chapterCount"></span>
+      <span style="flex:1"></span>
+      <button class="btn small ghost" id="renameChapterBtn">重命名章节</button>
+    </div>
+    <div class="stage-scroll" id="blockList"></div>
+    <div style="padding:14px 20px 22px">
+      <button class="add-block" id="addBlockBtn">＋ 添加内容</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 播放视图 ============ -->
+<div class="play-overlay hidden" id="playOverlay">
+  <div class="play-head">
+    <span class="ph-progress" id="playProgress"></span>
+    <span class="ph-chapter" id="playChapter"></span>
+    <span class="spacer"></span>
+    <button class="btn small ghost" id="playExit">✕ 退出</button>
+  </div>
+  <div class="play-body" id="playBody"></div>
+  <div class="play-nav">
+    <button class="btn" id="playPrev">← 上一条</button>
+    <span class="pn-count" id="playCount"></span>
+    <button class="btn primary" id="playNext">下一条 →</button>
+  </div>
+</div>
+
+<!-- ============ 通用弹窗 ============ -->
+<div class="modal hidden" id="modal">
+  <div class="modal-card">
+    <div class="modal-title" id="modalTitle"></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="modalCancel">取消</button>
+      <button class="btn primary hidden" id="modalOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="/story-editor.js"></script>
+</body>
+</html>

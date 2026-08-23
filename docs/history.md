@@ -755,5 +755,40 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：push main（CI 自动部署）。
 
+---
+
+## 作品编辑器（文字剧情积木 · 第一阶段）
+
+**日期**：2026-08-23
+
+**背景**：用户要求在幻想世界（`fantasy.html`）新增「作品编辑器」，让用户像搭积木一样制作文字剧情。第一阶段只做文字，不做图片/视频/音频/字幕/Canvas/Cocos/AI API。
+
+**需求清单**（全部完成）：
+1. 新建作品（名称 + 创建作品）
+2. 作品编辑页面：作品标题 / 章节列表 / 当前章节内容
+3. 「+ 添加内容」选择积木类型：场景 / 对白
+4. 场景积木：可编辑、可删除（示例「长安城的雨下了一整夜。」）
+5. 对白积木：可修改角色名字和对白内容（示例【安陌沫】“他应该不会来了。”）
+6. 积木排序：上移 / 下移 / 编辑 / 删除
+7. 自动保存：localStorage，刷新后作品仍在
+8. 播放：按积木顺序显示文字内容，无动画/视频/音频
+9. 数据结构：作品 `{id,title,chapters}` → 章节 `{id,title,blocks}` → 积木 `{id,type,content}`，对白额外 `speaker`
+10. UI 保持 HYOOL 视觉风格，复用现有 CSS 与组件
+
+**改动文件**：
+- `public/story-editor.html`（新增）：作品编辑器页面。三个视图——作品库（新建/我的作品）、编辑器（章节列表 + 积木流）、播放覆盖层；通用弹窗（积木编辑/章节重命名/积木类型选择）；复用 `/workspace/css/workspace.css` 的 `.hub/.btn/.field/.toast` 等组件与 CSS 变量。
+- `public/story-editor.js`（新增）：全部逻辑。localStorage key `hyool_stories_v1`；每次增删改即时持久化；对白渲染自动补 `“”`；播放跨章节按积木顺序展开；暴露 `window.StoryEditor` 测试 API；复用 `/workspace/js/ui.js` 的 `$`/`toast`。
+- `public/fantasy.html`（修改）：制作工坊网格新增「作品编辑器」tool-card（live 徽章），链接 `story-editor.html`。
+
+**验证**（本地，CDP 真实浏览器冒烟 `.wrangler/story-smoke.js`）：
+- **62/62 PASS**，无 console error / 网络错误。
+- 覆盖：新建作品 → 默认第一章 → 添加场景/对白积木 → 上移/下移排序 → 编辑内容/角色名 → 删除积木 → 新建/切换章节 → localStorage 数据结构与刷新持久化 → 播放（单条/跨章节三条、上一条/下一条/退出）→ 删除章节（confirm）→ 返回作品库 → 删除作品 → 幻想页入口卡片与链接。
+- 修复过程中发现并修正一个真 bug：`#modalOk` 点击处理先 `closeModal()`（清空弹窗 DOM）再执行保存回调，导致编辑内容读不到——改为先执行回调（try/finally）再关闭。
+
+**说明**：第一阶段纯前端 + localStorage，无后端改动、无迁移。VN 编辑器后续阶段（图片/视频/音频/字幕/Cocos/Canvas/AI API 等）保持暂缓。
+
+**提交**：push main（CI 自动部署）。
+
+
 
 
