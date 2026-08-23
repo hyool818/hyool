@@ -1307,13 +1307,18 @@ export default {
                     "image/webp",
                     "image/svg+xml",
                     "video/mp4",
-                    "video/webm"
+                    "video/webm",
+                    "audio/mpeg",
+                    "audio/wav",
+                    "audio/mp4",
+                    "audio/x-m4a",
+                    "audio/ogg"
                 ];
 
                 if (!allowedTypes.includes(file.type)) {
                     return json({
                         success: false,
-                        error: "仅支持 JPG/PNG/GIF/WebP/SVG 图片与 MP4/WebM 视频。"
+                        error: "仅支持图片（JPG/PNG/GIF/WebP/SVG）、视频（MP4/WebM）与配音（MP3/WAV/M4A/OGG）。"
                     }, 400);
                 }
 

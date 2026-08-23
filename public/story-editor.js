@@ -1,8 +1,9 @@
 // story-editor.js — 作品编辑器（文字剧情积木 · 纯前端 localStorage）
-// 数据结构：作品{id,title,chapters} → 章节{id,title,blocks} → 积木{id,type,content[,speaker][,media]}
+// 数据结构：作品{id,title,chapters} → 章节{id,title,blocks} → 积木{id,type,content[,speaker][,media][,audio]}
 // 类型：scene=场景 / dialogue=对白（额外字段 speaker）
 // media（可选）：{url, type} —— url 为 /api/upload 上传后的 /img/xxx 引用（二进制存服务端，localStorage 只存引用）
 //   type: 'image'（图片/GIF/WebP）| 'video'（MP4）
+// audio（可选）：{url, type:'audio'} —— 配音（MP3/WAV/M4A/OGG），同一套 /api/upload 上传与引用
 import { $, toast } from '/workspace/js/ui.js';
 
 const SAVE_KEY = 'hyool_stories_v1';
@@ -16,6 +17,14 @@ const ALLOWED_MEDIA = { // MIME → media.type
   'video/mp4': 'video',
 };
 const MEDIA_TYPES_LABEL = '图片 / GIF / WebP / MP4（限 5MB）';
+const ALLOWED_AUDIO = { // MIME → audio.type（配音）
+  'audio/mpeg': 'audio',
+  'audio/wav': 'audio',
+  'audio/mp4': 'audio',
+  'audio/x-m4a': 'audio',
+  'audio/ogg': 'audio',
+};
+const AUDIO_TYPES_LABEL = '配音：MP3 / WAV / M4A / OGG（限 5MB）';
 
 let stories = loadStories();
 let currentId = null;   // 当前打开的作品 id
@@ -23,6 +32,7 @@ let chapterId = null;   // 当前打开的章节 id
 let playFlat = [];      // 播放列表（跨章节展开后的积木）
 let playIdx = 0;
 let modalOk = null;     // 当前弹窗的「确定」回调
+let playAudio = null;   // 播放中积木的配音（Audio 实例，切幕/退出时先停掉避免叠音）
 
 // ---------- 本地存储 ----------
 function loadStories() {
@@ -291,7 +301,39 @@ function renderBlocks() {
       mediaWrap.appendChild(add);
     }
 
-    el.append(tag, main, ops, mediaWrap);
+    // 配音：无 →「🎙 添加配音」按钮；有 → 试听条 + 更换/删除
+    const audioWrap = document.createElement('div');
+    audioWrap.className = 'block-audio';
+    if (b.audio && b.audio.url) {
+      const prev = document.createElement('div');
+      prev.className = 'ba-preview';
+      const au = document.createElement('audio');
+      au.src = b.audio.url;
+      au.controls = true;
+      au.preload = 'metadata';
+      prev.appendChild(au);
+      const opsRow = document.createElement('div');
+      opsRow.className = 'bm-ops';
+      const chg = document.createElement('button');
+      chg.className = 'btn tiny';
+      chg.textContent = '更换配音';
+      chg.addEventListener('click', () => pickAudio(b, chg));
+      const rm = document.createElement('button');
+      rm.className = 'btn tiny danger';
+      rm.textContent = '删除配音';
+      rm.addEventListener('click', () => removeBlockAudio(b));
+      opsRow.append(chg, rm);
+      audioWrap.append(prev, opsRow);
+    } else {
+      const add = document.createElement('button');
+      add.className = 'media-add';
+      add.textContent = '🎙 添加配音';
+      add.title = AUDIO_TYPES_LABEL;
+      add.addEventListener('click', () => pickAudio(b, add));
+      audioWrap.appendChild(add);
+    }
+
+    el.append(tag, main, ops, mediaWrap, audioWrap);
     host.appendChild(el);
   });
 }
@@ -385,10 +427,10 @@ function authHeaders() {
 }
 // 上传到现有 /api/upload（D1 分块存储），成功返回 {url,type}，失败返回 null 并 toast
 async function uploadFile(file) {
-  const kind = ALLOWED_MEDIA[file.type];
-  if (!kind) { toast('仅支持 ' + MEDIA_TYPES_LABEL, true); return null; }
+  const kind = ALLOWED_MEDIA[file.type] || ALLOWED_AUDIO[file.type] || null;
+  if (!kind) { toast('仅支持 ' + MEDIA_TYPES_LABEL + '，或 ' + AUDIO_TYPES_LABEL, true); return null; }
   if (file.size > MAX_MEDIA_SIZE) { toast('文件过大（限 5MB 以内）', true); return null; }
-  if (!localStorage.getItem('hyool_token')) { toast('上传画面需要先登录', true); return null; }
+  if (!localStorage.getItem('hyool_token')) { toast('上传需要先登录', true); return null; }
   const fd = new FormData();
   fd.append('file', file);
   let res;
@@ -401,7 +443,7 @@ async function uploadFile(file) {
   let data = {};
   try { data = await res.json(); } catch (e) { /* ignore */ }
   if (!res.ok || !data.success || !data.url) {
-    if (res.status === 401) toast('上传画面需要先登录', true);
+    if (res.status === 401) toast('上传需要先登录', true);
     else toast(data.error || '上传失败，请稍后再试。', true);
     return null;
   }
@@ -440,6 +482,42 @@ function pickMedia(block, btn) {
     document.body.appendChild(mediaInput);
   }
   mediaInput.click();
+}
+
+// ---------- 配音 ----------
+function removeBlockAudio(b) {
+  if (!b.audio) return;
+  delete b.audio;
+  persist();
+  renderBlocks();
+  toast('配音已删除');
+}
+let audioInput = null;
+function pickAudio(block, btn) {
+  if (!audioInput) {
+    audioInput = document.createElement('input');
+    audioInput.type = 'file';
+    audioInput.accept = 'audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,audio/ogg';
+    audioInput.style.display = 'none';
+    audioInput.addEventListener('change', async () => {
+      const file = audioInput.files && audioInput.files[0];
+      audioInput.value = '';
+      if (!file) return;
+      const uploading = btn;
+      const oldText = uploading ? uploading.textContent : '';
+      if (uploading) { uploading.disabled = true; uploading.textContent = '上传中…'; }
+      const result = await uploadFile(file);
+      if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
+      if (result) {
+        block.audio = result;
+        persist();
+        renderBlocks();
+        toast('配音已添加');
+      }
+    });
+    document.body.appendChild(audioInput);
+  }
+  audioInput.click();
 }
 
 function openBlockEditor(block) {
@@ -533,10 +611,21 @@ function startPlay() {
   renderPlay();
   $('#playOverlay').classList.remove('hidden');
 }
+function stopPlayAudio() {
+  if (playAudio) {
+    try { playAudio.pause(); } catch (e) { /* ignore */ }
+    playAudio.onended = null;
+    playAudio.onerror = null;
+    playAudio.removeAttribute('src');
+    playAudio = null;
+  }
+}
 function stopPlay() {
+  stopPlayAudio();
   $('#playOverlay').classList.add('hidden');
 }
 function renderPlay() {
+  stopPlayAudio(); // 先停掉上一幕的配音，避免两个声音同时播放
   if (!playFlat.length) return;
   $('#playProgress').textContent = `第 ${playIdx + 1} 条 · 共 ${playFlat.length} 条`;
   $('#playChapter').textContent = playFlat[playIdx].chapterTitle;
@@ -593,6 +682,13 @@ function renderPlay() {
   body.appendChild(fore);
   $('#playPrev').disabled = playIdx === 0;
   $('#playNext').disabled = playIdx >= playFlat.length - 1;
+  // 当前幕有配音 → 自动播放（无配音的积木完全保持原有逻辑）
+  if (b.audio && b.audio.url) {
+    const au = new Audio(b.audio.url);
+    au.preload = 'auto';
+    au.play().catch(() => { /* 自动播放被拦截/加载失败时静默，不影响点击推进 */ });
+    playAudio = au;
+  }
 }
 function playNext() { if (playIdx < playFlat.length - 1) { playIdx++; renderPlay(); } }
 function playPrev() { if (playIdx > 0) { playIdx--; renderPlay(); } }
@@ -678,6 +774,18 @@ window.StoryEditor = {
     if (!b || !b.media) return false;
     delete b.media; persist(); renderBlocks(); return true;
   },
+  setBlockAudioById: (blockId, url) => {
+    const b = findBlock(blockId);
+    if (!b) return false;
+    if (!url) { delete b.audio; }
+    else { b.audio = { url, type: 'audio' }; }
+    persist(); renderBlocks(); return true;
+  },
+  removeBlockAudioById: (blockId) => {
+    const b = findBlock(blockId);
+    if (!b || !b.audio) return false;
+    delete b.audio; persist(); renderBlocks(); return true;
+  },
   moveBlockById: (blockId, dir) => {
     const i = blockIndex(blockId);
     if (i >= 0) { moveBlock(i, dir); return true; }
@@ -698,7 +806,7 @@ window.StoryEditor = {
   stopPlay,
   play: () => ({
     idx: playIdx, total: playFlat.length,
-    current: playFlat[playIdx] ? { type: playFlat[playIdx].type, speaker: playFlat[playIdx].speaker || '', content: playFlat[playIdx].content, media: playFlat[playIdx].media || null } : null,
+    current: playFlat[playIdx] ? { type: playFlat[playIdx].type, speaker: playFlat[playIdx].speaker || '', content: playFlat[playIdx].content, media: playFlat[playIdx].media || null, audio: playFlat[playIdx].audio || null } : null,
   }),
   playNext,
   playPrev,
