@@ -61,58 +61,24 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 **衔接既有（不推翻）**：Batch 1 羁绊保留（manual 覆盖优先）；Batch 2 规则/时代/氛围锁死作为种子设定喂给世界状态；成人红线/回复规则不变。
 
-### ★ Batch 4 一键导出（当前唯一核心待办，未开工）
+**Batch 4 一键导出：用户 2026-08-23 明确「不做」**（详见「当前待办」）。
 
-- **gateway.js 四个新函数**（均带 `mock` 兜底 + `mock` 参数）：
-  - `exportWorldAsNovel` → Markdown：章节 + 正文（旁白→叙述、对白→引号、场景→段落）
-  - `exportWorldAsRenpy` → `.rpy`：scene / character / dialogue / menu 分支
-  - `exportWorldAsStoryboard` → 分镜 JSON：镜头 / 台词 / 场景描述
-  - `exportWorldAsGame` → 任务 / NPC / 对话 / 世界状态 / 事件 JSON（未来可接 game-workshop）
-- **新增** `POST /api/worlds/:id/life/export`：`target = novel|renpy|storyboard|game`
-- **world.html「生成作品」区**：类型选择 → 生成 → 预览 + Blob 下载
-- **新增** `public/story-export-check.html` 冒烟
-- 验证：不做验证（见约定 4），生成后直接部署，线上由用户确认
+**Batch 4.5/4.6 World Engine（已完成，详细见 docs/history.md「Batch 4.5」「Batch 4.6」）**：
+- 4.5 NPC 目标状态机 + 后果生命周期：`world_json.state.npcs{}`（goal/progress/status）+ `consequences[]`（created→active→escalating/decaying→resolved）+ `tickCount`；节拍输出可选 `goals[]/consequence{}`，引擎 `applyBeatNpcUpdates/applyBeatConsequence/advanceWorldConsequences` 落账。
+- 4.6 知识边界 + NPC 日程/场景填充：`state.knowledge[]`（witness 戳）+ `state.schedules/ambient`（确定性种子日程 + 背景角色），`buildStoryBeatPrompt` 注入信息边界块。全部存 `world_json.state`，无 migration、无 UI/DB 改动。
 
-### ★ Batch 4.5 World Engine 核心：NPC 目标状态机 + 后果生命周期（已 commit，未线上验证）
+## 最近已完成（2026-08-23，一行摘要，详细见 docs/history.md）
 
-- 只抽 Horde Studio World Engine 思想的最小移植：不碰 UI / 现有字段 / DB 表，无 migration
-- `world_json.state` 新增 `npcs{}`（goal/progress/status=active|blocked|achieved|abandoned）+ `consequences[]`（created→active→escalating/decaying→resolved，按 tick 老化）+ `tickCount`
-- `generateStoryBeat` 输出新增可选 `goals[]`/`consequence{}`（sanitize 白名单 + clamp）；`buildStoryBeatPrompt` 注入「在场角色状态」+「发酵中的后果」
-- 引擎落账：`applyBeatNpcUpdates` / `applyBeatConsequence` / `advanceWorldConsequences`；LLM 只演绎不维护状态
-
-### ★ Batch 4.6 World Engine：知识边界 + NPC 日程/场景填充（已 commit，未线上验证）
-
-- **知识边界（治「NPC 全知」）**：`world_json.state` 新增 `knowledge[]`（text/turn/seen=目击者 id[]/secret）；引擎在 tick 后落账 witness 戳——具体互动（有 who）=参与角色，纯旁白=在场全体，同场对话自动传播消息；普通事件留 60 条、秘密条目永久保留
-- `buildStoryBeatPrompt` 注入「近期世界动态 / 已揭露线索（带目睹者）/ 在场角色不知道的近期事」+ 硬性信息边界规则（不知情角色不得替其说出不可能知道的事；此刻不在角色不得进 who）
-- **NPC 日程（确定性种子）**：`state.seed`（=world.id 锚定）+ `state.dayIndex`（每 8 tick 一世界日）+ `state.schedules[day]`（npcId→location/activity，FNV-1a 哈希，reroll 可复现）；多地点世界（场景名+主线 ≥2）按日程限定在场角色，单地点世界维持全员在场（现状不变）；`activeCastForThread` 支持预解析 cast 参数 + `offCast` 透传
-- **场景填充**：`state.ambient[day][location]` 确定性生成 1~2 名背景角色，注入「现场还有…（只做环境不发言）」
-- 无 migration、无 UI/DB 改动（全部在 `world_json.state`），向后兼容
-
-## 最近已完成（2026-08-23）
-
-- **★ 修复：角色库/世界库「隐藏第二个作品」报更新失败（2026-08-23）**：隐藏逻辑把 `share_id` 写成空串 `''`，而 `characters.share_id`/`worlds.share_id` 有 **UNIQUE 约束**——SQLite 不允许两行相同值，空串也算「相同值」。一旦全库已有任意一个隐藏作品（share_id=''），再隐藏第二个就 `UNIQUE constraint failed` → 500「更新失败，请稍后再试。」（线上 D1 确认 worlds 表已有 1 行存量空串）。修复：隐藏一律改用 **NULL**（UNIQUE 允许多个 NULL），`src/mvp.js` 角色 update 与世界 PATCH `visible:false` 均 `push(null)`；`src/companion.js` 孩子角色创建 share_id 从 `''` 改 `NULL`；新增幂等迁移 `schema/migrate_share_null.sql`（存量空串→NULL，已对 remote D1 执行 changes=3）。公开判定统一按「非空」过滤，语义不变。本地复现+修复后 8/8 CDP 浏览器冒烟通过。详见 docs/history.md 末尾。
-
-- **★ 全站角色池（前 60）仅管理账户可见（2026-08-23）**：`GET /api/hub` 游客分支不再返回全站公开角色（改 `characters: []`），该公开角色池只在管理账户 `333123`（与邀请码管理同一判定）登录时返回（附 `isAdminView: true`）；普通用户仍只返回自己的角色。前端 `hub.html` `renderChars` 新增 `readOnly` 参数，管理全站视图下角色卡隐藏编辑/删除/创造按钮（后端 update/delete 本有 owner 校验，管理员操作他人角色仍 403）。详见 docs/history.md 末尾。
-- **游客访问 /hub 直接重定向 /plaza（2026-08-23）**：个人创作库（我的彼岸）只对登录用户开放。`public/hub.html` DOMContentLoaded 中 `isGuest` → `location.replace("/plaza")` + return（用 replace 防历史栈残留）；`hub-check.html` 访客断言同步改为「重定向 /plaza + 幻灵世界大标题」；后端 `GET /api/hub` 游客分支保留。详见 docs/history.md 末尾。
-
-
-- **★ 主站生命世界广场 + 发布/下架 + 显示/隐藏解耦（2026-08-23）**：新建 `public/plaza.html`（主站广场，聚合所有已发布 life 世界）+ `GET /api/plaza`（`status='published' AND type='life'` + 主人信息 + natives_count）；首页「生命」入口从 `/hub` 改跳 `/plaza`。语义解耦：**`status`=发布/下架**（published 进主站广场、draft 移除；`PATCH /api/worlds/:id` 原有字段），**主页显示/隐藏=share_id 非空**（世界 PATCH 新增 `visible` 字段，清空/生成 share_id；主页访客世界过滤从 `status='published'` 改为 `share_id IS NOT NULL AND share_id != ''`，与角色一致）。按钮：主页世界卡右上角「发布/下架」（绿/红）+ 右下角「显示/隐藏」，hub 世界卡右上角「发布/下架」。迁移 `schema/migrate_plaza_share.sql` 已对 remote 执行（存量 published 世界补 share_id）。详见 docs/history.md「生命世界广场」。
-
-- **★ Companion Engine（数字生命「一对一」层，Batch 5，2026-08-23）**：情绪状态机（20 标签 + 关键词规则确定性落账 + 现实时间衰减）+ 主动找你 inbox（亲密里程碑 10/30/50/70/90 / 3 天未聊想念 / 关系纪念日 7·30·100·365 天）+ 恋爱/结婚/家庭生命周期（表白→在一起→求婚→结婚，用户手动拍板 manual 优先；婚后「想要孩子」→2 天后怀孕→再 3 天孩子出生，孩子=characters 新行 parent_id 标记可与 TA 聊天）。全部状态挂 `characters.companion_state`（JSON），`src/companion.js` 引擎确定性落账，LLM 只演绎。详见 docs/history.md「Companion Engine」。
-- **★ 世界角色弧光 + 原住民转正（Batch 7，2026-08-23）**：世界内情绪（`world_json.state.moods`，关键词规则 + 世界日衰减，发言/节拍落账，注入发言与节拍 prompt，显著变化进 story timeline）+ 原住民转正 API（`POST /api/worlds/:id/life/natives/:id/promote`，世界 → 角色库，companion_state 从零）。world.html 情绪 chip + ⭐ 转正按钮 + 故事面板「角色情绪」。无 migration。详见 docs/history.md。
-- **★ 世界 AI 发言/节拍多样性（Batch 8，2026-08-23）**：修「世界AI反复就那么两句引导词、NPC也差不多」——根因=超时/解析失败静默 fallback 到固定话术 mock + prompt 缺禁重复约束。改动全部在 `src/ai/gateway.js`：mock 话术全面多样化（6×6 模板确定性轮转）；`generateStoryBeat` 超时 25s→45s + max_tokens 600→500（降 fallback）；`buildStoryBeatPrompt` 注入「世界氛围」素材块 + 严禁复用最近节拍句式硬规则；`buildLifeSystemPrompt` 加「不复读」规则；`sanitizeStoryBeat` 剔除与最近节拍完全重复的台词。无 migration。详见 docs/history.md。
-- **★ 世界后台输入丢失修复（Batch 8.1，2026-08-23）**：修「大世界背景所有输入栏无法输入/输入的字切栏即消失」= `world.html` 世界后台侧栏的 `change` 委托处理器在 try/catch 外无条件执行 `e.target.value=""`，导致 side 内**所有**输入控件（时代/规则/势力/力量/氛围/地点/补充/背景图 + 运转面板 tick 秒数 + 模型下拉）在失焦（change 冒泡）瞬间被清空。修复：仅对文件上传控件（bgCoverFile/bgImageFile）清空 value。无 migration。详见 docs/history.md。
-- **★ 创角页生图风格动图预览（2026-08-23）**：新增 `public/create-art/`（realistic.mp4 / 3d.mp4 / anime.mp4 / guofeng.mp4，**4 种生图风格动图齐备**）；`create.html` 风格卡与 `create-character.html` STEP1 艺术风格卡片用 `<video autoplay muted loop playsinline>` 展示生图风格动图（缺图 onerror 移除，create.html 保留 emoji 兜底）；引用路径 `/create-art/*.mp4` 按风格 id（realistic/3d/anime/guofeng）。动图尺寸已放大（桌面 2 列 / 移动单列，对标角色卡观感，commit `58d72d4`）。已 commit `a759424` + anime 补全 `7d6b726`，CI 部署后线上生效。详见 docs/history.md。
-- **★ 手机端邀请码 + 聊天错位修复（2026-08-23）**：① 手机端「编辑彼岸」看不到邀请码管理 = `yonder-home.html` 的 `checkAdminAccess` 与 4 个 invite-codes 请求未带 `Authorization` header（依赖 cookie，页面其它请求都从 `localStorage.hyool_token` 取），已新增 `authHeaders()` 并给 5 处请求统一补上；② 与角色聊天退出过会儿再进消息错位 = `messages.created_at` 秒级精度，同轮 user/assistant 同秒插入时 `ORDER BY created_at DESC` 不稳定（实测 assistant 排到 user 前），`src/mvp.js` 三处读取（列表 LIMIT 100 / 沉淀 LIMIT 60 / 上下文 LIMIT 12）改 `ORDER BY rowid DESC`。commit `efdc7f8` + `daf180c`，CI 部署后线上生效。详见 docs/history.md。
-- **★ 角色卡/世界卡显示·隐藏按钮（2026-08-23）**：主页（yonder-home.html）主人视图下每张角色卡/世界卡新增「显示/隐藏」按钮——隐藏=卡片半透明 + 红色「已隐藏」角标（角色清空 `share_id`、世界置 `status='draft'`，访客视图即消失）；再点「显示」恢复公开（角色重新生成 `share_id`、世界 `status='published'`）。后端角色 update 路由新增 `visible` 字段支持（`src/mvp.js`），世界沿用已有 `PATCH /api/worlds/:id` 的 `status`。详见 docs/history.md。
-
-
-
-
-- **World Engine 知识边界 + NPC 日程/场景填充（Batch 4.6）**：`state.knowledge[]`（witness 戳）+ `state.schedules/ambient`（确定性种子日程+背景填充）；`buildStoryBeatPrompt` 注入信息边界块。无 migration。详见 docs/history.md。
-
-- **首页主 logo 放大 + 间距优化**：`public/index.html` `.world-logo-main img` 桌面 96px→**160px**→**800px**、移动 72px→**120px**→**600px**（`logo.png` 主 logo，`logo1.png` 左上角未动，`max-width:88vw` 防溢出）；随后上下间距拉开：logo `top:4%`（移 3.5%）、上入口 fantasy `top:28%`（移 26%）、下入口 life `bottom:28%`（移 27%）。已 commit `12f2939`，CI 部署后线上生效。详见 docs/history.md。
-- **用户主页分享链路限定在主页（`3533a94`）**：规则=游客在用户主页无论怎么操作都留在主页，仅点 LOGO 可回主站。改动：`buddy.html` 分享链接/游客登录提示携带 `?from=/@…`；`share.html` 识别 `from`，「与 TA 相遇」带回 from，「创造我的」/header/错误页按钮改为返回主页；`yonder-home.html` 门禁下 LOGO 可见可点（header z 100→810 高于 gate 800），移除门禁非 LOGO 的「返回首页」。详见 docs/history.md。
+- 修复「隐藏第二个作品」UNIQUE 冲突（share_id 空串改 NULL + 幂等迁移已执行 remote）→ history.md 末尾
+- 全站角色池（前 60）仅管理账户可见；游客 /hub 重定向 /plaza → history.md「全站角色池 / hub 重定向」
+- 主站生命世界广场 + 发布/下架 + 显示/隐藏解耦 → history.md「生命世界广场」
+- Companion Engine（Batch 5：情绪/主动找你/恋爱结婚家庭）→ history.md「Companion Engine」
+- 世界角色弧光 + 原住民转正（Batch 7）；世界 AI 发言/节拍多样性（Batch 8）；后台输入丢失修复（8.1）→ history.md
+- 创角页生图风格动图预览（4 风格 /create-art/）→ history.md「创角页生图风格动图」
+- 手机端邀请码管理 header 补齐 + 聊天记录 rowid 排序修复 → history.md「手机端邀请码」
+- 角色卡/世界卡显示·隐藏按钮 → history.md「角色卡/世界卡显示·隐藏按钮」
+- World Engine 知识边界 + NPC 日程/场景填充（Batch 4.6）→ history.md「Batch 4.6」
+- 首页主 logo 放大/间距优化；用户主页分享链路限定主页 → history.md
 
 ## 当前待办
 
