@@ -71,6 +71,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 - 修复「隐藏第二个作品」UNIQUE 冲突（share_id 空串改 NULL + 幂等迁移已执行 remote）→ history.md 末尾
 - 作品编辑器（文字剧情积木）第一阶段：新建/章节/场景·对白积木/排序/编辑/删除/播放，localStorage 自动保存 → history.md「作品编辑器」
+- 作品编辑器·视觉素材（第二阶段）：积木可添加/更换/删除画面（图片/GIF/WebP/MP4），二进制走现有 `/api/upload`→D1，localStorage 只存 URL 引用；播放时媒体全屏背景 + 文字前景点击切换 → history.md「作品编辑器·视觉素材」
 - 全站角色池（前 60）仅管理账户可见；游客 /hub 重定向 /plaza → history.md「全站角色池 / hub 重定向」
 - 主站生命世界广场 + 发布/下架 + 显示/隐藏解耦 → history.md「生命世界广场」
 - Companion Engine（Batch 5：情绪/主动找你/恋爱结婚家庭）→ history.md「Companion Engine」
@@ -85,7 +86,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 - **Batch 4 一键导出**：用户 2026-08-23 拍板**暂缓**（Companion 层三项已另行完成，用户主动提出再推进）
 - **收费作品支付（二维码收单）**：数据/徽章层已就绪（pricing/price 列），支付渠道未实现；用户拍板暂不开通，待主动提出再推进
-- **观察期/暂缓**（用户主动提出再推进）：情绪/场景路由 Agent（注：Companion 情绪状态机已完成，路由 Agent 仍暂缓）；RAG 知识库（embedding 可换 `@cf/baai/bge-base-zh-v1.5` 但需重建索引）；QLoRA 微调（需另起 GPU 推理栈）；世界消息清洗/归档；TTS/Live2D；VN 编辑器后续阶段（图片/视频/音频/字幕/Cocos/Canvas/AI API 等，作品编辑器文字积木第一阶段已完成 → history.md「作品编辑器」）；音乐工作室 / 视频剪辑升级 / 图像超分
+- **观察期/暂缓**（用户主动提出再推进）：情绪/场景路由 Agent（注：Companion 情绪状态机已完成，路由 Agent 仍暂缓）；RAG 知识库（embedding 可换 `@cf/baai/bge-base-zh-v1.5` 但需重建索引）；QLoRA 微调（需另起 GPU 推理栈）；世界消息清洗/归档；TTS/Live2D；VN 编辑器后续阶段（音频/字幕/Cocos/Canvas/AI API 等；作品编辑器文字积木第一阶段 + 视觉素材第二阶段已完成 → history.md「作品编辑器」「作品编辑器·视觉素材」）；音乐工作室 / 视频剪辑升级 / 图像超分
 - 历史需求细节与完成记录：`docs/history.md`
 
 ## 常用命令

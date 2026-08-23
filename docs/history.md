@@ -792,3 +792,31 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 
 
+
+---
+
+## 作品编辑器 · 视觉素材（画面 · 第二阶段）
+
+**日期**：2026-08-23
+
+**背景**：作品编辑器第一阶段（文字积木）完成后，用户要求给「场景 / 对白」积木添加视觉素材：图片 / GIF / WebP / MP4，上传后即时预览、可更换/删除、刷新不丢，播放时作为全屏背景（文字/对白在前景层，点击文字才切换下一幕，视频播完不自动下一幕）。不做时间轴/剪辑/字幕/配音/音乐/动画编辑器/Canvas/Cocos/AI 生图生视频。
+
+**存储方案决策（用户要求先检查再改）**：
+- localStorage 不能可靠存二进制（约 5MB 上限，MP4/GIF 极易超限；JSON.stringify 全量序列化会卡死）。
+- **不引入 R2**：项目已有生产级上传链路（创角页/世界封面/buddy 都在用）——`POST /api/upload`（需登录、5MB、D1 分块存二进制、已支持 GIF/WebP/MP4）+ `GET /img/:id`（支持 Range，MP4 播放必需）。
+- 因此二进制走现有 `/api/upload` → D1；**localStorage 只存 URL 引用** `block.media = {url, type}`（type: 'image'|'video'），几十字节，完全可靠、刷新不丢。
+- 注意：上传画面需要登录（`hyool_token`），未登录点击「添加画面」会 toast 提示。
+
+**改动**：
+- `public/story-editor.js`：数据模型积木新增可选 `media`；积木渲染新增媒体区——无素材显示「🖼 添加画面」按钮（accept 图片/GIF/WebP/MP4），有素材显示预览（图片 `<img>`；MP4 `<video controls muted playsinline>`，可播放/暂停）+ 「更换画面」「移除画面」；上传走 `fetch('/api/upload')`（credentials include + Authorization Bearer，前端校验类型/5MB/登录态）；播放时媒体作为全屏背景（`object-fit:cover`；MP4 `autoplay loop muted playsinline`，播完不自动下一幕），文字/对白放进前景 `.play-fore`（半透明模糊卡片保证可读），点击文字 → 下一幕；`StoryEditor` 测试 API 新增 `setBlockMediaById/removeBlockMediaById/upload`。
+- `public/story-editor.html`：新增积木媒体区与播放背景/前景样式；`play-head/play-nav` 提升 z-index；播放 `has-media` 态下 `.play-fore` 卡片式。
+- `.wrangler/serve-static.js`（本地测试基建，不入库）：mock `POST /api/upload`（multipart 解析，内存存储，类型/5MB 校验同生产）+ `GET /img/:id`（支持 Range）。
+
+**验证**（本地 CDP 真实浏览器冒烟 `.wrangler/story-smoke.js`）：
+- **90/90 PASS**，无 console error / 网络错误。
+- 新增覆盖：真实上传 GIF/MP4/PNG → 积木即时预览（图片/视频/MP4 标签）→ localStorage 只存 URL 引用 → 刷新后预览仍在 → 播放三条（第 1 条图片全屏背景 + 文字前景 + 点击文字切到第 2 条、第 2 条 MP4 全屏背景 + 对白前景 + 点击切换、第 3 条无媒体背景）→ 更换素材（PNG 替换 GIF，src 更新）→ 移除素材（预览消失、media 字段删除）。原 62 条全部保持通过。
+
+**说明**：后端无改动、无迁移（复用现有 `/api/upload`）。VN 编辑器后续阶段（音频/字幕/Cocos/Canvas/AI API 等）仍保持暂缓。
+
+**提交**：push main（CI 自动部署）。
+

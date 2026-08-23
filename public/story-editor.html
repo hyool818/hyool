@@ -45,7 +45,7 @@ textarea.txt{min-height:120px;resize:vertical}
 .stage-scroll{flex:1 1 auto;overflow-y:auto;padding:16px 20px 6px;display:flex;flex-direction:column;gap:12px}
 
 /* 剧情积木 */
-.block{display:flex;gap:12px;border:1px solid var(--line2);border-radius:12px;background:#12121c;
+.block{display:flex;flex-wrap:wrap;gap:12px;border:1px solid var(--line2);border-radius:12px;background:#12121c;
   padding:13px 14px;transition:.15s;animation:blockIn .18s ease}
 .block:hover{border-color:rgba(139,123,255,.5)}
 .block.scene{border-left:3px solid var(--accent2)}
@@ -59,6 +59,20 @@ textarea.txt{min-height:120px;resize:vertical}
 .block.dialogue .block-text{color:#d9d9e6}
 .block-ops{flex:0 0 auto;display:flex;flex-direction:column;gap:5px;justify-content:center}
 .block-ops .btn{text-align:center}
+
+/* 积木上的视觉素材（画面） */
+.block-media{flex:1 1 100%;min-width:0;display:flex;flex-direction:column;gap:8px;padding-top:2px}
+.media-add{flex:0 0 auto;display:flex;align-items:center;gap:6px;border:1px dashed var(--line2);
+  background:rgba(139,123,255,.04);color:var(--muted);border-radius:10px;padding:9px 12px;
+  font-size:12.5px;cursor:pointer;font-family:inherit;transition:.15s;width:100%;justify-content:center}
+.media-add:hover{color:var(--accent2);border-color:var(--accent2);background:rgba(95,200,255,.06)}
+.media-add:disabled{opacity:.6;cursor:wait}
+.bm-preview{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#000}
+.bm-preview img{display:block;width:100%;max-height:260px;object-fit:cover}
+.bm-preview video{display:block;width:100%;max-height:260px;background:#000}
+.bm-preview .bm-type{position:absolute;top:8px;right:8px;font-size:10px;letter-spacing:.08em;
+  background:rgba(0,0,0,.6);color:#cfcfe8;padding:2px 8px;border-radius:99px;border:1px solid rgba(255,255,255,.12)}
+.bm-ops{display:flex;gap:8px;flex-wrap:wrap}
 .add-block{flex:0 0 auto;border:1px dashed var(--line2);background:transparent;color:var(--muted);
   border-radius:12px;padding:15px;font-size:13.5px;cursor:pointer;font-family:inherit;transition:.15s;width:100%}
 .add-block:hover{color:var(--accent2);border-color:var(--accent2);background:rgba(95,200,255,.05)}
@@ -98,12 +112,12 @@ textarea.txt{min-height:120px;resize:vertical}
   background:
     radial-gradient(1100px 600px at 50% 0%,rgba(139,123,255,.10),transparent 60%),
     var(--bg)}
-.play-head{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:12px 22px;
+.play-head{flex:0 0 auto;position:relative;z-index:3;display:flex;align-items:center;gap:12px;padding:12px 22px;
   border-bottom:1px solid var(--line);background:rgba(5,5,10,.7)}
 .play-head .ph-progress{font-size:12px;color:var(--accent2);font-variant-numeric:tabular-nums}
 .play-head .ph-chapter{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .play-head .spacer{flex:1 1 auto}
-.play-body{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
+.play-body{position:relative;z-index:2;flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:24px;overflow-y:auto}
 .play-scene{max-width:660px;text-align:center;font-size:clamp(17px,2.6vw,22px);line-height:2;color:#e8e8f0;
   white-space:pre-wrap;word-break:break-word}
@@ -113,7 +127,19 @@ textarea.txt{min-height:120px;resize:vertical}
   margin-bottom:22px;letter-spacing:.08em}
 .play-dialogue .pd-line{font-size:clamp(15px,2.4vw,19px);line-height:2;color:#e8e8f0;white-space:pre-wrap;word-break:break-word}
 .play-empty{color:var(--muted);text-align:center;line-height:2}
-.play-nav{flex:0 0 auto;display:flex;align-items:center;gap:14px;justify-content:center;
+
+/* 播放：视觉素材全屏背景 + 前景文字 */
+.play-media-bg{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;background:#000}
+.play-media-bg img,.play-media-bg video{width:100%;height:100%;object-fit:cover;display:block}
+.play-fore{position:relative;z-index:2;max-width:680px;width:100%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;cursor:pointer}
+.play-fore::after{content:"点击文字进入下一条";font-size:11px;letter-spacing:.1em;color:rgba(255,255,255,.5);
+  margin-top:14px;opacity:.85}
+.play-overlay.has-media .play-fore{background:rgba(8,8,16,.55);border:1px solid rgba(255,255,255,.1);
+  border-radius:18px;padding:30px 34px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  box-shadow:0 18px 50px rgba(0,0,0,.5);transition:.15s}
+.play-overlay.has-media .play-fore:hover{background:rgba(8,8,16,.68);border-color:rgba(139,123,255,.55)}
+.play-nav{flex:0 0 auto;position:relative;z-index:3;display:flex;align-items:center;gap:14px;justify-content:center;
   padding:14px 22px;border-top:1px solid var(--line);background:rgba(5,5,10,.7)}
 .play-nav .pn-count{font-size:12px;color:var(--muted);min-width:110px;text-align:center;font-variant-numeric:tabular-nums}
 @keyframes blockIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}

@@ -1,10 +1,21 @@
 // story-editor.js — 作品编辑器（文字剧情积木 · 纯前端 localStorage）
-// 数据结构：作品{id,title,chapters} → 章节{id,title,blocks} → 积木{id,type,content[,speaker]}
+// 数据结构：作品{id,title,chapters} → 章节{id,title,blocks} → 积木{id,type,content[,speaker][,media]}
 // 类型：scene=场景 / dialogue=对白（额外字段 speaker）
+// media（可选）：{url, type} —— url 为 /api/upload 上传后的 /img/xxx 引用（二进制存服务端，localStorage 只存引用）
+//   type: 'image'（图片/GIF/WebP）| 'video'（MP4）
 import { $, toast } from '/workspace/js/ui.js';
 
 const SAVE_KEY = 'hyool_stories_v1';
 const DEFAULT_SPEAKER = '角色名';
+const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 与后端 /api/upload 一致
+const ALLOWED_MEDIA = { // MIME → media.type
+  'image/jpeg': 'image',
+  'image/png': 'image',
+  'image/gif': 'image',
+  'image/webp': 'image',
+  'video/mp4': 'video',
+};
+const MEDIA_TYPES_LABEL = '图片 / GIF / WebP / MP4（限 5MB）';
 
 let stories = loadStories();
 let currentId = null;   // 当前打开的作品 id
@@ -234,7 +245,53 @@ function renderBlocks() {
     mkBtn('编辑', '编辑', () => openBlockEditor(b));
     mkBtn('删除', '删除', () => deleteBlock(b.id));
 
-    el.append(tag, main, ops);
+    // 视觉素材（画面）：无 →「添加画面」按钮；有 → 预览 + 更换/移除
+    const mediaWrap = document.createElement('div');
+    mediaWrap.className = 'block-media';
+    if (b.media && b.media.url) {
+      const prev = document.createElement('div');
+      prev.className = 'bm-preview';
+      if (b.media.type === 'video') {
+        const v = document.createElement('video');
+        v.src = b.media.url;
+        v.controls = true;
+        v.muted = true;
+        v.playsInline = true;
+        v.preload = 'metadata';
+        prev.appendChild(v);
+        const badge = document.createElement('span');
+        badge.className = 'bm-type';
+        badge.textContent = 'MP4';
+        prev.appendChild(badge);
+      } else {
+        const img = document.createElement('img');
+        img.src = b.media.url;
+        img.alt = '画面';
+        img.loading = 'lazy';
+        prev.appendChild(img);
+      }
+      const opsRow = document.createElement('div');
+      opsRow.className = 'bm-ops';
+      const chg = document.createElement('button');
+      chg.className = 'btn tiny';
+      chg.textContent = '更换画面';
+      chg.addEventListener('click', () => pickMedia(b, chg));
+      const rm = document.createElement('button');
+      rm.className = 'btn tiny danger';
+      rm.textContent = '移除画面';
+      rm.addEventListener('click', () => removeBlockMedia(b));
+      opsRow.append(chg, rm);
+      mediaWrap.append(prev, opsRow);
+    } else {
+      const add = document.createElement('button');
+      add.className = 'media-add';
+      add.textContent = '🖼 添加画面';
+      add.title = MEDIA_TYPES_LABEL;
+      add.addEventListener('click', () => pickMedia(b, add));
+      mediaWrap.appendChild(add);
+    }
+
+    el.append(tag, main, ops, mediaWrap);
     host.appendChild(el);
   });
 }
@@ -317,6 +374,72 @@ function deleteBlock(id) {
   persist();
   renderBlocks();
   toast('已删除该积木');
+}
+
+// ---------- 视觉素材（画面） ----------
+function authHeaders() {
+  const h = {};
+  const t = localStorage.getItem('hyool_token');
+  if (t) h['Authorization'] = 'Bearer ' + t;
+  return h;
+}
+// 上传到现有 /api/upload（D1 分块存储），成功返回 {url,type}，失败返回 null 并 toast
+async function uploadFile(file) {
+  const kind = ALLOWED_MEDIA[file.type];
+  if (!kind) { toast('仅支持 ' + MEDIA_TYPES_LABEL, true); return null; }
+  if (file.size > MAX_MEDIA_SIZE) { toast('文件过大（限 5MB 以内）', true); return null; }
+  if (!localStorage.getItem('hyool_token')) { toast('上传画面需要先登录', true); return null; }
+  const fd = new FormData();
+  fd.append('file', file);
+  let res;
+  try {
+    res = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: authHeaders(), body: fd });
+  } catch (e) {
+    toast('网络异常，上传失败', true);
+    return null;
+  }
+  let data = {};
+  try { data = await res.json(); } catch (e) { /* ignore */ }
+  if (!res.ok || !data.success || !data.url) {
+    if (res.status === 401) toast('上传画面需要先登录', true);
+    else toast(data.error || '上传失败，请稍后再试。', true);
+    return null;
+  }
+  return { url: data.url, type: kind };
+}
+function removeBlockMedia(b) {
+  if (!b.media) return;
+  delete b.media;
+  persist();
+  renderBlocks();
+  toast('画面已移除');
+}
+let mediaInput = null;
+function pickMedia(block, btn) {
+  if (!mediaInput) {
+    mediaInput = document.createElement('input');
+    mediaInput.type = 'file';
+    mediaInput.accept = 'image/jpeg,image/png,image/gif,image/webp,video/mp4';
+    mediaInput.style.display = 'none';
+    mediaInput.addEventListener('change', async () => {
+      const file = mediaInput.files && mediaInput.files[0];
+      mediaInput.value = '';
+      if (!file) return;
+      const uploading = btn;
+      const oldText = uploading ? uploading.textContent : '';
+      if (uploading) { uploading.disabled = true; uploading.textContent = '上传中…'; }
+      const result = await uploadFile(file);
+      if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
+      if (result) {
+        block.media = result;
+        persist();
+        renderBlocks();
+        toast('画面已添加');
+      }
+    });
+    document.body.appendChild(mediaInput);
+  }
+  mediaInput.click();
 }
 
 function openBlockEditor(block) {
@@ -421,11 +544,40 @@ function renderPlay() {
   const body = $('#playBody');
   body.innerHTML = '';
   const b = playFlat[playIdx];
+  const overlay = $('#playOverlay');
+  // 视觉素材 → 全屏背景（图片/GIF/WebP 直接铺满；MP4 自动播放循环，播完不自动下一幕）
+  if (b.media && b.media.url) {
+    overlay.classList.add('has-media');
+    const bg = document.createElement('div');
+    bg.className = 'play-media-bg';
+    if (b.media.type === 'video') {
+      const v = document.createElement('video');
+      v.src = b.media.url;
+      v.autoplay = true;
+      v.loop = true;
+      v.muted = true;
+      v.playsInline = true;
+      v.preload = 'auto';
+      bg.appendChild(v);
+    } else {
+      const img = document.createElement('img');
+      img.src = b.media.url;
+      img.alt = '';
+      bg.appendChild(img);
+    }
+    body.appendChild(bg);
+  } else {
+    overlay.classList.remove('has-media');
+  }
+  // 前景文字/对白（点击 → 下一幕）
+  const fore = document.createElement('div');
+  fore.className = 'play-fore';
+  fore.addEventListener('click', playNext);
   if (b.type === 'scene') {
     const d = document.createElement('div');
     d.className = 'play-scene';
     d.textContent = b.content;
-    body.appendChild(d);
+    fore.appendChild(d);
   } else {
     const d = document.createElement('div');
     d.className = 'play-dialogue';
@@ -436,8 +588,9 @@ function renderPlay() {
     ln.className = 'pd-line';
     ln.textContent = formatDialogue(b);
     d.append(sp, ln);
-    body.appendChild(d);
+    fore.appendChild(d);
   }
+  body.appendChild(fore);
   $('#playPrev').disabled = playIdx === 0;
   $('#playNext').disabled = playIdx >= playFlat.length - 1;
 }
@@ -512,6 +665,19 @@ window.StoryEditor = {
     if (b) { b.speaker = speaker; persist(); renderBlocks(); return true; }
     return false;
   },
+  setBlockMediaById: (blockId, url, type) => {
+    const b = findBlock(blockId);
+    if (!b) return false;
+    if (!url) { delete b.media; }
+    else { b.media = { url, type: type === 'video' ? 'video' : 'image' }; }
+    persist(); renderBlocks(); return true;
+  },
+  upload: (file) => uploadFile(file),
+  removeBlockMediaById: (blockId) => {
+    const b = findBlock(blockId);
+    if (!b || !b.media) return false;
+    delete b.media; persist(); renderBlocks(); return true;
+  },
   moveBlockById: (blockId, dir) => {
     const i = blockIndex(blockId);
     if (i >= 0) { moveBlock(i, dir); return true; }
@@ -532,7 +698,7 @@ window.StoryEditor = {
   stopPlay,
   play: () => ({
     idx: playIdx, total: playFlat.length,
-    current: playFlat[playIdx] ? { type: playFlat[playIdx].type, speaker: playFlat[playIdx].speaker || '', content: playFlat[playIdx].content } : null,
+    current: playFlat[playIdx] ? { type: playFlat[playIdx].type, speaker: playFlat[playIdx].speaker || '', content: playFlat[playIdx].content, media: playFlat[playIdx].media || null } : null,
   }),
   playNext,
   playPrev,
