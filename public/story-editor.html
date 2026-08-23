@@ -146,8 +146,11 @@ textarea.txt{min-height:120px;resize:vertical}
 .play-dialogue .pd-line{font-size:clamp(15px,2.4vw,19px);line-height:2;color:#e8e8f0;white-space:pre-wrap;word-break:break-word}
 .play-empty{color:var(--muted);text-align:center;line-height:2}
 
-/* 播放：视觉素材全屏背景 + 前景文字 */
-.play-media-bg{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;background:#000}
+/* 播放：画幅容器 + 视觉素材背景 + 前景文字 */
+/* 画幅容器：横屏铺满播放区；竖屏（9:16）时按比例居中收窄，两侧留黑，不再全屏拉伸裁剪 */
+.play-frame{position:absolute;inset:0;margin:auto;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;pointer-events:none}
+.play-frame .play-fore{pointer-events:auto}
+.play-media-bg{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden;background:#000}
 .play-media-bg img,.play-media-bg video{width:100%;height:100%;object-fit:cover;display:block}
 .play-fore{position:relative;z-index:2;max-width:680px;width:100%;display:flex;flex-direction:column;
   align-items:center;justify-content:center;cursor:pointer}
@@ -172,7 +175,9 @@ textarea.txt{min-height:120px;resize:vertical}
   .play-sub.size-md .ps-box{font-size:15px}
   .play-sub.size-lg .ps-box{font-size:19px}
 
-  /* 播放：竖屏（9:16）适配 —— 前景/字幕收窄，贴合手机画幅 */
+  /* 播放：竖屏（9:16）适配 —— 画幅比例由 renderPlay 按播放区尺寸精确计算（JS 设 style），
+     两侧留黑居中，不再全屏拉伸裁剪；前景/字幕收窄贴合手机画幅 */
+  .play-overlay.orient-portrait #playBody{background:#000;padding:0}
   .play-overlay.orient-portrait .play-fore{max-width:460px}
   .play-overlay.orient-portrait .play-scene{max-width:440px;font-size:clamp(15px,3vw,19px)}
   .play-overlay.orient-portrait .play-dialogue{max-width:440px}

@@ -891,3 +891,32 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 **说明**：无数据库迁移、无后端改动（/api/upload 白名单已含 image/webp，压缩产物可直接入库）。按约定不做线上验证，做了本地 CDP 冒烟，脚本在 .wrangler/ 不入库。
 
 **提交**：push main（CI 自动部署）。
+
+---
+
+## 作品编辑器 · 修复：多场景画面上传覆盖 + 竖屏播放画幅
+
+**日期**：2026-08-23
+
+**背景**：分辨率（16:9 / 9:16）+ 画面压缩上线后，用户报告两个问题：① 第一章创建多个场景，先上传第一个场景画面、再上传第二个场景画面时，第二个会覆盖第一个；② 选择手机（9:16）分辨率后，播放作品预览不是竖版，而是被全屏放大裁剪。
+
+**根因**：
+- 上传覆盖：`pickMedia` / `pickAudio` / `pickSfx` / `pickBlockBgm` / `pickCastAudio` 均使用**单例 file input**，`change` 事件回调闭包捕获的是**首次调用时的目标积木**；之后再点其他积木的「添加画面 / 配音 / 音效 / 本幕 BGM」只会触发 `input.click()`，上传结果仍写回第一个积木 → 第二个场景画面覆盖第一个。（字幕时间轴音效 `pickTimelineSfx` 因原地改对象引用，不受影响。）
+- 竖屏播放：`.play-media-bg` 为 `position:fixed; inset:0` 全屏 + `object-fit:cover`，竖屏作品播放时画面被全屏拉伸裁剪放大；此前竖屏适配仅收窄前景文字/字幕，画面本身未按 9:16 竖幅呈现。
+
+**改动**：
+- `public/story-editor.js`：
+  - 五个单例 input 上传入口改为「点击时记录目标」：`mediaPickBlock/mediaPickBtn`、`audioPickBlock/audioPickBtn`、`sfxPickBlock/sfxPickBtn`、`bgmPickBlock/bgmPickBtn`、`castPickBtn`，change 回调读取最新目标，写错积木的 bug 消除。
+  - 播放引入画幅容器 `.play-frame`（媒体背景 / 前景文字 / 字幕均挂入容器）：横屏铺满播放区保持原行为；竖屏按播放区 `clientWidth/clientHeight` 精确计算 9:16 竖幅（宽窄屏均居中、不超界、比例恒定），不再全屏放大裁剪。
+  - `startPlay` 先显示 overlay 再 `renderPlay`，确保竖幅能按真实播放区尺寸计算（此前 overlay 隐藏时测得 0 尺寸）。
+- `public/story-editor.html`：新增 `.play-frame` 样式（absolute + inset:0 + margin:auto 居中 + flex 内容居中）；`.play-media-bg` 由 fixed 改 absolute（挂载到画幅容器内）；竖屏时播放区黑底、画幅两侧留黑。
+- `.wrangler/story-av-smoke.cjs`（本地，不入库）：新增 K 段（走真实 UI 上传路径：两个场景积木各上传画面，验证互不覆盖、各自绑定）、L 段（竖屏画幅 9:16 比例且未占满全宽、竖屏媒体按竖幅铺满非全屏放大、横屏画幅铺满播放区）。
+
+**验证**（本地 CDP 真实浏览器冒烟 `.wrangler/story-av-smoke.cjs`）：**85/85 PASS · SMOKE-OK**，无功能性 console error（favicon 404 与 `/api/tts/voices` 404 为静态 mock 已知噪音）。
+- K 段：两个场景各自保留独立画面、第一块画面未被第二块覆盖、预览与数据一致。
+- L 段：竖屏画幅 9:16 竖幅（比例误差 <1%）且宽度小于视口 60%；竖屏 + 竖图媒体按竖幅铺满（非全屏放大）；横屏画幅铺满播放区。
+- 注：旧 `.wrangler/story-smoke.js`（79 断言）存在 11 条既有失败（删除积木后块数断言等），经 `git stash` 回退对比确认为改动前即存在，与本次修复无关。
+
+**说明**：无数据库迁移、无后端改动。按约定不做线上验证，做了本地 CDP 冒烟，脚本在 .wrangler/ 不入库。
+
+**提交**：push main（CI 自动部署）。

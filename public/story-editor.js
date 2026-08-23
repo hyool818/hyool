@@ -594,7 +594,11 @@ function removeBlockMedia(b) {
   toast('画面已移除');
 }
 let mediaInput = null;
+let mediaPickBlock = null;
+let mediaPickBtn = null;
 function pickMedia(block, btn) {
+  mediaPickBlock = block; // input 为单例，change 回调须用「本次点击」的目标，避免写错积木
+  mediaPickBtn = btn;
   if (!mediaInput) {
     mediaInput = document.createElement('input');
     mediaInput.type = 'file';
@@ -605,13 +609,13 @@ function pickMedia(block, btn) {
       mediaInput.value = '';
       if (!file) return;
       const sCur = story();
-      const uploading = btn;
+      const uploading = mediaPickBtn;
       const oldText = uploading ? uploading.textContent : '';
       if (uploading) { uploading.disabled = true; uploading.textContent = '上传中…'; }
       const result = await uploadFile(file, { compress: { orientation: sCur ? sCur.orientation : 'landscape', quality: sCur ? sCur.imgQuality : 'standard' } });
       if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
-      if (result) {
-        block.media = result;
+      if (result && mediaPickBlock) {
+        mediaPickBlock.media = result;
         persist();
         renderBlocks();
         toast('画面已添加');
@@ -631,7 +635,11 @@ function removeBlockAudio(b) {
   toast('配音已删除');
 }
 let audioInput = null;
+let audioPickBlock = null;
+let audioPickBtn = null;
 function pickAudio(block, btn) {
+  audioPickBlock = block;
+  audioPickBtn = btn;
   if (!audioInput) {
     audioInput = document.createElement('input');
     audioInput.type = 'file';
@@ -641,13 +649,13 @@ function pickAudio(block, btn) {
       const file = audioInput.files && audioInput.files[0];
       audioInput.value = '';
       if (!file) return;
-      const uploading = btn;
+      const uploading = audioPickBtn;
       const oldText = uploading ? uploading.textContent : '';
       if (uploading) { uploading.disabled = true; uploading.textContent = '上传中…'; }
       const result = await uploadFile(file);
       if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
-      if (result) {
-        block.audio = result;
+      if (result && audioPickBlock) {
+        audioPickBlock.audio = result;
         persist();
         renderBlocks();
         toast('配音已添加');
@@ -667,7 +675,11 @@ function removeBlockSfx(b) {
   toast('音效已清空');
 }
 let sfxInput = null;
+let sfxPickBlock = null;
+let sfxPickBtn = null;
 function pickSfx(block, btn) {
+  sfxPickBlock = block;
+  sfxPickBtn = btn;
   if (!sfxInput) {
     sfxInput = document.createElement('input');
     sfxInput.type = 'file';
@@ -677,14 +689,14 @@ function pickSfx(block, btn) {
       const file = sfxInput.files && sfxInput.files[0];
       sfxInput.value = '';
       if (!file) return;
-      const uploading = btn;
+      const uploading = sfxPickBtn;
       const oldText = uploading ? uploading.textContent : '';
       if (uploading) { uploading.disabled = true; uploading.textContent = '上传中…'; }
       const result = await uploadFile(file);
       if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
-      if (result) {
-        if (!Array.isArray(block.sfxList)) block.sfxList = [];
-        block.sfxList.push({ id: 'sfx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: result.url, type: 'audio', offsetMs: 0, loop: false, volume: 0.8 });
+      if (result && sfxPickBlock) {
+        if (!Array.isArray(sfxPickBlock.sfxList)) sfxPickBlock.sfxList = [];
+        sfxPickBlock.sfxList.push({ id: 'sfx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: result.url, type: 'audio', offsetMs: 0, loop: false, volume: 0.8 });
         persist();
         renderBlocks();
         toast('音效已添加');
@@ -1096,7 +1108,9 @@ function makeRemoveCast(sp, row) {
   return rm;
 }
 let castAudioInput = null;
+let castPickBtn = null;
 function pickCastAudio(sp, btn) {
+  castPickBtn = btn;
   if (!castAudioInput) {
     castAudioInput = document.createElement('input');
     castAudioInput.type = 'file';
@@ -1106,10 +1120,11 @@ function pickCastAudio(sp, btn) {
       const file = castAudioInput.files && castAudioInput.files[0];
       castAudioInput.value = '';
       if (!file) return;
-      const oldText = btn ? btn.textContent : '';
-      if (btn) { btn.disabled = true; btn.textContent = '上传中…'; }
+      const uploading = castPickBtn;
+      const oldText = uploading ? uploading.textContent : '';
+      if (uploading) { uploading.disabled = true; uploading.textContent = '上传中…'; }
       const result = await uploadFile(file);
-      if (btn) { btn.disabled = false; btn.textContent = oldText; }
+      if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
       if (result) {
         const s = story();
         if (!s.cast || typeof s.cast !== 'object') s.cast = {};
@@ -1137,7 +1152,11 @@ function openModal(title, buildBody, okHandler) {
 }
 // 幕级 BGM（积木上覆盖章节 BGM）
 let blockBgmInput = null;
+let bgmPickBlock = null;
+let bgmPickBtn = null;
 function pickBlockBgm(b, btn) {
+  bgmPickBlock = b;
+  bgmPickBtn = btn;
   if (!blockBgmInput) {
     blockBgmInput = document.createElement('input');
     blockBgmInput.type = 'file';
@@ -1147,12 +1166,13 @@ function pickBlockBgm(b, btn) {
       const file = blockBgmInput.files && blockBgmInput.files[0];
       blockBgmInput.value = '';
       if (!file) return;
-      const oldText = btn ? btn.textContent : '';
-      if (btn) { btn.disabled = true; btn.textContent = '上传中…'; }
+      const uploading = bgmPickBtn;
+      const oldText = uploading ? uploading.textContent : '';
+      if (uploading) { uploading.disabled = true; uploading.textContent = '上传中…'; }
       const result = await uploadFile(file);
-      if (btn) { btn.disabled = false; btn.textContent = oldText; }
-      if (result) {
-        b.bgmOverride = { ...result, volume: b.bgmOverride && b.bgmOverride.volume != null ? b.bgmOverride.volume : 0.6 };
+      if (uploading) { uploading.disabled = false; uploading.textContent = oldText; }
+      if (result && bgmPickBlock) {
+        bgmPickBlock.bgmOverride = { ...result, volume: bgmPickBlock.bgmOverride && bgmPickBlock.bgmOverride.volume != null ? bgmPickBlock.bgmOverride.volume : 0.6 };
         persist();
         renderBlocks();
         toast('本幕 BGM 已设置');
@@ -1600,8 +1620,8 @@ function startPlay() {
   playFlat = buildPlayFlat();
   if (!playFlat.length) { toast('这个作品还没有积木，先去添加内容吧', true); return; }
   playIdx = 0;
+  $('#playOverlay').classList.remove('hidden'); // 先显示再渲染，确保竖屏画幅能按实际播放区尺寸计算
   renderPlay();
-  $('#playOverlay').classList.remove('hidden');
   prewarmTts(story()); // 后台预合成 AI 音色对白（异步不阻塞播放）
 }
 function stopPlayAudio() {
@@ -1795,6 +1815,16 @@ function renderPlay() {
   const overlay = $('#playOverlay');
   // 按作品方向适配播放画幅（16:9 横屏 / 9:16 竖屏）
   const sPlay = story();
+  // 画幅容器：横屏铺满播放区；竖屏（9:16）时按播放区可用尺寸精确计算，居中收窄、比例恒定
+  const frame = document.createElement('div');
+  frame.className = 'play-frame';
+  if (sPlay && sPlay.orientation === 'portrait') {
+    const fw = body.clientWidth;
+    const fh = body.clientHeight;
+    const pw = Math.min(fw, Math.round(fh * 9 / 16));
+    frame.style.width = pw + 'px';
+    frame.style.height = Math.round(pw * 16 / 9) + 'px';
+  }
   overlay.classList.toggle('orient-portrait', !!(sPlay && sPlay.orientation === 'portrait'));
   overlay.classList.toggle('orient-landscape', !(sPlay && sPlay.orientation === 'portrait'));
   // BGM：默认跟随章节（同章节连续不重启）；幕级 bgmOverride 优先，覆盖仅本幕生效（离开本幕后自动恢复章节曲）
@@ -1825,7 +1855,7 @@ function renderPlay() {
       img.alt = '';
       bg.appendChild(img);
     }
-    body.appendChild(bg);
+    frame.appendChild(bg);
   } else {
     overlay.classList.remove('has-media');
   }
@@ -1850,7 +1880,7 @@ function renderPlay() {
     d.append(sp, ln);
     fore.appendChild(d);
   }
-  body.appendChild(fore);
+  frame.appendChild(fore);
   // 字幕（对白积木）：画面前景底部/顶部/中部，不遮挡主画面；跟随当前剧情一起切换
   const subOn = !b.subtitle || b.subtitle.on !== false;
   if (b.type === 'dialogue' && subOn) {
@@ -1863,8 +1893,9 @@ function renderPlay() {
     const custom = (sub.text || '').trim();
     box.textContent = custom || ((b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || ''));
     subEl.appendChild(box);
-    body.appendChild(subEl);
+    frame.appendChild(subEl);
   }
+  body.appendChild(frame);
   $('#playPrev').disabled = playIdx === 0;
   $('#playNext').disabled = playIdx >= playFlat.length - 1;
   // 配音：积木配音 > 角色声音表（AI 音色 / 手动音频），都无则静音；播放失败不影响点击推进
