@@ -1040,3 +1040,26 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 **提交**：push main
 
 
+## 作品编辑器 · 字幕改「对白框」（去掉翻译字幕条：对白=始终显示可移动对白框，场景=纯文字可拖拽）
+
+**日期**：2026-08-23
+
+**背景**：用户反馈方向性调整——去掉「翻译字幕（底部小条）」形态，播放文字统一用可移动的「对白框」显示（角色名 + 对白内容）；弹窗不再有独立字幕文字输入。补充：按方案 1（对白框位置三档 + 字号三档），场景**不显示文字框但文字仍要显示**，且**场景文字可自由移动**（仅场景）。
+
+**改动**：
+- `public/story-editor.js`：
+  - `renderPlay` 删除 `.play-sub` 翻译字幕条整段。对白幕：`.play-dialogue` 对白框**始终显示**（角色名 `.pd-speaker` + 对白内容 `.pd-line`，内容自动加引号 `formatDialogue`），位置三档（`subtitle.pos` bottom/top/mid → fore 加 `dlg-bot`/`dlg-top` 或框加 `mid`）+ 字号三档（`size` sm/md/lg → `.play-dialogue.size-*`）。场景幕：fore 保持 `scene-sub-mode` 全屏透明点击区，新增 `.play-scene-text`（纯文字无框、带投影、`pointer-events:auto`）渲染在 frame 上层，`b.content` 非空即显示。
+  - 新增 `makeTextDraggable`（对白框/场景文字共用）：按住可自由拖拽（pointerdown/move/up + setPointerCapture + `touch-action:none` 支持触屏），松手自动转画幅中心点百分比 `subtitle.x/y` 并 `persist()`；**位置写回真实积木**（`findBlock(b.id)`，因 `playFlat` 是浅拷贝，直接改播放块不回写原数据）；`moved` 标志区分点击与拖拽——拖拽后的 click 不触发推进，场景文字点击不推进、对白框点击推进（`opts.onClick`）。
+  - `openSubtitleEditor` 重构：对白弹窗 = 角色名字 + 对白内容（播放时自动加引号）+ 位置（底/顶/中偏下/**自由（播放中拖拽）**）+ 字号（小/中/大），无独立字幕文字输入；场景弹窗 = 场景文字（留空不显示；播放时可拖拽）+ 字号（位置靠拖拽，弹窗不设三档）。保存：对白 `subtitle={on,pos,size}`（pos='custom' 时补 `x/y` 默认 50/82，选三档则删 x/y），场景 `subtitle={on,size,x,y}`（x/y 保留已拖拽坐标）。删除「移除字幕（关闭）」按钮（对白框始终显示、场景留空即不显示，无开关概念）。
+  - 积木按钮文案：对白「💬 对白框」、场景「📝 场景文字」；场景文字存回 `b.content`（场景卡片恢复显示内容，空时占位提示「暂无场景文字，点击 📝 场景文字 设置」）。
+  - `setBlockSubtitleById` 不再存 `text` 字段。
+  - `renderPlay` 对白分支：存了 `subtitle.x/y` = 自由位置（`.play-dialogue.free` 绝对定位挂 frame，可拖拽）；否则三档预设（fore 加 `dlg-bot`/`dlg-top` 或框加 `mid`）。场景文字默认字号与对白一致（md = clamp(15px,2.4vw,19px)）。
+- `public/story-editor.html`：删除 `.play-sub`/`.ps-box` 全部 CSS 与竖屏适配行；删除废弃的 `.play-scene`/`.play-empty`；新增对白框位置/字号三档样式（`.play-fore.dlg-bot/dlg-top`、`.play-dialogue.mid`、`.play-dialogue.size-sm/lg`）、`.play-scene-text`（纯文字无框可拖拽，`touch-action:none`，竖屏收窄 420px）与 `.play-dialogue.free`（自由拖拽模式）。
+- `.wrangler/story-av-smoke.cjs`（本地冒烟，不入库）：`.play-sub` 断言改为 `.play-dialogue`/`.play-fore`（对白框文字=角色名+引号对白、默认底部/字号中、自定义位置/字号、恢复默认），删除「关闭字幕」段。
+
+**行为变更**：存量对白积木无 subtitle 字段 → 播放仍显示对白框（默认底部/字号中）；存量 `subtitle.text` 自定义字幕文字不再使用（对白文字 = 对白内容）。存量场景 `subtitle.text` 不再使用（场景文字 = `b.content`），旧 `pos` 字段忽略（默认底部居中，拖拽后存 `x/y`）。
+
+**说明**：无数据库迁移、无后端改动；localStorage 字段 `subtitle` 结构为 `{on, pos, size, x?, y?}`。按约定不做验证、直接 push main（CI 自动部署）。
+
+**提交**：push main
+
