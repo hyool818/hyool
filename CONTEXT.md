@@ -13,6 +13,7 @@
 6. **换窗口（硬性）**：每完成 1 个任务就主动提醒换窗口；长任务中途或上下文明显变长时立即提醒；换后说「读 CONTEXT.md 和 git log 继续」即可。禁止因怕丢对话而拖延。
 7. **检索/读取纪律**：搜索用精准 pattern；`.wrangler/` 是构建产物不参与检索；大文件用小段 `read_files`（≤400 行）；冒烟输出写文件，只报 PASS/FAIL 计数，不拉全文
 8. **先找对再动手（2026-08-23 用户拍板）**：禁止「找不到 → 猜 → 改 → 发现不对 → 换方法 → 再改 → 再验证 → 再改」的反复折腾流程。改代码前必须先精确找到并读通相关源码/结构、确认理解正确，再一次性改对；找不到或拿不准就停下来问用户，不要猜着改
+9. **终端命令纪律（2026-08-23 环境复盘，见「已知限制」末条）**：run_commands 是管理员 PowerShell 5.1 逐条新起进程执行；本机 git/node 命令**间歇性卡死 300s**（autocrlf + Defender），命令一律尽量短、一条只做一件事；**禁止 here-string 传大段中文**（5.1 解析挂起，写文件用 editor 工具）；git 一律 `git --no-pager ...`。工具报「Command exited with code N」≠ 脚本真实退出码（PowerShell 退出码继承最后一条 native 命令，会误报）——以实际输出为准，勿因误报反复重跑
 
 用户换窗口时只需说：读 `d:\hyool\CONTEXT.md` 和 git log，按文档约定继续。
 
@@ -100,7 +101,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - dry-run：`npx wrangler deploy --dry-run`
 - D1 迁移（远程）：`npx wrangler d1 execute hyool-db --remote --file schema/xxx.sql`
 - 部署：commit + push main（CI 自动）
-- 注意：PowerShell 5.1 读中文文件设 UTF8；`read_files` 对同一文件多次范围读有缓存问题，可用 `Get-Content -Encoding UTF8` 绕过
+- 注意：PowerShell 5.1 读中文文件设 UTF8；`read_files` 对同一文件多次范围读有缓存问题，可用 `Get-Content -Encoding UTF8` 绕过；git 一律加 `--no-pager`；git/node 命令偶发被 Defender 拖到 300s 超时属环境正常，重试或拆短命令即可，勿据此判断代码问题
 
 ## 已知限制
 
@@ -108,3 +109,4 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **Workers AI 自动套 Llama chat template，禁止在 messages 里手写 `<|start_header_id|>` 等特殊 token**（双重模板崩盘）
 - 本地 dev 的 Workers AI 远程绑定可能因代理挂起（60s 超时）；冒烟测试已走 `mock:true` 钩子，不受影响
 - 线上邀请码 `HUBTEST2026` 曾因被禁用影响测试，激活时注意 is_active=1
+- **本机终端环境（2026-08-23 复盘）**：PowerShell 5.1 + git `core.autocrlf=true`（已确认）+ Defender 实时扫描 → git/node 命令**间歇性挂起至 300s 超时**（`git log/status/diff`、`node --version` 都可能中招；`git --no-pager log` 秒回 = 非代码问题）。规避：命令短、一条一命令、`--no-pager`、here-string 传大段中文会解析挂起（改用 editor 写文件）。工具退出码会误报「Command exited with code N」：PowerShell 退出码继承**最后一条原生命令**（如 `git config --get` 查不存在的 key 返回 1），以实际输出判定成败
