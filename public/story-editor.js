@@ -9,7 +9,8 @@
 // bgmOverride（可选，积木）：{url, type:'audio', volume} —— 幕级 BGM（有则本幕替换章节 BGM；离开本幕后无覆盖的幕自动恢复章节曲）
 // cast（可选，作品级）：{角色名: {kind:'tts'|'audio'|'none', voice?, url?, volume}} —— 角色声音表（AI 音色或手动音频）
 // subtitle（可选，对白/场景）：{on, text, pos:'bottom'|'top'|'mid', size:'sm'|'md'|'lg'} —— 字幕
-//   对白缺省=默认开启、角色名+对白、底部、中；场景缺省=关闭（显式开启后默认文字为场景内容、底部、中），避免存量作品场景文字双重显示
+//   开关语义：有 subtitle 字段 = 开，无 = 关（弹窗无独立开关选项，可点「移除字幕」回关）；缺省文字：对白=「角色名：对白内容」、场景=「场景内容」，默认底部、中
+//   对白积木「💬 字幕」弹窗同时承担角色编辑（角色名 + 对白内容）；场景积木无内容编辑（场景编辑已移除）
 // 章节 bgm（可选）：{url, type:'audio', volume(0~1)} —— BGM（进入章节自动循环播放，同章节切幕不重启）
 import { $, toast } from '/workspace/js/ui.js';
 
@@ -291,7 +292,13 @@ function renderBlocks() {
     main.className = 'block-main';
     const text = document.createElement('div');
     text.className = 'block-text';
-    text.textContent = formatDialogue(b);
+    const displayText = formatDialogue(b);
+    if (!displayText.trim()) {
+      text.classList.add('empty');
+      text.textContent = b.type === 'scene' ? '（暂无场景文字，可在 💬 字幕 设置字幕文字）' : '（对白内容为空）';
+    } else {
+      text.textContent = displayText;
+    }
     main.appendChild(text);
 
     const ops = document.createElement('div');
@@ -307,11 +314,10 @@ function renderBlocks() {
     };
     mkBtn('↑', '上移', () => moveBlock(i, -1), i === 0);
     mkBtn('↓', '下移', () => moveBlock(i, 1), i === ch.blocks.length - 1);
-    mkBtn('编辑', '编辑', () => openBlockEditor(b));
     if (b.type === 'dialogue' || b.type === 'scene') {
-      // 对白缺省开启；场景缺省关闭（显式开启后落字段），已开启/自定义状态下按钮同步显示
-      const subOn = b.type === 'scene' ? !!(b.subtitle && b.subtitle.on !== false) : (!b.subtitle || b.subtitle.on !== false);
-      mkBtn('💬 字幕' + (subOn ? '' : '·关'), '字幕：开启/关闭、文字、位置、大小', () => openSubtitleEditor(b));
+      // 字幕开关语义：有 subtitle 字段 = 开，无 = 关（无独立开关）。对白弹窗含角色名/内容编辑，场景弹窗仅字幕
+      const subOn = !!(b.subtitle && b.subtitle.on !== false);
+      mkBtn('💬 字幕' + (subOn ? '' : '·关'), '设置字幕（对白含角色名与内容编辑）；无字幕即为关', () => openSubtitleEditor(b));
     }
     mkBtn('🎵', '本幕 BGM（可覆盖章节曲）', () => openBlockBgmEditor(b));
     mkBtn('🎼', '声音时间轴（配音 / 音效 / BGM 三轨可视化）', () => openTimelineEditor(b));
@@ -459,12 +465,12 @@ function renameChapter(c) {
 function addBlock(type) {
   const ch = chapter();
   if (!ch) return;
-  const block = { id: uid(), type, content: type === 'scene' ? '在这里写下场景描述……' : '在这里写下对白……' };
+  const block = { id: uid(), type, content: type === 'scene' ? '' : '在这里写下对白……' };
   if (type === 'dialogue') block.speaker = DEFAULT_SPEAKER;
   ch.blocks.push(block);
   persist();
   renderBlocks();
-  openBlockEditor(block);
+  openSubtitleEditor(block); // 新建积木直接进字幕弹窗（对白含角色/内容编辑，场景仅字幕）
 }
 
 function openAddPicker() {
@@ -710,73 +716,105 @@ function pickSfx(block, btn) {
 }
 
 // ---------- 字幕（对白 / 场景积木） ----------
+// 开关语义：有 subtitle 字段 = 开，无 = 关（弹窗无独立开关选项，可点「移除字幕」回关）。
+// 对白弹窗同时承担角色编辑（角色名 + 对白内容）；场景无内容编辑（场景编辑已移除）。
 function openSubtitleEditor(b) {
   const cur = b.subtitle || {};
-  const on = cur.on !== false;
   const text = cur.text || '';
   const pos = cur.pos || 'bottom';
   const size = cur.size || 'md';
-  openModal('字幕设置', (body) => {
-    const f1 = document.createElement('div');
-    f1.className = 'field';
-    f1.style.margin = '0';
-    const l1 = document.createElement('label');
-    l1.textContent = '开启字幕';
-    const onSel = document.createElement('select');
-    onSel.className = 'txt';
-    onSel.innerHTML = '<option value="1">开启</option><option value="0">关闭</option>';
-    onSel.value = on ? '1' : '0';
-    f1.append(l1, onSel);
-    const f2 = document.createElement('div');
-    f2.className = 'field';
-    f2.style.margin = '0';
-    const l2 = document.createElement('label');
-    l2.textContent = '字幕文字（留空 = 使用「' + (b.type === 'scene' ? '场景文字' : '角色名：对白内容') + '」）';
-    const ta = document.createElement('textarea');
-    ta.className = 'txt';
-    ta.maxLength = 120;
-    ta.placeholder = '默认：' + (b.type === 'scene' ? (b.content || '') : ((b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || '')));
-    ta.value = text;
-    f2.append(l2, ta);
+  openModal(b.type === 'scene' ? '场景字幕' : '对白 + 字幕', (body) => {
+    // 对白积木：角色编辑（角色名 + 对白内容）并入字幕弹窗
+    if (b.type === 'dialogue') {
+      const f1 = document.createElement('div');
+      f1.className = 'field';
+      f1.style.margin = '0';
+      const l1 = document.createElement('label');
+      l1.textContent = '角色名字';
+      const sp = document.createElement('input');
+      sp.type = 'text';
+      sp.className = 'txt sub-edit-speaker';
+      sp.maxLength = 20;
+      sp.value = b.speaker || '';
+      f1.append(l1, sp);
+      const f2 = document.createElement('div');
+      f2.className = 'field';
+      f2.style.margin = '0';
+      const l2 = document.createElement('label');
+      l2.textContent = '对白内容（播放时自动加引号）';
+      const taC = document.createElement('textarea');
+      taC.className = 'txt sub-edit-content';
+      taC.placeholder = '例如：他应该不会来了。';
+      taC.value = b.content || '';
+      f2.append(l2, taC);
+      body.append(f1, f2);
+    }
+    // 字幕设置（对白 / 场景共用）：文字、位置、大小（无独立开关，有字幕 = 开）
     const f3 = document.createElement('div');
     f3.className = 'field';
     f3.style.margin = '0';
     const l3 = document.createElement('label');
-    l3.textContent = '位置';
-    const posSel = document.createElement('select');
-    posSel.className = 'txt';
-    posSel.innerHTML = '<option value="bottom">底部</option><option value="top">顶部</option><option value="mid">中部偏下</option>';
-    posSel.value = pos === 'top' ? 'top' : pos === 'mid' ? 'mid' : 'bottom';
-    f3.append(l3, posSel);
+    l3.textContent = '字幕文字（留空 = 使用「' + (b.type === 'scene' ? '场景内容' : '角色名：对白内容') + '」）';
+    const ta = document.createElement('textarea');
+    ta.className = 'txt sub-edit-text';
+    ta.maxLength = 120;
+    ta.placeholder = '默认：' + (b.type === 'scene' ? (b.content || '（无）') : ((b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || '')));
+    ta.value = text;
+    f3.append(l3, ta);
     const f4 = document.createElement('div');
     f4.className = 'field';
     f4.style.margin = '0';
     const l4 = document.createElement('label');
-    l4.textContent = '大小';
+    l4.textContent = '位置';
+    const posSel = document.createElement('select');
+    posSel.className = 'txt';
+    posSel.innerHTML = '<option value="bottom">底部</option><option value="top">顶部</option><option value="mid">中部偏下</option>';
+    posSel.value = pos === 'top' ? 'top' : pos === 'mid' ? 'mid' : 'bottom';
+    f4.append(l4, posSel);
+    const f5 = document.createElement('div');
+    f5.className = 'field';
+    f5.style.margin = '0';
+    const l5 = document.createElement('label');
+    l5.textContent = '大小';
     const sizeSel = document.createElement('select');
     sizeSel.className = 'txt';
     sizeSel.innerHTML = '<option value="sm">小</option><option value="md">中</option><option value="lg">大</option>';
     sizeSel.value = size === 'sm' ? 'sm' : size === 'lg' ? 'lg' : 'md';
-    f4.append(l4, sizeSel);
-    body.append(f1, f2, f3, f4);
-  }, () => {
-    const sels = $('#modalBody select');
-    const onNow = sels[0].value === '1';
-    const textNow = $('#modalBody textarea.txt').value.trim();
-    const posNow = sels[1].value;
-    const sizeNow = sels[2].value;
-    if (onNow && !textNow && posNow === 'bottom' && sizeNow === 'md') {
-      if (b.type === 'scene') {
-        b.subtitle = { on: true, text: '', pos: 'bottom', size: 'md' }; // 场景缺省关闭：显式开启必须落字段，否则播放端当作关闭
-      } else {
-        delete b.subtitle; // 对白全默认 → 存空，播放端按默认处理
-      }
-    } else {
-      b.subtitle = { on: onNow, text: textNow, pos: posNow, size: sizeNow };
+    f5.append(l5, sizeSel);
+    body.append(f3, f4, f5);
+    // 移除字幕 = 删字段即回「关」
+    if (b.subtitle) {
+      const rmWrap = document.createElement('div');
+      rmWrap.className = 'field';
+      rmWrap.style.margin = '0';
+      const rm = document.createElement('button');
+      rm.className = 'btn danger';
+      rm.textContent = '移除字幕（关闭）';
+      rm.addEventListener('click', () => {
+        delete b.subtitle;
+        persist();
+        renderBlocks();
+        closeModal();
+        toast('字幕已移除');
+      });
+      rmWrap.appendChild(rm);
+      body.appendChild(rmWrap);
     }
+  }, () => {
+    // 保存：对白积木先更新角色名 + 对白内容；场景无内容编辑
+    if (b.type === 'dialogue') {
+      b.speaker = $('#modalBody .sub-edit-speaker').value.trim() || DEFAULT_SPEAKER;
+      b.content = $('#modalBody .sub-edit-content').value.trim() || '……';
+    }
+    // 字幕：设置过即存字段 = 开（有字幕 = 开，无字幕 = 关）
+    const sels = $('#modalBody select');
+    const textNow = $('#modalBody .sub-edit-text').value.trim();
+    const posNow = sels[0].value;
+    const sizeNow = sels[1].value;
+    b.subtitle = { on: true, text: textNow, pos: posNow, size: sizeNow };
     persist();
     renderBlocks();
-    toast('字幕已更新');
+    toast('已更新');
   });
 }
 
@@ -863,60 +901,6 @@ function openBgmEditor() {
       body.appendChild(add);
     }
   });
-}
-
-function openBlockEditor(block) {
-  if (block.type === 'scene') {
-    openModal('编辑场景', (body) => {
-      const f = document.createElement('div');
-      f.className = 'field';
-      f.style.margin = '0';
-      const l = document.createElement('label');
-      l.textContent = '场景内容';
-      const ta = document.createElement('textarea');
-      ta.className = 'txt';
-      ta.placeholder = '例如：长安城的雨下了一整夜。';
-      ta.value = block.content;
-      f.append(l, ta);
-      body.appendChild(f);
-    }, () => {
-      block.content = $('#modalBody textarea.txt').value.trim() || '……';
-      persist();
-      renderBlocks();
-      toast('场景已更新');
-    });
-  } else {
-    openModal('编辑对白', (body) => {
-      const f1 = document.createElement('div');
-      f1.className = 'field';
-      f1.style.margin = '0';
-      const l1 = document.createElement('label');
-      l1.textContent = '角色名字';
-      const sp = document.createElement('input');
-      sp.type = 'text';
-      sp.className = 'txt';
-      sp.maxLength = 20;
-      sp.value = block.speaker || '';
-      f1.append(l1, sp);
-      const f2 = document.createElement('div');
-      f2.className = 'field';
-      f2.style.margin = '0';
-      const l2 = document.createElement('label');
-      l2.textContent = '对白内容（播放时自动加引号）';
-      const ta = document.createElement('textarea');
-      ta.className = 'txt';
-      ta.placeholder = '例如：他应该不会来了。';
-      ta.value = block.content;
-      f2.append(l2, ta);
-      body.append(f1, f2);
-    }, () => {
-      block.speaker = $('#modalBody input.txt').value.trim() || DEFAULT_SPEAKER;
-      block.content = $('#modalBody textarea.txt').value.trim() || '……';
-      persist();
-      renderBlocks();
-      toast('对白已更新');
-    });
-  }
 }
 
 // ---------- 角色声音表 + 幕级 BGM + 三轨时间轴 ----------
@@ -1899,8 +1883,8 @@ function renderPlay() {
   }
   frame.appendChild(fore);
   // 字幕（对白/场景积木）：画面前景底部/顶部/中部，不遮挡主画面；跟随当前剧情一起切换
-  // 对白缺省开启（角色名+对白）；场景缺省关闭（显式开启后默认场景内容），避免存量作品场景文字双重显示
-  const subOn = b.type === 'scene' ? !!(b.subtitle && b.subtitle.on !== false) : (!b.subtitle || b.subtitle.on !== false);
+  // 开关语义：有 subtitle 字段 = 开，无 = 关（弹窗无独立开关）；缺省文字：对白=「角色名：对白内容」、场景=「场景内容」
+  const subOn = !!(b.subtitle && b.subtitle.on !== false);
   if (subOn) {
     const sub = b.subtitle || {};
     const subEl = document.createElement('div');
@@ -1909,9 +1893,12 @@ function renderPlay() {
     const box = document.createElement('div');
     box.className = 'ps-box';
     const custom = (sub.text || '').trim();
-    box.textContent = custom || (b.type === 'scene' ? (b.content || '') : ((b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || '')));
-    subEl.appendChild(box);
-    frame.appendChild(subEl);
+    const subText = custom || (b.type === 'scene' ? (b.content || '') : ((b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || '')));
+    if (subText.trim()) {
+      box.textContent = subText;
+      subEl.appendChild(box);
+      frame.appendChild(subEl);
+    }
   }
   body.appendChild(frame);
   $('#playPrev').disabled = playIdx === 0;
