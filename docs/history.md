@@ -820,3 +820,23 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：push main（CI 自动部署）。
 
+---
+
+## 作品编辑器 · 配音（第三阶段）
+
+**日期**：2026-08-23
+
+**背景**：视觉素材（画面）完成后，用户要求给每个剧情积木单独添加配音：MP3/WAV/M4A/OGG 上传，编辑器内试听/更换/删除，播放时进入该幕自动播放配音、点击推进停止旧配音进入下一幕并自动播放下一幕配音，刷新不丢。不做字幕/音乐/音效/时间轴/分支/AI 配音/TTS/Canvas/Cocos。
+
+**存储**：与画面一致——二进制走现有 `POST /api/upload` → D1，localStorage 只存 URL 引用 `block.audio = {url, type:'audio'}`（与积木绑定、刷新不丢）；`GET /img/:id` 已通用支持任意 content_type + Range，音频试听/播放直接复用，后端读取链路零改动。
+
+**改动**：
+- `src/index.js`：`/api/upload` MIME 白名单新增 `audio/mpeg` / `audio/wav` / `audio/mp4` / `audio/x-m4a` / `audio/ogg`（m4a 兼容两种 MIME），错误消息更新。
+- `public/story-editor.js`：数据模型积木新增可选 `audio`；积木渲染新增配音区——无配音「🎙 添加配音」按钮，有配音显示试听条（`<audio controls preload="metadata">`）+「更换配音」「删除配音」；`uploadFile` 同时识别画面/配音 MIME；播放逻辑全局 `playAudio` 引用——`renderPlay` 开头 `stopPlayAudio()` 先停上一幕配音（避免叠音），当前幕有配音则 `new Audio(url).play()`（catch 静默，不影响点击推进），退出 `stopPlay` 停止；无配音积木完全保持原播放逻辑；`StoryEditor` 测试 API 新增 `setBlockAudioById/removeBlockAudioById`，`play()` 返回值带 `audio`。
+- `public/story-editor.html`：配音区样式 `.block-audio/.ba-preview`。
+- `.wrangler/serve-static.js`（本地 mock，不入库）：upload 白名单同步。
+
+**说明**：无数据库迁移。`serve-static.js` 位于 `.gitignore`（.wrangler/ 构建产物目录），仅本地验证用途，不入版本库。按约定未做验证，直接 commit + push main（CI 自动部署）。
+
+**提交**：b6933c9
+

@@ -81,6 +81,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - 角色卡/世界卡显示·隐藏按钮 → history.md「角色卡/世界卡显示·隐藏按钮」
 - World Engine 知识边界 + NPC 日程/场景填充（Batch 4.6）→ history.md「Batch 4.6」
 - 首页主 logo 放大/间距优化；用户主页分享链路限定主页 → history.md
+- 作品编辑器·配音（第三阶段）：每个剧情积木可单独添加配音（MP3/WAV/M4A/OGG），编辑器试听/更换/删除；播放进入该幕自动播、切幕先停旧配音、退出停止；localStorage 存引用 → history.md「作品编辑器·配音」
 
 ## 当前待办
 
