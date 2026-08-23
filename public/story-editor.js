@@ -8,9 +8,10 @@
 //   旧字段 sfx（单对象 {url}）读取时自动迁移为 sfxList 单条
 // bgmOverride（可选，积木）：{url, type:'audio', volume} —— 幕级 BGM（有则本幕替换章节 BGM；离开本幕后无覆盖的幕自动恢复章节曲）
 // cast（可选，作品级）：{角色名: {kind:'tts'|'audio'|'none', voice?, url?, volume}} —— 角色声音表（AI 音色或手动音频）
-// subtitle（可选，对白/场景）：{pos:'bottom'|'top'|'mid'|'custom', size:'sm'|'md'|'lg', x?, y?} —— 文字显示设置
-//   对白：播放时始终显示「对白框」（角色名 + 对白内容自动加引号），位置 = 弹窗三档预设（底/顶/中偏下）或播放中自由拖拽（x/y 百分比），字号三档
-//   场景：播放时显示「场景文字」（纯文字无框，文字来自 b.content），位置可自由拖拽（x/y 为画幅中心点百分比），字号三档；内容留空则不显示
+// subtitle（可选，对白/场景）：{pos:'bottom'|'top'|'mid'|'custom', size:数字px(12~72)或旧'sm'|'md'|'lg', x?, y?} —— 文字显示设置
+//   对白：播放时始终显示「对白框」（角色名 + 对白内容自动加引号），位置 = 弹窗三档预设（底/顶/中偏下）或播放中自由拖拽（x/y 百分比）
+//   场景：播放时显示「场景文字」（纯文字无框，文字来自 b.content），位置可自由拖拽（x/y 为画幅中心点百分比）；内容留空则不显示
+//   字号：弹窗滑条自定义（12~72px），或播放中按住文字右下角「拉大小」手柄拖动实时调整、松手自动保存（对白框角色名联动 1.3x）
 //   对白积木「💬 对白框」弹窗承担角色编辑（角色名 + 对白内容）；场景积木「📝 场景文字」弹窗编辑场景文字
 // 章节 bgm（可选）：{url, type:'audio', volume(0~1)} —— BGM（进入章节自动循环播放，同章节切幕不重启）
 import { $, toast } from '/workspace/js/ui.js';
@@ -770,7 +771,7 @@ function openSubtitleEditor(b) {
     const l4 = document.createElement('label');
     l4.textContent = '位置';
     const posSel = document.createElement('select');
-    posSel.className = 'txt';
+    posSel.className = 'txt sub-edit-pos';
     posSel.innerHTML = '<option value="bottom">底部</option><option value="top">顶部</option><option value="mid">中部偏下</option><option value="custom">自由（播放中拖拽）</option>';
     posSel.value = cur.x != null ? 'custom' : (pos === 'top' ? 'top' : pos === 'mid' ? 'mid' : 'bottom');
     f4.append(l4, posSel);
@@ -778,12 +779,22 @@ function openSubtitleEditor(b) {
     f5.className = 'field';
     f5.style.margin = '0';
     const l5 = document.createElement('label');
-    l5.textContent = '字号';
-    const sizeSel = document.createElement('select');
-    sizeSel.className = 'txt';
-    sizeSel.innerHTML = '<option value="sm">小</option><option value="md">中</option><option value="lg">大</option>';
-    sizeSel.value = size === 'sm' ? 'sm' : size === 'lg' ? 'lg' : 'md';
-    f5.append(l5, sizeSel);
+    l5.textContent = '字号（滑条自定义；播放中也可按住文字右下角手柄拉大小）';
+    const sizeRow = document.createElement('div');
+    sizeRow.style.cssText = 'display:flex;align-items:center;gap:10px';
+    const sizeRange = document.createElement('input');
+    sizeRange.type = 'range';
+    sizeRange.min = 12; sizeRange.max = 72; sizeRange.step = 1;
+    sizeRange.className = 'sub-edit-size';
+    sizeRange.style.flex = '1';
+    const initSize = typeof size === 'number' ? size : (size === 'sm' ? 15 : size === 'lg' ? 22 : 17);
+    sizeRange.value = initSize;
+    const sizeVal = document.createElement('span');
+    sizeVal.style.cssText = 'font-size:12px;color:var(--muted);min-width:36px;text-align:right';
+    sizeVal.textContent = initSize + 'px';
+    sizeRange.addEventListener('input', () => { sizeVal.textContent = sizeRange.value + 'px'; });
+    sizeRow.append(sizeRange, sizeVal);
+    f5.append(l5, sizeRow);
     if (b.type === 'dialogue') body.append(f4, f5);
     else body.append(f5);
   }, () => {
@@ -797,11 +808,11 @@ function openSubtitleEditor(b) {
       const ta = $('#modalBody .sub-edit-scene-content');
       b.content = ta ? ta.value.trim() : (b.content || '');
     }
-    // 显示设置：对白 = 位置三档 + 字号三档；场景 = 字号（位置为拖拽坐标 x/y，保持不变）
-    const sels = $('#modalBody select');
-    b.subtitle = { on: true, size: sels[sels.length - 1].value };
+    // 显示设置：对白 = 位置（三档/自由）+ 字号（自定义 px）；场景 = 字号（位置为拖拽坐标 x/y，保持不变）
+    const sizeNow = Number(($('#modalBody .sub-edit-size') || {}).value) || 17;
+    b.subtitle = { on: true, size: sizeNow };
     if (b.type === 'dialogue') {
-      const posNow = sels[0].value;
+      const posNow = $('#modalBody .sub-edit-pos').value;
       b.subtitle.pos = posNow;
       if (posNow === 'custom') {
         if (b.subtitle.x == null) { b.subtitle.x = 50; b.subtitle.y = 82; } // 自由位置默认底部居中，播放中再拖拽微调
@@ -1854,6 +1865,61 @@ function makeTextDraggable(el, b, opts = {}) {
     else e.stopPropagation(); // 场景文字：点击不推进下一幕
   });
 }
+
+// 播放文字「拉大小」手柄：按住右下角手柄拖动实时调字号（对白框联动角色名），松手保存 subtitle.size（数字 px）。
+// 位置拖拽在文字主体上（makeTextDraggable），手柄事件独立 stopPropagation 互不干扰。
+function attachSizeHandle(el, b) {
+  const isDialogue = el.classList.contains('play-dialogue');
+  const h = document.createElement('span');
+  h.className = 'rz-handle';
+  h.title = '按住拖动调整字号';
+  el.appendChild(h);
+  const lineOf = () => isDialogue ? el.querySelector('.pd-line') : el;
+  const currentSize = () => {
+    const ln = lineOf();
+    if (ln && ln.style.fontSize) return Math.round(parseFloat(ln.style.fontSize));
+    if (el.classList.contains('size-sm')) return 15;
+    if (el.classList.contains('size-lg')) return 22;
+    return 17;
+  };
+  const applySize = (n) => {
+    const px = Math.min(72, Math.max(12, Math.round(n)));
+    const ln = lineOf();
+    if (!ln) return;
+    ln.style.fontSize = px + 'px';
+    if (isDialogue) {
+      const sp = el.querySelector('.pd-speaker');
+      if (sp) sp.style.fontSize = Math.round(px * 1.3) + 'px';
+    }
+  };
+  let sx = 0, sy = 0, start = 17;
+  h.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    start = currentSize();
+    sx = e.clientX; sy = e.clientY;
+    h.classList.add('dragging');
+    h.setPointerCapture(e.pointerId);
+  });
+  h.addEventListener('pointermove', (e) => {
+    if (!h.classList.contains('dragging')) return;
+    applySize(start + ((e.clientX - sx) + (e.clientY - sy)) / 2);
+  });
+  const end = (e) => {
+    if (!h.classList.contains('dragging')) return;
+    h.classList.remove('dragging');
+    const n = currentSize();
+    const real = findBlock(b.id);
+    if (real) {
+      real.subtitle = real.subtitle || { on: true };
+      real.subtitle.size = n;
+      persist();
+    }
+  };
+  h.addEventListener('pointerup', end);
+  h.addEventListener('pointercancel', end);
+  h.addEventListener('click', (e) => e.stopPropagation()); // 手柄点击不触发文字点击推进
+}
 function renderPlay() {
   stopPlayAudio(); // 先停掉上一幕的配音，避免两个声音同时播放
   stopPlaySfxAll();   // 音效轨：切幕时停止本幕全部音效（含延迟定时器）
@@ -1924,11 +1990,12 @@ function renderPlay() {
     // 场景文字（纯文字无框）单独渲染在 frame 上层，可自由拖拽
     fore.classList.add('scene-sub-mode');
   } else {
-    // 对白框：始终显示（角色名 + 对白内容自动加引号）；位置 = 弹窗三档预设（底/顶/中偏下）或播放中自由拖拽（存了 x/y = 自由位置），字号三档
+    // 对白框：始终显示（角色名 + 对白内容自动加引号）；位置 = 弹窗三档预设（底/顶/中偏下）或播放中自由拖拽（存了 x/y = 自由位置）；字号 = 三档或自定义 px（可拖手柄拉大小）
     const sub = b.subtitle || {};
+    const sizeNum = typeof sub.size === 'number' ? sub.size : null;
     const isFree = sub.x != null;
     const d = document.createElement('div');
-    d.className = 'play-dialogue size-' + (sub.size === 'sm' ? 'sm' : sub.size === 'lg' ? 'lg' : 'md') +
+    d.className = 'play-dialogue' + (sizeNum ? '' : ' size-' + (sub.size === 'sm' ? 'sm' : sub.size === 'lg' ? 'lg' : 'md')) +
       (isFree ? ' free' : (sub.pos === 'mid' ? ' mid' : ''));
     if (!isFree) {
       if (sub.pos === 'top') fore.classList.add('dlg-top');
@@ -1941,6 +2008,7 @@ function renderPlay() {
     ln.className = 'pd-line';
     ln.textContent = formatDialogue(b);
     d.append(sp, ln);
+    if (sizeNum) { ln.style.fontSize = sizeNum + 'px'; sp.style.fontSize = Math.round(sizeNum * 1.3) + 'px'; }
     if (isFree) {
       d.style.left = sub.x + '%';
       d.style.top = sub.y + '%';
@@ -1950,18 +2018,22 @@ function renderPlay() {
     } else {
       fore.appendChild(d);
     }
+    attachSizeHandle(d, b); // 拉大小手柄（对白框：拖动实时调整个框的字号）
   }
   frame.appendChild(fore);
-  // 场景文字：纯文字无框，可自由拖拽位置（x/y 播放区中心点百分比），字号三档；内容留空则不显示
+  // 场景文字：纯文字无框，可自由拖拽位置（x/y 播放区中心点百分比），字号三档或自定义 px（可拖手柄拉大小）；内容留空则不显示
   if (b.type === 'scene' && (b.content || '').trim()) {
     const sub = b.subtitle || {};
+    const sizeNum = typeof sub.size === 'number' ? sub.size : null;
     const st = document.createElement('div');
-    st.className = 'play-scene-text size-' + (sub.size === 'sm' ? 'sm' : sub.size === 'lg' ? 'lg' : 'md');
+    st.className = 'play-scene-text' + (sizeNum ? '' : ' size-' + (sub.size === 'sm' ? 'sm' : sub.size === 'lg' ? 'lg' : 'md'));
     st.textContent = b.content;
     st.style.left = (sub.x != null ? sub.x : 50) + '%';
     st.style.top = (sub.y != null ? sub.y : 82) + '%';
     st.style.transform = 'translate(-50%,-50%)';
+    if (sizeNum) st.style.fontSize = sizeNum + 'px';
     makeTextDraggable(st, b);
+    attachSizeHandle(st, b); // 拉大小手柄（场景文字：拖动实时调字号）
     frame.appendChild(st);
   }
   body.appendChild(frame);

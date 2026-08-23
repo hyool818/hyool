@@ -1063,3 +1063,24 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：push main
 
+---
+
+## 作品编辑器 · 播放文字「自定义拉大小」（字号不再局限于三档）
+
+**日期**：2026-08-23
+
+**背景**：用户反馈「字体还是小」，要求改成自定义拉大小。原有三档（小/中/大）保留为旧数据兼容，新增自定义字号。
+
+**改动**：
+- `public/story-editor.js`：
+  - 新增 `attachSizeHandle(el, b)`：播放文字右下角挂「拉大小」手柄 `.rz-handle`（pointerdown/move/up + setPointerCapture + `touch-action:none`），按住拖动实时调字号（12~72px，`(dx+dy)/2` 映射），对白框角色名联动 1.3x，松手写回真实积木 `subtitle.size`（数字 px）并 `persist()`；手柄事件独立 `stopPropagation`，与位置拖拽/点击推进互不干扰。
+  - `renderPlay` 对白/场景文字：`subtitle.size` 为数字 → 内联 `fontSize`（对白 = line + speaker 联动）；为旧三档 → 沿用 `size-sm/md/lg` class。
+  - `openSubtitleEditor` 字号下拉改**滑条**（12~72px，实时显示 px 值）；打开时旧三档映射为数字（sm=15/md=17/lg=22）；保存 `subtitle={on, size:数字}`。
+- `public/story-editor.html`：`.play-dialogue` 加 `position:relative`；新增 `.rz-handle` 手柄样式（右下角小圆钮 + 拖拽高亮）。
+
+**行为变更**：存量三档 `subtitle.size` 数据照常渲染（class 兼容）；播放中拖动任意文字/对白框右下角手柄即转自定义字号并保存。对白框角色名字号 = 对白内容 × 1.3。
+
+**说明**：无数据库迁移、无后端改动；`subtitle.size` 现为数字 px（12~72）或旧三档字符串。按约定不做验证、直接 push main（CI 自动部署）。
+
+**提交**：push main
+
