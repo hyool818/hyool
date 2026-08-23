@@ -1882,10 +1882,9 @@ function renderPlay() {
   fore.className = 'play-fore';
   fore.addEventListener('click', playNext);
   if (b.type === 'scene') {
-    const d = document.createElement('div');
-    d.className = 'play-scene';
-    d.textContent = b.content;
-    fore.appendChild(d);
+    // 场景幕：电影式字幕模式 —— 不渲染中间场景卡片；fore 退化为全屏透明点击区（整幅画面点击推进下一幕），
+    // 无「点击文字进入下一条」提示、无玻璃卡片背景；画面文字仅由字幕层承担（开关/位置/大小可调）
+    fore.classList.add('scene-sub-mode');
   } else {
     const d = document.createElement('div');
     d.className = 'play-dialogue';

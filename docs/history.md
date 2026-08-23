@@ -985,3 +985,28 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：0890033（push main）
 
+
+---
+
+## 作品编辑器 · 场景字幕·电影式字幕模式（修复：开关/位置不生效观感）
+
+**日期**：2026-08-23
+
+**背景**：场景字幕上线后用户反馈「场景字幕开关有作用吗？我选了关，还是有……的显示，而且不需要场景以及点击文字进入下一条的显示，虚化框可以近乎透明。而且位置我选的底部，结果还是在中间」。
+
+**根因**：场景积木的播放渲染与字幕层解耦——无论字幕开关状态，`renderPlay` 都固定渲染中间 `.play-scene` 场景文字卡片 + `.play-fore::after`「点击文字进入下一条」提示 + 有媒体时的玻璃虚化卡片（`.has-media .play-fore`）。于是：关字幕只关掉底部字幕层，中间场景卡片仍在（「关了还有显示」）；字幕位置选了底部，但视觉重心被固定居中的场景卡片占据（「选底部却在中间」）；场景卡片 + 点击提示 + 玻璃框正是用户不想要的元素。
+
+**改动**：
+- `public/story-editor.js` `renderPlay` 场景分支：不再创建 `.play-scene` 文字节点，改为给 `.play-fore` 加 `scene-sub-mode` 类（电影式字幕模式）。
+- `public/story-editor.html` 新增样式：
+  - `.play-fore.scene-sub-mode::after{content:none}` —— 去掉「点击文字进入下一条」提示。
+  - `.play-overlay .play-frame .play-fore.scene-sub-mode` —— `position:absolute;inset:0;max-width:none`，前景退化为**整个画幅的透明点击区**（字幕层 pointer-events:none 不拦截，任意位置点击推进下一幕）。
+  - `.play-overlay.has-media .play-fore.scene-sub-mode` —— 有媒体时不套玻璃卡片：背景/边框透明、backdrop-filter 关、无阴影、padding 归零。
+
+**效果**：场景幕播放 = 纯媒体画面（或纯底色）+ 可调字幕层。字幕开 → 按用户设置显示（底部/顶部/中部、字号、自定义文字，缺省=场景内容）；字幕关 → 画面无任何文字。整幅画幅可点击推进。对白积木行为完全不变（仍保留中间对白卡 + 字幕 + 点击提示）。
+
+**说明**：无数据库迁移、无后端改动；localStorage 数据结构不变（场景无 subtitle 字段 = 无文字，行为与改动前一致）。按约定不做验证、直接 push main（CI 自动部署）。
+
+**提交**：push main
+
+
