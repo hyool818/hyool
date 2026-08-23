@@ -162,15 +162,12 @@ textarea.txt{min-height:120px;resize:vertical}
 .play-media-bg img,.play-media-bg video{width:100%;height:100%;object-fit:cover;display:block}
 .play-fore{position:relative;z-index:2;max-width:680px;width:100%;display:flex;flex-direction:column;
   align-items:center;justify-content:center;cursor:pointer}
-.play-fore::after{content:"点击文字进入下一条";font-size:11px;letter-spacing:.1em;color:rgba(255,255,255,.5);
-  margin-top:14px;opacity:.85}
 .play-overlay.has-media .play-fore{background:rgba(8,8,16,.55);border:1px solid rgba(255,255,255,.1);
   border-radius:18px;padding:30px 34px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
   box-shadow:0 18px 50px rgba(0,0,0,.5);transition:.15s}
 .play-overlay.has-media .play-fore:hover{background:rgba(8,8,16,.68);border-color:rgba(139,123,255,.55)}
 /* 播放：场景幕 —— 前景退化为全屏透明点击区：无场景文字卡片、无「点击文字进入下一条」提示、
    有媒体时不套玻璃卡片（近乎透明）；点击区域=整个画幅；场景文字（.play-scene-text）单独渲染在 frame 上层可拖拽 */
-.play-fore.scene-sub-mode::after{content:none}
 .play-overlay .play-frame .play-fore.scene-sub-mode{position:absolute;inset:0;max-width:none;width:auto;margin:0}
 .play-overlay.has-media .play-fore.scene-sub-mode,
 .play-overlay.has-media .play-fore.scene-sub-mode:hover{background:transparent;border-color:transparent;padding:0;
@@ -178,35 +175,21 @@ textarea.txt{min-height:120px;resize:vertical}
 .play-nav{flex:0 0 auto;position:relative;z-index:3;display:flex;align-items:center;gap:14px;justify-content:center;
   padding:14px 22px;border-top:1px solid var(--line);background:rgba(5,5,10,.7)}
 .play-nav .pn-count{font-size:12px;color:var(--muted);min-width:110px;text-align:center;font-variant-numeric:tabular-nums}
-  /* 播放：对白框 = 底部聊天框（全宽贴底、无位置选项）；字号三档（小/中/大，旧数据兼容）+ 自定义 px/颜色；场景文字纯文字（无框）可拖拽 */
-  .play-dialogue.size-sm .pd-speaker{font-size:clamp(14px,2vw,18px)}
-  .play-dialogue.size-sm .pd-line{font-size:clamp(12px,1.8vw,15px)}
-  .play-dialogue.size-lg .pd-speaker{font-size:clamp(24px,4vw,34px)}
-  .play-dialogue.size-lg .pd-line{font-size:clamp(19px,3vw,25px)}
-  /* 对白幕：fore 全屏透明点击层（任意处点击推进），聊天框自带半透明深色底 */
-  .play-overlay .play-frame .play-fore.dlg-fore{position:absolute;inset:0;max-width:none;width:auto;margin:0}
-  .play-overlay.has-media .play-fore.dlg-fore,
-  .play-overlay.has-media .play-fore.dlg-fore:hover{background:transparent;border-color:transparent;padding:0;
-    backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
-  .play-scene-text{position:absolute;z-index:4;max-width:640px;text-align:center;line-height:1.9;color:#fff;
-    white-space:pre-wrap;word-break:break-word;text-shadow:0 2px 10px rgba(0,0,0,.9);cursor:grab;pointer-events:auto;
-    touch-action:none;font-size:clamp(15px,2.4vw,19px)}
-  .play-scene-text.dragging{cursor:grabbing}
-  .play-scene-text.size-sm{font-size:clamp(12px,1.8vw,15px)}
-  .play-scene-text.size-lg{font-size:clamp(19px,3vw,25px)}
-  /* 播放文字「拉大小」手柄：按住拖动实时调字号（对白框联动角色名），松手保存 */
-  .rz-handle{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;border-radius:50%;
-    background:rgba(139,123,255,.9);border:2px solid rgba(255,255,255,.9);cursor:nwse-resize;
-    touch-action:none;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.55)}
-  .rz-handle::after{content:"";position:absolute;left:5px;top:5px;width:5px;height:5px;
-    border-right:2px solid #fff;border-bottom:2px solid #fff}
-  .rz-handle.dragging{background:var(--accent)}
-
-  /* 播放：竖屏（9:16）适配 —— 画幅比例由 renderPlay 按播放区尺寸精确计算（JS 设 style），
-     两侧留黑居中，不再全屏拉伸裁剪；前景/字幕收窄贴合手机画幅 */
-  .play-overlay.orient-portrait #playBody{background:#000;padding:0}
-  .play-overlay.orient-portrait .play-fore{max-width:460px}
-  .play-overlay.orient-portrait .play-scene-text{max-width:420px}
+/* 播放：对白框 = 底部聊天框（全宽贴底、无位置选项）；字号全局统一（内联 25~30px）；场景文字纯文字（无框）可拖拽 */
+/* 对白幕：fore 全屏透明点击层（任意处点击推进），聊天框自带半透明深色底 */
+.play-overlay .play-frame .play-fore.dlg-fore{position:absolute;inset:0;max-width:none;width:auto;margin:0}
+.play-overlay.has-media .play-fore.dlg-fore,
+.play-overlay.has-media .play-fore.dlg-fore:hover{background:transparent;border-color:transparent;padding:0;
+  backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
+.play-scene-text{position:absolute;z-index:4;max-width:640px;text-align:center;line-height:1.9;color:#fff;
+  white-space:pre-wrap;word-break:break-word;text-shadow:0 2px 10px rgba(0,0,0,.9);cursor:grab;pointer-events:auto;
+  touch-action:none;font-size:27px}
+.play-scene-text.dragging{cursor:grabbing}
+/* 播放：竖屏（9:16）适配 —— 画幅比例由 renderPlay 按播放区尺寸精确计算（JS 设 style），
+   两侧留黑居中，不再全屏拉伸裁剪；前景/字幕收窄贴合手机画幅 */
+.play-overlay.orient-portrait #playBody{background:#000;padding:0}
+.play-overlay.orient-portrait .play-fore{max-width:460px}
+.play-overlay.orient-portrait .play-scene-text{max-width:420px}
 
   /* BGM 弹窗：音量行 */
   .bgm-vol{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}

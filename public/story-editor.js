@@ -8,10 +8,10 @@
 //   旧字段 sfx（单对象 {url}）读取时自动迁移为 sfxList 单条
 // bgmOverride（可选，积木）：{url, type:'audio', volume} —— 幕级 BGM（有则本幕替换章节 BGM；离开本幕后无覆盖的幕自动恢复章节曲）
 // cast（可选，作品级）：{角色名: {kind:'tts'|'audio'|'none', voice?, url?, volume}} —— 角色声音表（AI 音色或手动音频）
-// subtitle（可选，对白/场景）：{on, size:数字px(12~72)或旧'sm'|'md'|'lg', color?:hex, x?, y?} —— 文字显示设置
+// subtitle（可选，对白/场景）：{on, color?:hex, x?, y?} —— 文字显示设置
 //   对白：播放时固定显示底部「聊天框」（全宽贴底、半透明深色底，角色名 + 对白内容自动加引号），无位置选项
 //   场景：播放时显示「场景文字」（纯文字无框，文字来自 b.content），位置可自由拖拽（x/y 为画幅中心点百分比）；内容留空则不显示
-//   字号：弹窗滑条自定义（12~72px），或播放中按住文字右下角「拉大小」手柄拖动实时调整、松手自动保存（对白框角色名联动 1.3x）
+//   字号：**全局统一**（默认 27px，可调 25~30px）——弹窗滑条修改即更新全局默认字号并立即生效，所有文字统一；对白框角色名联动 1.3x；不再逐块存储 subtitle.size（旧 size 字段忽略）
 //   颜色：subtitle.color 自定义文字颜色（对白框角色名与内容同色；场景文字直接着色），选默认色即不存字段
 //   对白积木「💬 对白框」弹窗承担角色编辑（角色名 + 对白内容）；场景积木「📝 场景文字」弹窗编辑场景文字
 // 章节 bgm（可选）：{url, type:'audio', volume(0~1)} —— BGM（进入章节自动循环播放，同章节切幕不重启）
@@ -20,6 +20,19 @@ import { $, toast } from '/workspace/js/ui.js';
 const SAVE_KEY = 'hyool_stories_v1';
 const DEFAULT_SPEAKER = '角色名';
 const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 与后端 /api/upload 一致
+// 全局统一字号（localStorage，默认 27px，范围 25~30px）：所有对白/场景文字统一字号，修改即全局生效
+const SUB_SIZE_DEFAULT = 27;
+const SUB_SIZE_MIN = 25;
+const SUB_SIZE_MAX = 30;
+const SUB_SIZE_KEY = 'hyool_story_subtitle_size_v1';
+function getGlobalSubSize() {
+  const n = Number(localStorage.getItem(SUB_SIZE_KEY));
+  if (!Number.isFinite(n)) return SUB_SIZE_DEFAULT;
+  return Math.min(SUB_SIZE_MAX, Math.max(SUB_SIZE_MIN, Math.round(n)));
+}
+function setGlobalSubSize(px) {
+  localStorage.setItem(SUB_SIZE_KEY, String(Math.min(SUB_SIZE_MAX, Math.max(SUB_SIZE_MIN, Math.round(px)))));
+}
 // 画面压缩目标（上传前按作品「方向 × 画质」前端自动等比 cover 压缩；standard=默认档，hd=高清档）
 const IMG_TARGETS = {
   landscape: { standard: { w: 1280, h: 720 }, hd: { w: 1920, h: 1080 } },
@@ -723,7 +736,6 @@ function pickSfx(block, btn) {
 // 场景：播放时显示「场景文字」（纯文字无框，来自 b.content），可自由拖拽位置，字号/颜色自定义；内容留空则不显示。
 function openSubtitleEditor(b) {
   const cur = b.subtitle || {};
-  const size = cur.size || 'md';
   openModal(b.type === 'scene' ? '场景文字' : '对白框', (body) => {
     // 对白：角色编辑（角色名 + 对白内容）—— 文字即对白内容，播放时自动加引号
     if (b.type === 'dialogue') {
@@ -764,20 +776,20 @@ function openSubtitleEditor(b) {
       f3.append(l3, ta);
       body.append(f3);
     }
-    // 对白/场景：字号滑条 + 文字颜色（对白框固定底部聊天框无位置选项；场景位置在播放时自由拖拽）
+    // 对白/场景：字号滑条（全局统一 25~30px）+ 文字颜色（对白框固定底部聊天框无位置选项；场景位置在播放时自由拖拽）
     const f5 = document.createElement('div');
     f5.className = 'field';
     f5.style.margin = '0';
     const l5 = document.createElement('label');
-    l5.textContent = '字号（滑条自定义；播放中也可按住文字右下角手柄拉大小）';
+    l5.textContent = '字号（全局统一，默认 27px；修改后所有文字生效）';
     const sizeRow = document.createElement('div');
     sizeRow.style.cssText = 'display:flex;align-items:center;gap:10px';
     const sizeRange = document.createElement('input');
     sizeRange.type = 'range';
-    sizeRange.min = 12; sizeRange.max = 72; sizeRange.step = 1;
+    sizeRange.min = SUB_SIZE_MIN; sizeRange.max = SUB_SIZE_MAX; sizeRange.step = 1;
     sizeRange.className = 'sub-edit-size';
     sizeRange.style.flex = '1';
-    const initSize = typeof size === 'number' ? size : (size === 'sm' ? 15 : size === 'lg' ? 22 : 17);
+    const initSize = getGlobalSubSize();
     sizeRange.value = initSize;
     const sizeVal = document.createElement('span');
     sizeVal.style.cssText = 'font-size:12px;color:var(--muted);min-width:36px;text-align:right';
@@ -808,9 +820,9 @@ function openSubtitleEditor(b) {
       const ta = $('#modalBody .sub-edit-scene-content');
       b.content = ta ? ta.value.trim() : (b.content || '');
     }
-    // 显示设置：字号（自定义 px）+ 文字颜色；对白框固定底部聊天框；场景位置为拖拽坐标 x/y 保持不变
-    const sizeNow = Number(($('#modalBody .sub-edit-size') || {}).value) || 17;
-    b.subtitle = { on: true, size: sizeNow };
+    // 显示设置：字号全局统一（弹窗修改即更新全局默认，所有文字统一生效）+ 文字颜色；对白框固定底部聊天框；场景位置 x/y 保持不变
+    setGlobalSubSize(Number(($('#modalBody .sub-edit-size') || {}).value) || SUB_SIZE_DEFAULT);
+    b.subtitle = { on: true }; // 字号不再逐块存储（全局统一）
     const colorEl = $('#modalBody .sub-edit-color');
     const colorNow = colorEl ? colorEl.value : '';
     const defColor = b.type === 'dialogue' ? '#e8e8f0' : '#ffffff';
@@ -1861,60 +1873,6 @@ function makeTextDraggable(el, b, opts = {}) {
   });
 }
 
-// 播放文字「拉大小」手柄：按住右下角手柄拖动实时调字号（对白框联动角色名），松手保存 subtitle.size（数字 px）。
-// 位置拖拽在文字主体上（makeTextDraggable），手柄事件独立 stopPropagation 互不干扰。
-function attachSizeHandle(el, b) {
-  const isDialogue = el.classList.contains('play-dialogue');
-  const h = document.createElement('span');
-  h.className = 'rz-handle';
-  h.title = '按住拖动调整字号';
-  el.appendChild(h);
-  const lineOf = () => isDialogue ? el.querySelector('.pd-line') : el;
-  const currentSize = () => {
-    const ln = lineOf();
-    if (ln && ln.style.fontSize) return Math.round(parseFloat(ln.style.fontSize));
-    if (el.classList.contains('size-sm')) return 15;
-    if (el.classList.contains('size-lg')) return 22;
-    return 17;
-  };
-  const applySize = (n) => {
-    const px = Math.min(72, Math.max(12, Math.round(n)));
-    const ln = lineOf();
-    if (!ln) return;
-    ln.style.fontSize = px + 'px';
-    if (isDialogue) {
-      const sp = el.querySelector('.pd-speaker');
-      if (sp) sp.style.fontSize = Math.round(px * 1.3) + 'px';
-    }
-  };
-  let sx = 0, sy = 0, start = 17;
-  h.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    start = currentSize();
-    sx = e.clientX; sy = e.clientY;
-    h.classList.add('dragging');
-    h.setPointerCapture(e.pointerId);
-  });
-  h.addEventListener('pointermove', (e) => {
-    if (!h.classList.contains('dragging')) return;
-    applySize(start + ((e.clientX - sx) + (e.clientY - sy)) / 2);
-  });
-  const end = (e) => {
-    if (!h.classList.contains('dragging')) return;
-    h.classList.remove('dragging');
-    const n = currentSize();
-    const real = findBlock(b.id);
-    if (real) {
-      real.subtitle = real.subtitle || { on: true };
-      real.subtitle.size = n;
-      persist();
-    }
-  };
-  h.addEventListener('pointerup', end);
-  h.addEventListener('pointercancel', end);
-  h.addEventListener('click', (e) => e.stopPropagation()); // 手柄点击不触发文字点击推进
-}
 function renderPlay() {
   stopPlayAudio(); // 先停掉上一幕的配音，避免两个声音同时播放
   stopPlaySfxAll();   // 音效轨：切幕时停止本幕全部音效（含延迟定时器）
@@ -1985,11 +1943,11 @@ function renderPlay() {
     // 场景文字（纯文字无框）单独渲染在 frame 上层，可自由拖拽
     fore.classList.add('scene-sub-mode');
   } else {
-    // 对白框：底部「聊天框」样式（全宽贴底、半透明深色底），点击任意处推进；文字字号/颜色可自定义（可拖手柄拉大小）
+    // 对白框：底部「聊天框」样式（全宽贴底、半透明深色底），点击任意处推进；文字字号全局统一（默认 27px，25~30px 可调）、颜色可自定义
     const sub = b.subtitle || {};
-    const sizeNum = typeof sub.size === 'number' ? sub.size : null;
+    const sz = getGlobalSubSize();
     const d = document.createElement('div');
-    d.className = 'play-dialogue' + (sizeNum ? '' : ' size-' + (sub.size === 'sm' ? 'sm' : sub.size === 'lg' ? 'lg' : 'md'));
+    d.className = 'play-dialogue';
     const sp = document.createElement('div');
     sp.className = 'pd-speaker';
     sp.textContent = b.speaker || DEFAULT_SPEAKER;
@@ -1997,27 +1955,26 @@ function renderPlay() {
     ln.className = 'pd-line';
     ln.textContent = formatDialogue(b);
     d.append(sp, ln);
-    if (sizeNum) { ln.style.fontSize = sizeNum + 'px'; sp.style.fontSize = Math.round(sizeNum * 1.3) + 'px'; }
+    ln.style.fontSize = sz + 'px';
+    sp.style.fontSize = Math.round(sz * 1.3) + 'px'; // 角色名联动 1.3x
     if (sub.color) { sp.style.color = sub.color; ln.style.color = sub.color; } // 自定义文字颜色（角色名与对白同色）
     fore.classList.add('dlg-fore'); // 对白幕：fore 全屏透明点击层
     fore.appendChild(d);
-    attachSizeHandle(d, b); // 拉大小手柄（对白框：拖动实时调整个框的字号）
   }
   frame.appendChild(fore);
-  // 场景文字：纯文字无框，可自由拖拽位置（x/y 播放区中心点百分比），字号三档或自定义 px（可拖手柄拉大小）；内容留空则不显示
+  // 场景文字：纯文字无框，可自由拖拽位置（x/y 播放区中心点百分比），字号全局统一、颜色自定义；内容留空则不显示
   if (b.type === 'scene' && (b.content || '').trim()) {
     const sub = b.subtitle || {};
-    const sizeNum = typeof sub.size === 'number' ? sub.size : null;
+    const sz = getGlobalSubSize();
     const st = document.createElement('div');
-    st.className = 'play-scene-text' + (sizeNum ? '' : ' size-' + (sub.size === 'sm' ? 'sm' : sub.size === 'lg' ? 'lg' : 'md'));
+    st.className = 'play-scene-text';
     st.textContent = b.content;
     st.style.left = (sub.x != null ? sub.x : 50) + '%';
     st.style.top = (sub.y != null ? sub.y : 82) + '%';
     st.style.transform = 'translate(-50%,-50%)';
-    if (sizeNum) st.style.fontSize = sizeNum + 'px';
+    st.style.fontSize = sz + 'px';
     if (sub.color) st.style.color = sub.color; // 自定义场景文字颜色
     makeTextDraggable(st, b);
-    attachSizeHandle(st, b); // 拉大小手柄（场景文字：拖动实时调字号）
     frame.appendChild(st);
   }
   body.appendChild(frame);
@@ -2184,7 +2141,7 @@ window.StoryEditor = {
     if (!b) return false;
     if (!subtitle) { delete b.subtitle; }
     else {
-      b.subtitle = { on: subtitle.on !== false, size: subtitle.size || 'md' }; // 对白框固定底部聊天框，不再存位置字段
+      b.subtitle = { on: subtitle.on !== false }; // 字号全局统一（默认 27px），不再存 size 字段
       if (subtitle.color) b.subtitle.color = subtitle.color;
       if (subtitle.x != null) b.subtitle.x = subtitle.x;
       if (subtitle.y != null) b.subtitle.y = subtitle.y;

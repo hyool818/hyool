@@ -1110,3 +1110,28 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：push main
 
+---
+
+## 作品编辑器 · 对白/场景字号统一全局默认 27px（25~30px）+ 删除「点击文字进入下一行」提示
+
+**日期**：2026-08-23
+
+**背景**：用户要求所有文字字号统一默认 27px、可调范围固定在 25~30px；弹窗修改字号后作为全局默认（所有文字统一生效）；并删除对白幕中间「点击文字进入下一行」提示文字与播放中「拉大小」手柄（反馈：多余）。
+
+**改动**：
+- `public/story-editor.js`：
+  - 新增全局统一字号：`SUB_SIZE_DEFAULT=27`、`SUB_SIZE_MIN=25`、`SUB_SIZE_MAX=30`、`SUB_SIZE_KEY='hyool_story_subtitle_size_v1'`（localStorage）+ `getGlobalSubSize()/setGlobalSubSize()`（读取缺省 27、越界自动收窄到 25~30）。
+  - `renderPlay` 对白/场景文字：统一内联 `style.fontSize = 全局字号 px`（对白框角色名联动 1.3x），不再使用 `subtitle.size`（数字 px 或旧三档 sm/md/lg 一律忽略、不渲染 size-* class）。
+  - `openSubtitleEditor` 字号滑条改为 25~30px（step=1，初始 = 当前全局字号）；保存时 `setGlobalSubSize(滑条值)` 更新全局默认，`b.subtitle = {on:true}` **不再写 `size` 字段**；label 文案「字号（全局统一，默认 27px；修改后所有文字生效）」。
+  - `setBlockSubtitleById` 不再写 `size` 字段；`attachSizeHandle`「拉大小」手柄函数及对白/场景调用**整体删除**，播放文字不再挂手柄。
+- `public/story-editor.html`：
+  - 删除 `.play-fore::after{content:"点击文字进入下一条"}` 提示规则（对白/场景幕中间均不再显示提示文字）；同步清理 `scene-sub-mode::after{content:none}` 冗余行。
+  - 删除对白/场景 `size-sm/md/lg` 三档样式与 `.rz-handle` 手柄样式；`.play-scene-text` 兜底字号改 27px；统一播放样式区遗留缩进。
+- `.wrangler/story-av-smoke.cjs`（本地冒烟，不入库）：字号断言改为全局默认 27px（对白 line 27px / 角色名 35px、场景 27px）；新增「修改全局字号=30px 立即生效」「播放中无『拉大小』手柄」「subtitle 不再存 size」断言；删除旧 `size:'lg'/'md'` 类断言。
+
+**行为变更**：所有对白/场景文字字号**全局统一**——默认 27px，弹窗滑条（25~30px）修改即更新全局默认并立即生效（下次播放所有文字统一），不再逐块存储 `subtitle.size`（存量 size 字段忽略）。删除对白幕「点击文字进入下一行」提示与播放中「拉大小」手柄。
+
+**说明**：无数据库迁移、无后端改动；`subtitle` 结构 `{on, color?, x?, y?}`（`x/y` 仅场景）。全局字号存 localStorage（键 `hyool_story_subtitle_size_v1`，浏览器级、跨作品生效）。按约定不做验证、直接 push main（CI 自动部署）。
+
+**提交**：push main
+
