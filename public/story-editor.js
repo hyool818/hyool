@@ -1109,8 +1109,10 @@ function makeRemoveCast(sp, row) {
 }
 let castAudioInput = null;
 let castPickBtn = null;
+let castPickSp = null;
 function pickCastAudio(sp, btn) {
   castPickBtn = btn;
+  castPickSp = sp; // input 为单例，change 回调须用「本次点击」的角色，避免写错角色
   if (!castAudioInput) {
     castAudioInput = document.createElement('input');
     castAudioInput.type = 'file';
@@ -1128,8 +1130,8 @@ function pickCastAudio(sp, btn) {
       if (result) {
         const s = story();
         if (!s.cast || typeof s.cast !== 'object') s.cast = {};
-        const cur = s.cast[sp] || {};
-        s.cast[sp] = { kind: 'audio', url: result.url, volume: cur.volume || 0.8 };
+        const cur = s.cast[castPickSp] || {};
+        s.cast[castPickSp] = { kind: 'audio', url: result.url, volume: cur.volume || 0.8 };
         persist();
         clearTtsCache();
         toast('角色音频已设置');
@@ -1490,7 +1492,9 @@ function clearTtsCache() {
 }
 // 添加/更换音效（时间轴弹窗内）
 let tlSfxInput = null;
+let tlSfxTarget = null; // 本次点击目标：更换=目标音效对象，添加=null（单例 input 回调闭包不能用首次调用的 targetSfx）
 function pickTimelineSfx(b, targetSfx) {
+  tlSfxTarget = targetSfx || null;
   if (!tlSfxInput) {
     tlSfxInput = document.createElement('input');
     tlSfxInput.type = 'file';
@@ -1504,11 +1508,13 @@ function pickTimelineSfx(b, targetSfx) {
       if (!result) return;
       const cur = tlState && tlState.b;
       if (!cur) return;
-      if (targetSfx) {
-        targetSfx.url = result.url;
-        delete targetSfx.durationMs;
+      const target = tlSfxTarget;
+      if (target) {
+        target.url = result.url;
+        delete target.durationMs;
         toast('音效已更换');
       } else {
+        if (!Array.isArray(cur.sfxList)) cur.sfxList = [];
         const sf = { id: 'sfx_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: result.url, type: 'audio', offsetMs: 0, loop: false, volume: 0.8 };
         cur.sfxList.push(sf);
         selectedSfxId = sf.id;
@@ -1517,7 +1523,7 @@ function pickTimelineSfx(b, targetSfx) {
       persist();
       renderBlocks();
       const dur = await loadAudioDuration(result.url);
-      const targetId = targetSfx ? targetSfx.id : selectedSfxId;
+      const targetId = target ? target.id : selectedSfxId;
       tlState.sfxDurs = tlState.sfxDurs.filter(x => x.id !== targetId);
       tlState.sfxDurs.push({ id: targetId, dur });
       tlRender(cur);

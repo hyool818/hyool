@@ -920,3 +920,24 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 **说明**：无数据库迁移、无后端改动。按约定不做线上验证，做了本地 CDP 冒烟，脚本在 .wrangler/ 不入库。
 
 **提交**：push main（CI 自动部署）。
+## 作品编辑器 · 修复：角色音频 / 时间轴音效 同类单例 input 闭包 bug 补修
+
+**日期**：2026-08-23
+
+**背景**：上轮修复覆盖 5 个积木级上传入口（pickMedia/pickAudio/pickSfx/pickBlockBgm/pickCastAudio）后，本轮对配音（pickAudio）与音效（pickSfx/pickTimelineSfx/pickBlockBgm/pickCastAudio）全部上传路径复查，发现两个同类闭包 bug 漏修，另顺带发现一个新积木音效数组未初始化的崩溃点。
+
+**根因**：
+- `pickCastAudio`（角色声音表·上传音频）：单例 file input 的 `change` 回调闭包捕获的是**首次调用时的角色名 `sp`**；上轮只把点击目标按钮记录到 `castPickBtn`，未记录角色名 → 先给角色 A 上传再给角色 B 上传，第二次仍写回角色 A（角色 B 静音、A 被覆盖）。
+- `pickTimelineSfx`（时间轴·添加/更换音效）：回调闭包捕获**首次调用时的 `targetSfx`** → 先「＋添加音效」（targetSfx=null）再点某音效「更换」，更换会被当成新增第 2 条；反过来先「更换」后「添加」，添加会覆盖原音效。上轮 history.md 判定其「因原地改对象引用不受影响」**不成立**（原地改只对"已存在对象"成立，目标对象本身由闭包捕获首次值）。
+- 附加缺陷：`addBlock` 新建积木无 `sfxList` 字段（`normalizeStories` 仅在 localStorage 加载时兜底），`pickTimelineSfx` 添加分支直接 `cur.sfxList.push()` 报 `TypeError: Cannot read properties of undefined`，新积木「＋添加音效」必失败。
+
+**修复**（`public/story-editor.js`）：
+1. 新增 `let castPickSp = null;`，`pickCastAudio` 每次点击记录 `castPickSp = sp`，回调改读 `s.cast[castPickSp]`。
+2. 新增 `let tlSfxTarget = null;`，`pickTimelineSfx` 每次点击记录 `tlSfxTarget = targetSfx || null`，回调内 `const target = tlSfxTarget` 判定添加/更换。
+3. 时间轴添加分支 push 前补 `if (!Array.isArray(cur.sfxList)) cur.sfxList = [];`。
+
+**验证**：`.wrangler/story-av-smoke.cjs` 93 PASS / 0 FAIL（SMOKE-OK，favicon 与 /api/tts/voices 404 为已知 mock 噪音）。新增回归：
+- **M 段**：cast 弹窗内给「角色甲」「角色乙」各走真实 UI 上传音频 → 两角色各自独立绑定、互不覆盖（修复前第二次上传会覆盖第一个角色）。
+- **N 段**：新积木走「🎼」按钮打开时间轴 → 「＋添加音效」1 条 → 点 clip「更换」→ 仍 1 条且 url 已更新（修复前更换误新增第 2 条；未修复数组初始化时添加直接抛错）。
+
+**补充**：上轮条目（f53236c）对 `pickTimelineSfx` "不受影响"的判定有误，以本条为准。
