@@ -1084,3 +1084,29 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：push main
 
+
+---
+
+## 作品编辑器 · 对白框改「聊天框」+ 文字颜色（取消三档位置与自由拖拽）
+
+**日期**：2026-08-23
+
+**背景**：用户要求对白框像聊天应用一样——默认贴底、占满底部全宽；取消上中下三档位置与「自由（播放中拖拽）」选项；文字只保留可调大小与颜色（场景文字也加颜色调节）。
+
+**改动**：
+- `public/story-editor.html`：
+  - `.play-dialogue` 改为底部「聊天框」：`position:absolute;left:0;right:0;bottom:0`（相对画幅），全宽贴底、半透明深色渐变底 + `backdrop-filter` 模糊 + 顶部圆角/细边框/上投影，文字左对齐（角色名 + 对白内容紧凑布局）；删除旧 `max-width:660px` 居中卡样式与竖屏 `max-width:440px` 收窄行（聊天框全宽贴画幅）。
+  - 删除对白框位置三档样式（`.play-fore.dlg-bot/dlg-top`、`.play-dialogue.mid`）与自由拖拽样式（`.play-dialogue.free`）；保留字号三档 `size-sm/md/lg` 旧数据兼容。
+  - 新增 `.play-fore.dlg-fore`：对白幕 fore 退化为全屏透明点击层（`position:absolute;inset:0;max-width:none`，任意处点击推进），`has-media` 时不套玻璃卡（与场景幕一致）。
+- `public/story-editor.js`：
+  - `renderPlay` 对白分支：不再按 `subtitle.pos`/`x/y` 定位，fore 恒加 `dlg-fore`，对白框挂 fore（absolute 贴底）；删除 `isFree`/`.free`/`makeTextDraggable(d, b, {onClick})` 自由拖拽路径（对白点击仍推进，改由全屏 fore 承接）。
+  - 新增文字颜色：`subtitle.color`（hex）——对白框角色名与对白内容同色（内联 `style.color` 覆盖，角色名不再恒为 accent 紫）、场景文字直接着色；弹窗对白/场景均加「文字颜色」取色器 `<input type="color">`（初始 = 已存色或默认：对白 `#e8e8f0` / 场景 `#ffffff`；保存时选默认色即删 `color` 字段）。
+  - `openSubtitleEditor` 删除「位置」下拉（底/顶/中偏下/**自由**）；`setBlockSubtitleById` 不再写 `pos` 字段（透传 `color`/`x`/`y`）；`makeTextDraggable` 改场景专用（删除对白 `pos='custom'` 写回）；积木按钮 tooltip 同步更新。
+- `.wrangler/story-av-smoke.cjs`（本地冒烟，不入库）：三档/自由位置断言改为底部聊天框断言，新增对白颜色（角色名+对白同色）与场景文字颜色断言。
+
+**行为变更**：存量 `subtitle.pos`/`x/y`（对白）字段忽略，一律渲染为底部聊天框；存量旧三档字号兼容；`subtitle.color` 缺失 = 默认（对白内容浅白 `#e8e8f0`、角色名 accent 紫；场景纯白）。场景文字位置拖拽（`x/y`）与字号手柄不受影响。
+
+**说明**：无数据库迁移、无后端改动；`subtitle` 结构 `{on, size, color?, x?, y?}`（`x/y` 仅场景）。按约定不做验证、直接 push main（CI 自动部署）。
+
+**提交**：push main
+

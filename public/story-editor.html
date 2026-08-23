@@ -138,10 +138,15 @@ textarea.txt{min-height:120px;resize:vertical}
 .play-head .spacer{flex:1 1 auto}
 .play-body{position:relative;z-index:2;flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:24px;overflow-y:auto}
-.play-dialogue{max-width:660px;width:100%;text-align:center;position:relative}
+/* 播放对白框 = 底部「聊天框」：全宽贴底、半透明深色底、文字左对齐；字号/文字颜色可自定义 */
+.play-dialogue{position:absolute;left:0;right:0;bottom:0;text-align:left;cursor:pointer;pointer-events:auto;
+  background:linear-gradient(180deg,rgba(16,16,32,.86),rgba(7,7,16,.94));
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-top:1px solid rgba(255,255,255,.14);border-radius:14px 14px 0 0;
+  padding:14px 22px 20px;box-shadow:0 -14px 42px rgba(0,0,0,.5)}
 .play-dialogue .pd-speaker{font-size:clamp(18px,3vw,26px);font-weight:700;color:var(--accent);
-  margin-bottom:22px;letter-spacing:.08em}
-.play-dialogue .pd-line{font-size:clamp(15px,2.4vw,19px);line-height:2;color:#e8e8f0;white-space:pre-wrap;word-break:break-word}
+  margin-bottom:4px;letter-spacing:.08em}
+.play-dialogue .pd-line{font-size:clamp(15px,2.4vw,19px);line-height:1.8;color:#e8e8f0;white-space:pre-wrap;word-break:break-word}
 
 /* 播放：画幅容器 + 视觉素材背景 + 前景文字 */
 /* 画幅容器：横屏铺满播放区；竖屏（9:16）时按比例居中收窄，两侧留黑，不再全屏拉伸裁剪 */
@@ -173,24 +178,22 @@ textarea.txt{min-height:120px;resize:vertical}
 .play-nav{flex:0 0 auto;position:relative;z-index:3;display:flex;align-items:center;gap:14px;justify-content:center;
   padding:14px 22px;border-top:1px solid var(--line);background:rgba(5,5,10,.7)}
 .play-nav .pn-count{font-size:12px;color:var(--muted);min-width:110px;text-align:center;font-variant-numeric:tabular-nums}
-  /* 播放：对白框位置（底部/顶部/中部偏下）+ 字号三档（小/中/大）；场景文字为纯文字（无框）可拖拽 */
-  .play-fore.dlg-bot{justify-content:flex-end;padding-bottom:48px}
-  .play-fore.dlg-top{justify-content:flex-start;padding-top:48px}
-  .play-dialogue.mid{position:absolute;left:0;right:0;bottom:24%}
+  /* 播放：对白框 = 底部聊天框（全宽贴底、无位置选项）；字号三档（小/中/大，旧数据兼容）+ 自定义 px/颜色；场景文字纯文字（无框）可拖拽 */
   .play-dialogue.size-sm .pd-speaker{font-size:clamp(14px,2vw,18px)}
   .play-dialogue.size-sm .pd-line{font-size:clamp(12px,1.8vw,15px)}
   .play-dialogue.size-lg .pd-speaker{font-size:clamp(24px,4vw,34px)}
   .play-dialogue.size-lg .pd-line{font-size:clamp(19px,3vw,25px)}
+  /* 对白幕：fore 全屏透明点击层（任意处点击推进），聊天框自带半透明深色底 */
+  .play-overlay .play-frame .play-fore.dlg-fore{position:absolute;inset:0;max-width:none;width:auto;margin:0}
+  .play-overlay.has-media .play-fore.dlg-fore,
+  .play-overlay.has-media .play-fore.dlg-fore:hover{background:transparent;border-color:transparent;padding:0;
+    backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
   .play-scene-text{position:absolute;z-index:4;max-width:640px;text-align:center;line-height:1.9;color:#fff;
     white-space:pre-wrap;word-break:break-word;text-shadow:0 2px 10px rgba(0,0,0,.9);cursor:grab;pointer-events:auto;
     touch-action:none;font-size:clamp(15px,2.4vw,19px)}
   .play-scene-text.dragging{cursor:grabbing}
   .play-scene-text.size-sm{font-size:clamp(12px,1.8vw,15px)}
   .play-scene-text.size-lg{font-size:clamp(19px,3vw,25px)}
-  /* 对白框：自由拖拽模式（弹窗三档为预设；播放中拖拽后转自由坐标 x/y） */
-  .play-dialogue.free{position:absolute;left:50%;top:82%;transform:translate(-50%,-50%);z-index:4;cursor:grab;
-    pointer-events:auto;touch-action:none}
-  .play-dialogue.free.dragging{cursor:grabbing}
   /* 播放文字「拉大小」手柄：按住拖动实时调字号（对白框联动角色名），松手保存 */
   .rz-handle{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;border-radius:50%;
     background:rgba(139,123,255,.9);border:2px solid rgba(255,255,255,.9);cursor:nwse-resize;
@@ -203,7 +206,6 @@ textarea.txt{min-height:120px;resize:vertical}
      两侧留黑居中，不再全屏拉伸裁剪；前景/字幕收窄贴合手机画幅 */
   .play-overlay.orient-portrait #playBody{background:#000;padding:0}
   .play-overlay.orient-portrait .play-fore{max-width:460px}
-  .play-overlay.orient-portrait .play-dialogue{max-width:440px}
   .play-overlay.orient-portrait .play-scene-text{max-width:420px}
 
   /* BGM 弹窗：音量行 */
