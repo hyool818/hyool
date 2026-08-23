@@ -8,7 +8,8 @@
 //   旧字段 sfx（单对象 {url}）读取时自动迁移为 sfxList 单条
 // bgmOverride（可选，积木）：{url, type:'audio', volume} —— 幕级 BGM（有则本幕替换章节 BGM；离开本幕后无覆盖的幕自动恢复章节曲）
 // cast（可选，作品级）：{角色名: {kind:'tts'|'audio'|'none', voice?, url?, volume}} —— 角色声音表（AI 音色或手动音频）
-// subtitle（可选，对白）：{on, text, pos:'bottom'|'top'|'mid', size:'sm'|'md'|'lg'} —— 字幕（缺省=默认开启、角色名+对白、底部、中）
+// subtitle（可选，对白/场景）：{on, text, pos:'bottom'|'top'|'mid', size:'sm'|'md'|'lg'} —— 字幕
+//   对白缺省=默认开启、角色名+对白、底部、中；场景缺省=关闭（显式开启后默认文字为场景内容、底部、中），避免存量作品场景文字双重显示
 // 章节 bgm（可选）：{url, type:'audio', volume(0~1)} —— BGM（进入章节自动循环播放，同章节切幕不重启）
 import { $, toast } from '/workspace/js/ui.js';
 
@@ -307,8 +308,9 @@ function renderBlocks() {
     mkBtn('↑', '上移', () => moveBlock(i, -1), i === 0);
     mkBtn('↓', '下移', () => moveBlock(i, 1), i === ch.blocks.length - 1);
     mkBtn('编辑', '编辑', () => openBlockEditor(b));
-    if (b.type === 'dialogue') {
-      const subOn = !b.subtitle || b.subtitle.on !== false;
+    if (b.type === 'dialogue' || b.type === 'scene') {
+      // 对白缺省开启；场景缺省关闭（显式开启后落字段），已开启/自定义状态下按钮同步显示
+      const subOn = b.type === 'scene' ? !!(b.subtitle && b.subtitle.on !== false) : (!b.subtitle || b.subtitle.on !== false);
       mkBtn('💬 字幕' + (subOn ? '' : '·关'), '字幕：开启/关闭、文字、位置、大小', () => openSubtitleEditor(b));
     }
     mkBtn('🎵', '本幕 BGM（可覆盖章节曲）', () => openBlockBgmEditor(b));
@@ -707,7 +709,7 @@ function pickSfx(block, btn) {
   sfxInput.click();
 }
 
-// ---------- 字幕（对白积木） ----------
+// ---------- 字幕（对白 / 场景积木） ----------
 function openSubtitleEditor(b) {
   const cur = b.subtitle || {};
   const on = cur.on !== false;
@@ -729,11 +731,11 @@ function openSubtitleEditor(b) {
     f2.className = 'field';
     f2.style.margin = '0';
     const l2 = document.createElement('label');
-    l2.textContent = '字幕文字（留空 = 使用「角色名：对白内容」）';
+    l2.textContent = '字幕文字（留空 = 使用「' + (b.type === 'scene' ? '场景文字' : '角色名：对白内容') + '」）';
     const ta = document.createElement('textarea');
     ta.className = 'txt';
     ta.maxLength = 120;
-    ta.placeholder = '默认：' + (b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || '');
+    ta.placeholder = '默认：' + (b.type === 'scene' ? (b.content || '') : ((b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || '')));
     ta.value = text;
     f2.append(l2, ta);
     const f3 = document.createElement('div');
@@ -764,7 +766,11 @@ function openSubtitleEditor(b) {
     const posNow = sels[1].value;
     const sizeNow = sels[2].value;
     if (onNow && !textNow && posNow === 'bottom' && sizeNow === 'md') {
-      delete b.subtitle; // 全默认 → 存空，播放端按默认处理
+      if (b.type === 'scene') {
+        b.subtitle = { on: true, text: '', pos: 'bottom', size: 'md' }; // 场景缺省关闭：显式开启必须落字段，否则播放端当作关闭
+      } else {
+        delete b.subtitle; // 对白全默认 → 存空，播放端按默认处理
+      }
     } else {
       b.subtitle = { on: onNow, text: textNow, pos: posNow, size: sizeNow };
     }
@@ -1893,9 +1899,10 @@ function renderPlay() {
     fore.appendChild(d);
   }
   frame.appendChild(fore);
-  // 字幕（对白积木）：画面前景底部/顶部/中部，不遮挡主画面；跟随当前剧情一起切换
-  const subOn = !b.subtitle || b.subtitle.on !== false;
-  if (b.type === 'dialogue' && subOn) {
+  // 字幕（对白/场景积木）：画面前景底部/顶部/中部，不遮挡主画面；跟随当前剧情一起切换
+  // 对白缺省开启（角色名+对白）；场景缺省关闭（显式开启后默认场景内容），避免存量作品场景文字双重显示
+  const subOn = b.type === 'scene' ? !!(b.subtitle && b.subtitle.on !== false) : (!b.subtitle || b.subtitle.on !== false);
+  if (subOn) {
     const sub = b.subtitle || {};
     const subEl = document.createElement('div');
     subEl.className = 'play-sub ' + (sub.pos === 'top' ? 'top' : sub.pos === 'mid' ? 'mid' : 'bot') +
@@ -1903,7 +1910,7 @@ function renderPlay() {
     const box = document.createElement('div');
     box.className = 'ps-box';
     const custom = (sub.text || '').trim();
-    box.textContent = custom || ((b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || ''));
+    box.textContent = custom || (b.type === 'scene' ? (b.content || '') : ((b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || '')));
     subEl.appendChild(box);
     frame.appendChild(subEl);
   }
