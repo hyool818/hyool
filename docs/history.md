@@ -551,7 +551,7 @@ state: {
 
 **验证**：35 条逻辑单测全过（临时 `.wrangler/_test_companion.mjs`，覆盖情绪关键词/衰减/关系链/家庭时间线/里程碑/纪念日/prompt 注入，测完已删）；三个后端文件 node --check exit=0；两个前端 HTML 提取 script 语法检查通过；`wrangler deploy --dry-run` 通过（302 KiB，绑定正常）。commit + push main（CI 自动部署），线上效果待用户确认。
 
-**待办状态**：Batch 4 一键导出按用户指示**不做**；「情绪/场景路由 Agent」中情绪状态机已完成，路由 Agent 仍观察期。
+**待办状态**：Batch 4 一键导出按用户指示**暂缓**；「情绪/场景路由 Agent」中情绪状态机已完成，路由 Agent 仍观察期。
 
 
 
@@ -585,7 +585,7 @@ state: {
 
 **验证**：按用户约定不做验证；改完直接 commit + push main（CI 自动部署），线上效果待用户确认。
 
-**待办**：Batch 4 一键导出不做；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑（运行时幂等兜底已存在）；换窗口后新会话读 CONTEXT.md + git log 继续。
+**待办**：Batch 4 一键导出暂缓；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑（运行时幂等兜底已存在）；换窗口后新会话读 CONTEXT.md + git log 继续。
 
 ## 世界 AI 发言/节拍多样性优化（Batch 8，2026-08-23）
 
@@ -612,7 +612,7 @@ state: {
 
 **验证**：按用户约定不做验证；改完直接 commit + push main（CI 自动部署），线上效果待用户确认。
 
-**待办**：Batch 4 一键导出不做；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑；换窗口后新会话读 CONTEXT.md + git log 继续。
+**待办**：Batch 4 一键导出暂缓；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑；换窗口后新会话读 CONTEXT.md + git log 继续。
 
 ## 世界后台输入丢失修复（Batch 8.1，2026-08-23）
 
@@ -644,7 +644,7 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **验证**（本次破例做真实浏览器验证以定位 bug）：CDP 无头 Chrome 真实输入后——bgEra「灵气枯竭的修炼世界」→ 点击 bgRule → 保留 ✓；bgRule「雾里藏着记忆」、bgPlace「雾港」均保留 ✓；runTickSec 数字输入与 runModel 下拉变更均不再被清空 ✓；`world-check.html` 冒烟 44 断言 PASS（含背景锁定 disabled 断言未受影响）✓。
 
-**待办**：Batch 4 一键导出不做；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑；换窗口后新会话读 CONTEXT.md + git log 继续。
+**待办**：Batch 4 一键导出暂缓；远程 D1 正式迁移（`migrate_companion.sql`）仍推荐补跑；换窗口后新会话读 CONTEXT.md + git log 继续。
 
 
 ## 创角页生图风格动图预览（2026-08-23）

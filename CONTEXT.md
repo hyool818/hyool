@@ -61,7 +61,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 **衔接既有（不推翻）**：Batch 1 羁绊保留（manual 覆盖优先）；Batch 2 规则/时代/氛围锁死作为种子设定喂给世界状态；成人红线/回复规则不变。
 
-**Batch 4 一键导出：用户 2026-08-23 明确「不做」**（详见「当前待办」）。
+**Batch 4 一键导出：用户 2026-08-23 拍板暂缓**（详见「当前待办」）。
 
 **Batch 4.5/4.6 World Engine（已完成，详细见 docs/history.md「Batch 4.5」「Batch 4.6」）**：
 - 4.5 NPC 目标状态机 + 后果生命周期：`world_json.state.npcs{}`（goal/progress/status）+ `consequences[]`（created→active→escalating/decaying→resolved）+ `tickCount`；节拍输出可选 `goals[]/consequence{}`，引擎 `applyBeatNpcUpdates/applyBeatConsequence/advanceWorldConsequences` 落账。
@@ -82,7 +82,7 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 
 ## 当前待办
 
-- **Batch 4 一键导出**：用户 2026-08-23 明确「不做」（Companion 层三项已另行完成）
+- **Batch 4 一键导出**：用户 2026-08-23 拍板**暂缓**（Companion 层三项已另行完成，用户主动提出再推进）
 - **收费作品支付（二维码收单）**：数据/徽章层已就绪（pricing/price 列），支付渠道未实现；用户拍板暂不开通，待主动提出再推进
 - **观察期/暂缓**（用户主动提出再推进）：情绪/场景路由 Agent（注：Companion 情绪状态机已完成，路由 Agent 仍暂缓）；RAG 知识库（embedding 可换 `@cf/baai/bge-base-zh-v1.5` 但需重建索引）；QLoRA 微调（需另起 GPU 推理栈）；世界消息清洗/归档；TTS/Live2D/VN 编辑器（自研 VN 编辑器 = 必做项，Ren'Py 替代）；音乐工作室 / 视频剪辑升级 / 图像超分
 - 历史需求细节与完成记录：`docs/history.md`
