@@ -1243,3 +1243,23 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 ---
 
+## 卡牌RPG 一键生成示例 demo（2026-08-24 本会话已完成）
+
+**需求**：用户「有点不懂卡牌RPG怎么做」，希望「按角色库角色做一个 demo」——直接生成一部用角色库角色当主角、可立即播放试玩的完整卡牌RPG 作品，照着改就懂怎么做了。
+
+**方案**（纯前端，无需后端改动）：作品编辑器新建区选「⚔️ 卡牌RPG」类型时显示「⚡ 一键生成卡牌RPG 示例」按钮；点击后拉取当前用户角色库（`GET /api/characters` 带 token）→ 弹窗单选角色（头像 + 名字 + story_hook；无角色或不想用时可选「内置示例英雄（勇者）」）→ 前端构造完整 demo 数据 → `POST /api/stories`（kind=card_rpg）建条目 → 用返回 id `PUT` 全量落库 → 本地插入并打开编辑器，toast 指引体验入口。
+
+**demo 内容**（`buildRpgDemoData(heroName)` 纯函数构造，可单测）：
+- 英雄 = 所选角色名（maxHp 40 / maxEnergy 3）
+- 卡牌库 8 种 21 张：打击×4 / 重击×2 / 横扫×2 / 防御×4 / 铁壁×2 / 急救×2 / 冥想×3（energy 回能）/ 战术×2（draw 抽牌）——覆盖全部 5 种卡牌效果类型
+- 敌人 3 种：史莱姆（12/3）、野狼（16/5）、哥布林（14/4）
+- 章节「山谷的清晨」6 幕：对白 → 场景 → 战斗1（单敌史莱姆，教学）→ 对白 → 战斗2（野狼+哥布林多敌，演示选目标）→ 对白结尾；战前/胜/败剧情齐备
+
+**改动文件**：
+1. `public/story-editor.html`：新建区 `#rpgDemoBtn` 按钮（仅选卡牌RPG 时显示）；`.demo-btn` / `.rpg-demo-char`（角色单选行）/ `.rpg-demo-sep` 等样式。
+2. `public/story-editor.js`：`buildRpgDemoData` / `generateRpgDemo`（拉角色 + 弹窗单选）/ `createRpgDemoStory`（POST 创建 → PUT 全量 → 打开）；`init` 绑定按钮 + 类型选择卡联动显示（含测试 API `create()` 路径同步）；测试 API 新增 `rpgDemo(heroName)`（返回 demo 数据对象，供校验结构）与 `generateRpgDemo`。
+
+**说明**：按约定不做验证。线上人工验收路径：登录 /story-editor → 新建区选「⚔️ 卡牌RPG」→ 点「⚡ 一键生成卡牌RPG 示例」→ 选角色库角色 → 生成后点「▶ 播放作品」看剧情、战斗积木「▶ 试玩本场」体验单敌/多敌战斗与胜败重试 → 对照侧边栏卡牌库/英雄/敌人/战斗积木结构照抄修改自己的作品。
+
+---
+

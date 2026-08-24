@@ -270,6 +270,21 @@ textarea.txt{min-height:120px;resize:vertical}
   .rpg-check input{width:auto;accent-color:var(--accent)}
   .rpg-enemy-check{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 
+  /* 卡牌RPG：一键生成示例（新建区按钮 + 角色选择弹窗） */
+  .demo-btn{flex:1 1 100%;margin-top:8px;border:1px dashed rgba(255,170,80,.5);background:rgba(255,170,80,.08);color:#ffcf8a}
+  .demo-btn:hover{background:rgba(255,170,80,.16);border-color:rgba(255,170,80,.85)}
+  .rpg-demo-chars{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;margin-top:4px}
+  .rpg-demo-char{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--bg3);border-radius:10px;padding:8px 10px;cursor:pointer;transition:.15s}
+  .rpg-demo-char:hover{border-color:var(--accent)}
+  .rpg-demo-char.sel{border-color:var(--accent);background:rgba(139,123,255,.12)}
+  .rpg-demo-char input{width:auto;accent-color:var(--accent);flex-shrink:0}
+  .rpg-demo-char .av{width:36px;height:36px;border-radius:50%;background:#1a1a28;display:flex;align-items:center;justify-content:center;font-size:18px;overflow:hidden;flex-shrink:0}
+  .rpg-demo-char .av img{width:100%;height:100%;object-fit:cover}
+  .rpg-demo-char .inf{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .rpg-demo-char .nm{font-size:13px;font-weight:600;color:var(--text)}
+  .rpg-demo-char .ds{font-size:11px;color:var(--muted);line-height:1.5;word-break:break-all}
+  .rpg-demo-sep{text-align:center;font-size:11px;color:var(--muted);letter-spacing:.2em;padding:2px 0}
+
   /* 卡牌RPG：战斗视图（播放画幅内） */
   .battle-view{position:relative;height:100%;width:100%;display:flex;flex-direction:column;gap:10px;padding:16px 18px 12px;box-sizing:border-box;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,rgba(139,123,255,.14),transparent 70%),linear-gradient(180deg,#15132a,#0c0b18)}
   .battle-view.portrait{padding:12px 10px 8px}
@@ -370,6 +385,7 @@ textarea.txt{min-height:120px;resize:vertical}
           <button type="button" class="orient-card kind-card active" data-kind="story">📖 互动小说<span>剧情 + 画面 + 配音</span></button>
           <button type="button" class="orient-card kind-card" data-kind="card_rpg">⚔️ 卡牌RPG<span>剧情 + 能量卡牌战斗</span></button>
         </div>
+        <button type="button" class="btn ghost demo-btn hidden" id="rpgDemoBtn">⚡ 一键生成卡牌RPG 示例（用角色库角色当主角）</button>
         <button class="btn primary" id="createBtn">＋ 创建作品</button>
       </div>
     </section>

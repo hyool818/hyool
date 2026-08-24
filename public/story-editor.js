@@ -889,6 +889,144 @@ function openBattleEditor(b) {
   });
 }
 
+// 「⚡ 一键生成卡牌RPG 示例」：拉角色库 → 选主角 → 生成完整 demo 作品（英雄/卡牌/敌人/战斗积木全配好）
+// 返回纯数据对象（不含 id/status 等服务端字段），由 createRpgDemoStory 负责创建与落库
+function buildRpgDemoData(heroName) {
+  const n = String(heroName || '').trim().slice(0, 12) || '勇者';
+  return {
+    title: n + '的卡牌冒险',
+    kind: 'card_rpg',
+    orientation: 'landscape',
+    imgQuality: 'standard',
+    rpg: {
+      hero: { name: n, maxHp: 40, maxEnergy: 3 },
+      cards: [
+        { id: 'c_strike', name: '打击', cost: 1, type: 'attack', value: 6, copies: 4, desc: '造成 6 点伤害' },
+        { id: 'c_heavy', name: '重击', cost: 2, type: 'attack', value: 12, copies: 2, desc: '造成 12 点伤害' },
+        { id: 'c_sweep', name: '横扫', cost: 2, type: 'attack', value: 8, copies: 2, desc: '造成 8 点伤害' },
+        { id: 'c_guard', name: '防御', cost: 1, type: 'defend', value: 5, copies: 4, desc: '获得 5 点护盾' },
+        { id: 'c_iron', name: '铁壁', cost: 2, type: 'defend', value: 10, copies: 2, desc: '获得 10 点护盾' },
+        { id: 'c_heal', name: '急救', cost: 2, type: 'heal', value: 6, copies: 2, desc: '回复 6 点生命' },
+        { id: 'c_meditate', name: '冥想', cost: 0, type: 'energy', value: 2, copies: 3, desc: '获得 2 点能量' },
+        { id: 'c_tactics', name: '战术', cost: 1, type: 'draw', value: 1, copies: 2, desc: '抽 1 张牌' },
+      ],
+      enemies: [
+        { id: 'e_slime', name: '史莱姆', hp: 12, damage: 3 },
+        { id: 'e_wolf', name: '野狼', hp: 16, damage: 5 },
+        { id: 'e_goblin', name: '哥布林', hp: 14, damage: 4 },
+      ],
+    },
+    chapters: [
+      {
+        id: 'ch_demo',
+        title: '山谷的清晨',
+        blocks: [
+          { id: uid(), type: 'dialogue', speaker: n, content: '听说前面山谷有魔物出没。正好，让我活动活动筋骨。' },
+          { id: uid(), type: 'scene', content: '晨雾弥漫的山谷小径，前方传来窸窸窣窣的声响。' },
+          { id: uid(), type: 'battle', content: '一只史莱姆跳出来挡住了去路！', enemies: ['e_slime'], winContent: '史莱姆化作一滩绿水，毫无挑战。', loseContent: '你居然被史莱姆放倒了……这可不行，重新振作！' },
+          { id: uid(), type: 'dialogue', speaker: n, content: '这才只是开始。前面的动静……好像不止一个。' },
+          { id: uid(), type: 'battle', content: '野狼和哥布林从两侧围了上来！', enemies: ['e_wolf', 'e_goblin'], winContent: '你击退了野狼，哥布林连滚带爬地逃走了。', loseContent: '寡不敌众……先撤退，改天再来。' },
+          { id: uid(), type: 'dialogue', speaker: n, content: '今天就到这里吧。卡牌战斗，还挺有意思的。' },
+        ],
+      },
+    ],
+  };
+}
+
+// 一键生成：拉取当前用户角色库 → 弹窗选主角 → 创建 demo 作品并打开
+async function generateRpgDemo() {
+  if (!loggedIn) { toast('请先登录后再生成示例', true); setLoginHint(true); return; }
+  let chars = [];
+  try {
+    const res = await fetch('/api/characters', { credentials: 'include', headers: authHeaders() });
+    const d = await res.json();
+    if (d.success && Array.isArray(d.characters)) chars = d.characters.slice(0, 24);
+  } catch (e) { /* 拉取角色失败不阻塞：走内置示例英雄 */ }
+  openModal('⚡ 一键生成卡牌RPG 示例', (body) => {
+    const tip = document.createElement('div');
+    tip.className = 'rpg-tip';
+    tip.textContent = '选一个角色库角色当主角，将自动生成一部完整的卡牌RPG demo：英雄、卡牌库、敌人、战斗积木都已配好，创建后可直接播放。';
+    body.appendChild(tip);
+    const list = document.createElement('div');
+    list.className = 'rpg-demo-chars';
+    list.id = 'rpgDemoCharList';
+    body.appendChild(list);
+    const syncSel = (label) => { list.querySelectorAll('.rpg-demo-char').forEach(x => x.classList.remove('sel')); label.classList.add('sel'); };
+    const items = chars.map(c => ({ id: c.id, name: c.name || '未名角色', image: c.image_url || '', hook: (c.story_hook || '').slice(0, 40) }));
+    items.forEach((c, i) => {
+      const label = document.createElement('label');
+      label.className = 'rpg-demo-char' + (i === 0 ? ' sel' : '');
+      const radio = document.createElement('input');
+      radio.type = 'radio'; radio.name = 'rpgDemoHero'; radio.value = c.name;
+      if (i === 0) radio.checked = true;
+      radio.addEventListener('change', () => syncSel(label));
+      const av = document.createElement('span');
+      av.className = 'av';
+      if (c.image) { const img = document.createElement('img'); img.src = c.image; img.alt = ''; av.appendChild(img); }
+      else av.textContent = '👤';
+      const inf = document.createElement('span');
+      inf.className = 'inf';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = c.name;
+      const ds = document.createElement('span'); ds.className = 'ds'; ds.textContent = c.hook || '我的角色';
+      inf.append(nm, ds);
+      label.append(radio, av, inf);
+      list.appendChild(label);
+    });
+    if (items.length) {
+      const sep = document.createElement('div');
+      sep.className = 'rpg-demo-sep';
+      sep.textContent = '—— 或 ——';
+      list.appendChild(sep);
+    }
+    const opt = document.createElement('label');
+    opt.className = 'rpg-demo-char' + (items.length ? '' : ' sel');
+    const or = document.createElement('input');
+    or.type = 'radio'; or.name = 'rpgDemoHero'; or.value = '';
+    if (!items.length) or.checked = true;
+    or.addEventListener('change', () => syncSel(opt));
+    const av2 = document.createElement('span'); av2.className = 'av'; av2.textContent = '🦸';
+    const inf2 = document.createElement('span'); inf2.className = 'inf';
+    const nm2 = document.createElement('span'); nm2.className = 'nm'; nm2.textContent = '内置示例英雄（勇者）';
+    const ds2 = document.createElement('span'); ds2.className = 'ds'; ds2.textContent = '不用角色库角色；生成后可到「🦸 英雄」里改名改属性';
+    inf2.append(nm2, ds2);
+    opt.append(or, av2, inf2);
+    list.appendChild(opt);
+  }, () => {
+    const sel = $('#rpgDemoCharList');
+    const picked = sel ? sel.querySelector('input[name="rpgDemoHero"]:checked') : null;
+    createRpgDemoStory(picked && picked.value ? picked.value : '勇者');
+  });
+}
+
+// 创建 demo 作品：POST 建条目（kind=card_rpg）→ 用返回 id 填充完整数据 PUT 落库 → 本地插入并打开
+async function createRpgDemoStory(heroName) {
+  const demo = buildRpgDemoData(heroName);
+  try {
+    const res = await fetch('/api/stories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ title: demo.title, orientation: demo.orientation, imgQuality: demo.imgQuality, kind: demo.kind })
+    });
+    const d = await res.json();
+    if (!d.success || !d.story) throw new Error((d && d.error) || '创建失败，请重试');
+    const full = normalizeStories([{ ...d.story, ...demo, id: d.story.id }])[0];
+    const up = await fetch('/api/stories/' + encodeURIComponent(full.id), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ data: full })
+    });
+    const ud = await up.json();
+    if (!ud.success) throw new Error((ud && ud.error) || '保存失败，请重试');
+    stories.unshift(full);
+    persist();
+    renderLibrary();
+    openStory(full.id);
+    toast(`🎉 示例《${full.title}》已生成！点「▶ 播放作品」从头看剧情，或战斗积木上的「▶ 试玩本场」直接体验卡牌战斗。`);
+  } catch (e) {
+    toast((e && e.message) || '生成失败，请重试', true);
+  }
+}
+
 // 卡牌库编辑：作品全部卡牌（名称/费用/效果/数值/张数）
 // 弹窗内「列表 ⇄ 表单」同层切换：新增/编辑卡牌不进嵌套弹窗（openModal 会重建 body，嵌套会丢外层列表）
 function openRpgCardsEditor() {
@@ -3099,17 +3237,21 @@ function init() {
     }
   });
   $('#libBtn').addEventListener('click', backToLibrary);
-  // 新建作品：作品类型（互动小说 / 卡牌RPG）
+  // 新建作品：作品类型（互动小说 / 卡牌RPG）；选卡牌RPG 时显示「一键生成示例」按钮
   document.querySelectorAll('#createKindRow .kind-card').forEach(btn => {
     btn.addEventListener('click', () => {
       createKind = btn.dataset.kind === 'card_rpg' ? 'card_rpg' : 'story';
       document.querySelectorAll('#createKindRow .kind-card').forEach(x => x.classList.toggle('active', x === btn));
+      const demoBtn = $('#rpgDemoBtn');
+      if (demoBtn) demoBtn.classList.toggle('hidden', createKind !== 'card_rpg');
     });
   });
   // 编辑器：卡牌RPG 配置区（卡牌库 / 英雄 / 敌人）
   $('#rpgCardsBtn').addEventListener('click', openRpgCardsEditor);
   $('#rpgHeroBtn').addEventListener('click', openRpgHeroEditor);
   $('#rpgEnemiesBtn').addEventListener('click', openRpgEnemiesEditor);
+  // 新建区：一键生成卡牌RPG 示例（仅选中卡牌RPG 时显示）
+  $('#rpgDemoBtn').addEventListener('click', generateRpgDemo);
   // 新建作品：分辨率选择卡（16:9 横屏 / 9:16 竖屏）
   document.querySelectorAll('#createOrient .orient-card').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -3159,6 +3301,8 @@ window.StoryEditor = {
     if (kind === 'card_rpg' || kind === 'story') {
       createKind = kind;
       document.querySelectorAll('#createKindRow .kind-card').forEach(x => x.classList.toggle('active', x.dataset.kind === kind));
+      const demoBtn = $('#rpgDemoBtn');
+      if (demoBtn) demoBtn.classList.toggle('hidden', kind !== 'card_rpg');
     }
     createStory();
     return story() ? story().id : null;
@@ -3338,6 +3482,9 @@ window.StoryEditor = {
   openRpgCardsEditor,
   openRpgHeroEditor,
   openRpgEnemiesEditor,
+  // 一键生成卡牌RPG 示例（demo 数据纯构造，可直接校验结构；生成动作走 generateRpgDemo 弹窗流程）
+  rpgDemo: (heroName) => buildRpgDemoData(heroName || '勇者'),
+  generateRpgDemo,
   setKindById: (id, kind) => {
     const s = stories.find(x => x.id === id);
     if (!s || (kind !== 'story' && kind !== 'card_rpg')) return false;
