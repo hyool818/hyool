@@ -1873,6 +1873,26 @@ async function buildYonderPayload(
         created_at: w.created_at
     }));
 
+    // 故事作品（作品编辑器产物）：主页显示 = share_id 非空；广场发布 = status='published'
+    const storySql =
+        isOwner
+            ? "SELECT id, title, cover_image, status, share_id, created_at FROM stories WHERE owner_id = ? ORDER BY created_at DESC"
+            : "SELECT id, title, cover_image, status, share_id, created_at FROM stories WHERE owner_id = ? AND share_id IS NOT NULL AND share_id != '' ORDER BY created_at DESC";
+
+    const storyResult = await env.DB
+        .prepare(storySql)
+        .bind(profile.id)
+        .all();
+
+    works.stories = (storyResult.results || []).map(s => ({
+        id: s.id,
+        title: s.title,
+        cover_image: s.cover_image,
+        status: s.status,
+        share_id: s.share_id,
+        created_at: s.created_at
+    }));
+
     return {
         profile: profile,
         settings: safeSettings,

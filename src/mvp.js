@@ -774,10 +774,281 @@ export async function handleMvpRoutes(
                     owner_avatar_url: row.avatar_url || ""
                 });
             }
-            return json({ success: true, worlds });
+
+            // 幻灵世界广场同时收录已发布的故事作品（status='published' 且主页可见 share_id 非空）
+            const sRes = await env.DB.prepare(
+                `SELECT s.id, s.title, s.cover_image, s.status, s.data, s.updated_at,
+                        p.username, p.display_name, p.avatar_url
+                 FROM stories s
+                 LEFT JOIN profiles p ON s.owner_id = p.id
+                 WHERE s.status = 'published' AND s.share_id IS NOT NULL AND s.share_id != ''
+                 ORDER BY s.updated_at DESC LIMIT 100`
+            ).all();
+            const stories = [];
+            for (const row of (sRes.results || [])) {
+                const data = parseStoryData(row.data);
+                let chapters = 0;
+                let blocks = 0;
+                for (const c of (data.chapters || [])) {
+                    chapters++;
+                    blocks += Array.isArray(c.blocks) ? c.blocks.length : 0;
+                }
+                stories.push({
+                    id: row.id,
+                    title: row.title || "未名作品",
+                    cover_image: row.cover_image || "",
+                    orientation: data.orientation === "portrait" ? "portrait" : "landscape",
+                    chapters_count: chapters,
+                    blocks_count: blocks,
+                    updated_at: row.updated_at,
+                    owner_username: row.username || "",
+                    owner_display_name: row.display_name || row.username || "TA",
+                    owner_avatar_url: row.avatar_url || ""
+                });
+            }
+            return json({ success: true, worlds, stories });
         } catch (error) {
             console.error("PLAZA ERROR:", error);
             return json({ success: false, error: "加载失败。" }, 500);
+        }
+    }
+
+    /* =====================================================
+       云端故事作品（作品编辑器）
+       GET  /api/stories           → 我的作品列表（登录，含完整 data）
+       POST /api/stories           → 创建作品 {title, orientation, imgQuality}
+       GET  /api/stories/:id       → 单部作品（本人 或 已发布公开播放）
+       PUT  /api/stories/:id       → 保存完整作品 {data}（本人）
+       POST /api/stories/:id/publish → 发布/下架 {published}（本人）
+       POST /api/stories/:id/delete  → 删除（本人）
+    ===================================================== */
+
+    const storyDetailMatch = pathname.match(/^\/api\/stories\/(st_[a-z0-9]+)$/);
+    const storyPublishMatch = pathname.match(/^\/api\/stories\/(st_[a-z0-9]+)\/publish$/);
+    const storyDeleteMatch = pathname.match(/^\/api\/stories\/(st_[a-z0-9]+)\/delete$/);
+
+    if (pathname === "/api/stories" && method === "GET") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const result = await env.DB.prepare(
+                `SELECT id, title, data, cover_image, status, share_id, created_at, updated_at
+                 FROM stories
+                 WHERE owner_id = ?
+                 ORDER BY updated_at DESC`
+            ).bind(user.id).all();
+
+            const stories = [];
+            for (const row of (result.results || [])) {
+                const data = parseStoryData(row.data);
+                stories.push({
+                    id: row.id,
+                    title: row.title,
+                    cover_image: row.cover_image,
+                    status: row.status,
+                    share_id: row.share_id,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                    // 直接展开 data（orientation/imgQuality/cast/chapters），前端结构不变
+                    ...data
+                });
+            }
+
+            return json({ success: true, stories });
+        } catch (error) {
+            console.error("STORIES LIST ERROR:", error);
+            return json({
+                success: false,
+                error: isMissingTableError(error)
+                    ? "数据库尚未初始化 stories 表，请先执行 schema/migrate_stories.sql。"
+                    : "加载失败。"
+            }, 500);
+        }
+    }
+
+    if (pathname === "/api/stories" && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+
+            const body = await request.json();
+            const title = String(body.title || "").trim().slice(0, 40);
+            if (!title) {
+                return json({ success: false, error: "请给作品一个名字。" }, 400);
+            }
+
+            const storyId = "st_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+            // 创建即主页可见（share_id 恒非空），发布/下架仅切 status
+            const shareId = "s" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+            const orientation = body.orientation === "portrait" ? "portrait" : "landscape";
+            const imgQuality = body.imgQuality === "hd" ? "hd" : "standard";
+            const data = {
+                orientation,
+                imgQuality,
+                cast: {},
+                chapters: [{
+                    id: "ch_" + crypto.randomUUID().replace(/-/g, "").slice(0, 10),
+                    title: "第一章",
+                    blocks: []
+                }]
+            };
+
+            await env.DB.prepare(
+                `INSERT INTO stories (id, owner_id, title, data, cover_image, status, share_id, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, '', 'draft', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+            ).bind(storyId, user.id, title, JSON.stringify(data), shareId).run();
+
+            return json({
+                success: true,
+                story: { id: storyId, title, cover_image: "", status: "draft", share_id: shareId, ...data }
+            });
+        } catch (error) {
+            console.error("STORY CREATE ERROR:", error);
+            return json({
+                success: false,
+                error: isMissingTableError(error)
+                    ? "数据库尚未初始化 stories 表，请先执行 schema/migrate_stories.sql。"
+                    : "创建失败，请稍后再试。"
+            }, 500);
+        }
+    }
+
+    if (storyDetailMatch && method === "GET") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            const row = await env.DB.prepare(
+                `SELECT * FROM stories WHERE id = ? LIMIT 1`
+            ).bind(storyDetailMatch[1]).first();
+            if (!row) {
+                return json({ success: false, error: "作品不存在。" }, 404);
+            }
+            const isOwner = user && row.owner_id === user.id;
+            if (!isOwner && row.status !== "published") {
+                return json({ success: false, error: "无权查看这部作品。" }, 403);
+            }
+            const data = parseStoryData(row.data);
+            return json({
+                success: true,
+                story: {
+                    id: row.id,
+                    title: row.title,
+                    cover_image: row.cover_image,
+                    status: row.status,
+                    share_id: row.share_id,
+                    owner_id: row.owner_id,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                    ...data
+                }
+            });
+        } catch (error) {
+            console.error("STORY GET ERROR:", error);
+            return json({ success: false, error: "加载失败。" }, 500);
+        }
+    }
+
+    if (storyDetailMatch && method === "PUT") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+            const row = await env.DB.prepare(
+                `SELECT * FROM stories WHERE id = ? LIMIT 1`
+            ).bind(storyDetailMatch[1]).first();
+            if (!row) {
+                return json({ success: false, error: "作品不存在。" }, 404);
+            }
+            if (row.owner_id !== user.id) {
+                return json({ success: false, error: "无权修改这部作品。" }, 403);
+            }
+
+            const body = await request.json();
+            const data = parseStoryData(body.data);
+            const title = String((data.title || row.title) || "").trim().slice(0, 40) || "未名作品";
+            // 封面：优先显式传入，否则从 data 首张 scene 图提取
+            const coverImage = (String(body.cover_image || "").trim().slice(0, 2000)) || extractStoryCover(data);
+
+            await env.DB.prepare(
+                `UPDATE stories SET title = ?, data = ?, cover_image = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`
+            ).bind(title, JSON.stringify(data), coverImage, row.id).run();
+
+            return json({
+                success: true,
+                story: {
+                    id: row.id, title, cover_image: coverImage,
+                    status: row.status, share_id: row.share_id, ...data
+                }
+            });
+        } catch (error) {
+            console.error("STORY SAVE ERROR:", error);
+            return json({ success: false, error: "保存失败，请稍后再试。" }, 500);
+        }
+    }
+
+    if (storyPublishMatch && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+            const row = await env.DB.prepare(
+                `SELECT * FROM stories WHERE id = ? LIMIT 1`
+            ).bind(storyPublishMatch[1]).first();
+            if (!row) {
+                return json({ success: false, error: "作品不存在。" }, 404);
+            }
+            if (row.owner_id !== user.id) {
+                return json({ success: false, error: "无权操作这部作品。" }, 403);
+            }
+
+            const body = await request.json();
+            const published = !!body.published;
+            // 作品创建即主页可见（share_id 恒非空）；发布/下架只切换 status（广场可见性）
+            const shareId = (row.share_id || "").trim() || ("s" + crypto.randomUUID().replace(/-/g, "").slice(0, 8));
+
+            await env.DB.prepare(
+                `UPDATE stories SET status = ?, share_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+            ).bind(published ? "published" : "draft", shareId, row.id).run();
+
+            return json({
+                success: true,
+                story: {
+                    id: row.id, title: row.title, status: published ? "published" : "draft", share_id: shareId
+                }
+            });
+        } catch (error) {
+            console.error("STORY PUBLISH ERROR:", error);
+            return json({ success: false, error: "操作失败。" }, 500);
+        }
+    }
+
+    if (storyDeleteMatch && method === "POST") {
+        try {
+            const user = await getAuthenticatedUser(request);
+            if (!user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+            const row = await env.DB.prepare(
+                `SELECT * FROM stories WHERE id = ? LIMIT 1`
+            ).bind(storyDeleteMatch[1]).first();
+            if (!row) {
+                return json({ success: false, error: "作品不存在。" }, 404);
+            }
+            if (row.owner_id !== user.id) {
+                return json({ success: false, error: "无权删除这部作品。" }, 403);
+            }
+            await env.DB.prepare(`DELETE FROM stories WHERE id = ?`).bind(row.id).run();
+            return json({ success: true });
+        } catch (error) {
+            console.error("STORY DELETE ERROR:", error);
+            return json({ success: false, error: "删除失败。" }, 500);
         }
     }
 
@@ -4006,6 +4277,31 @@ function isMissingTableError(error) {
     const message = String(error?.message || error || "").toLowerCase();
     return message.includes("no such table") ||
         message.includes("does not exist");
+}
+
+/** 解析 stories.data（作品 JSON）。PUT 时 body.data 已是对象，行内 data 是字符串，两种都兼容 */
+function parseStoryData(raw) {
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+        return raw;
+    }
+    try {
+        const d = JSON.parse(raw || "{}");
+        return (d && typeof d === "object" && !Array.isArray(d)) ? d : {};
+    } catch {
+        return {};
+    }
+}
+
+/** 从作品 data 提取封面：第一个含图片的 scene 块 media url（无则空串） */
+function extractStoryCover(data) {
+    for (const c of (data.chapters || [])) {
+        for (const b of (c.blocks || [])) {
+            if (b && b.media && b.media.url && b.media.type === "image") {
+                return String(b.media.url).trim().slice(0, 2000);
+            }
+        }
+    }
+    return "";
 }
 
 function buildIdeaFromParams(params) {

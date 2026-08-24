@@ -1157,3 +1157,48 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：push main
 
+---
+
+## 故事作品云端同步（2026-08-24 本会话已完成，含本地端到端验证）
+
+**需求**：作品编辑器（`story-editor.html`）内容只存浏览器 localStorage，手机端看不到；做好后要出现在个人主页；发布后进入「生命入口 → 幻灵世界」广场（`/plaza`）。
+
+**改动**：
+
+1. **`schema/migrate_stories.sql`（新建）**：`stories` 表（id `st_` 前缀 / owner_id / title / data（完整作品 JSON）/ cover_image（自动提取首张 scene 图）/ status（draft|published）/ share_id（主页可见，恒非空））。幂等建表。
+
+2. **`src/mvp.js`（核心 API，新增 STORIES 区块，紧跟 `/api/plaza`）**：
+   - `GET /api/stories`（登录）我的作品列表（含完整 data 展开，前端结构不变）
+   - `POST /api/stories` 创建（title/orientation/imgQuality；创建即生成 share_id → 主页默认可见）
+   - `GET /api/stories/:id` 单部（本人 或 status='published' 公开播放）
+   - `PUT /api/stories/:id` 保存完整作品（owner 校验；title 取 data.title；cover_image 提取或显式传入）
+   - `POST /api/stories/:id/publish` `{published}`：发布=status published（进广场），下架=draft（保留 share_id，主页仍可见）
+   - `POST /api/stories/:id/delete`
+   - `/api/plaza` 扩展返回 `stories`（published 且 share_id 非空，含章/块计数与 orientation）
+   - helper `parseStoryData`（兼容对象/字符串输入）、`extractStoryCover`
+
+3. **`src/index.js`**：`buildYonderPayload` 的 works 增加 `stories`（主人=全部，访客=share_id 非空）。
+
+4. **`public/story-editor.js`（全量 API 化）**：
+   - localStorage 降级为离线缓存 + 存量迁移源；`persist()` 改为「写本地缓存 + 防抖 800ms 上传当前整部作品」（30+ 处调用点零改动）
+   - `syncWithServer()`：登录拉取 `/api/stories` 合并；本地有而云端无的旧作品自动迁移上传（POST 建条目 + PUT 补内容）
+   - `createStory` 改 POST；删除改 DELETE；作品卡新增「已发布/未发布」徽章 + 「发布/下架」按钮
+   - URL 直达：`?story=<id>[&play=1]`；游客浏览已发布作品走公开读（`_readonly` 标记，退出播放自动回库）
+   - 未登录：loginHint 提示 + 库空态提示；401 时自动降级只读本地缓存
+
+5. **`public/story-editor.html`**：登录提示条、状态徽章样式、底部文案改「自动保存到云端」。
+
+6. **`public/plaza.html`（幻灵世界广场）**：标题副文案 + 作品卡（badge「故事作品」，点击直达 `story-editor.html?story=<id>&play=1`），与生命世界同网格混排；空态合并。
+
+7. **`public/yonder-home.html`（个人主页）**：新增「作品库」区块（worksSection 与 modulesSection 之间），主人首卡「＋创造作品」→ `/story-editor`；作品卡带封面/标题/未发布徽章/发布下架按钮（`toggleStoryPublish`）；点击直达播放。
+
+8. **`.github/workflows/deploy.yml`**：deploy 前新增 `Migrate D1 (stories)` step（`wrangler d1 execute --remote --file=./schema/migrate_stories.sql`，幂等）——本地 OAuth 无法交互，schema 迁移随 CI 自动建表。
+
+**验证**（本地 wrangler dev + 本地 D1）：
+- API 冒烟 11 项全过：登录→创建（st_ 前缀+share_id）→列表→PUT 保存（cover 自动提取）→发布→匿名读→广场含作品→个人主页 works.stories→下架（广场移除主页保留）→draft 匿名 403→删除。
+- 浏览器端到端（story-check.html）全过：未登录提示→登录加载→卡片发布按钮→创建→加积木防抖上传→URL 直达播放→退出回编辑器→删除。
+- 浏览器端到端（plaza-check.html）全过：广场「故事作品」卡、主页作品库区块/发布按钮/href 直达播放。
+- 修复 3 个问题：parseStoryData 需兼容对象输入；publish/delete 需独立路由正则；normalizeStories 兜底缺 chapters 的旧缓存数据。
+
+**说明**：远程 D1 建表由 CI migration step 完成（本地 OAuth 不可交互）。上线后需用户验证：登录打开 /story-editor 创作 → 个人主页可见 → 发布 → /plaza 可播放；手机端同步。旧 localStorage 作品首次登录自动迁移上云。
+

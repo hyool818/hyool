@@ -50,6 +50,12 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - **主动找你**：亲密里程碑 10/30/50/70/90（chat 落账即时生成）/ 3 天未聊想念 / 关系纪念日 7·30·100·365 天（读取时惰性生成）。API：`GET /api/companion/inbox`、`POST /api/companion/inbox/read`。
 - **世界内情绪（角色弧光，Batch 7）**：世界原住民也有心情——`world_json.state.moods[id]={label,intensity,day}`，复用同一套中文关键词规则 + **世界日衰减**（dayIndex 每 8 tick 一日，非现实时间）；发言/节拍台词确定性落账，注入 `buildLifeSystemPrompt`（发言带心情）与 `buildStoryBeatPrompt`（心情驱动节拍走向）；显著情绪变化记入 story timeline 作为角色弧光素材（导出小说/VN/游戏可用）。world.html 角色卡片与「世界故事」面板显示情绪 chip。
 - **原住民转正（世界 → 角色库）**：`POST /api/worlds/:id/life/natives/:id/promote`（仅 owner）把原住民复制进角色库（companion_state 从零初始化、世界观保留），buddy 可继续一对一发展；原住民仍留在世界。与「角色库→世界（cast 邀请）」互补成闭环。
+
+## 故事作品云端同步（2026-08-24 完成，详见 docs/history.md）
+
+- 作品编辑器数据上云：D1 新表 `stories` + `/api/stories*` 全套 API（列表/创建/保存/单读/发布下架/删除）；`/api/plaza` 与个人主页 `works.stories` 收录作品；幻灵世界广场与个人主页新增「故事作品」卡片，点击直达 `story-editor.html?story=<id>&play=1` 播放。
+- 存储模型：创建即主页可见（share_id 恒非空），发布/下架只切 status（广场可见性）。story-editor 本地 localStorage 降级为离线缓存 + 存量自动迁移；登录后防抖上传整部作品。
+- 待办：线上验证（登录打开 /story-editor 创建 → 主页可见 → 发布 → /plaza 可播放；手机端同步）；CI 已加入 D1 migration step（schema/migrate_stories.sql 随部署自动建表）。
 - 前端：buddy.html 情绪/关系状态行 + 设置面板「你们的关系」按钮组 + 未读留言条；hub.html 角色卡片情绪 chip/关系 chip/💌 角标。
 
 ## 生命世界·故事孵化器（当前核心）

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>PLAZA CHECK</title>
+<style>
+body{font-family:system-ui;background:#0d0d16;color:#eee;padding:16px;margin:0}
+iframe{width:100%;height:60vh;border:1px solid #333;border-radius:10px;background:#fff}
+#results{white-space:pre-wrap;font-size:12px;line-height:1.6;margin-top:10px}
+</style>
+</head>
+<body>
+<div id="results"></div>
+<iframe id="pg" src="about:blank"></iframe>
+<script>
+const $ = id => document.getElementById(id);
+const out = [];
+function ok(name, cond, extra) { out.push((cond ? 'PASS' : 'FAIL') + '  ' + name + (extra ? '  | ' + extra : '')); $('results').textContent = out.join('\n'); }
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const pg = () => $('pg').contentWindow;
+
+(async () => {
+  try {
+    // 准备：登录 + 取一部作品 + 发布（供 plaza 展示）
+    const lg = await fetch('/api/login', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'smokews', password: 'testpass123' }) });
+    const ld = await lg.json();
+    if (!ld.success) throw new Error('login failed');
+    const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ld.token };
+    const list = await (await fetch('/api/stories', { headers: h })).json();
+    const story = list.stories[0];
+    if (!story) throw new Error('no stories for smokews');
+    if (story.status !== 'published') {
+      await fetch('/api/stories/' + story.id + '/publish', { method: 'POST', headers: h, body: JSON.stringify({ published: true }) });
+    }
+
+    // A. 幻灵世界广场：作品卡可见
+    $('pg').src = '/plaza?t=' + Date.now();
+    await wait(3000);
+    const p = pg().document;
+    const storyCards = p.querySelectorAll('.card .badge.story');
+    ok('A1 广场出现「故事作品」卡', storyCards.length > 0, 'count=' + storyCards.length);
+    ok('A2 广场标题含作品文案', (p.querySelector('.page-head p') || {}).textContent.includes('故事作品'));
+
+    // B. 个人主页：作品库区块 + 发布按钮
+    $('pg').src = '/@smokews?t=' + Date.now();
+    await wait(3500);
+    const y = pg().document;
+    const storySec = y.getElementById('storiesSection');
+    ok('B1 主页出现作品库区块', !!storySec && storySec.style.display !== 'none');
+    const pubBtns = y.querySelectorAll('#storyGrid .vis-toggle.pub');
+    ok('B2 主页作品卡带发布/下架按钮', pubBtns.length > 0, 'count=' + pubBtns.length);
+    const cardHref = (y.querySelector('#storyGrid a:not(.create-card)') || {}).getAttribute('href') || '';
+    ok('B3 作品卡 href 指向 story-editor 播放', cardHref.indexOf('/story-editor.html?story=') === 0 && cardHref.indexOf('&play=1') > 0, cardHref);
+
+    // C. 恢复：下架该作品
+    await fetch('/api/stories/' + story.id + '/publish', { method: 'POST', headers: h, body: JSON.stringify({ published: false }) });
+
+    document.title = out.some(l => l.startsWith('FAIL')) ? 'SMOKE-FAIL' : 'SMOKE-OK';
+  } catch (e) {
+    out.push('EXCEPTION: ' + (e.message || e));
+    $('results').textContent = out.join('\n');
+    document.title = 'SMOKE-FAIL';
+  }
+})();
+</script>
+</body>
+</html>

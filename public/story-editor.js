@@ -1,7 +1,9 @@
-// story-editor.js — 作品编辑器（文字剧情积木 · 纯前端 localStorage）
+// story-editor.js — 作品编辑器（文字剧情积木 · 云端同步）
+// 数据已上云：作品保存到 D1 stories 表（PUT /api/stories/:id），跨设备同步；
+// localStorage 仅作为离线缓存与旧数据迁移来源（登录后自动把本地旧作品上传合并）。
 // 数据结构：作品{id,title,chapters} → 章节{id,title,blocks} → 积木{id,type,content[,speaker][,media][,audio]}
 // 类型：scene=场景 / dialogue=对白（额外字段 speaker）
-// media（可选）：{url, type} —— url 为 /api/upload 上传后的 /img/xxx 引用（二进制存服务端，localStorage 只存引用）
+// media（可选）：{url, type} —— url 为 /api/upload 上传后的 /img/xxx 引用（二进制存服务端）
 //   type: 'image'（图片/GIF/WebP）| 'video'（MP4）
 // audio（可选）：{url, type:'audio'} —— 配音（MP3/WAV/M4A/OGG），同一套 /api/upload 上传与引用
 // sfxList（可选）：[{id, url, offsetMs, loop, volume, label}] —— 音效轨（可多条叠加；offsetMs=进入本幕多少毫秒后触发，loop=true 持续到切幕）
@@ -17,7 +19,8 @@
 // 章节 bgm（可选）：{url, type:'audio', volume(0~1)} —— BGM（进入章节自动循环播放，同章节切幕不重启）
 import { $, toast } from '/workspace/js/ui.js';
 
-const SAVE_KEY = 'hyool_stories_v1';
+const SAVE_KEY = 'hyool_stories_v1'; // 本地缓存键（旧数据迁移源）
+const TOKEN_KEY = 'hyool_token';
 const DEFAULT_SPEAKER = '角色名';
 const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 与后端 /api/upload 一致
 // 全局统一字号（localStorage，默认 27px，范围 25~30px）：所有对白/场景文字统一字号，修改即全局生效
@@ -75,7 +78,7 @@ let ttsVoices = [];        // /api/tts/voices 列表缓存
 let selectedSfxId = null;  // 时间轴弹窗中当前选中的音效条目 id
 let createOrientation = 'landscape'; // 新建作品时选定的画面方向
 
-// ---------- 本地存储 ----------
+// ---------- 本地缓存（离线兜底 + 旧数据迁移源） ----------
 function loadStories() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -90,6 +93,7 @@ function normalizeStories(arr) {
     if (s.orientation !== 'landscape' && s.orientation !== 'portrait') s.orientation = 'landscape'; // 旧作品默认 16:9 横屏
     if (s.imgQuality !== 'hd') s.imgQuality = 'standard'; // 默认标准画质（1280 档）
     if (!s.cast || typeof s.cast !== 'object') s.cast = {};
+    if (!Array.isArray(s.chapters)) s.chapters = []; // 兜底：坏数据/旧数据不崩溃
     (s.chapters || []).forEach(c => {
       (c.blocks || []).forEach(b => {
         if (b.sfx && b.sfx.url) {
@@ -111,10 +115,141 @@ function normalizeStories(arr) {
   });
   return arr;
 }
+// 保存：写本地缓存（离线兜底）+ 防抖上传云端（跨设备同步）
 function persist() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(stories)); }
-  catch (e) { toast('保存失败：浏览器本地存储不可用', true); }
+  catch (e) { /* 缓存失败不阻塞（云端照常保存） */ }
+  scheduleUpload();
 }
+
+// ---------- 云端同步（D1 stories 表） ----------
+let loggedIn = false;
+let uploadTimer = null;
+let saveErrorShownAt = 0;
+
+function setLoginHint(show) {
+  const el = $('#loginHint');
+  if (el) el.style.display = show ? '' : 'none';
+}
+
+function showSaveError(msg) {
+  const now = Date.now();
+  if (now - saveErrorShownAt < 4000) return; // 4 秒内不重复弹，避免连点刷屏
+  saveErrorShownAt = now;
+  toast(msg, true);
+}
+
+// persist 后的防抖上传：把当前编辑中的整部作品 PUT 到云端
+function scheduleUpload() {
+  const s = story();
+  if (!s || !loggedIn) return;
+  if (uploadTimer) clearTimeout(uploadTimer);
+  uploadTimer = setTimeout(() => uploadStory(s), 800);
+}
+async function uploadStory(s) {
+  if (!s || !loggedIn) return;
+  const storyId = s.id;
+  try {
+    const res = await fetch('/api/stories/' + encodeURIComponent(storyId), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ data: s })
+    });
+    const d = await res.json();
+    if (!d.success) {
+      if (res.status === 401) { loggedIn = false; setLoginHint(true); toast('登录已失效，请重新登录后继续保存', true); }
+      else showSaveError(d.error || '云端保存失败');
+      return;
+    }
+    if (d.story) {
+      const cur = stories.find(x => x.id === storyId);
+      if (cur) {
+        if (d.story.status !== undefined) cur.status = d.story.status;
+        if (d.story.share_id !== undefined) cur.share_id = d.story.share_id;
+        cur.cover_image = d.story.cover_image || cur.cover_image;
+      }
+    }
+  } catch (e) {
+    showSaveError('云端保存失败（网络异常），内容已保留在本地');
+  }
+}
+
+// 登录后与云端合并：服务端作品为准，本地未上传旧作品自动迁移上传
+async function syncWithServer() {
+  try {
+    const res = await fetch('/api/stories', { credentials: 'include', headers: authHeaders() });
+    if (res.status === 401) {
+      loggedIn = false;
+      setLoginHint(true);
+      renderLibrary();
+      handleUrlDeepLink();
+      return;
+    }
+    const d = await res.json();
+    if (!d.success) throw new Error(d.error || '加载失败');
+    loggedIn = true;
+    setLoginHint(false);
+
+    const server = (d.stories || []).map(x => normalizeStories([x])[0]);
+    const serverIds = new Set(server.map(x => x.id));
+    // 本地缓存有而云端没有的旧作品 → 自动上传迁移（先建条目再补存完整内容）
+    const localOnly = stories.filter(x => !serverIds.has(x.id));
+    const migrated = [];
+    for (const local of localOnly) {
+      try {
+        const r = await fetch('/api/stories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ title: local.title || '未名作品', orientation: local.orientation, imgQuality: local.imgQuality })
+        });
+        const c = await r.json();
+        if (!c.success || !c.story) throw new Error(c.error || '迁移失败');
+        local.id = c.story.id;
+        await fetch('/api/stories/' + encodeURIComponent(local.id), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ data: local })
+        });
+        migrated.push({ ...local, id: local.id, status: 'draft' });
+      } catch (e) { /* 单条迁移失败保留本地，不阻塞整体 */ }
+    }
+    stories = [...server, ...migrated];
+    persist();
+    renderLibrary();
+    handleUrlDeepLink();
+  } catch (e) {
+    // 网络异常：本地缓存继续可用，静默等待下次打开
+    renderLibrary();
+    handleUrlDeepLink();
+  }
+}
+
+// URL 直达：?story=<id>[&play=1]（个人主页 / 幻灵世界广场点击进入播放）
+function handleUrlDeepLink() {
+  const q = new URLSearchParams(location.search);
+  const targetId = q.get('story');
+  if (!targetId) return;
+  const local = stories.find(x => x.id === targetId);
+  if (local) {
+    openStory(targetId);
+    if (q.get('play') === '1') startPlay();
+    return;
+  }
+  // 列表中没有（游客浏览已发布作品）→ 走公开读取接口
+  fetch('/api/stories/' + encodeURIComponent(targetId), { credentials: 'include' })
+    .then(res => res.json())
+    .then(d => {
+      if (!d.success || !d.story) return;
+      const s = normalizeStories([d.story])[0];
+      s._readonly = true;
+      stories.unshift(s);
+      renderLibrary();
+      openStory(s.id);
+      if (q.get('play') === '1') startPlay();
+    })
+    .catch(() => { /* 静默 */ });
+}
+
 const uid = () => 'b_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 const story = () => stories.find(s => s.id === currentId);
@@ -141,7 +276,9 @@ function renderLibrary() {
   if (!stories.length) {
     const d = document.createElement('div');
     d.style.cssText = 'grid-column:1/-1;text-align:center;color:var(--muted);padding:30px 0;line-height:2;font-size:12.5px';
-    d.textContent = '还没有作品。\n输入名称，点击「＋ 创建作品」，开始你的第一个故事。';
+    d.textContent = loggedIn
+      ? '还没有作品。\n输入名称，点击「＋ 创建作品」，开始你的第一个故事。'
+      : '登录后即可在云端创作与保存作品，手机端也能同步继续。';
     host.appendChild(d);
     return;
   }
@@ -156,6 +293,11 @@ function renderLibrary() {
     const m = document.createElement('div');
     m.className = 'm';
     m.textContent = `${s.chapters.length} 章 · ${total} 块积木 · ${ORIENT_LABEL[s.orientation] || '🖥 16:9 横屏'} · ${QUAL_LABEL[s.imgQuality] || '标准'}画质`;
+    const badge = document.createElement('span');
+    badge.className = 'story-badge' + (s.status === 'published' ? ' pub' : '');
+    badge.textContent = s.status === 'published' ? '已发布' : '未发布';
+    badge.title = s.status === 'published' ? '已出现在幻灵世界广场' : '尚未发布，仅自己可见';
+    m.prepend(badge);
     const ops = document.createElement('div');
     ops.className = 'ops';
     const openBtn = document.createElement('button');
@@ -166,32 +308,90 @@ function renderLibrary() {
     playBtn.className = 'btn small';
     playBtn.textContent = '▶ 播放';
     playBtn.addEventListener('click', () => { openStory(s.id); startPlay(); });
+    const pubBtn = document.createElement('button');
+    pubBtn.className = 'btn small' + (s.status === 'published' ? ' pub' : '');
+    pubBtn.textContent = s.status === 'published' ? '下架' : '发布';
+    pubBtn.addEventListener('click', async () => {
+      if (!loggedIn) { toast('请先登录', true); setLoginHint(true); return; }
+      const target = s.status !== 'published';
+      if (target && !confirm(`发布《${s.title}》？发布后所有人都能在「幻灵世界」广场看到并播放。`)) return;
+      try {
+        const res = await fetch('/api/stories/' + encodeURIComponent(s.id) + '/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ published: target })
+        });
+        const d = await res.json();
+        if (!d.success) {
+          if (res.status === 401) { loggedIn = false; setLoginHint(true); }
+          toast(d.error || '操作失败', true);
+          return;
+        }
+        s.status = d.story.status;
+        if (d.story.share_id !== undefined) s.share_id = d.story.share_id;
+        renderLibrary();
+        toast(target ? '已发布：进入幻灵世界广场。' : '已下架：从幻灵世界广场移除。');
+      } catch (e) {
+        toast('操作失败（网络异常）', true);
+      }
+    });
     const delBtn = document.createElement('button');
     delBtn.className = 'btn small danger';
     delBtn.textContent = '删除';
-    delBtn.addEventListener('click', () => {
+    delBtn.addEventListener('click', async () => {
       if (!confirm(`确定删除作品「${s.title}」？所有章节和积木都会被删除。`)) return;
+      try {
+        const res = await fetch('/api/stories/' + encodeURIComponent(s.id) + '/delete', {
+          method: 'POST',
+          headers: authHeaders()
+        });
+        const d = await res.json();
+        if (!d.success) {
+          if (res.status === 401) { loggedIn = false; setLoginHint(true); }
+          toast(d.error || '删除失败', true);
+          return;
+        }
+      } catch (e) {
+        toast('删除失败（网络异常）', true);
+        return;
+      }
       stories = stories.filter(x => x.id !== s.id);
       persist();
       renderLibrary();
       toast('已删除作品');
     });
-    ops.append(openBtn, playBtn, delBtn);
+    ops.append(openBtn, playBtn, pubBtn, delBtn);
     card.append(t, m, ops);
     host.appendChild(card);
   });
 }
 
-function createStory() {
+async function createStory() {
   const input = $('#newTitle');
   const title = input.value.trim();
   if (!title) { toast('请先输入作品名称', true); input.focus(); return; }
-  const s = { id: uid(), title, orientation: createOrientation, imgQuality: 'standard', cast: {}, chapters: [{ id: uid(), title: '第一章', blocks: [] }] };
-  stories.unshift(s);
-  persist();
-  input.value = '';
-  openStory(s.id);
-  toast(`已创建《${title}》`);
+  if (!loggedIn) { toast('请先登录后再创建作品', true); setLoginHint(true); return; }
+  try {
+    const res = await fetch('/api/stories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ title, orientation: createOrientation, imgQuality: 'standard' })
+    });
+    const d = await res.json();
+    if (!d.success) {
+      if (res.status === 401) { loggedIn = false; setLoginHint(true); }
+      toast(d.error || '创建失败', true);
+      return;
+    }
+    const s = normalizeStories([d.story])[0];
+    stories.unshift(s);
+    persist();
+    input.value = '';
+    openStory(s.id);
+    toast(`已创建《${title}》`);
+  } catch (e) {
+    toast('创建失败（网络异常）', true);
+  }
 }
 
 // ---------- 视图切换 ----------
@@ -1819,6 +2019,9 @@ function stopPlay() {
   playBgmUrl = null;
   $('#playBody').innerHTML = ''; // 清空画幅残留，避免下次播放叠加旧帧
   $('#playOverlay').classList.add('hidden');
+  // 只读直达播放（个人主页 / 广场游客浏览已发布作品）：退出播放后回到作品库
+  const s = story();
+  if (s && s._readonly) backToLibrary();
 }
 // 播放场景文字拖拽：按住可自由移动，松手自动保存位置（x/y = 画幅中心点百分比，松手后按百分比定位）。
 // 场景文字点击不推进下一幕（fore 全屏点击区响应推进）。
@@ -2069,6 +2272,8 @@ function init() {
     });
   });
   renderLibrary();
+  // 启动云端同步：拉取 /api/stories 并合并本地旧作品（登录后自动迁移上传）
+  syncWithServer();
 }
 
 // ---------- 对外测试 API ----------

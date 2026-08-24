@@ -1921,6 +1921,38 @@ body {
     </section>
 
 
+    <!-- STORIES（故事作品） -->
+
+    <section
+        id="storiesSection"
+        class="section"
+        style="display:none;"
+    >
+
+        <div class="section-title">
+
+            <h2>
+                作品库
+            </h2>
+
+            <span>
+                STORIES
+            </span>
+
+        </div>
+
+        <div
+            id="storyGrid"
+            class="char-grid"
+        >
+            <div class="empty" style="grid-column:1/-1;">
+                加载中……
+            </div>
+        </div>
+
+    </section>
+
+
     <!-- CUSTOM MODULES（自定义模块区，模块名可改） -->
 
     <section
@@ -2321,7 +2353,8 @@ const state = {
 
     works: {
         characters: [],
-        worlds: []
+        worlds: [],
+        stories: []
     },
 
     isOwner: false
@@ -2466,7 +2499,7 @@ async function loadYonder() {
 async function applyYonderData(yonder) {
     state.profile = yonder.profile;
     state.settings = yonder.settings || {};
-    state.works = yonder.works || { characters: [], worlds: [] };
+    state.works = yonder.works || { characters: [], worlds: [], stories: [] };
     await checkOwner();
     render();
 }
@@ -2607,9 +2640,10 @@ function render() {
         document.getElementById("navEditBtn").addEventListener("click", openEditor);
     }
 
-    // 作品（角色 + 世界）主人与访客都渲染：主人=全部，访客=公开作品
+    // 作品（角色 + 世界 + 故事作品）主人与访客都渲染：主人=全部，访客=公开作品
     loadCharacters();
     loadWorlds();
+    loadStories();
 
     document
         .getElementById(
@@ -3163,6 +3197,92 @@ function renderWorlds() {
         grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${state.isOwner ? "还没有创造世界。" : "还没有公开的世界。"}</div>`;
     } else {
         grid.innerHTML = html;
+    }
+}
+
+/* =====================================================
+   STORIES（故事作品：作品编辑器云端产物）
+   主页显示 = share_id 非空（创建即可见）；广场发布/下架 = status
+===================================================== */
+
+async function loadStories() {
+    state.stories = (state.works && state.works.stories) || [];
+    renderStories();
+}
+
+function storyPlayUrl(s) {
+    const from = state.username ? "/@" + encodeURIComponent(state.username) : "";
+    return "/story-editor.html?story=" + encodeURIComponent(s.id) + "&play=1&from=" + encodeURIComponent(from);
+}
+
+function renderStories() {
+    const grid = document.getElementById("storyGrid");
+    const section = document.getElementById("storiesSection");
+    const stories = state.stories || [];
+    const showWorks = (state.settings && state.settings.show_works !== 0);
+
+    if (!stories.length && !state.isOwner) {
+        section.style.display = "none";
+        return;
+    }
+    section.style.display = showWorks ? "" : "none";
+
+    const visible = state.isOwner ? stories.slice(0, 6) : stories;
+
+    let html = "";
+    if (state.isOwner) {
+        html += `<a href="/story-editor" class="create-card">
+            <div class="plus">+</div>
+            <div class="label">创造作品</div>
+        </a>`;
+    }
+    html += visible.map(s => {
+        const sVisible = !!(s.share_id && s.share_id !== "");
+        const sPublished = s.status === "published";
+        const ownerBtns = state.isOwner ? `
+            <button class="vis-toggle pub ${sPublished ? 'off' : ''}" onclick="toggleStoryPublish('${s.id}', ${!sPublished}, event)" title="发布后进入主站幻灵世界广场">${sPublished ? '下架' : '发布'}</button>` : "";
+        return `
+        <a class="world-card${sVisible ? '' : ' hidden-card'}" href="${storyPlayUrl(s)}">
+            <img class="thumb" src="${escapeHtml(s.cover_image || '/placeholder.png')}" alt="${escapeHtml(s.title || '')}" onerror="this.style.opacity=.3">
+            ${ownerBtns}
+            <div class="info">
+                <div class="name">${escapeHtml(s.title || '未命名')}</div>
+                <div class="badges">
+                    ${!sPublished ? `<span class="badge draft">未发布</span>` : ''}
+                    <span class="badge form">故事作品</span>
+                </div>
+            </div>
+        </a>
+    `;
+    }).join("");
+
+    if (!html) {
+        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${state.isOwner ? "还没有作品。" : "还没有公开的作品。"}</div>`;
+    } else {
+        grid.innerHTML = html;
+    }
+}
+
+// 发布 = 进入幻灵世界广场（status='published'）；下架 = 从广场移除（draft）；主页始终可见
+async function toggleStoryPublish(id, targetPublish, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    try {
+        const res = await fetch('/api/stories/' + encodeURIComponent(id) + '/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ published: !!targetPublish })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || '操作失败。');
+        const s = (state.stories || []).find(x => x.id === id);
+        if (s) {
+            s.status = targetPublish ? 'published' : 'draft';
+            if (data.story && data.story.share_id !== undefined) s.share_id = data.story.share_id;
+        }
+        renderStories();
+    } catch (e) {
+        console.error('TOGGLE STORY PUBLISH ERROR:', e);
+        alert(e.message || '操作失败，请稍后再试。');
     }
 }
 

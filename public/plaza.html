@@ -65,6 +65,7 @@ a { color: inherit; text-decoration: none; }
 .card .foot { font-size: .7rem; color: var(--muted); margin-top: .7rem; display: flex; justify-content: space-between; align-items: center; }
 .badge { font-size: .62rem; padding: 2px 9px; border-radius: 999px; background: rgba(139,139,255,.16); color: #b7b7ff; letter-spacing: .02em; }
 .badge.life { background: rgba(120,220,170,.14); color: #9fdcbb; }
+.badge.story { background: rgba(255,190,110,.14); color: #ffcf8e; }
 
 .empty { padding: 90px 20px; text-align: center; border: 1px dashed rgba(255,255,255,.10); border-radius: 20px; color: rgba(255,255,255,.32); font-size: 14px; }
 .loading { text-align: center; color: var(--muted); padding: 90px 0; }
@@ -86,7 +87,7 @@ a { color: inherit; text-decoration: none; }
 
   <div class="page-head">
     <h1>🌍 幻灵世界</h1>
-    <p>每一位主人发布的生命世界，都在这里自由运转。<span class="cnt" id="cnt"></span></p>
+    <p>每一位主人发布的生命世界与故事作品，都在这里自由运转。<span class="cnt" id="cnt"></span></p>
   </div>
 
   <div id="status" class="loading">加载中…</div>
@@ -103,9 +104,11 @@ async function loadPlaza() {
     if (!data.success) throw new Error(data.error || "加载失败。");
 
     const worlds = data.worlds || [];
-    $("cnt").textContent = worlds.length ? `（${worlds.length} 个世界正在运转）` : "";
+    const stories = data.stories || [];
+    const total = worlds.length + stories.length;
+    $("cnt").textContent = total ? `（${worlds.length} 个世界 · ${stories.length} 部作品 正在运转）` : "";
     $("status").style.display = "none";
-    $("grid").innerHTML = worlds.map(w => {
+    const worldCards = worlds.map(w => {
       const name = escapeHtml(w.name || "未名世界");
       const desc = escapeHtml(w.description || "TA 还没有写世界简介。");
       const ownerName = escapeHtml(w.owner_display_name || w.owner_username || "TA");
@@ -129,7 +132,31 @@ async function loadPlaza() {
           </div>
         </div>
       </div>`;
-    }).join("") || `<div class="empty">还没有已发布的生命世界。<br>去 <a href="/hub" style="color:#b7b7ff">我的彼岸</a> 创建并发布你的第一个世界吧。</div>`;
+    }).join("");
+    const storyCards = stories.map(s => {
+      const name = escapeHtml(s.title || "未名作品");
+      const ownerName = escapeHtml(s.owner_display_name || s.owner_username || "TA");
+      const ownerUser = s.owner_username ? "@" + escapeHtml(s.owner_username) : "";
+      const avatar = escapeHtml(s.owner_avatar_url || "");
+      const orient = s.orientation === "portrait" ? "📱 9:16 竖屏" : "🖥 16:9 横屏";
+      const updated = s.updated_at ? new Date(s.updated_at).toLocaleDateString("zh-CN") : "";
+      return `<div class="card" onclick="location.href='/story-editor.html?story=${s.id}&play=1&from=/plaza'">
+        <img class="thumb" src="${escapeHtml(s.cover_image || '')}" alt="" loading="lazy" onerror="this.style.opacity=.2">
+        <div class="body">
+          <div class="name">${name}<span class="badge story">故事作品</span></div>
+          <div class="hook">${Number(s.chapters_count) || 0} 章 · ${Number(s.blocks_count) || 0} 块积木 · ${orient}</div>
+          <div class="owner">
+            ${avatar ? `<img src="${avatar}" alt="" onerror="this.style.visibility='hidden'">` : "<img src='/logo1.png' alt=''>"}
+            <div><div class="oname">${ownerName}</div>${ownerUser ? `<div class="ouname">${ownerUser}</div>` : ""}</div>
+          </div>
+          <div class="foot">
+            <span>文字剧情</span>
+            <span>${updated}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join("");
+    $("grid").innerHTML = (worldCards + storyCards) || `<div class="empty">还没有已发布的生命世界或故事作品。<br>去 <a href="/hub" style="color:#b7b7ff">我的彼岸</a> 创建并发布你的第一个作品吧。</div>`;
   } catch (e) {
     $("status").style.display = "none";
     $("grid").innerHTML = `<div class="err">加载失败：${escapeHtml(e.message)}<br><a href="/">返回首页</a></div>`;

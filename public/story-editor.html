@@ -36,7 +36,12 @@ textarea.txt{min-height:120px;resize:vertical}
   padding:14px 16px;display:flex;flex-direction:column;gap:10px;transition:.18s}
 .story-card:hover{border-color:rgba(139,123,255,.5)}
 .story-card .t{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.story-card .m{font-size:11px;color:var(--muted)}
+.story-card .m{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.story-badge{font-size:10px;letter-spacing:.05em;background:rgba(139,123,255,.12);color:#a9a2ff;border:1px solid rgba(139,123,255,.35);padding:1px 7px;border-radius:99px;font-weight:600;white-space:nowrap}
+.story-badge.pub{background:rgba(64,200,140,.12);color:#5fd9a8;border-color:rgba(64,200,140,.4)}
+.story-card .ops .btn{padding:7px 4px;font-size:12px;white-space:nowrap}
+.story-card .ops .btn.pub{color:#5fd9a8;border-color:rgba(64,200,140,.45)}
+.story-card .ops .btn.pub:hover{background:rgba(64,200,140,.12)}
 .story-card .ops{display:flex;gap:8px;margin-top:auto}
 .story-card .ops .btn{flex:1}
 
@@ -273,7 +278,7 @@ textarea.txt{min-height:120px;resize:vertical}
       <div class="hub-hero-kicker">STORY BUILDER</div>
       <h1 class="hub-hero-name">作品编辑器</h1>
       <p class="hub-hero-meaning">像搭积木一样，搭出你的文字剧情。</p>
-      <p class="hub-hero-tags">场景 · 对白 · 章节 · 播放</p>
+      <p class="hub-hero-tags" id="loginHint" style="display:none;margin-top:6px">🔑 登录后作品自动保存到云端，手机端也能同步继续。 <a href="/yonder.html?next=/story-editor" style="color:#b7b7ff">去登录</a></p>
     </section>
 
     <section class="hub-section">
@@ -322,7 +327,7 @@ textarea.txt{min-height:120px;resize:vertical}
         <div id="chapterList" style="margin-top:10px"></div>
       </section>
       <section style="font-size:11px;color:var(--muted);line-height:1.8">
-        积木改动会自动保存到浏览器本地（localStorage），刷新页面不会丢失。
+        积木改动自动保存到云端（登录后跨设备同步），刷新不丢失。
       </section>
     </div>
   </aside>
