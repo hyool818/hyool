@@ -797,9 +797,12 @@ export async function handleMvpRoutes(
                     id: row.id,
                     title: row.title || "未名作品",
                     cover_image: row.cover_image || "",
+                    kind: data.kind === "card_rpg" ? "card_rpg" : "story",
                     orientation: data.orientation === "portrait" ? "portrait" : "landscape",
                     chapters_count: chapters,
                     blocks_count: blocks,
+                    cards_count: Array.isArray((data.rpg || {}).cards) ? data.rpg.cards.length : 0,
+                    enemies_count: Array.isArray((data.rpg || {}).enemies) ? data.rpg.enemies.length : 0,
                     updated_at: row.updated_at,
                     owner_username: row.username || "",
                     owner_display_name: row.display_name || row.username || "TA",
@@ -887,7 +890,9 @@ export async function handleMvpRoutes(
             const shareId = "s" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
             const orientation = body.orientation === "portrait" ? "portrait" : "landscape";
             const imgQuality = body.imgQuality === "hd" ? "hd" : "standard";
+            const kind = body.kind === "card_rpg" ? "card_rpg" : "story";
             const data = {
+                kind,
                 orientation,
                 imgQuality,
                 cast: {},
@@ -897,6 +902,10 @@ export async function handleMvpRoutes(
                     blocks: []
                 }]
             };
+            // 卡牌RPG：创建时即带英雄/卡牌/敌人默认结构（薄壳分支共享 stories 存储）
+            if (kind === "card_rpg") {
+                data.rpg = { hero: { name: "勇者", maxHp: 30, maxEnergy: 3 }, cards: [], enemies: [] };
+            }
 
             await env.DB.prepare(
                 `INSERT INTO stories (id, owner_id, title, data, cover_image, status, share_id, created_at, updated_at)

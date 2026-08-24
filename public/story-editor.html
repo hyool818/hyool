@@ -247,6 +247,83 @@ textarea.txt{min-height:120px;resize:vertical}
   /* 积木音效摘要 */
   .sfx-summary{font-size:11.5px;color:var(--muted);line-height:1.6;word-break:break-all}
 
+  /* 卡牌RPG：作品库类型徽章 / 积木战斗摘要 / 配置弹窗 */
+  .story-badge.kind{background:rgba(120,200,255,.16);color:#9fd8ff;border-color:rgba(120,200,255,.5)}
+  .story-badge.kind.rpg{background:rgba(255,170,80,.18);color:#ffcf8a;border-color:rgba(255,170,80,.55)}
+  .block-sub{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.6}
+  .rpg-cfg-btns{display:flex;flex-direction:column;gap:6px}
+  .rpg-cfg-btns .btn{margin-top:0}
+  .rpg-tip{font-size:11.5px;color:var(--muted);line-height:1.7;border:1px dashed var(--line2);border-radius:8px;padding:8px 10px}
+  .rpg-field{margin:10px 0}
+  .rpg-field label{font-size:12px;margin-bottom:4px}
+  .rpg-field textarea{min-height:64px;resize:vertical}
+  .rpg-list{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+  .rpg-empty{color:var(--muted);font-size:12px;text-align:center;padding:16px;border:1px dashed var(--line2);border-radius:8px}
+  .rpg-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);background:var(--bg3);border-radius:10px;padding:8px 10px}
+  .rpg-row-info{flex:1;min-width:0}
+  .rpg-name{font-weight:600;color:var(--text);font-size:13px}
+  .rpg-meta{font-size:11px;color:var(--muted);margin-left:8px}
+  .rpg-desc{font-size:11px;color:var(--muted);margin-top:2px;word-break:break-all}
+  .rpg-ops{display:flex;gap:6px;flex-shrink:0}
+  .rpg-form-ops{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
+  .rpg-check{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--bg3);cursor:pointer}
+  .rpg-check input{width:auto;accent-color:var(--accent)}
+  .rpg-enemy-check{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+
+  /* 卡牌RPG：战斗视图（播放画幅内） */
+  .battle-view{position:relative;height:100%;width:100%;display:flex;flex-direction:column;gap:10px;padding:16px 18px 12px;box-sizing:border-box;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,rgba(139,123,255,.14),transparent 70%),linear-gradient(180deg,#15132a,#0c0b18)}
+  .battle-view.portrait{padding:12px 10px 8px}
+  .bt-bg{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .bt-bg img,.bt-bg video{width:100%;height:100%;object-fit:cover;opacity:.4}
+  .bt-enemies{position:relative;z-index:1;display:flex;justify-content:center;align-items:flex-start;gap:12px;flex-wrap:wrap;min-height:96px}
+  .bt-enemy{width:150px;border:1px solid rgba(255,255,255,.16);background:rgba(8,8,18,.72);border-radius:12px;padding:8px 10px;text-align:left;cursor:default;transition:.15s}
+  .bt-enemy.targetable{cursor:pointer;border-color:rgba(255,120,90,.9);box-shadow:0 0 0 2px rgba(255,120,90,.45),0 6px 18px rgba(255,80,60,.25);animation:btPulse 1s ease-in-out infinite}
+  .bt-enemy.dead{opacity:.45;filter:grayscale(1)}
+  @keyframes btPulse{0%,100%{box-shadow:0 0 0 2px rgba(255,120,90,.45)}50%{box-shadow:0 0 0 4px rgba(255,120,90,.65)}}
+  .bt-enemy-name{font-size:13px;font-weight:700;color:#ffd9a8;margin-bottom:6px}
+  .bt-enemy-meta{font-size:11px;color:var(--muted);margin-top:3px}
+  .bt-enemy-intent{font-size:10.5px;color:#ff9a8a;margin-top:4px}
+  .bt-enemy-intent.dead{color:var(--muted)}
+  .bt-bar{flex:1;height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
+  .bt-bar-fill{height:100%;border-radius:4px;transition:width .25s}
+  .bt-bar-fill.enemy{background:linear-gradient(90deg,#ff5f4d,#ff9a5a)}
+  .bt-bar-fill.hp{background:linear-gradient(90deg,#3ad07a,#a5f27a)}
+  .bt-hero{position:relative;z-index:1;display:flex;align-items:center;gap:12px;justify-content:space-between}
+  .bt-hero-box{flex:1;min-width:0;border:1px solid rgba(255,255,255,.14);background:rgba(8,8,18,.72);border-radius:12px;padding:8px 12px}
+  .bt-hero-name{font-size:13px;font-weight:700;color:#cfc8ff;margin-bottom:5px}
+  .bt-hp-row{display:flex;align-items:center;gap:8px}
+  .bt-hp-num{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;flex-shrink:0}
+  .bt-buffs{display:flex;align-items:center;gap:10px;margin-top:5px;flex-wrap:wrap}
+  .bt-shield{font-size:11.5px;color:#7fe3ff;background:rgba(95,200,255,.14);border:1px solid rgba(95,200,255,.45);border-radius:6px;padding:1px 7px}
+  .bt-energy{font-size:12px;color:#ffd76a;letter-spacing:2px;text-shadow:0 0 8px rgba(255,200,80,.5)}
+  .bt-deck-count{font-size:10.5px;color:var(--muted)}
+  .bt-msg{font-size:11.5px;color:#cfc8ff;margin-top:5px;min-height:16px}
+  .bt-end-turn{flex:0 0 auto}
+
+
+
+  .bt-hand{position:relative;z-index:1;display:flex;justify-content:center;align-items:flex-end;gap:8px;flex-wrap:wrap;min-height:118px;padding-top:6px}
+  .bt-hand-empty{color:var(--muted);font-size:12px;align-self:center}
+  .bt-card{position:relative;width:106px;height:128px;border:1px solid rgba(255,255,255,.2);border-radius:10px;background:linear-gradient(180deg,#2a2550,#171430);color:var(--text);cursor:pointer;text-align:left;padding:26px 8px 8px;transition:transform .12s,box-shadow .12s}
+  .bt-card:hover{transform:translateY(-6px);border-color:rgba(139,123,255,.7);box-shadow:0 10px 24px rgba(0,0,0,.5)}
+  .bt-card.poor{opacity:.55;filter:grayscale(.4)}
+  .bt-card.targeting{border-color:#ffcf8a;box-shadow:0 0 0 2px rgba(255,190,90,.55);transform:translateY(-6px)}
+  .bt-cost{position:absolute;top:6px;left:6px;width:20px;height:20px;border-radius:50%;background:#7d4cff;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .bt-card-icon{font-size:24px;text-align:center;margin-bottom:5px}
+  .bt-card-name{font-size:11.5px;font-weight:700;text-align:center;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bt-card-desc{font-size:9.5px;color:var(--muted);text-align:center;margin-top:4px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .bt-result{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(6,6,14,.88);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);text-align:center;padding:20px}
+  .bt-result-title{font-size:26px;font-weight:800;color:#ffd76a;text-shadow:0 0 20px rgba(255,200,80,.45)}
+  .bt-result-title.lost{color:#ff7a6a}
+  .bt-result-text{max-width:520px;font-size:14px;color:var(--text);line-height:1.8;white-space:pre-wrap;word-break:break-word}
+  .bt-result-ops{display:flex;gap:12px}
+  .bt-intro{position:relative;z-index:1;margin:auto;max-width:560px;display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center;border:1px solid rgba(255,255,255,.16);background:rgba(8,8,18,.75);border-radius:18px;padding:28px 30px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  .bt-intro-title{font-size:24px;font-weight:800;color:#ffd76a;text-shadow:0 0 16px rgba(255,200,80,.4)}
+  .bt-intro-text{font-size:14px;color:var(--text);line-height:1.9;white-space:pre-wrap;word-break:break-word}
+  .bt-intro-meta{font-size:13px;color:var(--muted)}
+  .bt-intro-ops{display:flex;gap:12px;margin-top:6px}
+  .battle-view.result .bt-enemies,.battle-view.result .bt-hero,.battle-view.result .bt-hand{pointer-events:none;filter:blur(1.5px) brightness(.5)}
+
 @keyframes blockIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
 @media (max-width:760px){
@@ -263,7 +340,7 @@ textarea.txt{min-height:120px;resize:vertical}
   <a class="back" href="/fantasy.html">← 返回</a>
   <div class="brand">
     <span class="brand-name">作品编辑器</span>
-    <span class="brand-sub">STORY BUILDER · 文字剧情积木</span>
+    <span class="brand-sub">STORY BUILDER · 互动小说 + 卡牌RPG</span>
   </div>
   <div class="topbar-right">
     <button class="btn ghost hidden" id="libBtn">⬅ 作品库</button>
@@ -277,7 +354,7 @@ textarea.txt{min-height:120px;resize:vertical}
     <section class="hub-hero">
       <div class="hub-hero-kicker">STORY BUILDER</div>
       <h1 class="hub-hero-name">作品编辑器</h1>
-      <p class="hub-hero-meaning">像搭积木一样，搭出你的文字剧情。</p>
+      <p class="hub-hero-meaning">像搭积木一样，搭出你的互动小说与卡牌RPG。</p>
       <p class="hub-hero-tags" id="loginHint" style="display:none;margin-top:6px">🔑 登录后作品自动保存到云端，手机端也能同步继续。 <a href="/yonder.html?next=/story-editor" style="color:#b7b7ff">去登录</a></p>
     </section>
 
@@ -288,6 +365,10 @@ textarea.txt{min-height:120px;resize:vertical}
         <div class="orient-pick" id="createOrient">
           <button type="button" class="orient-card active" data-orient="landscape">🖥 16:9 横屏<span>电脑 · 宽幅</span></button>
           <button type="button" class="orient-card" data-orient="portrait">📱 9:16 竖屏<span>手机 · 短视频</span></button>
+        </div>
+        <div class="orient-pick" id="createKindRow" style="margin-top:8px">
+          <button type="button" class="orient-card kind-card active" data-kind="story">📖 互动小说<span>剧情 + 画面 + 配音</span></button>
+          <button type="button" class="orient-card kind-card" data-kind="card_rpg">⚔️ 卡牌RPG<span>剧情 + 能量卡牌战斗</span></button>
         </div>
         <button class="btn primary" id="createBtn">＋ 创建作品</button>
       </div>
@@ -320,6 +401,15 @@ textarea.txt{min-height:120px;resize:vertical}
           <span class="orient-row-label">画面画质</span>
         </div>
         <button class="btn wide" id="castBtn" style="margin-top:10px">🎭 角色声音</button>
+      </section>
+      <section id="rpgConfig" style="display:none">
+        <h3>卡牌RPG</h3>
+        <div class="rpg-cfg-btns">
+          <button class="btn wide" id="rpgCardsBtn">🃏 卡牌库</button>
+          <button class="btn wide" id="rpgHeroBtn">🦸 英雄</button>
+          <button class="btn wide" id="rpgEnemiesBtn">👹 敌人</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:6px">卡牌/英雄/敌人用于「⚔️ 卡牌战斗」积木；剧情、画面、配音、BGM 与互动小说通用。</div>
       </section>
       <section>
         <h3>章节</h3>
@@ -355,7 +445,7 @@ textarea.txt{min-height:120px;resize:vertical}
     <button class="btn small ghost" id="playExit">✕ 退出</button>
   </div>
   <div class="play-body" id="playBody"></div>
-  <div class="play-nav">
+  <div class="play-nav" id="playNav">
     <button class="btn" id="playPrev">← 上一条</button>
     <span class="pn-count" id="playCount"></span>
     <button class="btn primary" id="playNext">下一条 →</button>

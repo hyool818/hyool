@@ -1874,24 +1874,33 @@ async function buildYonderPayload(
     }));
 
     // 故事作品（作品编辑器产物）：主页显示 = share_id 非空；广场发布 = status='published'
+    // 额外取 data 以解析作品类型 kind（互动小说 / 卡牌RPG），供主页类型徽章展示
     const storySql =
         isOwner
-            ? "SELECT id, title, cover_image, status, share_id, created_at FROM stories WHERE owner_id = ? ORDER BY created_at DESC"
-            : "SELECT id, title, cover_image, status, share_id, created_at FROM stories WHERE owner_id = ? AND share_id IS NOT NULL AND share_id != '' ORDER BY created_at DESC";
+            ? "SELECT id, title, cover_image, status, share_id, created_at, data FROM stories WHERE owner_id = ? ORDER BY created_at DESC"
+            : "SELECT id, title, cover_image, status, share_id, created_at, data FROM stories WHERE owner_id = ? AND share_id IS NOT NULL AND share_id != '' ORDER BY created_at DESC";
 
     const storyResult = await env.DB
         .prepare(storySql)
         .bind(profile.id)
         .all();
 
-    works.stories = (storyResult.results || []).map(s => ({
-        id: s.id,
-        title: s.title,
-        cover_image: s.cover_image,
-        status: s.status,
-        share_id: s.share_id,
-        created_at: s.created_at
-    }));
+    works.stories = (storyResult.results || []).map(s => {
+        let kind = "story";
+        try {
+            const d = JSON.parse(s.data || "{}");
+            if (d && d.kind === "card_rpg") kind = "card_rpg";
+        } catch (e) { /* 旧数据/坏数据默认互动小说 */ }
+        return {
+            id: s.id,
+            title: s.title,
+            cover_image: s.cover_image,
+            kind,
+            status: s.status,
+            share_id: s.share_id,
+            created_at: s.created_at
+        };
+    });
 
     return {
         profile: profile,

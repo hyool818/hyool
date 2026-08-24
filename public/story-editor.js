@@ -61,6 +61,23 @@ const ALLOWED_AUDIO = { // MIME → audio.type（配音）
 };
 const AUDIO_TYPES_LABEL = '配音：MP3 / WAV / M4A / OGG（限 5MB）';
 
+// ---------- 作品类型（kind）：互动小说（story）默认；卡牌RPG（card_rpg）在共享编辑器中分支 ----------
+const KIND_LABEL = { story: '互动小说', card_rpg: '卡牌RPG' };
+// 卡牌效果类型（card.type）→ 图标/名称
+const CARD_ICON = { attack: '⚔️', defend: '🛡️', heal: '💚', energy: '⚡', draw: '🔄' };
+const CARD_TYPE_LABEL = { attack: '攻击', defend: '防御', heal: '治疗', energy: '能量', draw: '抽牌' };
+const CARD_TYPES = ['attack', 'defend', 'heal', 'energy', 'draw'];
+const BATTLE_HAND_LIMIT = 10; // 手牌上限
+const BATTLE_DRAW_PER_TURN = 5; // 每回合抽牌数
+// 卡牌RPG 兜底默认卡组（作品没配卡也能试玩/播放）
+const DEFAULT_DECK = [
+  { id: 'b_atk', name: '打击', cost: 1, type: 'attack', value: 6, desc: '造成 6 点伤害' },
+  { id: 'b_atk2', name: '重击', cost: 2, type: 'attack', value: 11, desc: '造成 11 点伤害' },
+  { id: 'b_def', name: '防御', cost: 1, type: 'defend', value: 5, desc: '获得 5 点护盾' },
+  { id: 'b_heal', name: '急救', cost: 2, type: 'heal', value: 4, desc: '回复 4 点生命' },
+];
+const rpgUid = () => 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
 let stories = normalizeStories(loadStories());
 let currentId = null;   // 当前打开的作品 id
 let chapterId = null;   // 当前打开的章节 id
@@ -77,6 +94,8 @@ let ttsCache = new Map();  // TTS 预合成缓存：key(story|block|voice|conten
 let ttsVoices = [];        // /api/tts/voices 列表缓存
 let selectedSfxId = null;  // 时间轴弹窗中当前选中的音效条目 id
 let createOrientation = 'landscape'; // 新建作品时选定的画面方向
+let createKind = 'story';            // 新建作品时选定的作品类型（story=互动小说 / card_rpg=卡牌RPG）
+let battle = null;                   // 播放中卡牌战斗状态（battle 幕专用；null = 非战斗幕）
 
 // ---------- 本地缓存（离线兜底 + 旧数据迁移源） ----------
 function loadStories() {
@@ -90,6 +109,36 @@ function loadStories() {
 function normalizeStories(arr) {
   if (!Array.isArray(arr)) return [];
   arr.forEach(s => {
+    // 作品类型：默认互动小说；存量作品没有 kind 字段自动归为 story（不破坏旧数据）
+    if (s.kind !== 'card_rpg') s.kind = 'story';
+    // 卡牌RPG 专用结构（rpg.hero / rpg.cards / rpg.enemies）：结构兜底 + 字段清洗
+    if (s.kind === 'card_rpg') {
+      if (!s.rpg || typeof s.rpg !== 'object' || Array.isArray(s.rpg)) s.rpg = {};
+      const rpg = s.rpg;
+      if (!rpg.hero || typeof rpg.hero !== 'object') rpg.hero = {};
+      rpg.hero = {
+        name: String(rpg.hero.name || '勇者').slice(0, 20) || '勇者',
+        maxHp: Math.max(1, Math.min(999, Number(rpg.hero.maxHp) || 30)),
+        maxEnergy: Math.max(1, Math.min(10, Number(rpg.hero.maxEnergy) || 3)),
+      };
+      if (!Array.isArray(rpg.cards)) rpg.cards = [];
+      rpg.cards = rpg.cards.filter(c => c && c.name).map(c => ({
+        id: c.id || rpgUid(),
+        name: String(c.name).trim().slice(0, 20) || '未名卡牌',
+        cost: Math.max(0, Math.min(9, Number(c.cost) || 0)),
+        type: CARD_TYPES.includes(c.type) ? c.type : 'attack',
+        value: Math.max(0, Number(c.value) || 0),
+        copies: Math.max(1, Math.min(9, Number(c.copies) || 1)),
+        desc: String(c.desc || '').trim().slice(0, 60),
+      }));
+      if (!Array.isArray(rpg.enemies)) rpg.enemies = [];
+      rpg.enemies = rpg.enemies.filter(e => e && e.name).map(e => ({
+        id: e.id || rpgUid(),
+        name: String(e.name).trim().slice(0, 20) || '未名敌人',
+        hp: Math.max(1, Math.min(999, Number(e.hp) || 10)),
+        damage: Math.max(0, Math.min(999, Number(e.damage) || 3)),
+      }));
+    }
     if (s.orientation !== 'landscape' && s.orientation !== 'portrait') s.orientation = 'landscape'; // 旧作品默认 16:9 横屏
     if (s.imgQuality !== 'hd') s.imgQuality = 'standard'; // 默认标准画质（1280 档）
     if (!s.cast || typeof s.cast !== 'object') s.cast = {};
@@ -110,6 +159,13 @@ function normalizeStories(arr) {
           label: sf.label || '',
         } : null).filter(Boolean);
         if (b.bgmOverride && !b.bgmOverride.url) delete b.bgmOverride;
+        // 战斗积木（卡牌RPG）：字段兜底，缺失不崩溃
+        if (b.type === 'battle') {
+          if (!Array.isArray(b.enemies)) b.enemies = [];
+          if (typeof b.content !== 'string') b.content = '';
+          if (typeof b.winContent !== 'string') b.winContent = '';
+          if (typeof b.loseContent !== 'string') b.loseContent = '';
+        }
       });
     });
   });
@@ -298,6 +354,11 @@ function renderLibrary() {
     badge.textContent = s.status === 'published' ? '已发布' : '未发布';
     badge.title = s.status === 'published' ? '已出现在幻灵世界广场' : '尚未发布，仅自己可见';
     m.prepend(badge);
+    // 作品类型徽章（卡牌RPG 分支）
+    const kindBadge = document.createElement('span');
+    kindBadge.className = 'story-badge kind' + (s.kind === 'card_rpg' ? ' rpg' : '');
+    kindBadge.textContent = KIND_LABEL[s.kind] || '互动小说';
+    m.appendChild(kindBadge);
     const ops = document.createElement('div');
     ops.className = 'ops';
     const openBtn = document.createElement('button');
@@ -375,7 +436,7 @@ async function createStory() {
     const res = await fetch('/api/stories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ title, orientation: createOrientation, imgQuality: 'standard' })
+      body: JSON.stringify({ title, orientation: createOrientation, imgQuality: 'standard', kind: createKind })
     });
     const d = await res.json();
     if (!d.success) {
@@ -424,6 +485,9 @@ function renderEditor() {
   const s = story();
   if (!s) return;
   $('#storyTitle').value = s.title;
+  // 卡牌RPG 分支：只有卡牌RPG 作品显示「卡牌库/英雄/敌人」配置区
+  const rpgCfg = $('#rpgConfig');
+  if (rpgCfg) rpgCfg.style.display = s.kind === 'card_rpg' ? '' : 'none';
   // 方向 / 画质切换按钮高亮
   document.querySelectorAll('#storyOrient .orient-btn').forEach(b => b.classList.toggle('active', b.dataset.orient === s.orientation));
   document.querySelectorAll('#storyQual .qual-btn').forEach(b => b.classList.toggle('active', b.dataset.qual === s.imgQuality));
@@ -495,7 +559,7 @@ function renderBlocks() {
     tag.className = 'block-tag';
     const tagLabel = document.createElement('div');
     tagLabel.className = 'bt-label';
-    tagLabel.textContent = b.type === 'scene' ? '场景' : '对白';
+    tagLabel.textContent = b.type === 'scene' ? '场景' : (b.type === 'battle' ? '战斗' : '对白');
     tag.appendChild(tagLabel);
     if (b.type === 'dialogue') {
       const sp = document.createElement('div');
@@ -511,11 +575,20 @@ function renderBlocks() {
     const displayText = formatDialogue(b);
     if (!displayText.trim()) {
       text.classList.add('empty');
-      text.textContent = b.type === 'scene' ? '（暂无场景文字，点击 📝 场景文字 设置）' : '（对白内容为空）';
+      text.textContent = b.type === 'scene' ? '（暂无场景文字，点击 📝 场景文字 设置）' : (b.type === 'battle' ? '（战斗前剧情留空，点 ⚔️ 编辑战斗 设置）' : '（对白内容为空）');
     } else {
       text.textContent = displayText;
     }
     main.appendChild(text);
+    // 战斗积木摘要：出战敌人列表
+    if (b.type === 'battle') {
+      const lib = ((story() || {}).rpg || {}).enemies || [];
+      const names = (b.enemies || []).map(id => { const e = lib.find(x => x.id === id); return e ? e.name : '❓ 缺失'; });
+      const sub = document.createElement('div');
+      sub.className = 'block-sub';
+      sub.textContent = '⚔️ 出战敌人：' + (names.length ? names.join('、') : '（未选择，播放时自动用默认史莱姆）');
+      main.appendChild(sub);
+    }
 
     const ops = document.createElement('div');
     ops.className = 'block-ops';
@@ -534,6 +607,9 @@ function renderBlocks() {
       mkBtn('💬 对白框', '设置对白框：角色名 + 对白内容（播放时自动加引号、固定底部聊天框）、字号/颜色', () => openSubtitleEditor(b));
     } else if (b.type === 'scene') {
       mkBtn('📝 场景文字', '设置场景文字（播放时可拖拽到任意位置）与字号/颜色；留空则不显示', () => openSubtitleEditor(b));
+    } else if (b.type === 'battle') {
+      mkBtn('⚔️ 编辑战斗', '设置战斗前剧情 / 出战敌人 / 胜利·战败剧情', () => openBattleEditor(b));
+      mkBtn('▶ 试玩本场', '直接播放到这场战斗，试试打得过吗', () => previewBattle(b));
     }
     mkBtn('🎵', '本幕 BGM（可覆盖章节曲）', () => openBlockBgmEditor(b));
     mkBtn('🎼', '声音时间轴（配音 / 音效 / BGM 三轨可视化）', () => openTimelineEditor(b));
@@ -683,10 +759,18 @@ function addBlock(type) {
   if (!ch) return;
   const block = { id: uid(), type, content: type === 'scene' ? '' : '在这里写下对白……' };
   if (type === 'dialogue') block.speaker = DEFAULT_SPEAKER;
+  if (type === 'battle') {
+    // 卡牌RPG 专属积木：战斗前剧情 + 出战敌人（引用敌人库 id）+ 胜败剧情
+    block.content = '';
+    block.enemies = [];
+    block.winContent = '';
+    block.loseContent = '';
+  }
   ch.blocks.push(block);
   persist();
   renderBlocks();
-  openSubtitleEditor(block); // 新建积木直接进弹窗（对白：角色/内容/字号/颜色；场景：场景文字/字号/颜色）
+  if (type === 'battle') openBattleEditor(block); // 新建战斗直接进配置弹窗
+  else openSubtitleEditor(block); // 新建积木直接进弹窗（对白：角色/内容/字号/颜色；场景：场景文字/字号/颜色）
 }
 
 function openAddPicker() {
@@ -712,6 +796,9 @@ function openAddPicker() {
     };
     mk('scene', '🏙️', '场景', '交代地点与氛围的一段描述');
     mk('dialogue', '💬', '对白', '角色说出的一句话');
+    if (story() && story().kind === 'card_rpg') {
+      mk('battle', '⚔️', '卡牌战斗', '插一场能量回合制卡牌战斗');
+    }
     body.appendChild(row);
   }, null);
 }
@@ -734,6 +821,420 @@ function deleteBlock(id) {
   persist();
   renderBlocks();
   toast('已删除该积木');
+}
+
+// ---------- 卡牌RPG 配置（分支：作品类型 = 卡牌RPG） ----------
+// 战斗积木编辑：战斗前剧情 / 出战敌人（多选）/ 胜利·战败剧情
+function openBattleEditor(b) {
+  const s = story();
+  if (!s) return;
+  openModal('⚔️ 编辑战斗', (body) => {
+    const mkField = (label, tag, value, rows) => {
+      const f = document.createElement('div');
+      f.className = 'field rpg-field';
+      const l = document.createElement('label');
+      l.textContent = label;
+      const input = document.createElement(tag);
+      input.className = 'txt';
+      if (tag === 'textarea') { input.rows = rows || 3; input.maxLength = 500; }
+      input.value = value || '';
+      f.append(l, input);
+      body.appendChild(f);
+      return input;
+    };
+    mkField('战斗前剧情（可留空）', 'textarea', b.content);
+    const en = document.createElement('div');
+    en.className = 'field rpg-field';
+    const enL = document.createElement('label');
+    enL.textContent = '出战敌人（可多选）';
+    en.append(enL);
+    const lib = (s.rpg && s.rpg.enemies) || [];
+    const chosen = b.enemies || [];
+    if (!lib.length) {
+      const tip = document.createElement('div');
+      tip.className = 'rpg-tip';
+      tip.textContent = '还没有敌人。先到侧边栏「👹 敌人」添加，再回来选择出战敌人。';
+      en.appendChild(tip);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'rpg-enemy-check';
+      lib.forEach(e => {
+        const label = document.createElement('label');
+        label.className = 'rpg-check';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = e.id;
+        cb.checked = chosen.includes(e.id);
+        const span = document.createElement('span');
+        span.textContent = `${e.name}（生命 ${e.hp} · 攻击 ${e.damage}）`;
+        label.append(cb, span);
+        wrap.appendChild(label);
+      });
+      en.appendChild(wrap);
+    }
+    body.appendChild(en);
+    mkField('胜利后剧情（可留空）', 'textarea', b.winContent);
+    mkField('战败后剧情（可留空）', 'textarea', b.loseContent);
+  }, () => {
+    const s2 = story();
+    if (!s2) return;
+    const inputs = $('#modalBody').querySelectorAll('.field textarea');
+    b.content = inputs[0].value.trim();
+    b.winContent = inputs[1].value.trim();
+    b.loseContent = inputs[2].value.trim();
+    b.enemies = Array.from($('#modalBody').querySelectorAll('.rpg-enemy-check input:checked')).map(x => x.value);
+    persist();
+    renderBlocks();
+    toast('战斗已保存');
+  });
+}
+
+// 卡牌库编辑：作品全部卡牌（名称/费用/效果/数值/张数）
+// 弹窗内「列表 ⇄ 表单」同层切换：新增/编辑卡牌不进嵌套弹窗（openModal 会重建 body，嵌套会丢外层列表）
+function openRpgCardsEditor() {
+  const s = story();
+  if (!s) return;
+  openModal('🃏 卡牌库', () => buildRpgCardsEditorBody(), null);
+}
+function buildRpgCardsEditorBody() {
+  const s = story();
+  const body = $('#modalBody');
+  if (!s || !body) return;
+  body.innerHTML = '';
+  const tip = document.createElement('div');
+  tip.className = 'rpg-tip';
+  tip.textContent = '卡牌用于卡牌战斗。每张卡可设张数（卡组出现次数）。每回合获得英雄能量上限的能量，打牌按费用扣除。';
+  body.appendChild(tip);
+  const list = document.createElement('div');
+  list.className = 'rpg-list';
+  list.id = 'rpgCardList';
+  body.appendChild(list);
+  const add = document.createElement('button');
+  add.className = 'btn tiny';
+  add.textContent = '＋ 新增卡牌';
+  add.addEventListener('click', () => renderRpgCardForm(null));
+  body.appendChild(add);
+  renderRpgCardsList();
+}
+function renderRpgCardsList() {
+  const s = story();
+  const host = $('#rpgCardList');
+  if (!s || !host) return;
+  host.innerHTML = '';
+  const cards = (s.rpg && s.rpg.cards) || [];
+  if (!cards.length) {
+    host.innerHTML = '<div class="rpg-empty">还没有卡牌。点「＋ 新增卡牌」开始组卡组。</div>';
+    return;
+  }
+  const deckTotal = cards.reduce((n, c) => n + (Number(c.copies) || 1), 0);
+  const tip = document.createElement('div');
+  tip.className = 'rpg-tip';
+  tip.textContent = `卡组共 ${deckTotal} 张（每回合抽 ${BATTLE_DRAW_PER_TURN} 张，手牌上限 ${BATTLE_HAND_LIMIT}）。`;
+  host.appendChild(tip);
+  cards.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'rpg-row';
+    const info = document.createElement('div');
+    info.className = 'rpg-row-info';
+    const name = document.createElement('span');
+    name.className = 'rpg-name';
+    name.textContent = `${CARD_ICON[c.type] || '🃏'} ${c.name}`;
+    const meta = document.createElement('span');
+    meta.className = 'rpg-meta';
+    meta.textContent = `费用 ${c.cost} · ${CARD_TYPE_LABEL[c.type] || c.type} ${c.value} · ×${c.copies}`;
+    info.append(name, meta);
+    const desc = document.createElement('div');
+    desc.className = 'rpg-desc';
+    desc.textContent = c.desc || '（无描述）';
+    info.appendChild(desc);
+    const ops = document.createElement('div');
+    ops.className = 'rpg-ops';
+    const ed = document.createElement('button');
+    ed.className = 'btn tiny';
+    ed.textContent = '编辑';
+    ed.addEventListener('click', () => renderRpgCardForm(c));
+    const del = document.createElement('button');
+    del.className = 'btn tiny danger';
+    del.textContent = '删';
+    del.addEventListener('click', () => {
+      if (!confirm(`确定删除卡牌「${c.name}」？`)) return;
+      s.rpg.cards = s.rpg.cards.filter(x => x.id !== c.id);
+      persist();
+      buildRpgCardsEditorBody();
+      toast('已删除卡牌');
+    });
+    ops.append(ed, del);
+    row.append(info, ops);
+    host.appendChild(row);
+  });
+}
+function renderRpgCardForm(card) {
+  const s = story();
+  const body = $('#modalBody');
+  if (!s || !body) return;
+  const isNew = !card;
+  body.innerHTML = '';
+  const mkField = (label, inputType, value) => {
+    const f = document.createElement('div');
+    f.className = 'field rpg-field';
+    const l = document.createElement('label');
+    l.textContent = label;
+    const input = document.createElement('input');
+    input.type = inputType;
+    input.className = 'txt';
+    if (inputType === 'number') { input.min = 0; input.max = 999; }
+    input.value = value;
+    f.append(l, input);
+    body.appendChild(f);
+    return input;
+  };
+  const fName = mkField('卡牌名称', 'text', card ? card.name : '');
+  fName.maxLength = 20;
+  mkField('费用（0-9）', 'number', card ? card.cost : 1);
+  const fType = document.createElement('div');
+  fType.className = 'field rpg-field';
+  const tL = document.createElement('label');
+  tL.textContent = '效果类型';
+  const sel = document.createElement('select');
+  sel.className = 'txt';
+  CARD_TYPES.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t;
+    o.textContent = `${CARD_ICON[t]} ${CARD_TYPE_LABEL[t]}`;
+    sel.appendChild(o);
+  });
+  if (card) sel.value = card.type;
+  fType.append(tL, sel);
+  body.appendChild(fType);
+  mkField('数值（伤害/护盾/治疗/回能/抽牌数）', 'number', card ? card.value : 6);
+  mkField('张数（1-9，卡组出现次数）', 'number', card ? card.copies : 1);
+  const fDesc = document.createElement('div');
+  fDesc.className = 'field rpg-field';
+  const dL = document.createElement('label');
+  dL.textContent = '描述（可留空）';
+  const dIn = document.createElement('input');
+  dIn.type = 'text';
+  dIn.className = 'txt';
+  dIn.maxLength = 60;
+  dIn.value = card ? (card.desc || '') : '';
+  fDesc.append(dL, dIn);
+  body.appendChild(fDesc);
+  const opsRow = document.createElement('div');
+  opsRow.className = 'rpg-form-ops';
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn primary';
+  saveBtn.textContent = '💾 保存';
+  saveBtn.addEventListener('click', () => {
+    const q = $('#modalBody');
+    const name = q.querySelectorAll('.field input[type=text]')[0].value.trim();
+    const cost = Math.max(0, Math.min(9, Number(q.querySelectorAll('.field input[type=number]')[0].value) || 0));
+    const type = q.querySelector('select').value;
+    const value = Math.max(0, Number(q.querySelectorAll('.field input[type=number]')[1].value) || 0);
+    const copies = Math.max(1, Math.min(9, Number(q.querySelectorAll('.field input[type=number]')[2].value) || 1));
+    const desc = q.querySelectorAll('.field input[type=text]')[1].value.trim();
+    if (!name) { toast('卡牌需要名称', true); return; }
+    const entry = { name, cost, type, value, copies, desc };
+    if (isNew) {
+      s.rpg.cards.push({ id: rpgUid(), ...entry });
+      toast('已新增卡牌');
+    } else {
+      Object.assign(card, entry);
+      toast('卡牌已更新');
+    }
+    persist();
+    buildRpgCardsEditorBody();
+  });
+  const backBtn = document.createElement('button');
+  backBtn.className = 'btn ghost';
+  backBtn.textContent = '↩ 返回卡牌列表';
+  backBtn.addEventListener('click', () => buildRpgCardsEditorBody());
+  opsRow.append(saveBtn, backBtn);
+  body.appendChild(opsRow);
+}
+
+// 英雄编辑：名字 / 最大生命 / 每回合能量
+function openRpgHeroEditor() {
+  const s = story();
+  if (!s) return;
+  openModal('🦸 英雄', (body) => {
+    const tip = document.createElement('div');
+    tip.className = 'rpg-tip';
+    tip.textContent = '英雄的初始属性：每回合恢复全部能量，护盾在敌人行动后清零。';
+    body.appendChild(tip);
+    const mkField = (label, value) => {
+      const f = document.createElement('div');
+      f.className = 'field rpg-field';
+      const l = document.createElement('label');
+      l.textContent = label;
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'txt';
+      input.min = 1; input.max = 999;
+      input.value = value;
+      f.append(l, input);
+      body.appendChild(f);
+      return input;
+    };
+    const fName = document.createElement('div');
+    fName.className = 'field rpg-field';
+    const nL = document.createElement('label');
+    nL.textContent = '名字';
+    const nIn = document.createElement('input');
+    nIn.type = 'text';
+    nIn.className = 'txt';
+    nIn.maxLength = 20;
+    nIn.value = s.rpg.hero.name;
+    fName.append(nL, nIn);
+    body.appendChild(fName);
+    mkField('最大生命', s.rpg.hero.maxHp);
+    mkField('每回合能量', s.rpg.hero.maxEnergy);
+  }, () => {
+    const q = $('#modalBody');
+    const name = q.querySelector('input[type=text]').value.trim();
+    if (!name) { toast('英雄需要名字', true); return; }
+    s.rpg.hero.name = name;
+    s.rpg.hero.maxHp = Math.max(1, Math.min(999, Number(q.querySelectorAll('input[type=number]')[0].value) || 30));
+    s.rpg.hero.maxEnergy = Math.max(1, Math.min(10, Number(q.querySelectorAll('input[type=number]')[1].value) || 3));
+    persist();
+    renderEditor();
+    toast('英雄已更新');
+  });
+}
+
+// 敌人库编辑：全部敌人（名称 / 生命 / 每回合伤害）
+function openRpgEnemiesEditor() {
+  const s = story();
+  if (!s) return;
+  openModal('👹 敌人', () => buildRpgEnemiesEditorBody(), null);
+}
+function buildRpgEnemiesEditorBody() {
+  const s = story();
+  const body = $('#modalBody');
+  if (!s || !body) return;
+  body.innerHTML = '';
+  const tip = document.createElement('div');
+  tip.className = 'rpg-tip';
+  tip.textContent = '敌人每回合固定攻击一次。在「⚔️ 编辑战斗」里选择出战敌人。';
+  body.appendChild(tip);
+  const list = document.createElement('div');
+  list.className = 'rpg-list';
+  list.id = 'rpgEnemyList';
+  body.appendChild(list);
+  const add = document.createElement('button');
+  add.className = 'btn tiny';
+  add.textContent = '＋ 新增敌人';
+  add.addEventListener('click', () => renderRpgEnemyForm(null));
+  body.appendChild(add);
+  renderRpgEnemiesList();
+}
+function renderRpgEnemiesList() {
+  const s = story();
+  const host = $('#rpgEnemyList');
+  if (!s || !host) return;
+  host.innerHTML = '';
+  const enemies = (s.rpg && s.rpg.enemies) || [];
+  if (!enemies.length) {
+    host.innerHTML = '<div class="rpg-empty">还没有敌人。点「＋ 新增敌人」开始设计。</div>';
+    return;
+  }
+  enemies.forEach(e => {
+    const row = document.createElement('div');
+    row.className = 'rpg-row';
+    const info = document.createElement('div');
+    info.className = 'rpg-row-info';
+    const name = document.createElement('span');
+    name.className = 'rpg-name';
+    name.textContent = `👹 ${e.name}`;
+    const meta = document.createElement('span');
+    meta.className = 'rpg-meta';
+    meta.textContent = `生命 ${e.hp} · 攻击 ${e.damage}`;
+    info.append(name, meta);
+    const ops = document.createElement('div');
+    ops.className = 'rpg-ops';
+    const ed = document.createElement('button');
+    ed.className = 'btn tiny';
+    ed.textContent = '编辑';
+    ed.addEventListener('click', () => renderRpgEnemyForm(e));
+    const del = document.createElement('button');
+    del.className = 'btn tiny danger';
+    del.textContent = '删';
+    del.addEventListener('click', () => {
+      if (!confirm(`确定删除敌人「${e.name}」？`)) return;
+      s.rpg.enemies = s.rpg.enemies.filter(x => x.id !== e.id);
+      persist();
+      buildRpgEnemiesEditorBody();
+      renderBlocks();
+      toast('已删除敌人');
+    });
+    ops.append(ed, del);
+    row.append(info, ops);
+    host.appendChild(row);
+  });
+}
+function renderRpgEnemyForm(enemy) {
+  const s = story();
+  const body = $('#modalBody');
+  if (!s || !body) return;
+  const isNew = !enemy;
+  body.innerHTML = '';
+  const mkField = (label, value) => {
+    const f = document.createElement('div');
+    f.className = 'field rpg-field';
+    const l = document.createElement('label');
+    l.textContent = label;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'txt';
+    input.min = 0; input.max = 999;
+    input.value = value;
+    f.append(l, input);
+    body.appendChild(f);
+    return input;
+  };
+  const fName = document.createElement('div');
+  fName.className = 'field rpg-field';
+  const nL = document.createElement('label');
+  nL.textContent = '名字';
+  const nIn = document.createElement('input');
+  nIn.type = 'text';
+  nIn.className = 'txt';
+  nIn.maxLength = 20;
+  nIn.value = enemy ? enemy.name : '';
+  fName.append(nL, nIn);
+  body.appendChild(fName);
+  mkField('生命', enemy ? enemy.hp : 10);
+  mkField('攻击（每回合伤害）', enemy ? enemy.damage : 3);
+  const opsRow = document.createElement('div');
+  opsRow.className = 'rpg-form-ops';
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn primary';
+  saveBtn.textContent = '💾 保存';
+  saveBtn.addEventListener('click', () => {
+    const q = $('#modalBody');
+    const name = q.querySelector('input[type=text]').value.trim();
+    if (!name) { toast('敌人需要名字', true); return; }
+    const entry = {
+      name,
+      hp: Math.max(1, Math.min(999, Number(q.querySelectorAll('input[type=number]')[0].value) || 10)),
+      damage: Math.max(0, Math.min(999, Number(q.querySelectorAll('input[type=number]')[1].value) || 3)),
+    };
+    if (isNew) {
+      s.rpg.enemies.push({ id: rpgUid(), ...entry });
+      toast('已新增敌人');
+    } else {
+      Object.assign(enemy, entry);
+      toast('敌人已更新');
+    }
+    persist();
+    buildRpgEnemiesEditorBody();
+    renderBlocks();
+  });
+  const backBtn = document.createElement('button');
+  backBtn.className = 'btn ghost';
+  backBtn.textContent = '↩ 返回敌人列表';
+  backBtn.addEventListener('click', () => buildRpgEnemiesEditorBody());
+  opsRow.append(saveBtn, backBtn);
+  body.appendChild(opsRow);
 }
 
 // ---------- 视觉素材（画面） ----------
@@ -1580,6 +2081,347 @@ function formatDialogue(b) {
 
 // ---------- 播放 ----------
 
+// ---------- 卡牌RPG 战斗引擎（播放分支：kind=card_rpg 的 battle 幕） ----------
+const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pct = (cur, max) => Math.max(0, Math.min(100, Math.round(cur / Math.max(1, max) * 100)));
+// battle 状态：{ block, hero:{name,maxHp,hp,maxEnergy,energy,shield}, enemies:[{id,name,maxHp,hp,damage}],
+//               deck[], discard[], hand[], phase:'player'|'enemy'|'won'|'lost', target(选目标中的攻击卡), lastMsg }
+function battleHeroBase() {
+  const rpg = ((story() || {}).rpg) || {};
+  const hero = rpg.hero || {};
+  return {
+    name: hero.name || '勇者',
+    maxHp: Math.max(1, Number(hero.maxHp) || 30),
+    maxEnergy: Math.max(1, Math.min(10, Number(hero.maxEnergy) || 3)),
+  };
+}
+function battleEnemyList(block) {
+  const lib = (((story() || {}).rpg) || {}).enemies || [];
+  const list = [];
+  (block.enemies || []).forEach(id => {
+    const e = lib.find(x => x.id === id);
+    if (e) list.push({ id: e.id, name: e.name, maxHp: Math.max(1, Number(e.hp) || 10), hp: Math.max(1, Number(e.hp) || 10), damage: Math.max(0, Number(e.damage) || 3) });
+  });
+  if (!list.length) list.push({ id: 'e_default', name: '史莱姆', maxHp: 10, hp: 10, damage: 3 });
+  return list;
+}
+function battleDeck() {
+  const cards = (((story() || {}).rpg) || {}).cards || [];
+  const deck = [];
+  cards.forEach(c => { const n = Math.max(1, Math.min(9, Number(c.copies) || 1)); for (let i = 0; i < n; i++) deck.push(c); });
+  if (!deck.length) DEFAULT_DECK.forEach(c => deck.push(c)); // 没配卡也能玩：内置基础卡组
+  for (let i = deck.length - 1; i > 0; i--) { // Fisher–Yates 洗牌
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+function startBattle(block) {
+  const base = battleHeroBase();
+  battle = {
+    block,
+    hero: { name: base.name, maxHp: base.maxHp, hp: base.maxHp, maxEnergy: base.maxEnergy, energy: base.maxEnergy, shield: 0 },
+    enemies: battleEnemyList(block),
+    deck: battleDeck(),
+    discard: [],
+    hand: [],
+    phase: 'player',
+    target: null,
+    lastMsg: '',
+  };
+  drawCards(BATTLE_DRAW_PER_TURN);
+  renderBattle();
+}
+function drawCards(n) {
+  if (!battle) return;
+  for (let i = 0; i < n; i++) {
+    if (battle.hand.length >= BATTLE_HAND_LIMIT) return;
+    if (!battle.deck.length) { // 牌堆抽空 → 弃牌堆洗回
+      if (!battle.discard.length) return;
+      battle.deck = battle.discard;
+      battle.discard = [];
+      for (let x = battle.deck.length - 1; x > 0; x--) {
+        const y = Math.floor(Math.random() * (x + 1));
+        [battle.deck[x], battle.deck[y]] = [battle.deck[y], battle.deck[x]];
+      }
+    }
+    battle.hand.push(battle.deck.pop());
+  }
+}
+function cardDesc(card) {
+  const v = Number(card.value) || 0;
+  switch (card.type) {
+    case 'attack': return `造成 ${v} 点伤害`;
+    case 'defend': return `获得 ${v} 点护盾`;
+    case 'heal': return `回复 ${v} 点生命`;
+    case 'energy': return `获得 ${v} 点能量`;
+    case 'draw': return `抽 ${v} 张牌`;
+  }
+  return '';
+}
+function battlePlayCard(card) {
+  if (!battle || battle.phase !== 'player') return;
+  if (battle.hero.energy < (Number(card.cost) || 0)) { battle.lastMsg = '⚡ 能量不足'; renderBattle(); return; }
+  if (card.type === 'attack') {
+    const alive = battle.enemies.filter(e => e.hp > 0);
+    if (!alive.length) return;
+    if (alive.length === 1) { battlePlayCardTo(card, alive[0]); return; }
+    battle.target = card; // 多个敌人：进入选目标
+    battle.lastMsg = `选择「${card.name}」的攻击目标（再点一次手牌可取消）`;
+    renderBattle();
+    return;
+  }
+  battlePlayCardTo(card, null);
+}
+
+function battlePlayCardTo(card, enemy) {
+  if (!battle || battle.phase !== 'player') return;
+  const cost = Number(card.cost) || 0;
+  if (battle.hero.energy < cost) { battle.lastMsg = '⚡ 能量不足'; renderBattle(); return; }
+  battle.hero.energy -= cost;
+  const v = Number(card.value) || 0;
+  switch (card.type) {
+    case 'attack':
+      if (enemy && enemy.hp > 0) {
+        enemy.hp = Math.max(0, enemy.hp - v);
+        battle.lastMsg = `⚔️ ${card.name}：对 ${enemy.name} 造成 ${v} 点伤害`;
+      }
+      break;
+    case 'defend':
+      battle.hero.shield += v;
+      battle.lastMsg = `🛡️ ${card.name}：获得 ${v} 点护盾`;
+      break;
+    case 'heal': {
+      const before = battle.hero.hp;
+      battle.hero.hp = Math.min(battle.hero.maxHp, battle.hero.hp + v);
+      battle.lastMsg = `💚 ${card.name}：回复 ${battle.hero.hp - before} 点生命`;
+      break;
+    }
+    case 'energy':
+      battle.hero.energy = Math.min(battle.hero.maxEnergy + 3, battle.hero.energy + v);
+      battle.lastMsg = `⚡ ${card.name}：获得 ${v} 点能量`;
+      break;
+    case 'draw':
+      drawCards(v);
+      battle.lastMsg = `🔄 ${card.name}：抽 ${v} 张牌`;
+      break;
+  }
+  battle.target = null;
+  const i = battle.hand.indexOf(card);
+  if (i >= 0) battle.hand.splice(i, 1);
+  battle.discard.push(card);
+  if (battle.enemies.every(e => e.hp <= 0)) { battleWin(); return; }
+  renderBattle();
+}
+function battleEndTurn() {
+  if (!battle || battle.phase !== 'player') return;
+  battle.phase = 'enemy';
+  battle.target = null;
+  battle.lastMsg = '敌人行动中…';
+  renderBattle();
+  setTimeout(() => {
+    if (!battle || battle.phase !== 'enemy') return;
+    battle.enemies.forEach(e => {
+      if (e.hp <= 0 || battle.hero.hp <= 0) return;
+      const dmg = Number(e.damage) || 0;
+      const absorbed = Math.min(battle.hero.shield, dmg);
+      battle.hero.shield -= absorbed;
+      battle.hero.hp -= (dmg - absorbed);
+      battle.lastMsg = `${e.name} 攻击：${absorbed ? '护盾抵消 ' + absorbed + '，' : ''}对你造成 ${dmg - absorbed} 点伤害`;
+    });
+    if (battle.hero.hp <= 0) { battleLose(); return; }
+    battle.phase = 'player'; // 新回合：清护盾、回满能量、抽牌
+    battle.hero.shield = 0;
+    battle.hero.energy = battle.hero.maxEnergy;
+    drawCards(BATTLE_DRAW_PER_TURN);
+    battle.lastMsg = '— 新回合 —';
+    renderBattle();
+  }, 480);
+}
+function battleWin() { if (battle) { battle.phase = 'won'; renderBattle(); } }
+function battleLose() { if (battle) { battle.phase = 'lost'; renderBattle(); } }
+
+// 战斗幕的进入画面：战斗前剧情 + 敌人预览 + 「开始战斗」
+function renderBattleIntro(b) {
+  battle = null;
+  const body = $('#playBody');
+  body.innerHTML = '';
+  const s = story();
+  const frame = document.createElement('div');
+  frame.className = 'battle-view';
+  if (s && s.orientation === 'portrait') frame.classList.add('portrait');
+  body.appendChild(frame);
+  if (b.media && b.media.url) { // 战斗幕画面（复用叙事幕的视觉素材）
+    const bg = document.createElement('div');
+    bg.className = 'bt-bg';
+    if (b.media.type === 'video') {
+      const v = document.createElement('video');
+      v.src = b.media.url; v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
+      bg.appendChild(v);
+    } else {
+      const img = document.createElement('img');
+      img.src = b.media.url; img.alt = '';
+      bg.appendChild(img);
+    }
+    frame.appendChild(bg);
+  }
+  const rpg = ((s || {}).rpg) || {};
+  const hero = rpg.hero || {};
+  const lib = rpg.enemies || [];
+  let names = (b.enemies || []).map(id => { const e = lib.find(x => x.id === id); return e ? e.name : null; }).filter(Boolean);
+  if (!names.length) names = ['史莱姆'];
+  const inner = document.createElement('div');
+  inner.className = 'bt-intro';
+  inner.innerHTML = `
+    <div class="bt-intro-title">⚔️ 遭遇战</div>
+    ${b.content ? `<div class="bt-intro-text">${esc(b.content)}</div>` : ''}
+    <div class="bt-intro-meta">🦸 ${esc(hero.name || '勇者')} 对阵 👹 ${esc(names.join('、'))}</div>
+    <div class="bt-intro-ops">
+      <button class="btn primary" id="btStart">⚔️ 开始战斗</button>
+      <button class="btn ghost" id="btIntroExit">退出</button>
+    </div>
+  `;
+  frame.appendChild(inner);
+  frame.querySelector('#btStart').addEventListener('click', () => startBattle(b));
+  frame.querySelector('#btIntroExit').addEventListener('click', stopPlay);
+}
+// 战斗主视图：敌人区 / 英雄状态 + 结束回合 / 手牌 / 胜败结算
+function renderBattle() {
+  if (!battle) return;
+  const body = $('#playBody');
+  body.innerHTML = '';
+  const s = story();
+  const frame = document.createElement('div');
+  frame.className = 'battle-view' + (battle.phase === 'won' || battle.phase === 'lost' ? ' result' : '');
+  if (s && s.orientation === 'portrait') frame.classList.add('portrait');
+  body.appendChild(frame);
+  const block = battle.block;
+  if (block && block.media && block.media.url) {
+    const bg = document.createElement('div');
+    bg.className = 'bt-bg';
+    if (block.media.type === 'video') {
+      const v = document.createElement('video');
+      v.src = block.media.url; v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
+      bg.appendChild(v);
+    } else {
+      const img = document.createElement('img');
+      img.src = block.media.url; img.alt = '';
+      bg.appendChild(img);
+    }
+    frame.appendChild(bg);
+  }
+  // 敌人区
+  const enemies = document.createElement('div');
+  enemies.className = 'bt-enemies';
+  battle.enemies.forEach(e => {
+    const card = document.createElement('button');
+    card.className = 'bt-enemy' + (e.hp <= 0 ? ' dead' : '') + (battle.target && e.hp > 0 ? ' targetable' : '');
+    card.innerHTML = `
+      <div class="bt-enemy-name">👹 ${esc(e.name)}</div>
+      <div class="bt-bar"><div class="bt-bar-fill enemy" style="width:${pct(e.hp, e.maxHp)}%"></div></div>
+      <div class="bt-enemy-meta">${e.hp} / ${e.maxHp}</div>
+      ${e.hp > 0 ? `<div class="bt-enemy-intent">⚔️ 意图攻击 ${e.damage}</div>` : '<div class="bt-enemy-intent dead">已击败</div>'}
+    `;
+    if (battle.target && e.hp > 0) card.addEventListener('click', () => battlePlayCardTo(battle.target, e));
+    enemies.appendChild(card);
+  });
+  frame.appendChild(enemies);
+
+  // 英雄状态 + 操作
+  const hero = document.createElement('div');
+  hero.className = 'bt-hero';
+  const heroBox = document.createElement('div');
+  heroBox.className = 'bt-hero-box';
+  heroBox.innerHTML = `
+    <div class="bt-hero-name">🦸 ${esc(battle.hero.name)}</div>
+    <div class="bt-hp-row">
+      <div class="bt-bar"><div class="bt-bar-fill hp" style="width:${pct(battle.hero.hp, battle.hero.maxHp)}%"></div></div>
+      <span class="bt-hp-num">${battle.hero.hp} / ${battle.hero.maxHp}</span>
+    </div>
+    <div class="bt-buffs">
+      ${battle.hero.shield > 0 ? `<span class="bt-shield">🛡️ ${battle.hero.shield}</span>` : ''}
+      <span class="bt-energy">${'●'.repeat(battle.hero.energy)}${'○'.repeat(Math.max(0, battle.hero.maxEnergy - battle.hero.energy))}</span>
+      <span class="bt-deck-count">🃏 牌堆 ${battle.deck.length} · 弃牌 ${battle.discard.length}</span>
+    </div>
+    <div class="bt-msg">${esc(battle.lastMsg || (battle.phase === 'player' ? '轮到你行动：打出手牌，或结束回合' : '敌人行动中…'))}</div>
+  `;
+  hero.appendChild(heroBox);
+  const endTurn = document.createElement('button');
+  endTurn.className = 'btn primary bt-end-turn';
+  endTurn.textContent = battle.phase === 'enemy' ? '敌人行动中…' : '⏭ 结束回合';
+  endTurn.disabled = battle.phase !== 'player';
+  endTurn.addEventListener('click', battleEndTurn);
+  hero.appendChild(endTurn);
+  frame.appendChild(hero);
+  // 手牌
+  const hand = document.createElement('div');
+  hand.className = 'bt-hand';
+  if (!battle.hand.length && battle.phase === 'player') {
+    const tip = document.createElement('div');
+    tip.className = 'bt-hand-empty';
+    tip.textContent = '手牌用完了，点击「结束回合」补充手牌。';
+    hand.appendChild(tip);
+  }
+  battle.hand.forEach(card => {
+    const el = document.createElement('button');
+    const affordable = battle.hero.energy >= (Number(card.cost) || 0);
+    const targeting = battle.target && battle.target.id === card.id;
+    el.className = 'bt-card' + (affordable ? '' : ' poor') + (targeting ? ' targeting' : '');
+    el.innerHTML = `
+      <div class="bt-cost">${Number(card.cost) || 0}</div>
+      <div class="bt-card-icon">${CARD_ICON[card.type] || '🃏'}</div>
+      <div class="bt-card-name">${esc(card.name)}</div>
+      <div class="bt-card-desc">${esc(card.desc || cardDesc(card))}</div>
+    `;
+    el.addEventListener('click', () => {
+      if (battle.target && battle.target.id === card.id) { battle.target = null; battle.lastMsg = '已取消选择目标'; renderBattle(); return; }
+      battlePlayCard(card);
+    });
+    hand.appendChild(el);
+  });
+  frame.appendChild(hand);
+  // 胜败结算面板
+  if (battle.phase === 'won') {
+    const panel = document.createElement('div');
+    panel.className = 'bt-result';
+    panel.innerHTML = `
+      <div class="bt-result-title">🏆 战斗胜利</div>
+      <div class="bt-result-text">${esc(battle.block.winContent || '你击败了所有敌人！')}</div>
+      <div class="bt-result-ops">
+        <button class="btn primary" id="btWinNext">继续 →</button>
+        <button class="btn ghost" id="btWinExit">退出</button>
+      </div>
+    `;
+    frame.appendChild(panel);
+    panel.querySelector('#btWinNext').addEventListener('click', playNext);
+    panel.querySelector('#btWinExit').addEventListener('click', stopPlay);
+  } else if (battle.phase === 'lost') {
+    const panel = document.createElement('div');
+    panel.className = 'bt-result';
+    panel.innerHTML = `
+      <div class="bt-result-title lost">💀 战斗失败</div>
+      <div class="bt-result-text">${esc(battle.block.loseContent || '你倒下了…重整旗鼓再试一次。')}</div>
+      <div class="bt-result-ops">
+        <button class="btn primary" id="btRetry">🔄 重新挑战</button>
+        <button class="btn ghost" id="btLoseExit">退出</button>
+      </div>
+    `;
+    frame.appendChild(panel);
+    panel.querySelector('#btRetry').addEventListener('click', () => startBattle(battle.block));
+    panel.querySelector('#btLoseExit').addEventListener('click', stopPlay);
+  }
+}
+// 编辑器里「▶ 试玩本场」：直接跳到该战斗幕
+function previewBattle(b) {
+  playFlat = buildPlayFlat();
+  const i = playFlat.findIndex(x => x.id === b.id);
+  if (i < 0) return;
+  playIdx = i;
+  $('#playBody').innerHTML = '';
+  $('#playOverlay').classList.remove('hidden');
+  renderPlay();
+}
+
 // ---------- AI 音色（角色声音表 · TTS 预合成） ----------
 const FALLBACK_VOICES = [
   { id: 'zh-CN-XiaoxiaoNeural', name: '普通话 · 晓晓', gender: 'female' },
@@ -2017,6 +2859,9 @@ function stopPlay() {
   stopPlayBgm();
   playBgmChapter = null;
   playBgmUrl = null;
+  battle = null; // 退出播放：清掉卡牌战斗状态
+  const nav = $('#playNav');
+  if (nav) nav.classList.remove('hidden');
   $('#playBody').innerHTML = ''; // 清空画幅残留，避免下次播放叠加旧帧
   $('#playOverlay').classList.add('hidden');
   // 只读直达播放（个人主页 / 广场游客浏览已发布作品）：退出播放后回到作品库
@@ -2084,15 +2929,25 @@ function renderPlay() {
   $('#playChapter').textContent = playFlat[playIdx].chapterTitle;
   $('#playCount').textContent = `${playIdx + 1} / ${playFlat.length}`;
   const body = $('#playBody');
+  const b = playFlat[playIdx];
+  const sPlay = story();
+  // 卡牌RPG 分支：battle 幕 → 战斗视图（战斗前剧情 → 卡牌战斗 → 胜败结算），不套用叙事画幅
+  if (b.type === 'battle' && sPlay && sPlay.kind === 'card_rpg') {
+    const nav = $('#playNav');
+    if (nav) nav.classList.add('hidden');
+    renderBattleIntro(b);
+    return;
+  }
+  const navEl = $('#playNav');
+  if (navEl) navEl.classList.remove('hidden');
+  battle = null; // 非战斗幕：清掉残留战斗状态（战斗幕内部由 renderBattleIntro 重置）
   // 转场交叉淡化：所有残留旧画幅淡出后延迟移除（叠加在新画幅下层），不再直接清空 DOM，避免切幕瞬间露出黑底
   body.querySelectorAll('.play-frame').forEach((f) => {
     if (!f.classList.contains('tl-leave')) f.classList.add('tl-leave');
     setTimeout(() => f.remove(), 260);
   });
-  const b = playFlat[playIdx];
   const overlay = $('#playOverlay');
   // 按作品方向适配播放画幅（16:9 横屏 / 9:16 竖屏）
-  const sPlay = story();
   // 画幅容器：横屏铺满播放区；竖屏（9:16）时按播放区可用尺寸精确计算，居中收窄、比例恒定
   const frame = document.createElement('div');
   frame.className = 'play-frame';
@@ -2244,6 +3099,17 @@ function init() {
     }
   });
   $('#libBtn').addEventListener('click', backToLibrary);
+  // 新建作品：作品类型（互动小说 / 卡牌RPG）
+  document.querySelectorAll('#createKindRow .kind-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      createKind = btn.dataset.kind === 'card_rpg' ? 'card_rpg' : 'story';
+      document.querySelectorAll('#createKindRow .kind-card').forEach(x => x.classList.toggle('active', x === btn));
+    });
+  });
+  // 编辑器：卡牌RPG 配置区（卡牌库 / 英雄 / 敌人）
+  $('#rpgCardsBtn').addEventListener('click', openRpgCardsEditor);
+  $('#rpgHeroBtn').addEventListener('click', openRpgHeroEditor);
+  $('#rpgEnemiesBtn').addEventListener('click', openRpgEnemiesEditor);
   // 新建作品：分辨率选择卡（16:9 横屏 / 9:16 竖屏）
   document.querySelectorAll('#createOrient .orient-card').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2283,12 +3149,16 @@ window.StoryEditor = {
     id: s.id, title: s.title, orientation: s.orientation, imgQuality: s.imgQuality, cast: s.cast || {},
     chapters: s.chapters.map(c => ({ id: c.id, title: c.title, bgm: c.bgm || null, blocks: c.blocks.map(b => ({ ...b })) })),
   })),
-  create: (title, orientation) => {
+  create: (title, orientation, kind) => {
     $('#newTitle').value = title;
     if (orientation === 'portrait' || orientation === 'landscape') {
       createOrientation = orientation;
       // API 创建路径同步新建区选择卡高亮，与点击行为一致
       document.querySelectorAll('#createOrient .orient-card').forEach(x => x.classList.toggle('active', x.dataset.orient === orientation));
+    }
+    if (kind === 'card_rpg' || kind === 'story') {
+      createKind = kind;
+      document.querySelectorAll('#createKindRow .kind-card').forEach(x => x.classList.toggle('active', x.dataset.kind === kind));
     }
     createStory();
     return story() ? story().id : null;
@@ -2464,6 +3334,27 @@ window.StoryEditor = {
   playNext,
   playPrev,
   openCastEditor,
+  openBattleEditor,
+  openRpgCardsEditor,
+  openRpgHeroEditor,
+  openRpgEnemiesEditor,
+  setKindById: (id, kind) => {
+    const s = stories.find(x => x.id === id);
+    if (!s || (kind !== 'story' && kind !== 'card_rpg')) return false;
+    s.kind = kind;
+    if (kind === 'card_rpg' && !s.rpg) s.rpg = { hero: { name: '勇者', maxHp: 30, maxEnergy: 3 }, cards: [], enemies: [] };
+    persist(); renderEditor(); renderLibrary(); return true;
+  },
+  rpg: () => (story() ? { kind: story().kind, rpg: story().rpg || null } : null),
+  battleState: () => battle ? {
+    phase: battle.phase, hero: { ...battle.hero }, enemyHp: battle.enemies.map(e => e.hp),
+    deck: battle.deck.length, hand: battle.hand.length, discard: battle.discard.length,
+    handCards: battle.hand.map(c => ({ name: c.name, cost: c.cost, type: c.type })),
+  } : null,
+  startBattle,
+  battlePlayCard,
+  battleEndTurn,
+  previewBattle,
   openBlockBgmEditor,
   openTimelineEditor,
   normalizeStories,

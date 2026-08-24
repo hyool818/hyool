@@ -66,6 +66,7 @@ a { color: inherit; text-decoration: none; }
 .badge { font-size: .62rem; padding: 2px 9px; border-radius: 999px; background: rgba(139,139,255,.16); color: #b7b7ff; letter-spacing: .02em; }
 .badge.life { background: rgba(120,220,170,.14); color: #9fdcbb; }
 .badge.story { background: rgba(255,190,110,.14); color: #ffcf8e; }
+.badge.story.rpg { background: rgba(255,120,90,.16); color: #ffb3a3; }
 
 .empty { padding: 90px 20px; text-align: center; border: 1px dashed rgba(255,255,255,.10); border-radius: 20px; color: rgba(255,255,255,.32); font-size: 14px; }
 .loading { text-align: center; color: var(--muted); padding: 90px 0; }
@@ -140,17 +141,22 @@ async function loadPlaza() {
       const avatar = escapeHtml(s.owner_avatar_url || "");
       const orient = s.orientation === "portrait" ? "📱 9:16 竖屏" : "🖥 16:9 横屏";
       const updated = s.updated_at ? new Date(s.updated_at).toLocaleDateString("zh-CN") : "";
+      const isRpg = s.kind === "card_rpg";
+      const badge = isRpg ? `<span class="badge story rpg">⚔️ 卡牌RPG</span>` : `<span class="badge story">故事作品</span>`;
+      const hook = isRpg
+        ? `${Number(s.cards_count) || 0} 张卡 · ${Number(s.enemies_count) || 0} 个敌人 · 能量回合制战斗`
+        : `${Number(s.chapters_count) || 0} 章 · ${Number(s.blocks_count) || 0} 块积木 · ${orient}`;
       return `<div class="card" onclick="location.href='/story-editor.html?story=${s.id}&play=1&from=/plaza'">
         <img class="thumb" src="${escapeHtml(s.cover_image || '')}" alt="" loading="lazy" onerror="this.style.opacity=.2">
         <div class="body">
-          <div class="name">${name}<span class="badge story">故事作品</span></div>
-          <div class="hook">${Number(s.chapters_count) || 0} 章 · ${Number(s.blocks_count) || 0} 块积木 · ${orient}</div>
+          <div class="name">${name}${badge}</div>
+          <div class="hook">${hook}</div>
           <div class="owner">
             ${avatar ? `<img src="${avatar}" alt="" onerror="this.style.visibility='hidden'">` : "<img src='/logo1.png' alt=''>"}
             <div><div class="oname">${ownerName}</div>${ownerUser ? `<div class="ouname">${ownerUser}</div>` : ""}</div>
           </div>
           <div class="foot">
-            <span>文字剧情</span>
+            <span>${isRpg ? "⚔️ 卡牌战斗" : "文字剧情"}</span>
             <span>${updated}</span>
           </div>
         </div>

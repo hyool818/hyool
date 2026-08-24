@@ -1214,3 +1214,32 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **说明**：纯文档存档，无验证，直接 commit + push main。
 
+## 作品编辑器：卡牌RPG 分支（2026-08-24 本会话完成）
+
+**需求**：产品愿景的「游戏」类型落地。用户拍板：**不新开编辑器**——底层逻辑相同、作品类型分支；在现有作品编辑器里分支出「卡牌RPG」板块，共享 Project State（stories 表）与云同步/广场/主页展示链路。
+
+**方案**：作品级 `kind` 字段（`story`=互动小说默认 / `card_rpg`=卡牌RPG），存量作品无 kind 自动归 story（不破坏旧数据）。卡牌RPG 在共享编辑器中分支三处：
+- **编辑器分支**：新建作品选类型；卡牌RPG 作品侧边栏出「卡牌RPG」配置区（🃏 卡牌库 / 🦸 英雄 / 👹 敌人）；积木面板多出「⚔️ 卡牌战斗」积木；scene/dialogue/BGM/配音/音效/画面等积木与互动小说完全通用。
+- **播放器分支**：`renderPlay` 遇 battle 幕 → 战斗视图（战斗前剧情 → 能量回合制卡牌战斗 → 胜败结算），叙事幕流程不变。
+- **展示分支**：作品库 / 广场 / 个人主页卡片按 kind 显示类型徽章与卡/敌计数。
+
+**数据模型**（全部存 stories.data JSON，无需 migration）：
+- 作品：`kind: 'card_rpg'` + `rpg: { hero:{name,maxHp,maxEnergy}, cards:[], enemies:[] }`（normalizeStories 全量清洗兜底）。
+- 卡牌 `{id,name,cost,type,value,copies,desc}`：type ∈ attack(攻击)/defend(防御)/heal(治疗)/energy(回能)/draw(抽牌)；copies=卡组出现次数。
+- 敌人 `{id,name,hp,damage}`：每回合固定攻击一次。
+- 战斗积木 `{id,type:'battle',content(战前剧情),enemies:[enemyId],winContent,loseContent}`。
+- 卡牌战斗引擎：每回合回满能量 + 抽 5 张（手牌上限 10，牌堆空自动洗回弃牌堆）；攻击卡多敌时选目标；护盾抵消伤害、回合结束清零；敌人意图展示；胜/败结算面板（重试/退出/继续）。未配卡/敌时兜底默认卡组与史莱姆。
+
+**改动文件**：
+1. `public/story-editor.js`：kind/rpg 常量与 normalizeStories 清洗；`createKind` 传入 POST；作品库类型徽章；侧边栏 RPG 配置区；`openBattleEditor`（战前/胜败剧情 + 敌人多选）；卡牌库/英雄/敌人编辑器（弹窗内「列表 ⇄ 表单」同层切换，避免嵌套弹窗丢外层列表）；战斗引擎 + 战斗视图（`startBattle`/`battlePlayCard`/`battleEndTurn`/`renderBattle` 等）；`renderPlay` battle 幕分支（隐藏 playNav）；`stopPlay` 清战斗状态；`init` 挂载类型选择与 RPG 按钮；测试 API 新增 `setKindById`/`rpg`/`battleState`/`startBattle`/`battlePlayCard`/`battleEndTurn`/`previewBattle`/`openRpg*`。
+2. `public/story-editor.html`：新建区类型选择卡；侧边栏 `#rpgConfig` 配置区；`#playNav` 挂 id；战斗视图 / RPG 配置 / 类型徽章全套样式；顶部与 hero 文案更新。
+3. `src/mvp.js`：`POST /api/stories` 接受 `kind`（白名单校验 + 卡牌RPG 初始 rpg 结构）；`/api/plaza` stories 列表返回 `kind`/`cards_count`/`enemies_count`。
+4. `src/index.js`：`buildYonderPayload` 的 `works.stories` 查询带 `data` 解析 `kind`（坏数据兜底 story）。
+5. `public/plaza.html`：故事卡按 kind 显示「⚔️ 卡牌RPG」徽章 / 卡敌计数 hook / 脚注。
+6. `public/yonder-home.html`：作品卡类型徽章（`.badge.form.rpg`）。
+7. `public/fantasy.html`：作品编辑器 tool-card 文案更新（互动小说 · 卡牌RPG）。
+
+**说明**：按约定不做验证（node --check / dry-run / 冒烟全部取消），改完直接 commit + push main（CI 自动部署）。线上需要人工验收：登录 /story-editor 创建「卡牌RPG」作品 → 配置卡牌/英雄/敌人 → 插入战斗积木 → 播放试玩（胜/败/重试）→ 发布后广场与主页徽章正确；存量互动小说作品不受影响。
+
+---
+
