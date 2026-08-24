@@ -14,7 +14,9 @@ import { deriveAssets, normalizeBlueprint, validateBlueprint, STYLE_PRESETS, IMG
 import { TTS_VOICES } from "../tts.js";
 
 export async function handleHubRoutes(request, env, pathname, method, helpers) {
-    if (!pathname.startsWith("/api/hub")) return null;
+    // 只接管 /api/hub/* 子路径（meta/plan/run）；精确路径 /api/hub 是 MVP 的
+    // 角色列表接口（handleMvpRoutes 内实现），必须放行，否则 hub.html 数据加载失败。
+    if (!pathname.startsWith("/api/hub/")) return null;
 
     const { json, getAuthenticatedUser } = helpers;
     const user = await getAuthenticatedUser(request);
