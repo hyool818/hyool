@@ -1,5 +1,6 @@
 import { handleMvpRoutes, handleWorldCron } from "./mvp.js";
 import { handleTtsRequest, TTS_VOICES } from "./tts.js";
+import { handleHubRoutes } from "./hub/index.js";
 
 // 收费/免费作品列自动补列（幂等；正式迁移见 schema/migrate_monetization.sql）
 let monetizationEnsured = false;
@@ -1600,6 +1601,27 @@ export default {
                 console.error("TTS VOICES ERROR:", error);
                 return json({ success: false, error: "获取语音列表失败。" }, 500);
             }
+        }
+
+
+        /* =====================================================
+           HYOOL 中枢（AI 大脑）：plan / run / meta
+        ===================================================== */
+
+        const hubResponse = await handleHubRoutes(
+            request,
+            env,
+            pathname,
+            request.method,
+            {
+                json,
+                getAuthenticatedUser: (req) =>
+                    getAuthenticatedUser(req, env)
+            }
+        );
+
+        if (hubResponse) {
+            return hubResponse;
         }
 
 

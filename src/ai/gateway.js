@@ -342,6 +342,9 @@ async function chatCompletions(env, messages, modelOverride, temperature = 0.9, 
     throw lastError || new Error("LLM failed after retries.");
 }
 
+/** 统一 LLM 入口导出（HYOOL 中枢规划器等跨模块复用；历史调用方不受影响） */
+export { chatCompletions };
+
 /** OpenAI 兼容 /chat/completions 调用（后端 GPU，待上线；配置 GPU_BASE_URL + GPU_API_KEY 即启用） */
 async function callGpuChat(env, modelId, messages, temperature, maxTokens) {
     const baseUrl = String(env.GPU_BASE_URL || "").replace(/\/+$/, "");
