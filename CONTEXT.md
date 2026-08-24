@@ -56,6 +56,12 @@ HYOOL = Cloudflare Workers 上的「数字生命」聊天网站：用户脑洞�
 - 作品编辑器数据上云：D1 新表 `stories` + `/api/stories*` 全套 API（列表/创建/保存/单读/发布下架/删除）；`/api/plaza` 与个人主页 `works.stories` 收录作品；幻灵世界广场与个人主页新增「故事作品」卡片，点击直达 `story-editor.html?story=<id>&play=1` 播放。
 - 存储模型：创建即主页可见（share_id 恒非空），发布/下架只切 status（广场可见性）。story-editor 本地 localStorage 降级为离线缓存 + 存量自动迁移；登录后防抖上传整部作品。
 - 待办：线上验证（登录打开 /story-editor 创建 → 主页可见 → 发布 → /plaza 可播放；手机端同步）；CI 已加入 D1 migration step（schema/migrate_stories.sql 随部署自动建表）。
+
+## 作品编辑器产品愿景（2026-08-24 存档，详见 docs/editor-vision.md）
+
+- 结构：通用底层（素材库/场景/时间轴/音频/图片动图/AI/角色/剧情/Project State）× 作品类型 5 类 19 种（叙事/游戏/AI生命/数字世界/数字内容）。
+- 解读：底层=引擎共用投资，类型=薄壳；Project State 应演进为类型无关文档模型（scenes+timeline+节点+资产引用），共享一套存储。现状只实现「叙事→互动小说」最小区间（scene/dialogue 积木，已上云）。
+- 硬约束：图片不上传服务器（隐私卖点）→ 素材库走「引用 URL + 本地缓存 + D1 只存结构」。
 - 前端：buddy.html 情绪/关系状态行 + 设置面板「你们的关系」按钮组 + 未读留言条；hub.html 角色卡片情绪 chip/关系 chip/💌 角标。
 
 ## 生命世界·故事孵化器（当前核心）
