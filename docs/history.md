@@ -1135,3 +1135,25 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 **提交**：push main
 
+---
+
+## 修复：/hub 页面打开不显示（handleHubRoutes 前缀拦截吞掉 /api/hub）
+
+**日期**：2026-08-24
+
+**现象（用户报告）**：打开 hub 页面（工坊 hub「我的彼岸」）不显示。
+
+**根因**：
+- `src/index.js` 在 `handleMvpRoutes` 之前调用 `handleHubRoutes`（Phase 0 中枢路由挂载）。
+- `handleHubRoutes` 用 `pathname.startsWith("/api/hub")` 前缀匹配接管所有 `/api/hub*` 请求，但它只处理 `/api/hub/meta|plan|run` 三个子路径，其余一律 404「未知接口」。
+- hub.html 页面数据加载依赖 `GET /api/hub`（角色列表接口），实现在 `src/mvp.js` 的 HUB 区块——被 `handleHubRoutes` 前缀拦截后永远执行不到，返回 404「未知接口」。
+- 后果：已登录用户打开 /hub 显示「加载失败：未知接口。」；未登录用户经 `/api/me` 判游客被重定向 /plaza——两者都表现为「页面不显示」。
+
+**改动**（收敛在 `src/hub/index.js`，一行语义）：
+- `if (!pathname.startsWith("/api/hub")) return null;` → `if (!pathname.startsWith("/api/hub/")) return null;`
+- 精确路径 `/api/hub` 不再被 hub 模块接管，放行给 `handleMvpRoutes` 的 HUB 数据接口；`/api/hub/meta|plan|run` 仍由 hub 模块处理（行为不变）。附注释说明原因。
+
+**说明**：按约定不做验证，直接 commit + push main（CI 自动部署）。
+
+**提交**：push main
+
