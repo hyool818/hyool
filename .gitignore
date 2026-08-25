@@ -10,6 +10,10 @@
 .test-ui.log
 test-out-*.txt
 
+# Comfy HTTPS bridge local certs / mkcert binary
+scripts/comfy-bridge-certs/
+scripts/.tools/
+
 # Dependencies
 node_modules/
 

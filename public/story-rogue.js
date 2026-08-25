@@ -98,7 +98,7 @@ export function normalizeRogue(raw) {
     elem: ELEMS.includes(c.elem) ? c.elem : 'fire',
     faction: String(c.faction || '').slice(0, 12),
     star: clamp(c.star, 1, 5, 1),
-    hp: clamp(c.hp, 40, 999, 120),
+    hp: clamp(c.hp, 40, 99999, 120),
     atk: clamp(c.atk, 4, 99, 18),
     spd: clamp(c.spd, 6, 40, 16),
     skillIds: Array.isArray(c.skillIds) ? c.skillIds.map(String).slice(0, 8) : [],
@@ -172,10 +172,11 @@ export function normalizeRogue(raw) {
     id: e.id || uid(),
     name: String(e.name).trim().slice(0, 16) || '敌人',
     elem: ELEMS.includes(e.elem) ? e.elem : 'wood',
-    hp: clamp(e.hp, 20, 999, 80),
+    hp: clamp(e.hp, 20, 99999, 80),
     atk: clamp(e.atk, 4, 80, 12),
     spd: clamp(e.spd, 6, 36, 14),
     isBoss: !!e.isBoss,
+    portrait: String(e.portrait || '').trim().slice(0, 240),
   }));
   out.bonds = (Array.isArray(r.bonds) ? r.bonds : []).filter(b => b && b.name).map(b => ({
     id: b.id || uid(),
@@ -186,7 +187,7 @@ export function normalizeRogue(raw) {
   out.stages = (Array.isArray(r.stages) ? r.stages : []).filter(s => s && (s.title || (s.enemyIds || []).length)).map((s, i) => ({
     id: s.id || uid(),
     title: String(s.title || ('第' + (i + 1) + '关')).trim().slice(0, 20),
-    enemyIds: Array.isArray(s.enemyIds) ? s.enemyIds.map(String).slice(0, 4) : [],
+    enemyIds: Array.isArray(s.enemyIds) ? s.enemyIds.map(String).slice(0, 8) : [],
   }));
   if (!out.stages.length && out.enemies.length) {
     out.stages = out.enemies.map((e, i) => ({
@@ -194,6 +195,10 @@ export function normalizeRogue(raw) {
       title: e.isBoss ? '首领 · ' + e.name : '第' + (i + 1) + '关 · ' + e.name,
       enemyIds: [e.id],
     }));
+  }
+  // 必须带上已存进度，否则通关金币/等级每次进游戏都会被 emptyRogue 的默认 500 盖掉
+  if (r.progress && typeof r.progress === 'object') {
+    out.progress = r.progress;
   }
   out.progress = normalizeIdleProgress(out, out.stages.length);
   return out;
@@ -301,14 +306,15 @@ function relicMods(relics) {
 
 function stageNodes(r) {
   if ((r.stages || []).length) {
-    return r.stages.map((s, i) => {
+    return r.stages.map((s) => {
       const ids = (s.enemyIds || []).filter(Boolean);
-      const last = i === r.stages.length - 1;
-      const boss = last || ids.some(id => {
-        const e = r.enemies.find(x => x.id === id);
+      const hasBossEnemy = ids.some((id) => {
+        const e = r.enemies.find((x) => x.id === id);
         return e && e.isBoss;
       });
-      return { type: boss ? 'boss' : 'battle', enemyIds: ids, title: s.title };
+      const bossTitle = /首领|boss/i.test(String(s.title || ''));
+      const type = hasBossEnemy || bossTitle ? 'boss' : 'battle';
+      return { type, enemyIds: ids, title: s.title };
     });
   }
   const enemies = r.enemies || [];
@@ -599,6 +605,7 @@ function livingEnemiesFrom(node) {
   return list.map((e, i) => ({
     id: (e.id || 'e') + '_' + i, name: e.name, elem: e.elem || 'wood',
     maxHp: e.hp, hp: e.hp, atk: e.atk, spd: e.spd, gauge: 0, isEnemy: true,
+    portrait: e.portrait || '',
   }));
 }
 
@@ -613,7 +620,12 @@ function startBattleNode(node) {
       if (m.hp > m.maxHpBattle) m.hp = m.maxHpBattle;
     }
   });
-  run.battle = { enemies: livingEnemiesFrom(node), log: [`⚔️ ${NODE_LABEL[node.type]}`], phase: 'running' };
+  run.battle = {
+    enemies: livingEnemiesFrom(node),
+    log: [`⚔️ ${NODE_LABEL[node.type]}`],
+    phase: 'running',
+    majorFight: isMajorFightNode(node),
+  };
   run.phase = 'battle';
   paint();
   tickTimer = setTimeout(battleTick, 80);
@@ -690,21 +702,42 @@ function resolveAct(who, isEnemy, mods) {
   run.battle.log.push(`${who.name}「${sk.name}」→ ${t.name} ${dmg}`);
 }
 
-function finishBattle(win) {
-  if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
-  run.battle.phase = win ? 'won' : 'lost';
-  paint();
-  if (win && run.rogue.mode === 'idle') later(() => { if (run && run.phase === 'battle') afterWin(); }, 700);
+function isMajorFightNode(node) {
+  if (!node) return false;
+  if (node.type === 'boss' || node.type === 'elite') return true;
+  const ids = node.enemyIds || [];
+  return ids.some((id) => {
+    const e = run.rogue.enemies.find((x) => x.id === id);
+    return e && e.isBoss;
+  });
 }
 
-function afterWin() {
+function finishBattle(win) {
+  if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+  const major = !!(run.battle && run.battle.majorFight);
+  if (!win) {
+    run.battle.phase = 'lost';
+    paint();
+    return;
+  }
+  // 普通小怪：不进入「赢了」界面，直接发奖并推进
+  if (!major) {
+    afterWin({ quiet: true });
+    return;
+  }
+  run.battle.phase = 'won';
+  paint();
+}
+
+function afterWin(opts) {
+  const quiet = !!(opts && opts.quiet);
   if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
   run.team.forEach(m => { if (m.hp > 0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp * 0.12)); });
   if (run.rogue.mode === 'idle') {
     const reward = rewardIdleStage(run.rogue, run.nodeIdx);
     if (run.story) run.story.rogue = run.rogue;
     if (run.ctx.onPersist) run.ctx.onPersist();
-    toast('通关 +' + reward.gold + ' 金币，上阵角色 +' + reward.exp + ' 经验');
+    if (!quiet) toast('通关 +' + reward.gold + ' 金币，上阵角色 +' + reward.exp + ' 经验');
   }
   if (run.rogue.mode === 'rogue') startCardPick();
   else advanceNode();
@@ -764,6 +797,7 @@ function paintBattle(frame) {
     <button class="btn tiny ghost" id="rgExit">退出</button></div>`;
   const foes = (b.enemies || []).map(e => `
     <div class="bt-enemy${e.hp <= 0 ? ' dead' : ''}">
+      ${e.portrait ? `<div class="bt-portrait"><img src="${esc(e.portrait)}" alt=""/></div>` : ''}
       <div class="bt-enemy-name">${esc(e.name)} · ${elemLabel(e.elem)}</div>
       <div class="bt-hp-row"><div class="bt-bar"><div class="bt-bar-fill enemy" style="width:${pct(e.hp, e.maxHp)}%"></div></div><span class="bt-hp-num">${e.hp}/${e.maxHp}</span></div>
       <div class="bt-bar rg-spd"><div class="bt-bar-fill spd" style="width:${Math.min(100, e.gauge || 0)}%"></div></div>
@@ -778,7 +812,7 @@ function paintBattle(frame) {
   const log = (b.log || []).slice(-10).map(l => `<div class="bt-log-line">${esc(l)}</div>`).join('');
   let result = '';
   if (b.phase === 'won') {
-    result = `<div class="bt-result"><div class="bt-result-title">赢了</div>
+    result = `<div class="bt-result"><div class="bt-result-title">${b.majorFight ? '首领战胜利' : '赢了'}</div>
       <div class="bt-result-text">${winHint}</div>
       <div class="bt-result-ops"><button class="btn primary" id="rgNext">继续</button></div></div>`;
   } else if (b.phase === 'lost') {
@@ -1122,7 +1156,7 @@ async function genLocalPortrait(char, done, api) {
   toast('本机生图中…');
   try {
     const mod = await import('/image-provider.js');
-    const r = await mod.generateAndResolveUrl({ prompt });
+    const r = await mod.generateAndResolveUrl({ prompt, width: 576, height: 1024 });
     if (!r || !r.url) { toast('生图失败', true); return; }
     char.portrait = r.url;
     toast('立绘已挂上');
@@ -1170,6 +1204,37 @@ function renderStudio(body, story, api) {
     modes.appendChild(b);
   });
   body.appendChild(modes);
+
+  // 试玩进度（金币等）：挂机模式可直接改
+  if (r.mode === 'idle') {
+    if (!r.progress || typeof r.progress !== 'object') {
+      r.progress = { stageIdx: 0, gold: 500, teamIds: [], chars: {} };
+    }
+    const progBox = document.createElement('div');
+    progBox.className = 'rpg-tip';
+    progBox.style.marginBottom = '12px';
+    const goldInp = inp(String(r.progress.gold ?? 500), 'number');
+    goldInp.min = '0'; goldInp.max = '999999'; goldInp.step = '1';
+    const stageInp = inp(String(r.progress.stageIdx ?? 0), 'number');
+    stageInp.min = '0'; stageInp.max = '99'; stageInp.step = '1';
+    const saveProg = document.createElement('button');
+    saveProg.type = 'button';
+    saveProg.className = 'btn tiny primary';
+    saveProg.textContent = '保存进度';
+    saveProg.addEventListener('click', () => {
+      r.progress.gold = Math.max(0, Math.min(999999, Math.round(Number(goldInp.value) || 0)));
+      r.progress.stageIdx = Math.max(0, Math.min(99, Math.round(Number(stageInp.value) || 0)));
+      api.persist();
+      toast('进度已保存（金币 ' + r.progress.gold + '）');
+      renderStudio(body, story, api);
+    });
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:8px';
+    row.append(field('试玩金币', goldInp), field('已通关数', stageInp), saveProg);
+    progBox.innerHTML = '<b>试玩进度：</b>改金币/关卡后点「保存进度」。重新点播放才会带着新数值进主城。';
+    progBox.appendChild(row);
+    body.appendChild(progBox);
+  }
 
   const mkTable = (headers) => {
     const table = document.createElement('table');
@@ -1261,97 +1326,425 @@ function renderStudio(body, story, api) {
         renderStudio(body, story, api);
       }, api);
     });
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'btn tiny'; edit.textContent = '改';
+    edit.title = '修改名字 / 阵营 / 星级等';
+    edit.addEventListener('click', () => {
+      body.dataset.editId = c.id;
+      renderStudio(body, story, api);
+      const form = body.querySelector('#studioCharForm');
+      if (form) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
     const del = document.createElement('button');
     del.className = 'btn tiny danger'; del.textContent = '删';
     del.addEventListener('click', () => {
       r.skills = r.skills.filter(s => s.ownerId !== c.id);
       r.bonds.forEach(b => { b.unitIds = (b.unitIds || []).filter(id => id !== c.id); });
+      if (r.progress && r.progress.chars) delete r.progress.chars[c.id];
+      if (r.progress && Array.isArray(r.progress.teamIds)) {
+        r.progress.teamIds = r.progress.teamIds.filter(id => id !== c.id);
+      }
       r.roster.splice(i, 1);
+      if (body.dataset.editId === c.id) delete body.dataset.editId;
       api.persist();
       renderStudio(body, story, api);
     });
-    ops.append(up, gen, del);
+    ops.append(up, gen, edit, del);
     bodyC.appendChild(tr);
   });
   body.appendChild(tableC);
   bindRowDrag(bodyC, r.roster, () => renderStudio(body, story, api));
 
-  const name = inp('');
-  const fac = sel(factionPairs(r.mode)[0][0], factionPairs(r.mode));
-  const star = sel('3', [['1', '1星'], ['2', '2星'], ['3', '3星'], ['4', '4星'], ['5', '5星']]);
-  const skn = inp('普攻');
-  const skk = sel('atk', [['atk', '打人'], ['heal', '救人'], ['buff', '蓄力']]);
-  body.append(field('名字', name), field(r.mode === 'queue' ? '门派' : (r.mode === 'idle' ? '阵营' : '属性'), fac), field('星级', star), field('会的一招', skn), field('这一招干什么', skk));
+  const editing = r.roster.find(c => c.id === body.dataset.editId) || null;
+  const editSkill = editing
+    ? (r.skills || []).find(s => s.ownerId === editing.id) || null
+    : null;
+  const formWrap = document.createElement('div');
+  formWrap.id = 'studioCharForm';
+  formWrap.style.cssText = editing
+    ? 'margin:10px 0 12px;padding:10px;border:1px solid rgba(180,140,255,.35);border-radius:10px;background:rgba(40,30,70,.35)'
+    : 'margin:8px 0 12px';
+  if (editing) {
+    const tip = document.createElement('div');
+    tip.className = 'rpg-tip';
+    tip.textContent = '正在修改「' + editing.name + '」——改完点「保存修改」。';
+    formWrap.appendChild(tip);
+  }
+  const name = inp(editing ? editing.name : '');
+  const fac = sel(
+    editing ? (editing.faction || factionPairs(r.mode)[0][0]) : factionPairs(r.mode)[0][0],
+    factionPairs(r.mode)
+  );
+  const star = sel(
+    String(editing ? (editing.star || 3) : 3),
+    [['1', '1星'], ['2', '2星'], ['3', '3星'], ['4', '4星'], ['5', '5星']]
+  );
+  const hp = inp(String(editing ? (editing.hp || 120) : 120), 'number');
+  const atk = inp(String(editing ? (editing.atk || 18) : 18), 'number');
+  const spd = inp(String(editing ? (editing.spd || 16) : 16), 'number');
+  const skn = inp(editSkill ? editSkill.name : '普攻');
+  const skk = sel(
+    editSkill ? (editSkill.kind || 'atk') : 'atk',
+    [['atk', '打人'], ['heal', '救人'], ['buff', '蓄力']]
+  );
+  formWrap.append(
+    field('名字', name),
+    field(r.mode === 'queue' ? '门派' : (r.mode === 'idle' ? '阵营' : '属性'), fac),
+    field('星级', star),
+    field('生命', hp),
+    field('攻击', atk),
+    field('速度', spd),
+    field('会的一招', skn),
+    field('这一招干什么', skk)
+  );
+  if (editing) {
+    const porRow = document.createElement('div');
+    porRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0';
+    const thumb = document.createElement('div');
+    thumb.innerHTML = editing.portrait
+      ? `<img class="studio-thumb" src="${esc(editing.portrait)}" alt=""/>`
+      : '<span class="studio-thumb empty">无立绘</span>';
+    const upP = document.createElement('button');
+    upP.type = 'button'; upP.className = 'btn tiny'; upP.textContent = '上传立绘';
+    upP.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      pickPortrait(editing, () => { api.persist(); renderStudio(body, story, api); }, api);
+    });
+    const genP = document.createElement('button');
+    genP.type = 'button'; genP.className = 'btn tiny'; genP.textContent = '本地生图';
+    genP.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      genLocalPortrait(editing, () => { api.persist(); renderStudio(body, story, api); }, api);
+    });
+    const clrP = document.createElement('button');
+    clrP.type = 'button'; clrP.className = 'btn tiny danger'; clrP.textContent = '清立绘';
+    clrP.addEventListener('click', () => {
+      editing.portrait = '';
+      api.persist();
+      renderStudio(body, story, api);
+    });
+    porRow.append(thumb, upP, genP, clrP);
+    formWrap.appendChild(porRow);
+  }
   const addC = document.createElement('button');
-  addC.className = 'btn primary'; addC.textContent = '加上角色';
+  addC.className = 'btn primary';
+  addC.textContent = editing ? '保存修改' : '加上角色';
   addC.addEventListener('click', () => {
     const n = name.value.trim();
     if (!n) { toast('先写名字，例如：月华', true); return; }
+    const starN = Math.max(1, Math.min(5, Number(star.value) || 3));
+    const hpN = Math.max(40, Math.min(99999, Number(hp.value) || 120));
+    const atkN = Math.max(4, Math.min(99, Number(atk.value) || 18));
+    const spdN = Math.max(6, Math.min(40, Number(spd.value) || 16));
+    const elem = elemFromFaction(r.mode, fac.value);
+    if (editing) {
+      editing.name = n.slice(0, 16);
+      editing.faction = fac.value;
+      editing.elem = elem;
+      editing.star = starN;
+      editing.hp = hpN;
+      editing.atk = atkN;
+      editing.spd = spdN;
+      let sk = (r.skills || []).find(s => s.ownerId === editing.id);
+      if (!sk) {
+        sk = { id: uid(), name: '普攻', kind: 'atk', power: 110, elem, ownerId: editing.id, desc: '' };
+        r.skills.push(sk);
+        if (!Array.isArray(editing.skillIds)) editing.skillIds = [];
+        if (!editing.skillIds.includes(sk.id)) editing.skillIds.push(sk.id);
+      }
+      sk.name = (skn.value.trim() || '普攻').slice(0, 16);
+      sk.kind = skk.value;
+      sk.elem = elem;
+      if (r.progress && r.progress.chars && r.progress.chars[editing.id]) {
+        r.progress.chars[editing.id].star = Math.max(
+          r.progress.chars[editing.id].star || 1,
+          starN
+        );
+      }
+      delete body.dataset.editId;
+      api.persist();
+      renderStudio(body, story, api);
+      toast('角色已更新。');
+      return;
+    }
     const id = uid();
     const sid = uid();
-    const elem = elemFromFaction(r.mode, fac.value);
     r.roster.push({
       id, name: n.slice(0, 16), elem, faction: fac.value,
-      star: Number(star.value) || 3, hp: 120, atk: 18, spd: 16, skillIds: [sid], portrait: '',
+      star: starN, hp: hpN, atk: atkN, spd: spdN, skillIds: [sid], portrait: '',
     });
     r.skills.push({
       id: sid, name: (skn.value.trim() || '普攻').slice(0, 16),
       kind: skk.value, power: 110, elem, ownerId: id, desc: '',
     });
     api.persist();
-    name.value = '';
     renderStudio(body, story, api);
     toast('角色已加上。');
   });
-  body.appendChild(addC);
+  formWrap.appendChild(addC);
+  if (editing) {
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'btn tiny';
+    cancel.textContent = '取消';
+    cancel.style.marginLeft = '8px';
+    cancel.addEventListener('click', () => {
+      delete body.dataset.editId;
+      renderStudio(body, story, api);
+    });
+    formWrap.appendChild(cancel);
+  }
+  body.appendChild(formWrap);
 
   const h2 = document.createElement('h3');
   h2.textContent = '② 关卡表';
   h2.style.marginTop = '18px';
   body.appendChild(h2);
-  const { table: tableS, tbody: bodyS } = mkTable(['', '关卡', '敌人', '']);
+  const { table: tableS, tbody: bodyS } = mkTable(['', '立绘', '关卡', '敌人(1~8)', '']);
   r.stages.forEach((st, i) => {
-    const names = (st.enemyIds || []).map(id => {
-      const e = r.enemies.find(x => x.id === id);
-      return e ? e.name : '?';
-    }).join('、');
+    const en = (st.enemyIds || []).map(id => r.enemies.find(x => x.id === id)).filter(Boolean);
+    const e0 = en[0];
+    const names = en.map(e => e.name).join('、') || '还没指定敌人';
+    const stats = en.length
+      ? (en.length + '人 · ' + names)
+      : names;
+    const thumb = e0 && e0.portrait
+      ? `<img class="studio-thumb" src="${esc(e0.portrait)}" alt=""/>`
+      : '<span class="studio-thumb empty">无</span>';
     const tr = document.createElement('tr');
     tr.dataset.i = String(i);
     tr.innerHTML = `<td class="row-handle" title="拖动排序">⋮⋮</td>
+      <td>${thumb}</td>
       <td>${esc(st.title)}</td>
-      <td>${names || '还没指定敌人'}</td>
+      <td>${esc(stats)}</td>
       <td></td>`;
+    const ops = tr.lastElementChild;
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'btn tiny'; edit.textContent = '改';
+    edit.title = '改关卡名 / 敌人数量与数值 / 立绘';
+    edit.addEventListener('click', () => {
+      body.dataset.editStage = st.id;
+      renderStudio(body, story, api);
+      const form = body.querySelector('#studioStageForm');
+      if (form) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    const up = document.createElement('button');
+    up.type = 'button';
+    up.className = 'btn tiny'; up.textContent = '立绘';
+    up.disabled = !e0;
+    up.title = e0 ? '上传第1个敌人立绘' : '先保存关卡敌人';
+    up.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (!e0) return;
+      pickPortrait(e0, () => { api.persist(); renderStudio(body, story, api); }, api);
+    });
+    const gen = document.createElement('button');
+    gen.type = 'button';
+    gen.className = 'btn tiny'; gen.textContent = '生图';
+    gen.disabled = !e0;
+    gen.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (!e0) return;
+      genLocalPortrait(e0, () => { api.persist(); renderStudio(body, story, api); }, api);
+    });
     const del = document.createElement('button');
     del.className = 'btn tiny danger'; del.textContent = '删';
-    del.addEventListener('click', () => { r.stages.splice(i, 1); api.persist(); renderStudio(body, story, api); });
-    tr.lastElementChild.appendChild(del);
+    del.addEventListener('click', () => {
+      const ids = new Set(st.enemyIds || []);
+      r.stages.splice(i, 1);
+      r.enemies = r.enemies.filter(e => {
+        if (!ids.has(e.id)) return true;
+        return r.stages.some(s => (s.enemyIds || []).includes(e.id));
+      });
+      if (body.dataset.editStage === st.id) delete body.dataset.editStage;
+      api.persist();
+      renderStudio(body, story, api);
+    });
+    ops.append(edit, up, gen, del);
     bodyS.appendChild(tr);
   });
   body.appendChild(tableS);
   bindRowDrag(bodyS, r.stages, () => renderStudio(body, story, api));
 
-  const en = inp('');
-  const st = inp('第' + (r.stages.length + 1) + '关');
-  const boss = document.createElement('input'); boss.type = 'checkbox';
-  body.append(field('关卡名字', st), field('这一关的敌人名字', en), field('这是最后的首领', boss));
-  const addE = document.createElement('button');
-  addE.className = 'btn primary'; addE.textContent = '加上关卡';
-  addE.addEventListener('click', () => {
-    const n = en.value.trim();
-    if (!n) { toast('先写敌人名字，例如：山魈', true); return; }
-    const id = uid();
-    r.enemies.push({
-      id, name: n.slice(0, 16), elem: r.mode === 'idle' ? 'dark' : 'wood',
-      hp: boss.checked ? 180 : 60, atk: boss.checked ? 16 : 10, spd: 13, isBoss: boss.checked,
-    });
-    r.stages.push({
-      id: uid(), title: (st.value.trim() || n).slice(0, 20), enemyIds: [id],
-    });
-    api.persist();
-    en.value = '';
-    renderStudio(body, story, api);
+  const editingSt = r.stages.find(s => s.id === body.dataset.editStage) || null;
+  const editingEns = editingSt
+    ? (editingSt.enemyIds || []).map(id => r.enemies.find(e => e.id === id)).filter(Boolean)
+    : [];
+  const stageForm = document.createElement('div');
+  stageForm.id = 'studioStageForm';
+  stageForm.style.cssText = editingSt
+    ? 'margin:10px 0 12px;padding:10px;border:1px solid rgba(255,160,120,.35);border-radius:10px;background:rgba(60,30,20,.35)'
+    : 'margin:8px 0 12px';
+  if (editingSt) {
+    const tip = document.createElement('div');
+    tip.className = 'rpg-tip';
+    tip.textContent = '正在修改关卡「' + editingSt.title + '」——敌人 1~8 人，改完点「保存关卡」。';
+    stageForm.appendChild(tip);
+  }
+  const stTitle = inp(editingSt ? editingSt.title : ('第' + (r.stages.length + 1) + '关'));
+  const countSel = sel(
+    String(Math.max(1, Math.min(8, editingEns.length || 1))),
+    [1, 2, 3, 4, 5, 6, 7, 8].map(n => [String(n), n + ' 人'])
+  );
+  stageForm.append(field('关卡名字', stTitle), field('敌人数量', countSel));
+
+  const enemyEditors = [];
+  const enemyBox = document.createElement('div');
+  enemyBox.id = 'studioEnemyEditors';
+  enemyBox.style.cssText = 'display:flex;flex-direction:column;gap:10px;margin:8px 0';
+
+  function makeEnemyEditor(idx, base) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:8px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(0,0,0,.2)';
+    const head = document.createElement('div');
+    head.style.cssText = 'font-size:12px;opacity:.75;margin-bottom:6px';
+    head.textContent = '敌人 #' + (idx + 1);
+    wrap.appendChild(head);
+    const nameEl = inp(base ? base.name : (idx === 0 ? '' : ('小怪' + (idx + 1))));
+    const hpEl = inp(String(base ? (base.hp || 60) : Math.max(30, 60 - idx * 4)), 'number');
+    const atkEl = inp(String(base ? (base.atk || 10) : Math.max(6, 10 - idx)), 'number');
+    const spdEl = inp(String(base ? (base.spd || 13) : 13), 'number');
+    const bossEl = document.createElement('input');
+    bossEl.type = 'checkbox';
+    bossEl.checked = !!(base && base.isBoss);
+    wrap.append(
+      field('名字', nameEl),
+      field('生命', hpEl),
+      field('攻击', atkEl),
+      field('速度', spdEl),
+      field('首领', bossEl)
+    );
+    if (base) {
+      const porRow = document.createElement('div');
+      porRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px';
+      const thumbEl = document.createElement('div');
+      thumbEl.innerHTML = base.portrait
+        ? `<img class="studio-thumb" src="${esc(base.portrait)}" alt=""/>`
+        : '<span class="studio-thumb empty">无立绘</span>';
+      const up2 = document.createElement('button');
+      up2.type = 'button'; up2.className = 'btn tiny'; up2.textContent = '上传立绘';
+      up2.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        pickPortrait(base, () => { api.persist(); renderStudio(body, story, api); }, api);
+      });
+      const gen2 = document.createElement('button');
+      gen2.type = 'button'; gen2.className = 'btn tiny'; gen2.textContent = '本地生图';
+      gen2.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        genLocalPortrait(base, () => { api.persist(); renderStudio(body, story, api); }, api);
+      });
+      const clr = document.createElement('button');
+      clr.type = 'button'; clr.className = 'btn tiny danger'; clr.textContent = '清立绘';
+      clr.addEventListener('click', () => {
+        base.portrait = '';
+        api.persist();
+        renderStudio(body, story, api);
+      });
+      porRow.append(thumbEl, up2, gen2, clr);
+      wrap.appendChild(porRow);
+    }
+    enemyBox.appendChild(wrap);
+    enemyEditors.push({ nameEl, hpEl, atkEl, spdEl, bossEl, base });
+  }
+
+  function rebuildEnemyEditors(n) {
+    enemyEditors.length = 0;
+    enemyBox.innerHTML = '';
+    const count = Math.max(1, Math.min(8, n));
+    for (let i = 0; i < count; i++) makeEnemyEditor(i, editingEns[i] || null);
+  }
+  rebuildEnemyEditors(Number(countSel.value) || 1);
+  countSel.addEventListener('change', () => {
+    rebuildEnemyEditors(Number(countSel.value) || 1);
   });
-  body.appendChild(addE);
+  stageForm.appendChild(enemyBox);
+
+  const addE = document.createElement('button');
+  addE.className = 'btn primary';
+  addE.textContent = editingSt ? '保存关卡' : '加上关卡';
+  addE.addEventListener('click', () => {
+    const title = (stTitle.value.trim() || '关卡').slice(0, 20);
+    const count = Math.max(1, Math.min(8, enemyEditors.length));
+    const drafts = [];
+    for (let i = 0; i < count; i++) {
+      const ed = enemyEditors[i];
+      const n = ed.nameEl.value.trim() || ('敌人' + (i + 1));
+      drafts.push({
+        name: n.slice(0, 16),
+        hp: Math.max(20, Math.min(99999, Math.round(Number(ed.hpEl.value) || 60))),
+        atk: Math.max(4, Math.min(80, Math.round(Number(ed.atkEl.value) || 10))),
+        spd: Math.max(6, Math.min(36, Math.round(Number(ed.spdEl.value) || 13))),
+        isBoss: !!ed.bossEl.checked,
+        base: ed.base || null,
+      });
+    }
+    if (editingSt) {
+      editingSt.title = title;
+      const oldIds = (editingSt.enemyIds || []).slice();
+      const newIds = [];
+      drafts.forEach((d) => {
+        let e = d.base && r.enemies.find(x => x.id === d.base.id);
+        if (!e) {
+          e = {
+            id: uid(), name: d.name, elem: r.mode === 'idle' ? 'dark' : 'wood',
+            hp: d.hp, atk: d.atk, spd: d.spd, isBoss: d.isBoss, portrait: '',
+          };
+          r.enemies.push(e);
+        } else {
+          e.name = d.name;
+          e.hp = d.hp;
+          e.atk = d.atk;
+          e.spd = d.spd;
+          e.isBoss = d.isBoss;
+          e.elem = r.mode === 'idle' ? 'dark' : (e.elem || 'wood');
+        }
+        newIds.push(e.id);
+      });
+      editingSt.enemyIds = newIds;
+      const dropped = oldIds.filter(id => !newIds.includes(id));
+      if (dropped.length) {
+        r.enemies = r.enemies.filter(e => {
+          if (!dropped.includes(e.id)) return true;
+          return r.stages.some(s => (s.enemyIds || []).includes(e.id));
+        });
+      }
+      delete body.dataset.editStage;
+      api.persist();
+      renderStudio(body, story, api);
+      toast('关卡已更新（' + newIds.length + ' 个敌人）。');
+      return;
+    }
+    const ids = drafts.map((d) => {
+      const id = uid();
+      r.enemies.push({
+        id, name: d.name, elem: r.mode === 'idle' ? 'dark' : 'wood',
+        hp: d.hp, atk: d.atk, spd: d.spd, isBoss: d.isBoss, portrait: '',
+      });
+      return id;
+    });
+    r.stages.push({ id: uid(), title, enemyIds: ids });
+    api.persist();
+    renderStudio(body, story, api);
+    toast('关卡已加上（' + ids.length + ' 个敌人）。');
+  });
+  stageForm.appendChild(addE);
+  if (editingSt) {
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'btn tiny';
+    cancel.textContent = '取消';
+    cancel.style.marginLeft = '8px';
+    cancel.addEventListener('click', () => {
+      delete body.dataset.editStage;
+      renderStudio(body, story, api);
+    });
+    stageForm.appendChild(cancel);
+  }
+  body.appendChild(stageForm);
 
   if (r.mode === 'queue') {
     const hB = document.createElement('h3');

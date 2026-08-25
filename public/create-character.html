@@ -252,8 +252,6 @@ a { color: inherit; text-decoration: none; }
   </div>
 </header>
 
-<div id="imgGenSettings" style="max-width:720px;margin:12px auto 0;padding:0 16px;"></div>
-
 <div class="progress-wrap" id="progressWrap">
   <div class="progress-info">
     <span class="progress-label">Step <span class="current" id="stepCurrent">1</span> / 7</span>
@@ -263,6 +261,11 @@ a { color: inherit; text-decoration: none; }
 </div>
 
 <main class="main" id="main">
+
+  <div id="imgGenPanel" style="margin:0 0 1.4rem;padding:12px 14px;border-radius:12px;border:1px solid rgba(201,168,76,.35);background:rgba(30,22,56,.85);">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--gold);">立绘生图引擎</div>
+    <div id="imgGenSettings"></div>
+  </div>
 
   <!-- Step 1: 艺术风格 -->
   <section class="step active" data-step="1">
@@ -720,6 +723,8 @@ async function generateCharacter() {
   document.querySelectorAll(".step").forEach(s => s.style.display = "none");
   $("navBtns").style.display = "none";
   $("progressWrap").style.display = "none";
+  const imgPanel = $("imgGenPanel");
+  if (imgPanel) imgPanel.style.display = "none";
   $("resultPage").classList.add("active");
   $("resultLoading").style.display = "flex";
   $("resultImgWrap").style.display = "none";
@@ -730,14 +735,15 @@ async function generateCharacter() {
   if (state.race === "custom") state.raceCustom = $("raceCustomInput").value;
 
   try {
+    const useComfy = getImageProvider() === "comfy";
     const res = await api("/api/character/create-advanced", {
       method: "POST",
-      body: JSON.stringify(state)
+      body: JSON.stringify({ ...state, ...(useComfy ? { skip_image: true } : {}) })
     });
     if (!res.success) throw new Error(res.error || "生成失败。");
 
     let char = res.character;
-    if (getImageProvider() === "comfy" && char && char.id) {
+    if (useComfy && char && char.id) {
       $("resultLoading").innerHTML = `<div class="spinner"></div><div class="text">本机 Comfy 生图中…</div>`;
       const gen = await generateAndResolveUrl({ prompt: buildAdvancedLocalPrompt(char) });
       const upd = await api("/api/create/regen-image", {

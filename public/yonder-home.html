@@ -1345,6 +1345,10 @@ body {
 .vis-toggle.pub:hover { background: rgba(40,167,69,1); }
 .vis-toggle.pub.off { background: rgba(220,53,69,.85); color: #fff; border-color: rgba(255,140,140,.45); }
 .vis-toggle.pub.off:hover { background: rgba(220,53,69,1); }
+.vis-toggle.del { left: 8px; right: auto; bottom: 8px; color: #ffc9c9; border-color: rgba(255,100,100,.45); background: rgba(70,20,20,.88); }
+.vis-toggle.del:hover { background: rgba(180,40,40,.85); color: #fff; }
+.vis-toggle.pub + .vis-toggle.del,
+.world-card .vis-toggle.del { left: 8px; right: auto; bottom: 8px; }
 .badge.draft { background: rgba(255,110,70,.16); color: #ff9a8a; }
 .char-card.hidden-card, .world-card.hidden-card { opacity: .55; filter: grayscale(.25); }
 .hidden-tag {
@@ -3098,7 +3102,8 @@ function renderCharacters() {
         const cVisible = !!(c.share_id && c.share_id !== "");
         const ownerBtns = state.isOwner ? `
             ${cVisible ? '' : `<div class="hidden-tag">已隐藏</div>`}
-            <button class="vis-toggle ${cVisible ? '' : 'off'}" onclick="toggleCharVisible('${c.id}', ${!cVisible}, event)">${cVisible ? '隐藏' : '显示'}</button>` : "";
+            <button type="button" class="vis-toggle del" onclick="deleteCharCard('${escapeHtml(c.id)}', event)">删除</button>
+            <button type="button" class="vis-toggle ${cVisible ? '' : 'off'}" onclick="toggleCharVisible('${escapeHtml(c.id)}', ${!cVisible}, event)">${cVisible ? '隐藏' : '显示'}</button>` : "";
         return `
         <a class="char-card${cVisible ? '' : ' hidden-card'}" href="/buddy/${encodeURIComponent(c.id)}${state.username ? '?from=' + encodeURIComponent('/@' + state.username) : ''}">
             <img class="thumb" src="${escapeHtml(c.image_url || c.avatar_url || '/placeholder.png')}" alt="${escapeHtml(c.name || '')}" onerror="this.style.opacity=.3">
@@ -3176,8 +3181,9 @@ function renderWorlds() {
         const wPublished = w.status === "published";
         const ownerBtns = state.isOwner ? `
             ${!wVisible ? `<div class="hidden-tag">已隐藏</div>` : ''}
-            <button class="vis-toggle pub ${wPublished ? 'off' : ''}" onclick="toggleWorldPublish('${w.id}', ${!wPublished}, event)" title="控制是否进入主站生命世界广场">${wPublished ? '下架' : '发布'}</button>
-            <button class="vis-toggle ${wVisible ? '' : 'off'}" onclick="toggleWorldVisible('${w.id}', ${!wVisible}, event)" title="控制个人主页上的卡片可见性">${wVisible ? '隐藏' : '显示'}</button>` : "";
+            <button type="button" class="vis-toggle pub ${wPublished ? 'off' : ''}" onclick="toggleWorldPublish('${escapeHtml(w.id)}', ${!wPublished}, event)" title="控制是否进入主站生命世界广场">${wPublished ? '下架' : '发布'}</button>
+            <button type="button" class="vis-toggle del" onclick="deleteWorldCard('${escapeHtml(w.id)}', event)">删除</button>
+            <button type="button" class="vis-toggle ${wVisible ? '' : 'off'}" onclick="toggleWorldVisible('${escapeHtml(w.id)}', ${!wVisible}, event)" title="控制个人主页上的卡片可见性">${wVisible ? '隐藏' : '显示'}</button>` : "";
         return `
         <a class="world-card${wVisible ? '' : ' hidden-card'}" href="${worldPlayUrl(w)}">
             <img class="thumb" src="${escapeHtml(w.cover_image || '/placeholder.png')}" alt="${escapeHtml(w.name || '')}" onerror="this.style.opacity=.3">
@@ -3311,6 +3317,52 @@ async function toggleCharVisible(id, targetVisible, ev) {
     } catch (e) {
         console.error('TOGGLE CHAR VISIBLE ERROR:', e);
         alert(e.message || '操作失败，请稍后再试。');
+    }
+}
+
+async function deleteCharCard(id, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    const c = (state.characters || []).find(x => x.id === id);
+    const name = (c && c.name) || '该角色';
+    if (!confirm('确定删除角色卡「' + name + '」？对话与记忆会一并删除，不可恢复。')) return;
+    try {
+        const res = await fetch('/api/characters/' + encodeURIComponent(id) + '/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || '删除失败。');
+        state.characters = (state.characters || []).filter(x => x.id !== id);
+        if (state.works && Array.isArray(state.works.characters)) {
+            state.works.characters = state.works.characters.filter(x => x.id !== id);
+        }
+        renderCharacters();
+    } catch (e) {
+        console.error('DELETE CHAR ERROR:', e);
+        alert(e.message || '删除失败，请稍后再试。');
+    }
+}
+
+async function deleteWorldCard(id, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    const w = (state.worlds || []).find(x => x.id === id);
+    const name = (w && w.name) || '该世界';
+    if (!confirm('确定删除世界「' + name + '」？世界内线程与消息会一并删除；角色库中的角色会保留。此操作不可恢复。')) return;
+    try {
+        const res = await fetch('/api/worlds/' + encodeURIComponent(id) + '/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || '删除失败。');
+        state.worlds = (state.worlds || []).filter(x => x.id !== id);
+        if (state.works && Array.isArray(state.works.worlds)) {
+            state.works.worlds = state.works.worlds.filter(x => x.id !== id);
+        }
+        renderWorlds();
+    } catch (e) {
+        console.error('DELETE WORLD ERROR:', e);
+        alert(e.message || '删除失败，请稍后再试。');
     }
 }
 

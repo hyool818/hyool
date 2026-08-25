@@ -67,7 +67,7 @@ async function loadWorkflow(id) {
 }
 
 export function pollinationsUrl(prompt, opts = {}) {
-  const w = opts.width || 768;
+  const w = opts.width || 576;
   const h = opts.height || 1024;
   const seed = opts.seed != null ? opts.seed : Math.floor(Math.random() * 1e6);
   const encoded = encodeURIComponent(String(prompt || 'character portrait'));
@@ -96,7 +96,7 @@ export async function generateImage({ prompt, width, height, seed, workflowId, p
     };
   }
 
-  const r = pollinationsUrl(text, { width: width || 768, height: height || 1024, seed });
+  const r = pollinationsUrl(text, { width: width || 576, height: height || 1024, seed });
   return { provider: 'pollinations', url: r.url, seed: r.seed };
 }
 
@@ -160,7 +160,9 @@ export function mountImageGenSettings(host, { onChange } = {}) {
 
   const baseInp = document.createElement('input');
   baseInp.type = 'text';
-  baseInp.placeholder = 'http://127.0.0.1:8000';
+  baseInp.placeholder = typeof location !== 'undefined' && location.protocol === 'https:'
+    ? 'https://127.0.0.1:8443'
+    : 'http://127.0.0.1:8188';
   baseInp.value = getComfyBase();
   baseInp.style.cssText =
     'min-width:180px;flex:1;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.35);color:inherit;';
@@ -212,7 +214,7 @@ export function mountImageGenSettings(host, { onChange } = {}) {
   const tip = document.createElement('div');
   tip.style.cssText = 'margin-top:6px;opacity:0.55;font-size:12px;line-height:1.4;';
   tip.textContent =
-    '本机 Comfy 仅在 http 打开本站时可用。默认端口 8000；请先切换到对应桌面环境（ZIT 旧 / krae2 新）再点生图。';
+    '线上 https：先开 Comfy（常见 :8188 / :8000），再运行 scripts\\start-comfy-bridge.ps1（桥会自动探测端口）。页面走 https://127.0.0.1:8443。本地 http 可直连 Comfy 端口。';
   host.appendChild(tip);
   return { provSel, wfSel, baseInp, status };
 }

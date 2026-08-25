@@ -293,8 +293,8 @@ textarea.txt{min-height:120px;resize:vertical}
   .studio-table tr.drag-over{outline:1px solid var(--accent2)}
   .studio-table .row-handle{cursor:grab;color:#6a6a7c;width:28px;text-align:center;user-select:none}
   .studio-table .row-handle:active{cursor:grabbing}
-  .studio-thumb{width:36px;height:48px;object-fit:cover;border-radius:6px;display:block;background:#1a1a28;vertical-align:middle}
-  span.studio-thumb.empty{display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);border:1px dashed var(--line2);width:36px;height:48px;box-sizing:border-box}
+  .studio-thumb{width:42px;aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;border-radius:6px;display:block;background:#1a1a28;vertical-align:middle}
+  span.studio-thumb.empty{display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);border:1px dashed var(--line2);width:42px;aspect-ratio:9/16;height:auto;box-sizing:border-box}
 
   /* 女神挂机壳 */
   .idle-shell{display:flex;flex-direction:column;height:100%;min-height:0;background:linear-gradient(180deg,#14121f 0%,#0c0b14 55%,#12101c 100%);padding:12px 12px 8px;box-sizing:border-box}
@@ -309,10 +309,14 @@ textarea.txt{min-height:120px;resize:vertical}
   .goddess-card .star{position:absolute;top:6px;right:6px;font-size:10px;background:rgba(0,0,0,.55);border-radius:999px;padding:2px 6px;color:#ffd76a}
   .goddess-card .nm{display:block;font-size:12px;font-weight:650;margin-top:6px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .goddess-card .meta{font-size:10px;color:var(--muted);margin-top:4px;padding:0 6px}
-  .goddess-card.book{width:118px;padding-bottom:8px;cursor:pointer;border:1px solid var(--line2);background:#14121f}
+  .goddess-card.book{width:104px;padding-bottom:8px;cursor:pointer;border:1px solid var(--line2);background:#14121f}
+  @media (max-width:480px){
+    .goddess-card.book{width:31%;max-width:112px;min-width:92px}
+    .goddess-card.slot{width:22%;max-width:86px;min-width:72px}
+  }
   .goddess-card.book.sel{border-color:rgba(180,140,255,.75);box-shadow:0 0 0 1px rgba(180,140,255,.35)}
-  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img{width:100%;height:110px;object-fit:cover;display:block}
-  .bt-member .bt-portrait{width:100%;height:54px;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#1a1a28}
+  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img{width:100%;aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;display:block}
+  .bt-member .bt-portrait{width:100%;aspect-ratio:9/16;height:auto;max-height:88px;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#1a1a28}
   .bt-member .bt-portrait img{width:100%;height:100%;object-fit:cover;display:block}
   .idle-stage-title{font-size:14px;font-weight:650;color:#efe8ff}
   .idle-stage-sub{font-size:11px;color:var(--muted);margin-top:4px}
@@ -320,13 +324,17 @@ textarea.txt{min-height:120px;resize:vertical}
   .goddess-card{width:78px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161422;overflow:hidden;position:relative;text-align:center;padding:0 0 8px;color:var(--text)}
   .goddess-card.slot{width:86px}
   .goddess-card.empty{border-style:dashed;opacity:.7;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:130px}
-  .goddess-card .ch{display:flex;align-items:center;justify-content:center;height:96px;font-size:28px;font-weight:700}
+  .goddess-card .ch{display:flex;align-items:center;justify-content:center;aspect-ratio:9/16;height:auto;min-height:96px;font-size:28px;font-weight:700}
   .goddess-card.tone-light .ch{background:linear-gradient(180deg,#3a3358,#1c1830);color:#f4ecff}
   .goddess-card.tone-dark .ch{background:linear-gradient(180deg,#2a2038,#120e1c);color:#d9c7ff}
-  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img{width:100%;height:110px;object-fit:cover;display:block}
+  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img{width:100%;aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;display:block}
   .goddess-card .star{position:absolute;top:6px;right:6px;font-size:10px;background:rgba(0,0,0,.55);border-radius:999px;padding:2px 6px;color:#ffd76a}
   .goddess-card .nm{display:block;font-size:12px;font-weight:650;margin-top:6px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .goddess-card.book{width:118px;padding-bottom:8px;cursor:pointer;border:1px solid var(--line2);background:#14121f}
+  .goddess-card.book{width:104px;padding-bottom:8px;cursor:pointer;border:1px solid var(--line2);background:#14121f}
+  @media (max-width:480px){
+    .goddess-card.book{width:31%;max-width:112px;min-width:92px}
+    .goddess-card.slot{width:22%;max-width:86px;min-width:72px}
+  }
   .goddess-card.book.sel{border-color:rgba(180,140,255,.75);box-shadow:0 0 0 1px rgba(180,140,255,.35)}
   .goddess-card.book .meta{font-size:10px;color:var(--muted);margin-top:4px;padding:0 6px}
   .idle-cta{margin-top:auto;padding:8px 0}
@@ -343,13 +351,13 @@ textarea.txt{min-height:120px;resize:vertical}
   .idle-empty{color:var(--muted);font-size:12px;text-align:center;padding:24px 12px;line-height:1.7}
   .goddess-card.tone-light .ch{background:linear-gradient(180deg,#3a3358,#1c1830);color:#f4ecff}
   .goddess-card.tone-dark .ch{background:linear-gradient(180deg,#2a2038,#120e1c);color:#d9c7ff}
-  .goddess-card.has-img img{width:100%;height:110px;object-fit:cover;display:block}
+  .goddess-card.has-img img{width:100%;aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;display:block}
   .rogue-view.portrait .idle-shell{max-width:420px;margin:0 auto}
   .idle-stage-row.cur{border-color:rgba(180,140,255,.55);background:rgba(139,123,255,.12)}
   .idle-stage-row.done{opacity:.7}
   .idle-stage-row .mk{width:1.4em;text-align:center}
   .idle-empty{color:var(--muted);font-size:12px;text-align:center;padding:24px 12px;line-height:1.7}
-  .bt-portrait{width:100%;height:54px;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#1a1a28}
+  .bt-portrait{width:100%;aspect-ratio:9/16;height:auto;max-height:88px;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#1a1a28}
   .bt-portrait img{width:100%;height:100%;object-fit:cover;display:block}
   .rogue-view.portrait .idle-shell{max-width:420px;margin:0 auto}
   .rpg-tip{font-size:11.5px;color:var(--muted);line-height:1.7;border:1px dashed var(--line2);border-radius:8px;padding:8px 10px}
@@ -417,6 +425,8 @@ textarea.txt{min-height:120px;resize:vertical}
   .bt-enemies{position:relative;z-index:1;display:flex;justify-content:center;align-items:flex-start;gap:12px;flex-wrap:wrap;min-height:96px}
   .bt-enemy{width:150px;border:1px solid rgba(255,255,255,.16);background:rgba(8,8,18,.72);border-radius:12px;padding:8px 10px;text-align:left;cursor:default;transition:.15s}
   .bt-enemy.dead{opacity:.45;filter:grayscale(1)}
+  .bt-enemy .bt-portrait{width:100%;aspect-ratio:9/16;height:auto;max-height:120px;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#1a1a28}
+  .bt-enemy .bt-portrait img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block}
   .bt-enemy-name{font-size:13px;font-weight:700;color:#ffd9a8;margin-bottom:6px}
   .bt-enemy-meta{font-size:11px;color:var(--muted);margin-top:3px}
   .bt-bar{flex:1;height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}

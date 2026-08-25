@@ -431,58 +431,61 @@ export async function handleMvpRoutes(
             const characterId = "char_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
             const shareId = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 
+            const skipImage = s.skip_image === true || s.skip_image === 1 || s.skip_image === "1";
             let imageUrl = null;
 
-            const aiModels = [
-                { id: "@cf/stabilityai/stable-diffusion-xl-base-1.0", params: {
-                    prompt: imagePrompt,
-                    negative_prompt: "blurry, low quality, distorted, deformed, ugly, bad anatomy, extra fingers, watermark, text",
-                    width: 1024,
-                    height: 1024,
-                    num_steps: 20,
-                    guidance: 7.5,
-                }},
-            ];
+            if (!skipImage) {
+                const aiModels = [
+                    { id: "@cf/stabilityai/stable-diffusion-xl-base-1.0", params: {
+                        prompt: imagePrompt,
+                        negative_prompt: "blurry, low quality, distorted, deformed, ugly, bad anatomy, extra fingers, watermark, text",
+                        width: 1024,
+                        height: 1024,
+                        num_steps: 20,
+                        guidance: 7.5,
+                    }},
+                ];
 
-            for (const model of aiModels) {
-                if (!env.AI) break;
-                try {
-                    const aiResult = await Promise.race([
-                        env.AI.run(model.id, model.params),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error("图片生成超时。")), 25000))
-                    ]);
+                for (const model of aiModels) {
+                    if (!env.AI) break;
+                    try {
+                        const aiResult = await Promise.race([
+                            env.AI.run(model.id, model.params),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error("图片生成超时。")), 25000))
+                        ]);
 
-                    if (aiResult && aiResult.image) {
-                        imageUrl = "data:image/png;base64," + aiResult.image;
-                        break;
-                    }
-
-                    let binaryData = null;
-                    if (aiResult instanceof Response) {
-                        const buffer = await aiResult.arrayBuffer();
-                        binaryData = new Uint8Array(buffer);
-                    } else if (aiResult instanceof ReadableStream) {
-                        const buffer = await new Response(aiResult).arrayBuffer();
-                        binaryData = new Uint8Array(buffer);
-                    }
-
-                    if (binaryData) {
-                        // 分块转换，避免 String.fromCharCode.apply 对较大图片栈溢出
-                        let binary = "";
-                        for (let i = 0; i < binaryData.length; i += 32768) {
-                            binary += String.fromCharCode.apply(null, binaryData.subarray(i, i + 32768));
+                        if (aiResult && aiResult.image) {
+                            imageUrl = "data:image/png;base64," + aiResult.image;
+                            break;
                         }
-                        imageUrl = "data:image/png;base64," + btoa(binary);
-                        break;
-                    }
-                } catch (aiErr) {
-                    console.error("Workers AI (" + model.id + ") failed:", aiErr.message || aiErr);
-                }
-            }
 
-            if (!imageUrl) {
-                const seed = Math.floor(Math.random() * 1000000);
-                imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=768&height=1024&nologo=true&model=flux&seed=${seed}`;
+                        let binaryData = null;
+                        if (aiResult instanceof Response) {
+                            const buffer = await aiResult.arrayBuffer();
+                            binaryData = new Uint8Array(buffer);
+                        } else if (aiResult instanceof ReadableStream) {
+                            const buffer = await new Response(aiResult).arrayBuffer();
+                            binaryData = new Uint8Array(buffer);
+                        }
+
+                        if (binaryData) {
+                            // 分块转换，避免 String.fromCharCode.apply 对较大图片栈溢出
+                            let binary = "";
+                            for (let i = 0; i < binaryData.length; i += 32768) {
+                                binary += String.fromCharCode.apply(null, binaryData.subarray(i, i + 32768));
+                            }
+                            imageUrl = "data:image/png;base64," + btoa(binary);
+                            break;
+                        }
+                    } catch (aiErr) {
+                        console.error("Workers AI (" + model.id + ") failed:", aiErr.message || aiErr);
+                    }
+                }
+
+                if (!imageUrl) {
+                    const seed = Math.floor(Math.random() * 1000000);
+                    imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=768&height=1024&nologo=true&model=flux&seed=${seed}`;
+                }
             }
 
             const gender = ["female", "male", "neutral"].includes(s.gender) ? s.gender : "";
@@ -2176,6 +2179,10 @@ export async function handleMvpRoutes(
                     "DELETE FROM conversations WHERE character_id = ?"
                 ).bind(characterId).run();
             }
+
+            await env.DB.prepare(
+                "DELETE FROM companion_inbox WHERE character_id = ?"
+            ).bind(characterId).run().catch(() => {});
 
             await env.DB.batch([
                 env.DB.prepare("DELETE FROM memories WHERE character_id = ?").bind(characterId),

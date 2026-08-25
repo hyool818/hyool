@@ -1,30 +1,68 @@
-// comfy-client.js — 浏览器直连本机 ComfyUI（默认 :8000）
-// Workers 打不到 localhost；须用 http 打开本站（非 https 线上页）。
+// comfy-client.js — 浏览器直连本机 ComfyUI
+// http 页：直连 http://127.0.0.1:8188（Comfy 默认；也支持 :8000）
+// https 线上页：走本地 HTTPS 桥 https://127.0.0.1:8443（scripts/start-comfy-bridge.ps1）
 
-const DEFAULT_BASE = 'http://127.0.0.1:8000';
+const DIRECT_BASE = 'http://127.0.0.1:8188';
+const BRIDGE_BASE = 'https://127.0.0.1:8443';
 const LS_BASE = 'hyool_comfy_base';
+
+export function getBridgeBase() {
+  return BRIDGE_BASE;
+}
+
+export function getDirectBase() {
+  return DIRECT_BASE;
+}
+
+function pageIsHttps() {
+  return typeof location !== 'undefined' && location.protocol === 'https:';
+}
+
+function isLocalHttp(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' && (u.hostname === '127.0.0.1' || u.hostname === 'localhost');
+  } catch (_) {
+    return false;
+  }
+}
+
+export function getDefaultComfyBase() {
+  return pageIsHttps() ? BRIDGE_BASE : DIRECT_BASE;
+}
 
 export function getComfyBase() {
   try {
     const v = localStorage.getItem(LS_BASE);
-    if (v && /^https?:\/\//i.test(v)) return v.replace(/\/$/, '');
+    if (v && /^https?:\/\//i.test(v)) {
+      const base = v.replace(/\/$/, '');
+      // https 页上若仍填着本机 http，自动改走桥，避免混合内容被拦
+      if (pageIsHttps() && isLocalHttp(base)) return BRIDGE_BASE;
+      return base;
+    }
   } catch (_) {}
-  return DEFAULT_BASE;
+  return getDefaultComfyBase();
 }
 
 export function setComfyBase(url) {
   const u = String(url || '').trim().replace(/\/$/, '');
   if (!u) {
     try { localStorage.removeItem(LS_BASE); } catch (_) {}
-    return DEFAULT_BASE;
+    return getDefaultComfyBase();
   }
   try { localStorage.setItem(LS_BASE, u); } catch (_) {}
   return u;
 }
 
-function mixedContentHint() {
-  if (typeof location !== 'undefined' && location.protocol === 'https:') {
-    return '当前页面是 https，浏览器会拦截访问本机 http ComfyUI。请用 wrangler 以 http://127.0.0.1 打开本站后再试。';
+function connectHint(root, status) {
+  if (pageIsHttps() && String(root || '').startsWith('https://127.')) {
+    if (status === 403) {
+      return '桥已通但被 Comfy 拒绝。请关掉桥接窗口后重新运行 scripts\\start-comfy-bridge.ps1（新版本会去掉 Origin，避免 403）。';
+    }
+    return '请先运行 scripts\\start-comfy-bridge.ps1（保持窗口开着）。确认 Comfy 已开（常见 :8188 / :8000），桥窗口应显示 Target 为该端口。';
+  }
+  if (pageIsHttps() && isLocalHttp(root)) {
+    return '当前是 https 页，不能直连本机 http。请启动 HTTPS 桥，或把地址改为 https://127.0.0.1:8443。';
   }
   return '';
 }
@@ -33,14 +71,17 @@ export async function pingComfy(base) {
   const root = (base || getComfyBase()).replace(/\/$/, '');
   try {
     const res = await fetch(root + '/system_stats', { method: 'GET', mode: 'cors' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const hint = connectHint(root, res.status);
+      throw new Error((hint ? hint + ' ' : '') + 'HTTP ' + res.status);
+    }
     return { ok: true, base: root };
   } catch (e) {
-    const hint = mixedContentHint();
+    const hint = connectHint(root);
     return {
       ok: false,
       base: root,
-      error: (hint || '无法连接 ComfyUI') + '（' + (e.message || e) + '）。确认桌面版已启动且端口为 ' + root
+      error: (e.message || hint || '无法连接 ComfyUI') + '。目标：' + root
     };
   }
 }
