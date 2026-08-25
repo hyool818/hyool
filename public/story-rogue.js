@@ -1,5 +1,6 @@
 // 卡牌内核：数据表驱动（角色/关卡/羁绊），战斗是速度条自动出手。
 // 不整仓搬 GPL 游戏；表结构参考常见 MIT 自动战斗原型（单位+关卡+加成）。
+import { toast } from '/workspace/js/ui.js';
 import {
   paintIdleShell,
   normalizeIdleProgress,
@@ -1079,30 +1080,37 @@ function sel(val, opts) {
 }
 
 function pickPortrait(char, done, api) {
+  const tip = (msg, err) => {
+    try {
+      if (api && typeof api.toast === 'function') api.toast(msg, !!err);
+      else toast(msg, !!err);
+    } catch (_) { /* ignore */ }
+  };
   if (!api || typeof api.upload !== 'function') {
-    toast('当前环境不能上传立绘', true);
+    tip('当前环境不能上传立绘', true);
     return;
   }
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/jpeg,image/png,image/webp,image/gif';
-  input.style.display = 'none';
+  input.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
   document.body.appendChild(input);
   input.addEventListener('change', async () => {
     const file = input.files && input.files[0];
-    input.remove();
+    try { input.remove(); } catch (_) {}
     if (!file) return;
-    toast('正在上传立绘…');
+    tip('正在上传立绘…');
     try {
       const res = await api.upload(file);
-      if (!res || !res.url) { toast('立绘上传失败', true); return; }
+      if (!res || !res.url) { tip('立绘上传失败（需登录，且图片 ≤5MB）', true); return; }
       char.portrait = res.url;
-      toast('立绘已挂上');
+      tip('立绘已挂上');
       if (done) done();
     } catch (e) {
-      toast('立绘上传失败', true);
+      tip((e && e.message) || '立绘上传失败', true);
     }
   });
+  // 同步触发：必须在用户点击回调栈内，否则部分浏览器会吞掉文件框
   input.click();
 }
 
@@ -1230,19 +1238,29 @@ function renderStudio(body, story, api) {
       <td></td>`;
     const ops = tr.lastElementChild;
     const up = document.createElement('button');
+    up.type = 'button';
     up.className = 'btn tiny'; up.textContent = '立绘';
     up.title = '上传角色立绘';
-    up.addEventListener('click', () => pickPortrait(c, () => {
-      api.persist();
-      renderStudio(body, story, api);
-    }, api));
+    up.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      pickPortrait(c, () => {
+        api.persist();
+        renderStudio(body, story, api);
+      }, api);
+    });
     const gen = document.createElement('button');
+    gen.type = 'button';
     gen.className = 'btn tiny'; gen.textContent = '本地生图';
     gen.title = '本机 Comfy / Pollinations 生成立绘';
-    gen.addEventListener('click', () => genLocalPortrait(c, () => {
-      api.persist();
-      renderStudio(body, story, api);
-    }, api));
+    gen.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      genLocalPortrait(c, () => {
+        api.persist();
+        renderStudio(body, story, api);
+      }, api);
+    });
     const del = document.createElement('button');
     del.className = 'btn tiny danger'; del.textContent = '删';
     del.addEventListener('click', () => {
