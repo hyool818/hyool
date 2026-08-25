@@ -1159,7 +1159,7 @@ async function generateRogueDemo() {
     persist();
     renderLibrary();
     openStory(full.id);
-    toast('示例是「放置挂机」。点播放就会自动打。工作室里可换成另外两种玩法。');
+    toast('示例是「女神挂机」。点播放会自动连打关卡。工作室里可换成修仙自动战或每局不同。');
   } catch (e) {
     toast((e && e.message) || '生成失败，请重试', true);
   }

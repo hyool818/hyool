@@ -24,7 +24,7 @@
 | 广场露出 | `public/plaza.html` | `GET /api/plaza` 的 `stories` | 已发布 + `share_id` 非空 |
 | 产品愿景 | `docs/editor-vision.md` | — | 仅改长期类型地图时读 |
 
-作品 `kind`：`story` | `card_rpg`（旧互殴）| `gacha_rogue`（卡牌三玩法：idle / queue / rogue）。积木：`scene` / `dialogue` / `battle` / `rogue`。新卡牌请走工作室，不要再拆五个配置弹窗。
+作品 `kind`：`story` | `card_rpg`（旧互殴）| `gacha_rogue`（三种积木玩法：女神挂机 idle / 修仙自动战 queue / 每局不同 rogue）。工作室积木：角色、关卡、羁绊（queue）、遗物（rogue）。不要再拆五个配置弹窗。不要整仓 vendoring GPL 游戏。
 
 ## 幻想 · 游戏工坊
 

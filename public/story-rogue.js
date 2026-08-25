@@ -1,26 +1,32 @@
-// 卡牌三种玩法共用速度条战斗。编辑器面向小白：选玩法 → 填角色和敌人 → 播放。
+// 卡牌内核：数据表驱动（角色/关卡/羁绊），战斗是速度条自动出手。
+// 不整仓搬 GPL 游戏；表结构参考常见 MIT 自动战斗原型（单位+关卡+加成）。
 import { $, toast } from '/workspace/js/ui.js';
 
 export const ROGUE_KIND = 'gacha_rogue';
 export const CARD_MODES = {
   idle: {
     id: 'idle',
-    label: '放置挂机',
-    hint: '最简单。点播放就会自动打，不用编组、不用选牌。',
-    need: '至少 1 个角色、1 个敌人。',
+    label: '女神挂机',
+    hint: '像挂机卡牌：关卡从上往下连打，对局不用点。积木 = 角色 + 关卡。',
+    need: '至少 1 个角色、1 关。',
   },
   queue: {
     id: 'queue',
-    label: '排队放技能',
-    hint: '市面上最常见。先选上场的人，速度条满了自动放技能，对局里不用点牌。',
-    need: '角色（可写技能）+ 敌人。火克木、木克水、水克火；光暗互克。前两名是前排。',
+    label: '修仙自动战',
+    hint: '像回合卡牌：选阵容，速度条自动放技能。积木 = 角色 + 羁绊 + 关卡。',
+    need: '角色、关卡；羁绊可空。指定几人上场会加成。',
   },
   rogue: {
     id: 'rogue',
     label: '每局都不同',
-    hint: '肉鸽。同一批角色，每一把抽到的技能、遗物、事件都不一样。失败再开即可。',
-    need: '角色 + 敌人。遗物和事件可空，系统会用默认。',
+    hint: '肉鸽副本：每局随机技能/遗物。积木仍是角色和关卡。',
+    need: '角色 + 敌人。遗物和事件可空。',
   },
+};
+const FACTIONS = {
+  idle: [['light', '光明'], ['dark', '暗影']],
+  queue: [['ren', '人族'], ['dao', '道族'], ['fo', '佛族'], ['yao', '妖族']],
+  rogue: [['fire', '火'], ['water', '水'], ['wood', '木'], ['light', '光'], ['dark', '暗']],
 };
 
 const ELEM = {
@@ -58,6 +64,8 @@ export function emptyRogue() {
     relics: [],
     events: [],
     enemies: [],
+    bonds: [],
+    stages: [],
   };
 }
 
@@ -72,11 +80,25 @@ export function normalizeRogue(raw) {
     id: c.id || uid(),
     name: String(c.name).trim().slice(0, 16) || '未名',
     elem: ELEMS.includes(c.elem) ? c.elem : 'fire',
+    faction: String(c.faction || '').slice(0, 12),
+    star: clamp(c.star, 1, 5, 1),
     hp: clamp(c.hp, 40, 999, 120),
     atk: clamp(c.atk, 4, 99, 18),
     spd: clamp(c.spd, 6, 40, 16),
     skillIds: Array.isArray(c.skillIds) ? c.skillIds.map(String).slice(0, 8) : [],
   }));
+  out.roster.forEach(c => {
+    if (out.mode === 'rogue') {
+      c.faction = ELEMS.includes(c.elem) ? c.elem : 'fire';
+    } else if (out.mode === 'idle') {
+      c.faction = (c.faction === 'dark' || c.elem === 'dark') ? 'dark' : 'light';
+      c.elem = c.faction;
+    } else {
+      const ids = factionPairs('queue').map(x => x[0]);
+      if (!ids.includes(c.faction)) c.faction = 'ren';
+      c.elem = elemFromFaction('queue', c.faction);
+    }
+  });
   let skills = (Array.isArray(r.skills) ? r.skills : []).filter(x => x && x.name).map(s => ({
     id: s.id || uid(),
     name: String(s.name).trim().slice(0, 16) || '技能',
@@ -138,6 +160,24 @@ export function normalizeRogue(raw) {
     spd: clamp(e.spd, 6, 36, 14),
     isBoss: !!e.isBoss,
   }));
+  out.bonds = (Array.isArray(r.bonds) ? r.bonds : []).filter(b => b && b.name).map(b => ({
+    id: b.id || uid(),
+    name: String(b.name).trim().slice(0, 20) || '羁绊',
+    unitIds: Array.isArray(b.unitIds) ? b.unitIds.map(String).slice(0, 6) : [],
+    atkPct: clamp(b.atkPct, 5, 80, 15),
+  }));
+  out.stages = (Array.isArray(r.stages) ? r.stages : []).filter(s => s && (s.title || (s.enemyIds || []).length)).map((s, i) => ({
+    id: s.id || uid(),
+    title: String(s.title || ('第' + (i + 1) + '关')).trim().slice(0, 20),
+    enemyIds: Array.isArray(s.enemyIds) ? s.enemyIds.map(String).slice(0, 4) : [],
+  }));
+  if (!out.stages.length && out.enemies.length) {
+    out.stages = out.enemies.map((e, i) => ({
+      id: 'st_' + e.id,
+      title: e.isBoss ? '首领 · ' + e.name : '第' + (i + 1) + '关 · ' + e.name,
+      enemyIds: [e.id],
+    }));
+  }
   return out;
 }
 
@@ -151,9 +191,9 @@ export function cardGuideText(story) {
     title: m.label,
     hint: m.hint,
     need: m.need,
-    ready: okC && okE,
-    line: !okC ? '还差：写一个自己的角色。' : (!okE ? '还差：写一个敌人。' : '可以点右上角「播放作品」了。'),
-    counts: `角色 ${r.roster.length} · 敌人 ${r.enemies.length}` + (r.mode === 'rogue' ? ` · 遗物 ${r.relics.length} · 事件 ${r.events.length}` : ''),
+    ready: okC && (okE || r.stages.length > 0),
+    line: !okC ? '还差：加一块「角色」。' : (!okE ? '还差：加一块「关卡」。' : '积木齐了，点右上角播放。'),
+    counts: `角色 ${r.roster.length} · 关卡 ${r.stages.length || r.enemies.length} · 羁绊 ${r.bonds.length}` + (r.mode === 'rogue' ? ` · 遗物 ${r.relics.length}` : ''),
   };
 }
 
@@ -187,16 +227,46 @@ function pick(rng, arr, n) {
   return a.slice(0, Math.max(0, n));
 }
 function elemLabel(id) { return (ELEM[id] && ELEM[id].label) || '—'; }
+function factionPairs(mode) { return FACTIONS[mode] || FACTIONS.rogue; }
+function factionLabel(mode, id) {
+  const hit = factionPairs(mode).find(x => x[0] === id);
+  return hit ? hit[1] : (id || '—');
+}
+function elemFromFaction(mode, faction) {
+  if (mode === 'idle') return faction === 'dark' ? 'dark' : 'light';
+  if (mode === 'queue') {
+    if (faction === 'dao') return 'water';
+    if (faction === 'fo') return 'light';
+    if (faction === 'yao') return 'wood';
+    return 'fire';
+  }
+  return ELEMS.includes(faction) ? faction : 'fire';
+}
 function skillsOf(r, charId) {
   return (r.skills || []).filter(s => s.ownerId === charId || !s.ownerId);
+}
+function bondAtkMul(r, teamIds) {
+  const set = new Set(teamIds);
+  let mul = 1;
+  (r.bonds || []).forEach(b => {
+    if (!b.unitIds || b.unitIds.length < 2) return;
+    if (b.unitIds.every(id => set.has(id))) mul += (Number(b.atkPct) || 0) / 100;
+  });
+  return mul;
 }
 
 let run = null;
 let tickTimer = null;
+let autoTimer = null;
 
 export function stopRogueRun() {
   if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
   run = null;
+}
+function later(fn, ms) {
+  if (autoTimer) clearTimeout(autoTimer);
+  autoTimer = setTimeout(fn, ms);
 }
 
 function relicMods(relics) {
@@ -211,12 +281,24 @@ function relicMods(relics) {
   return m;
 }
 
-function stageNodes(enemies) {
+function stageNodes(r) {
+  if ((r.stages || []).length) {
+    return r.stages.map((s, i) => {
+      const ids = (s.enemyIds || []).filter(Boolean);
+      const last = i === r.stages.length - 1;
+      const boss = last || ids.some(id => {
+        const e = r.enemies.find(x => x.id === id);
+        return e && e.isBoss;
+      });
+      return { type: boss ? 'boss' : 'battle', enemyIds: ids, title: s.title };
+    });
+  }
+  const enemies = r.enemies || [];
   const list = enemies.length ? enemies : [{ id: 'm', name: '练习木桩', hp: 40, atk: 6, spd: 10, elem: 'wood' }];
   const normals = list.filter(e => !e.isBoss);
   const bosses = list.filter(e => e.isBoss);
-  const nodes = (normals.length ? normals : list).map(e => ({ type: 'battle', enemyIds: [e.id] }));
-  if (bosses.length) nodes.push({ type: 'boss', enemyIds: [bosses[0].id] });
+  const nodes = (normals.length ? normals : list).map(e => ({ type: 'battle', enemyIds: [e.id], title: e.name }));
+  if (bosses.length) nodes.push({ type: 'boss', enemyIds: [bosses[0].id], title: bosses[0].name });
   return nodes;
 }
 
@@ -269,7 +351,7 @@ function paint() {
   body.appendChild(frame);
   if (run.phase === 'empty') {
     frame.innerHTML = `<div class="bt-result"><div class="bt-result-title">还没有角色</div>
-      <div class="bt-result-text">打开「卡牌工作室」，加一个角色和一个敌人；或点「帮我填一套能玩的」。</div>
+      <div class="bt-result-text">打开「卡牌工作室」，加一块角色和一块关卡；或点「帮我填一套能玩的」。</div>
       <div class="bt-result-ops"><button class="btn ghost" id="rgExit">退出</button></div></div>`;
     frame.querySelector('#rgExit').addEventListener('click', run.ctx.onExit);
     return;
@@ -299,7 +381,7 @@ function paintPick(frame) {
     el.type = 'button';
     el.className = 'rg-unit';
     el.innerHTML = `<div class="nm">${esc(c.name)}</div>
-      <div class="meta">${elemLabel(c.elem)} · 生命${c.hp} 攻${c.atk} 速${c.spd}</div>`;
+      <div class="meta">${factionLabel(r.mode, c.faction)} · ${c.star || 1}星 · 生命${c.hp} 攻${c.atk}</div>`;
     el.addEventListener('click', () => {
       const i = selected.indexOf(c.id);
       if (i >= 0) selected.splice(i, 1);
@@ -332,17 +414,21 @@ function charCards(r, c, rng) {
 function beginRun(ids) {
   const r = run.rogue;
   const rng = run.rng;
+  const bond = bondAtkMul(r, ids);
   run.team = ids.map((id, slot) => {
     const c = r.roster.find(x => x.id === id) || r.roster[0];
+    const star = clamp(c.star, 1, 5, 1);
+    const atk = Math.round(c.atk * (1 + (star - 1) * 0.08) * bond);
+    const hp = Math.round(c.hp * (1 + (star - 1) * 0.06));
     return {
       id: c.id, name: c.name, elem: c.elem, slot, front: slot < 2,
-      maxHp: c.hp, hp: c.hp, atk: c.atk, spd: c.spd,
+      maxHp: hp, hp, atk, spd: c.spd,
       gauge: 0, buff: 0, next: 0, cards: charCards(r, c, rng),
     };
   });
   run.nodes = r.mode === 'rogue'
     ? buildRogueMap(rng, r.floors, r.enemies)
-    : stageNodes(r.enemies);
+    : stageNodes(r);
   run.nodeIdx = 0;
   run.relics = [];
   run.phase = 'map';
@@ -352,13 +438,13 @@ function beginRun(ids) {
 function paintMap(frame) {
   const node = run.nodes[run.nodeIdx];
   const mode = run.rogue.mode;
-  const title = mode === 'idle' ? '挂机关卡' : (mode === 'queue' ? '对战列表' : '这一局的路');
-  const sub = mode === 'rogue' ? `每局不同 · 种子 ${run.seed.toString(16)}` : '对局里不用点，速度条满了会动手';
+  const title = mode === 'idle' ? '推关（自动连打）' : (mode === 'queue' ? '关卡' : '这一局的路');
+  const sub = mode === 'rogue' ? `每局不同 · 种子 ${run.seed.toString(16)}` : (mode === 'idle' ? '不用点，关卡会自己进' : '对局里不用点，速度条满了会动手');
   frame.innerHTML = `<div class="rg-head"><b>${title}</b><span>${sub}</span>
     <button class="btn tiny ghost" id="rgExit">退出</button></div>
     <div class="rg-teamline" id="rgTeam"></div>
     <div class="rg-map" id="rgMap"></div>
-    <div class="rg-ops"><button class="btn primary" id="rgEnter">${node ? '开始：' + (NODE_LABEL[node.type] || node.type) : '结束'}</button></div>`;
+    <div class="rg-ops"><button class="btn primary" id="rgEnter">${node ? '开始：' + (node.title || NODE_LABEL[node.type] || node.type) : '结束'}</button></div>`;
   frame.querySelector('#rgExit').addEventListener('click', run.ctx.onExit);
   run.team.forEach(m => {
     const d = document.createElement('div');
@@ -369,13 +455,15 @@ function paintMap(frame) {
   run.nodes.forEach((n, i) => {
     const el = document.createElement('div');
     el.className = 'rg-node' + (i === run.nodeIdx ? ' cur' : '') + (i < run.nodeIdx ? ' done' : '');
-    el.textContent = `${i + 1}. ${NODE_LABEL[n.type] || n.type}`;
+    el.textContent = `${i + 1}. ${n.title || NODE_LABEL[n.type] || n.type}`;
     frame.querySelector('#rgMap').appendChild(el);
   });
   frame.querySelector('#rgEnter').addEventListener('click', enterNode);
+  if (mode === 'idle') later(() => { if (run && run.phase === 'map') enterNode(); }, 450);
 }
 
 function enterNode() {
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
   const node = run.nodes[run.nodeIdx];
   if (!node) { run.phase = 'won'; paint(); return; }
   if (node.type === 'rest') { run.phase = 'rest'; paint(); return; }
@@ -488,9 +576,11 @@ function finishBattle(win) {
   if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
   run.battle.phase = win ? 'won' : 'lost';
   paint();
+  if (win && run.rogue.mode === 'idle') later(() => { if (run && run.phase === 'battle') afterWin(); }, 700);
 }
 
 function afterWin() {
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
   run.team.forEach(m => { if (m.hp > 0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp * 0.12)); });
   if (run.rogue.mode === 'rogue') startCardPick();
   else advanceNode();
@@ -690,29 +780,85 @@ export function applyStarterPack(story, mode) {
 }
 
 function starterByMode(mode) {
-  const c1 = { id: 'c_a', name: '小火', elem: 'fire', hp: 120, atk: 18, spd: 16, skillIds: ['sk_a'] };
-  const c2 = { id: 'c_b', name: '小水', elem: 'water', hp: 130, atk: 16, spd: 15, skillIds: ['sk_b'] };
-  const skills = [
-    { id: 'sk_a', name: '火球', kind: 'atk', power: 120, elem: 'fire', ownerId: 'c_a' },
-    { id: 'sk_b', name: '水花', kind: 'atk', power: 110, elem: 'water', ownerId: 'c_b' },
-    { id: 'sk_h', name: '喝水', kind: 'heal', power: 90, elem: 'water', ownerId: 'c_b' },
-  ];
-  const enemies = [
-    { id: 'e1', name: '木桩精', elem: 'wood', hp: 50, atk: 8, spd: 12 },
-    { id: 'e2', name: '大木桩', elem: 'wood', hp: 90, atk: 12, spd: 11, isBoss: mode !== 'idle' },
-  ];
   if (mode === 'idle') {
-    return { roster: [c1], skills: [skills[0]], enemies: [enemies[0]], relics: [], events: [] };
+    return {
+      roster: [
+        { id: 'c_yue', name: '月华', elem: 'light', faction: 'light', star: 3, hp: 130, atk: 18, spd: 16, skillIds: ['sk_yue'] },
+        { id: 'c_ye', name: '夜羽', elem: 'dark', faction: 'dark', star: 3, hp: 125, atk: 20, spd: 17, skillIds: ['sk_ye'] },
+      ],
+      skills: [
+        { id: 'sk_yue', name: '月辉', kind: 'atk', power: 115, elem: 'light', ownerId: 'c_yue' },
+        { id: 'sk_ye', name: '影刺', kind: 'atk', power: 120, elem: 'dark', ownerId: 'c_ye' },
+      ],
+      enemies: [
+        { id: 'e1', name: '残影', elem: 'dark', hp: 45, atk: 8, spd: 12 },
+        { id: 'e2', name: '石卫', elem: 'wood', hp: 70, atk: 10, spd: 11 },
+        { id: 'e3', name: '深渊使', elem: 'dark', hp: 140, atk: 14, spd: 12, isBoss: true },
+      ],
+      stages: [
+        { id: 'st1', title: '第1关 残影', enemyIds: ['e1'] },
+        { id: 'st2', title: '第2关 石卫', enemyIds: ['e2'] },
+        { id: 'st3', title: '首领 深渊使', enemyIds: ['e3'] },
+      ],
+      bonds: [], relics: [], events: [],
+    };
   }
   if (mode === 'queue') {
-    return { roster: [c1, c2], skills, enemies, relics: [], events: [] };
+    return {
+      roster: [
+        { id: 'c_ren', name: '陈行', elem: 'fire', faction: 'ren', star: 3, hp: 125, atk: 19, spd: 16, skillIds: ['sk_ren'] },
+        { id: 'c_dao', name: '青玄', elem: 'water', faction: 'dao', star: 3, hp: 120, atk: 17, spd: 18, skillIds: ['sk_dao'] },
+        { id: 'c_fo', name: '了尘', elem: 'light', faction: 'fo', star: 2, hp: 140, atk: 15, spd: 14, skillIds: ['sk_fo'] },
+        { id: 'c_yao', name: '狐九', elem: 'wood', faction: 'yao', star: 3, hp: 115, atk: 21, spd: 17, skillIds: ['sk_yao'] },
+      ],
+      skills: [
+        { id: 'sk_ren', name: '剑气', kind: 'atk', power: 118, elem: 'fire', ownerId: 'c_ren' },
+        { id: 'sk_dao', name: '符水', kind: 'atk', power: 110, elem: 'water', ownerId: 'c_dao' },
+        { id: 'sk_fo', name: '诵经', kind: 'heal', power: 95, elem: 'light', ownerId: 'c_fo' },
+        { id: 'sk_yao', name: '妖火', kind: 'atk', power: 122, elem: 'wood', ownerId: 'c_yao' },
+      ],
+      enemies: [
+        { id: 'e1', name: '山魈', elem: 'wood', hp: 55, atk: 9, spd: 12 },
+        { id: 'e2', name: '散修', elem: 'fire', hp: 80, atk: 12, spd: 14 },
+        { id: 'e3', name: '门卫', elem: 'dark', hp: 180, atk: 16, spd: 13, isBoss: true },
+      ],
+      stages: [
+        { id: 'st1', title: '山道', enemyIds: ['e1'] },
+        { id: 'st2', title: '坊市', enemyIds: ['e2'] },
+        { id: 'st3', title: '宗门', enemyIds: ['e3'] },
+      ],
+      bonds: [
+        { id: 'bd1', name: '人道路遇', unitIds: ['c_ren', 'c_dao'], atkPct: 18 },
+        { id: 'bd2', name: '佛妖因果', unitIds: ['c_fo', 'c_yao'], atkPct: 15 },
+      ],
+      relics: [], events: [],
+    };
   }
   return {
-    roster: [c1, c2, { id: 'c_c', name: '小木', elem: 'wood', hp: 140, atk: 15, spd: 14, skillIds: ['sk_c'] }],
-    skills: skills.concat([{ id: 'sk_c', name: '藤鞭', kind: 'atk', power: 105, elem: 'wood', ownerId: 'c_c' }]),
-    enemies: enemies.concat([{ id: 'eb', name: '深坑', elem: 'dark', hp: 200, atk: 16, spd: 12, isBoss: true }]),
+    roster: [
+      { id: 'c_a', name: '小火', elem: 'fire', faction: 'fire', star: 2, hp: 120, atk: 18, spd: 16, skillIds: ['sk_a'] },
+      { id: 'c_b', name: '小水', elem: 'water', faction: 'water', star: 2, hp: 130, atk: 16, spd: 15, skillIds: ['sk_b'] },
+      { id: 'c_c', name: '小木', elem: 'wood', faction: 'wood', star: 2, hp: 140, atk: 15, spd: 14, skillIds: ['sk_c'] },
+    ],
+    skills: [
+      { id: 'sk_a', name: '火球', kind: 'atk', power: 120, elem: 'fire', ownerId: 'c_a' },
+      { id: 'sk_b', name: '水花', kind: 'atk', power: 110, elem: 'water', ownerId: 'c_b' },
+      { id: 'sk_h', name: '喝水', kind: 'heal', power: 90, elem: 'water', ownerId: 'c_b' },
+      { id: 'sk_c', name: '藤鞭', kind: 'atk', power: 105, elem: 'wood', ownerId: 'c_c' },
+    ],
+    enemies: [
+      { id: 'e1', name: '木桩精', elem: 'wood', hp: 50, atk: 8, spd: 12 },
+      { id: 'e2', name: '大木桩', elem: 'wood', hp: 90, atk: 12, spd: 11 },
+      { id: 'eb', name: '深坑', elem: 'dark', hp: 200, atk: 16, spd: 12, isBoss: true },
+    ],
+    stages: [
+      { id: 'st1', title: '第1层', enemyIds: ['e1'] },
+      { id: 'st2', title: '第2层', enemyIds: ['e2'] },
+      { id: 'st3', title: '最深处', enemyIds: ['eb'] },
+    ],
     relics: [{ id: 'rl1', name: '小刀', desc: '大家打得重一点', effect: { type: 'atk_pct', val: 10 } }],
     events: [{ id: 'ev1', title: '泉水', text: '要喝吗？', choices: [{ label: '喝（回血）', kind: 'heal' }, { label: '不喝', kind: 'none' }] }],
+    bonds: [],
   };
 }
 
@@ -788,9 +934,11 @@ export function openCardStudio(story, api) {
 function renderStudio(body, story, api) {
   body.innerHTML = '';
   const r = story.rogue;
+  if (!Array.isArray(r.bonds)) r.bonds = [];
+  if (!Array.isArray(r.stages)) r.stages = [];
   const tip = document.createElement('div');
   tip.className = 'rpg-tip';
-  tip.textContent = CARD_MODES[r.mode].hint + ' ' + CARD_MODES[r.mode].need;
+  tip.textContent = '像搭积木：先选玩法，再加「角色」和「关卡」。修仙玩法可再加「羁绊」（指定几人一起上场加攻击）。';
   body.appendChild(tip);
 
   const modes = document.createElement('div');
@@ -800,9 +948,9 @@ function renderStudio(body, story, api) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'orient-card kind-card' + (r.mode === m.id ? ' active' : '');
-    b.innerHTML = `${m.label}<span>${m.id === 'idle' ? '放上去就打' : (m.id === 'queue' ? '速度条自动放技能' : '每局随机牌和事件')}</span>`;
+    b.innerHTML = `${m.label}<span>${m.hint}</span>`;
     b.addEventListener('click', () => {
-      r.mode = m.id;
+      story.rogue = normalizeRogue({ ...r, mode: m.id });
       api.persist();
       renderStudio(body, story, api);
       if (api.onMode) api.onMode();
@@ -812,7 +960,7 @@ function renderStudio(body, story, api) {
   body.appendChild(modes);
 
   const h1 = document.createElement('h3');
-  h1.textContent = '1. 你的角色（名字就行，数字可以以后再改）';
+  h1.textContent = '积木 A · 角色';
   body.appendChild(h1);
   const listC = document.createElement('div');
   listC.className = 'rpg-list';
@@ -821,11 +969,12 @@ function renderStudio(body, story, api) {
     row.className = 'rpg-row';
     const mine = skillsOf(r, c.id).filter(s => s.ownerId === c.id);
     row.innerHTML = `<div class="rpg-row-info"><span class="rpg-name">${esc(c.name)}</span>
-      <span class="rpg-meta">${elemLabel(c.elem)} 生命${c.hp} 攻${c.atk} 速${c.spd} · ${mine.map(s => s.name).join('、') || '普攻'}</span></div>`;
+      <span class="rpg-meta">${factionLabel(r.mode, c.faction)} · ${c.star || 1}星 · ${mine.map(s => s.name).join('、') || '普攻'}</span></div>`;
     const del = document.createElement('button');
     del.className = 'btn tiny danger'; del.textContent = '删';
     del.addEventListener('click', () => {
       r.skills = r.skills.filter(s => s.ownerId !== c.id);
+      r.bonds.forEach(b => { b.unitIds = (b.unitIds || []).filter(id => id !== c.id); });
       r.roster.splice(i, 1);
       api.persist();
       renderStudio(body, story, api);
@@ -836,31 +985,36 @@ function renderStudio(body, story, api) {
   body.appendChild(listC);
 
   const name = inp('');
-  const elem = sel('fire', ELEMS.map(e => [e, elemLabel(e)]));
+  const fac = sel(factionPairs(r.mode)[0][0], factionPairs(r.mode));
+  const star = sel('3', [['1', '1星'], ['2', '2星'], ['3', '3星'], ['4', '4星'], ['5', '5星']]);
   const skn = inp('普攻');
   const skk = sel('atk', [['atk', '打人'], ['heal', '救人'], ['buff', '蓄力']]);
-  body.append(field('角色名字', name), field('属性', elem), field('他会的一招', skn), field('这一招干什么', skk));
+  body.append(field('名字', name), field(r.mode === 'queue' ? '门派' : (r.mode === 'idle' ? '阵营' : '属性'), fac), field('星级', star), field('会的一招', skn), field('这一招干什么', skk));
   const addC = document.createElement('button');
-  addC.className = 'btn primary'; addC.textContent = '加上这个角色';
+  addC.className = 'btn primary'; addC.textContent = '加上这块角色';
   addC.addEventListener('click', () => {
     const n = name.value.trim();
-    if (!n) { toast('先写个名字，例如：小火', true); return; }
+    if (!n) { toast('先写名字，例如：月华', true); return; }
     const id = uid();
     const sid = uid();
-    r.roster.push({ id, name: n.slice(0, 16), elem: elem.value, hp: 120, atk: 18, spd: 16, skillIds: [sid] });
+    const elem = elemFromFaction(r.mode, fac.value);
+    r.roster.push({
+      id, name: n.slice(0, 16), elem, faction: fac.value,
+      star: Number(star.value) || 3, hp: 120, atk: 18, spd: 16, skillIds: [sid],
+    });
     r.skills.push({
       id: sid, name: (skn.value.trim() || '普攻').slice(0, 16),
-      kind: skk.value, power: 110, elem: elem.value, ownerId: id, desc: '',
+      kind: skk.value, power: 110, elem, ownerId: id, desc: '',
     });
     api.persist();
     name.value = '';
     renderStudio(body, story, api);
-    toast('加上了。生命/攻击以后想改再改。');
+    toast('角色积木加上了。');
   });
   body.appendChild(addC);
 
   const h2 = document.createElement('h3');
-  h2.textContent = '2. 要打的人';
+  h2.textContent = '积木 B · 关卡（每一关打谁）';
   h2.style.marginTop = '18px';
   body.appendChild(h2);
   const listE = document.createElement('div');
@@ -868,27 +1022,56 @@ function renderStudio(body, story, api) {
   r.enemies.forEach((e, i) => {
     const row = document.createElement('div');
     row.className = 'rpg-row';
-    row.innerHTML = `<div class="rpg-row-info"><span class="rpg-name">${e.isBoss ? '最后要打的 · ' : ''}${esc(e.name)}</span>
-      <span class="rpg-meta">${elemLabel(e.elem)} 生命${e.hp} 攻${e.atk}</span></div>`;
+    row.innerHTML = `<div class="rpg-row-info"><span class="rpg-name">${e.isBoss ? '首领 · ' : ''}${esc(e.name)}</span>
+      <span class="rpg-meta">${elemLabel(e.elem)} 生命${e.hp}</span></div>`;
     const del = document.createElement('button');
     del.className = 'btn tiny danger'; del.textContent = '删';
-    del.addEventListener('click', () => { r.enemies.splice(i, 1); api.persist(); renderStudio(body, story, api); });
+    del.addEventListener('click', () => {
+      const id = e.id;
+      r.enemies.splice(i, 1);
+      r.stages.forEach(s => { s.enemyIds = (s.enemyIds || []).filter(x => x !== id); });
+      r.stages = r.stages.filter(s => (s.enemyIds || []).length);
+      api.persist();
+      renderStudio(body, story, api);
+    });
     row.appendChild(del);
     listE.appendChild(row);
   });
   body.appendChild(listE);
+  const listS = document.createElement('div');
+  listS.className = 'rpg-list';
+  r.stages.forEach((s, i) => {
+    const names = (s.enemyIds || []).map(id => {
+      const e = r.enemies.find(x => x.id === id);
+      return e ? e.name : '?';
+    }).join('、');
+    const row = document.createElement('div');
+    row.className = 'rpg-row';
+    row.innerHTML = `<div class="rpg-row-info"><span class="rpg-name">${esc(s.title)}</span>
+      <span class="rpg-meta">${names || '还没指定敌人'}</span></div>`;
+    const del = document.createElement('button');
+    del.className = 'btn tiny danger'; del.textContent = '删';
+    del.addEventListener('click', () => { r.stages.splice(i, 1); api.persist(); renderStudio(body, story, api); });
+    row.appendChild(del);
+    listS.appendChild(row);
+  });
+  body.appendChild(listS);
   const en = inp('');
-  const ee = sel('wood', ELEMS.map(x => [x, elemLabel(x)]));
+  const st = inp('第' + (r.stages.length + 1) + '关');
   const boss = document.createElement('input'); boss.type = 'checkbox';
-  body.append(field('敌人名字', en), field('属性', ee), field('这是最后的大怪', boss));
+  body.append(field('关卡名字', st), field('这一关的敌人名字', en), field('这是最后的首领', boss));
   const addE = document.createElement('button');
-  addE.className = 'btn primary'; addE.textContent = '加上这个敌人';
+  addE.className = 'btn primary'; addE.textContent = '加上这块关卡';
   addE.addEventListener('click', () => {
     const n = en.value.trim();
-    if (!n) { toast('先写敌人名字，例如：木桩', true); return; }
+    if (!n) { toast('先写敌人名字，例如：山魈', true); return; }
+    const id = uid();
     r.enemies.push({
-      id: uid(), name: n.slice(0, 16), elem: ee.value,
+      id, name: n.slice(0, 16), elem: r.mode === 'idle' ? 'dark' : 'wood',
       hp: boss.checked ? 180 : 60, atk: boss.checked ? 16 : 10, spd: 13, isBoss: boss.checked,
+    });
+    r.stages.push({
+      id: uid(), title: (st.value.trim() || n).slice(0, 20), enemyIds: [id],
     });
     api.persist();
     en.value = '';
@@ -896,9 +1079,60 @@ function renderStudio(body, story, api) {
   });
   body.appendChild(addE);
 
+  if (r.mode === 'queue') {
+    const hB = document.createElement('h3');
+    hB.textContent = '积木 C · 羁绊（可空。勾选的人同时上场才加攻击）';
+    hB.style.marginTop = '18px';
+    body.appendChild(hB);
+    const listB = document.createElement('div');
+    listB.className = 'rpg-list';
+    r.bonds.forEach((b, i) => {
+      const names = (b.unitIds || []).map(id => {
+        const c = r.roster.find(x => x.id === id);
+        return c ? c.name : '?';
+      }).join('、');
+      const row = document.createElement('div');
+      row.className = 'rpg-row';
+      row.innerHTML = `<div class="rpg-row-info"><span class="rpg-name">${esc(b.name)}</span>
+        <span class="rpg-meta">${names} · 攻击+${b.atkPct}%</span></div>`;
+      const del = document.createElement('button');
+      del.className = 'btn tiny danger'; del.textContent = '删';
+      del.addEventListener('click', () => { r.bonds.splice(i, 1); api.persist(); renderStudio(body, story, api); });
+      row.appendChild(del);
+      listB.appendChild(row);
+    });
+    body.appendChild(listB);
+    const bn = inp('同门');
+    const wrap = document.createElement('div');
+    wrap.className = 'rpg-list';
+    wrap.style.margin = '8px 0';
+    const checks = [];
+    r.roster.forEach(c => {
+      const lab = document.createElement('label');
+      lab.style.cssText = 'display:flex;gap:8px;align-items:center;font-size:13px;margin:4px 0';
+      const ck = document.createElement('input');
+      ck.type = 'checkbox';
+      ck.value = c.id;
+      lab.append(ck, document.createTextNode(c.name + ' · ' + factionLabel(r.mode, c.faction)));
+      wrap.appendChild(lab);
+      checks.push(ck);
+    });
+    body.append(field('羁绊名字', bn), wrap);
+    const addB = document.createElement('button');
+    addB.className = 'btn'; addB.textContent = '加上这块羁绊';
+    addB.addEventListener('click', () => {
+      const ids = checks.filter(c => c.checked).map(c => c.value);
+      if (ids.length < 2) { toast('至少勾选两个人', true); return; }
+      r.bonds.push({ id: uid(), name: (bn.value.trim() || '羁绊').slice(0, 20), unitIds: ids, atkPct: 15 });
+      api.persist();
+      renderStudio(body, story, api);
+    });
+    body.appendChild(addB);
+  }
+
   if (r.mode === 'rogue') {
     const h3 = document.createElement('h3');
-    h3.textContent = '3. 每局彩蛋（可空着，系统有默认）';
+    h3.textContent = '积木 C · 遗物（可空）';
     h3.style.marginTop = '18px';
     body.appendChild(h3);
     const rn = inp('');
@@ -925,7 +1159,7 @@ function renderStudio(body, story, api) {
     api.persist();
     renderStudio(body, story, api);
     if (api.onMode) api.onMode();
-    toast('已经填好，关掉窗口点播放即可。');
+    toast('已经填好角色和关卡，关掉窗口点播放即可。');
   });
   body.appendChild(fill);
 }

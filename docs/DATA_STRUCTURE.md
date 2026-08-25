@@ -41,7 +41,7 @@
   cast: { 角色名: { kind: "tts"|"audio", voice?, url?, volume? } },
   chapters: [{ id, title, bgm?, blocks: [Block] }],
   rpg?: { hero, cards, enemies },
-  rogue?: { mode: "idle"|"queue"|"rogue", teamSize, floors, roster, skills, relics, events, enemies }
+  rogue?: { mode: "idle"|"queue"|"rogue", teamSize, floors, roster, skills, relics, events, enemies, bonds, stages }
 }
 ```
 
