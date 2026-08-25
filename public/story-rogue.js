@@ -198,9 +198,6 @@ export function cardGuideText(story) {
 }
 
 function uid() { return 'g_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
-function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
 function clamp(n, lo, hi, d) {
   const v = Number(n);
   if (!Number.isFinite(v)) return d;
