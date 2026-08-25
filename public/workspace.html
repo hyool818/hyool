@@ -397,6 +397,20 @@
           <div class="progress-bar" id="aiProgressBar"></div>
           <span id="aiProgressText"></span>
         </div>
+
+        <hr style="margin:16px 0;border:none;border-top:1px solid rgba(255,255,255,.1)">
+        <h4 style="margin:0 0 8px;font-size:13px;font-weight:600">本地 Comfy 文生图</h4>
+        <div id="imgGenSettings" style="margin-bottom:10px;"></div>
+        <div class="field">
+          <label>提示词</label>
+          <textarea id="comfyPrompt" rows="3" placeholder="描述你想生成的画面…" style="width:100%;resize:vertical;"></textarea>
+        </div>
+        <div class="field">
+          <button id="comfyGenBtn" class="btn small" type="button">生成</button>
+          <a id="comfyDownload" class="btn small ghost hidden" download="comfy.png">下载</a>
+        </div>
+        <p class="hint small" id="comfyStatus"></p>
+        <img id="comfyPreview" alt="" style="display:none;max-width:100%;border-radius:8px;margin-top:8px;border:1px solid rgba(255,255,255,.12)">
       </section>
 
       <!-- 动画 -->
@@ -488,5 +502,66 @@
 
 <script type="module" src="/workspace/js/app.js"></script>
 <script type="module" src="/workspace/js/hub.js"></script>
+<script type="module">
+import {
+  getImageProvider,
+  generateImage,
+  generateAndResolveUrl,
+  mountImageGenSettings
+} from '/image-provider.js';
+
+const host = document.getElementById('imgGenSettings');
+const promptEl = document.getElementById('comfyPrompt');
+const btn = document.getElementById('comfyGenBtn');
+const status = document.getElementById('comfyStatus');
+const preview = document.getElementById('comfyPreview');
+const dl = document.getElementById('comfyDownload');
+let objectUrl = null;
+
+if (host) mountImageGenSettings(host);
+
+if (btn) {
+  btn.addEventListener('click', async () => {
+    const prompt = (promptEl && promptEl.value || '').trim();
+    if (!prompt) {
+      if (status) status.textContent = '请先填写提示词。';
+      return;
+    }
+    btn.disabled = true;
+    if (status) status.textContent = getImageProvider() === 'comfy' ? 'Comfy 生图中…' : 'Pollinations 生成中…';
+    try {
+      let displayUrl = '';
+      if (getImageProvider() === 'comfy') {
+        const r = await generateImage({ prompt });
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl = URL.createObjectURL(r.blob);
+        displayUrl = objectUrl;
+        if (dl) {
+          dl.href = objectUrl;
+          dl.download = r.filename || 'comfy.png';
+          dl.classList.remove('hidden');
+        }
+      } else {
+        const r = await generateAndResolveUrl({ prompt });
+        displayUrl = r.url;
+        if (dl) {
+          dl.href = r.url;
+          dl.download = 'image.png';
+          dl.classList.remove('hidden');
+        }
+      }
+      if (preview) {
+        preview.src = displayUrl;
+        preview.style.display = 'block';
+      }
+      if (status) status.textContent = '完成。';
+    } catch (e) {
+      if (status) status.textContent = e.message || '生成失败';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+</script>
 </body>
 </html>

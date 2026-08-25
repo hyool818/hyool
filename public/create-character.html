@@ -252,6 +252,8 @@ a { color: inherit; text-decoration: none; }
   </div>
 </header>
 
+<div id="imgGenSettings" style="max-width:720px;margin:12px auto 0;padding:0 16px;"></div>
+
 <div class="progress-wrap" id="progressWrap">
   <div class="progress-info">
     <span class="progress-label">Step <span class="current" id="stepCurrent">1</span> / 7</span>
@@ -408,7 +410,13 @@ a { color: inherit; text-decoration: none; }
 
 </main>
 
-<script>
+<script type="module">
+import {
+  getImageProvider,
+  generateAndResolveUrl,
+  mountImageGenSettings
+} from "/image-provider.js";
+
 const api = (p, o = {}) => {
   const t = localStorage.getItem("hyool_token");
   const h = { "Content-Type": "application/json", ...(o.headers || {}) };
@@ -424,6 +432,20 @@ const api = (p, o = {}) => {
 
 const $ = id => document.getElementById(id);
 const state = { step: 1, style: null, styleCustom: "", race: null, raceCustom: "", gender: null, age: null, skin: null, eyeColor: null, hairColor: null, hairstyle: null, bodyType: null, height: null, bust: null, hip: null, outfit: null, outfitColor: null, accessory: null, voice: "", name: "", personality: [], background: "" };
+
+mountImageGenSettings($("imgGenSettings"));
+
+function buildAdvancedLocalPrompt(char) {
+  const styleHint = state.style === "custom" && state.styleCustom
+    ? state.styleCustom
+    : ({ realistic: "realistic photorealistic portrait", "3d": "3D rendered character", anime: "anime style illustration", guofeng: "Chinese guofeng art style" }[state.style] || "character portrait");
+  const parts = [styleHint];
+  if (char && char.appearance) parts.push(String(char.appearance).slice(0, 200));
+  if (state.background) parts.push(String(state.background).slice(0, 150));
+  if (char && char.name) parts.push("named " + char.name);
+  parts.push("face clearly visible, looking at viewer, vertical portrait, centered composition, clean background, high quality, detailed");
+  return parts.join(", ");
+}
 
 /* Data */
 const STEP1 = [
@@ -714,7 +736,18 @@ async function generateCharacter() {
     });
     if (!res.success) throw new Error(res.error || "生成失败。");
 
-    const char = res.character;
+    let char = res.character;
+    if (getImageProvider() === "comfy" && char && char.id) {
+      $("resultLoading").innerHTML = `<div class="spinner"></div><div class="text">本机 Comfy 生图中…</div>`;
+      const gen = await generateAndResolveUrl({ prompt: buildAdvancedLocalPrompt(char) });
+      const upd = await api("/api/create/regen-image", {
+        method: "POST",
+        body: JSON.stringify({ character_id: char.id, image_url: gen.url })
+      });
+      if (upd.success && upd.image_url) char = { ...char, image_url: upd.image_url };
+      else char = { ...char, image_url: gen.url };
+    }
+
     $("resultLoading").style.display = "none";
     $("resultImgWrap").style.display = "block";
     $("resultImg").src = char.image_url || "";

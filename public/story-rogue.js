@@ -709,22 +709,6 @@ function afterWin() {
   else advanceNode();
 }
 
-function advanceNode() {
-  run.nodeIdx++;
-  if (run.nodeIdx >= run.nodes.length) {
-    if (run.rogue.mode === 'idle') {
-      toast('全部关卡打完了');
-      goIdleHome();
-      return;
-    }
-    run.phase = 'won';
-    paint();
-    return;
-  }
-  run.phase = 'map';
-  paint();
-}
-
 function startCardPick() {
   const pool = run.rogue.skills.filter(s => run.team.some(m => m.hp > 0 && (!s.ownerId || s.ownerId === m.id)));
   const src = pool.length ? pool : run.rogue.skills;
@@ -752,7 +736,16 @@ function startEvent() {
 }
 function advanceNode() {
   run.nodeIdx++;
-  if (run.nodeIdx >= run.nodes.length) { run.phase = 'won'; paint(); return; }
+  if (run.nodeIdx >= run.nodes.length) {
+    if (run.rogue.mode === 'idle') {
+      toast('全部关卡打完了');
+      goIdleHome();
+      return;
+    }
+    run.phase = 'won';
+    paint();
+    return;
+  }
   run.phase = 'map';
   paint();
 }
@@ -1113,6 +1106,24 @@ function pickPortrait(char, done, api) {
   input.click();
 }
 
+async function genLocalPortrait(char, done, api) {
+  const hint = (char && char.name) ? `角色「${char.name}」的立绘描述` : '立绘描述';
+  const text = window.prompt(hint + '（留空则用名字）', char && char.name ? char.name + ', character portrait, face clearly visible' : '');
+  if (text == null) return;
+  const prompt = String(text).trim() || ((char && char.name) || 'character') + ', upper body portrait, face clearly visible, high quality';
+  toast('本机生图中…');
+  try {
+    const mod = await import('/image-provider.js');
+    const r = await mod.generateAndResolveUrl({ prompt });
+    if (!r || !r.url) { toast('生图失败', true); return; }
+    char.portrait = r.url;
+    toast('立绘已挂上');
+    if (done) done();
+  } catch (e) {
+    toast((e && e.message) || '本机生图失败', true);
+  }
+}
+
 export function openCardStudio(story, api) {
   ensureRogue(story);
   const card = document.querySelector('#modal .modal-card');
@@ -1225,6 +1236,13 @@ function renderStudio(body, story, api) {
       api.persist();
       renderStudio(body, story, api);
     }, api));
+    const gen = document.createElement('button');
+    gen.className = 'btn tiny'; gen.textContent = '本地生图';
+    gen.title = '本机 Comfy / Pollinations 生成立绘';
+    gen.addEventListener('click', () => genLocalPortrait(c, () => {
+      api.persist();
+      renderStudio(body, story, api);
+    }, api));
     const del = document.createElement('button');
     del.className = 'btn tiny danger'; del.textContent = '删';
     del.addEventListener('click', () => {
@@ -1234,7 +1252,7 @@ function renderStudio(body, story, api) {
       api.persist();
       renderStudio(body, story, api);
     });
-    ops.append(up, del);
+    ops.append(up, gen, del);
     bodyC.appendChild(tr);
   });
   body.appendChild(tableC);

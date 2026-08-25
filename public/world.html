@@ -500,6 +500,7 @@ input, textarea { color-scheme: dark; }
       <div class="intro-desc">这里承载世界的核心设定（时代背景、世界规则、主要势力、力量体系、氛围基调）。一经保存即锁定，无法二次修改；地点、补充说明与背景图仍可调整。</div>
       <div class="fg"><label>世界封面</label>
         <img class="cover-sq" id="bgCover" alt="" onerror="this.style.opacity=.2">
+        <div id="imgGenSettings" style="margin:8px 0;"></div>
         <div class="row" style="margin-top:6px">
           <button class="btn ghost" id="bgCoverRegen">🔄 换一张</button>
           <button class="btn ghost" id="bgCoverUpload">📤 上传</button>
@@ -1500,6 +1501,11 @@ function renderBgPanel(){
 }
 
 /* ---- 封面 / 图片上传 ---- */
+let _imgProv = null;
+async function imgProv() {
+  if (!_imgProv) _imgProv = await import("/image-provider.js");
+  return _imgProv;
+}
 async function saveCover(cover){
   const d = await api("/api/worlds/" + worldId + "/cover", { method: "POST", body: JSON.stringify({ cover_image: cover }) });
   S.world.cover_image = d.cover_image || S.world.cover_image;
@@ -1509,8 +1515,24 @@ async function saveCover(cover){
 async function regenCover(){
   const prompt = (S.world.description || S.world.name || "living world") + ", cinematic concept art, wide shot, highly detailed, no text, no watermark";
   const seed = Math.floor(Math.random() * 1000000);
-  const url = "https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt) + "?width=1024&height=768&nologo=true&model=flux&seed=" + seed;
-  try { await saveCover(url); toast("封面已重新生成。"); } catch (e) { toast(e.message); }
+  const btn = $("bgCoverRegen");
+  const old = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "生成中…"; }
+  try {
+    const mod = await imgProv();
+    let url;
+    if (mod.getImageProvider() === "comfy") {
+      const r = await mod.generateAndResolveUrl({ prompt, width: 1024, height: 768, seed });
+      url = r.url;
+    } else {
+      url = mod.pollinationsUrl(prompt, { width: 1024, height: 768, seed }).url;
+    }
+    await saveCover(url);
+    toast("封面已重新生成。");
+  } catch (e) { toast(e.message); }
+  finally {
+    if (btn) { btn.disabled = false; btn.textContent = old || "🔄 换一张"; }
+  }
 }
 async function onModelChange(){
   const model = $("modelSel").value;
@@ -1578,6 +1600,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     localStorage.removeItem("hyool_token");
     localStorage.removeItem("hyool_is_guest");
   }
+
+  try {
+    const mod = await imgProv();
+    mod.mountImageGenSettings($("imgGenSettings"));
+  } catch (_) {}
 
   $("sendBtn").addEventListener("click", send);
   $("msgInput").addEventListener("keydown", e => {

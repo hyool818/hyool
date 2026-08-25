@@ -3520,7 +3520,7 @@ function init() {
       document.querySelectorAll('#createKindRow .kind-card, #createKindMore .kind-card').forEach(x => x.classList.toggle('active', x === btn));
       if (createKind === 'gacha_rogue') {
         createOrientation = 'portrait';
-        document.querySelectorAll('#createOrientRow .orient-card').forEach(x => x.classList.toggle('active', x.dataset.orient === 'portrait'));
+        document.querySelectorAll('#createOrient .orient-card').forEach(x => x.classList.toggle('active', x.dataset.orient === 'portrait'));
       }
       const demoBtn = $('#rpgDemoBtn');
       if (demoBtn) demoBtn.classList.toggle('hidden', createKind !== 'card_rpg');

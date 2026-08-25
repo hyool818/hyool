@@ -391,6 +391,7 @@ input, textarea { color-scheme: dark; }
     <div class="wstep" data-wstep="4">
       <div class="wstep-title">生成<span style="color:#c9a84c;">封面</span></div>
       <div class="wstep-desc">AI 按题材绘制封面，或上传你自己的图片。</div>
+      <div id="imgGenSettings" style="margin-bottom:.8rem;"></div>
       <img class="cover-preview" id="coverPreview" alt="世界封面" onerror="this.style.opacity=.2">
       <div style="display:flex;gap:.6rem;">
         <button class="btn btn-cancel" style="flex:1;" onclick="wizardRegenCover()">🔄 换一张</button>
@@ -1081,17 +1082,42 @@ function confirmCastPick() {
   toast(wizard.castIds.length ? "已选择 " + wizard.castIds.length + " 位角色。" : "未选择角色，可稍后在工坊补充。");
 }
 
-function buildCoverUrl() {
+let _imgProv = null;
+async function imgProv() {
+  if (!_imgProv) _imgProv = await import("/image-provider.js");
+  return _imgProv;
+}
+
+function coverPromptText() {
   const g = GENRE_PROMPT[wizard.genre] || GENRE_PROMPT.custom;
   const desc = wizard.desc ? ", " + wizard.desc : "";
-  const prompt = `${g}, world named ${wizard.name}${desc}, cinematic concept art, wide shot, highly detailed, no text, no watermark`;
-  wizard.seed = Math.floor(Math.random() * 1000000);
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=768&nologo=true&model=flux&seed=${wizard.seed}`;
+  return `${g}, world named ${wizard.name}${desc}, cinematic concept art, wide shot, highly detailed, no text, no watermark`;
 }
-function wizardRegenCover() {
-  wizard.cover = buildCoverUrl();
-  $("coverPreview").src = wizard.cover;
-  $("coverPreview2").src = wizard.cover;
+
+async function buildCoverUrl() {
+  const prompt = coverPromptText();
+  wizard.seed = Math.floor(Math.random() * 1000000);
+  const mod = await imgProv();
+  if (mod.getImageProvider() === "comfy") {
+    const r = await mod.generateAndResolveUrl({ prompt, width: 1024, height: 768, seed: wizard.seed });
+    return r.url;
+  }
+  return mod.pollinationsUrl(prompt, { width: 1024, height: 768, seed: wizard.seed }).url;
+}
+
+async function wizardRegenCover() {
+  const btn = document.querySelector('[onclick="wizardRegenCover()"]');
+  const old = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "生成中…"; }
+  try {
+    wizard.cover = await buildCoverUrl();
+    $("coverPreview").src = wizard.cover;
+    $("coverPreview2").src = wizard.cover;
+  } catch (e) {
+    toast(e.message || "封面生成失败。");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old || "🔄 换一张"; }
+  }
 }
 
 function uploadImageFile(file) {
@@ -1115,14 +1141,14 @@ async function wizardUploadCover(file) {
   } catch (e) { toast(e.message); }
 }
 
-function wizardNext() {
+async function wizardNext() {
   if (wizard.step === 1 && !wizard.genre) { toast("请先选择世界题材。"); return; }
   if (wizard.step === 2) {
     wizard.name = $("wName").value.trim();
     wizard.desc = $("wDesc").value.trim();
     if (!wizard.name) { toast("请给世界起个名字。"); return; }
   }
-  if (wizard.step === 4 && !wizard.cover) wizardRegenCover();
+  if (wizard.step === 4 && !wizard.cover) await wizardRegenCover();
   if (wizard.step === 5) { wizardCreate(); return; }
   wizardGo(wizard.step + 1);
 }
@@ -1198,6 +1224,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   /* 游客不进入「我的彼岸」：个人创作库只对登录用户开放，游客统一导向幻灵世界广场 /plaza */
   if (isGuest) { location.replace("/plaza"); return; }
+
+  try {
+    const mod = await imgProv();
+    mod.mountImageGenSettings($("imgGenSettings"));
+  } catch (_) {}
+  window.wizardRegenCover = wizardRegenCover;
 
   if (auth && auth.user && auth.user.username) {
     $("backLink").href = "/@" + auth.user.username;

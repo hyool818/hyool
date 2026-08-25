@@ -197,12 +197,23 @@ export async function handleMvpRoutes(
                 ...generated
             };
 
-            const imageResult = await generateCharacterImage(
-                draftCharacter,
-                env,
-                style,
-                params
-            );
+            const skipImage = body.skip_image === true || body.skip_image === 1 || body.skip_image === "1";
+            const clientImageUrl = String(body.image_url || "").trim();
+            const clientImageOk = /^\/img\/img_[a-z0-9]+$/i.test(clientImageUrl);
+
+            let imageResult;
+            if (skipImage) {
+                imageResult = { url: "", provider: "client_pending", asset_meta: {} };
+            } else if (clientImageOk) {
+                imageResult = { url: clientImageUrl, provider: "client_upload", asset_meta: { source: "client" } };
+            } else {
+                imageResult = await generateCharacterImage(
+                    draftCharacter,
+                    env,
+                    style,
+                    params
+                );
+            }
 
             // 保存性别与初始语音（声音可选，按性别筛选）
             const gender = params.gender === "female" || params.gender === "male" ? params.gender : "";
@@ -239,7 +250,7 @@ export async function handleMvpRoutes(
                 chatConfigJson
             ).run();
 
-            if (imageResult.url && imageResult.provider !== "mock") {
+            if (imageResult.url && imageResult.provider !== "mock" && imageResult.provider !== "client_pending") {
                 await env.DB.prepare(
                     `INSERT INTO assets (id, owner_id, character_id, type, url, meta_json, created_at)
                      VALUES (?, ?, ?, 'image', ?, ?, CURRENT_TIMESTAMP)`
@@ -260,7 +271,7 @@ export async function handleMvpRoutes(
                 share_url: `/s/${shareId}`,
                 buddy_url: `/buddy/${characterId}`,
                 ai_mode: env.AI ? "workers-ai" : "mock",
-                image_mode: "pollinations"
+                image_mode: skipImage ? "client" : (clientImageOk ? "client_upload" : "pollinations")
             });
 
         } catch (error) {
@@ -294,7 +305,19 @@ export async function handleMvpRoutes(
                 return json({ success: false, error: "角色不存在。" }, 404);
             }
 
-            const imageResult = await regenerateCharacterImage(character, env, style, params);
+            const clientImageUrl = String(body.image_url || "").trim();
+            const clientImageOk = /^\/img\/img_[a-z0-9]+$/i.test(clientImageUrl);
+
+            let imageResult;
+            let imageMode = "pollinations";
+            if (clientImageOk) {
+                imageResult = { url: clientImageUrl, provider: "client_upload" };
+                imageMode = "client_upload";
+            } else if (body.skip_image === true || body.skip_image === 1 || body.skip_image === "1") {
+                return json({ success: false, error: "本地生图请先上传 image_url。" }, 400);
+            } else {
+                imageResult = await regenerateCharacterImage(character, env, style, params);
+            }
 
             await env.DB.prepare(
                 "UPDATE characters SET image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
@@ -303,7 +326,7 @@ export async function handleMvpRoutes(
             return json({
                 success: true,
                 image_url: imageResult.url,
-                image_mode: "pollinations"
+                image_mode: imageMode
             });
 
         } catch (error) {
@@ -3037,6 +3060,7 @@ export async function handleMvpRoutes(
             success: true,
             ai_provider: env.AI ? "workers-ai" : "mock",
             image_provider: "pollinations",
+            local_comfy: "client_side_only",
             chat_model: env.AI_CHAT_MODEL || "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
         });
     }

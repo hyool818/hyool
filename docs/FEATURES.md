@@ -47,6 +47,20 @@
 | 工具箱 hub | `public/workspace.html` `public/workspace/js/hub.js` `public/workspace/js/app.js` |
 | 编解码 | `public/workspace/js/codecs.js` `engine.js` … **不要读 vendor/** |
 | 音频工坊 | `public/audio.html` `public/workspace/js/audio.js` |
+| 本机 Comfy 文生图 | `public/comfy-client.js` `public/image-provider.js` `public/comfy-workflows/*`；workspace AI 面板 | 浏览器直连 `127.0.0.1:8000`；须 http 打开本站 |
+
+## 本机 ComfyUI 生图（全站）
+
+| 功能 | 页面 / 模块 | 说明 |
+|---|---|---|
+| 客户端 | `public/comfy-client.js` `public/image-provider.js` | provider=`comfy`\|`pollinations`；工作流 ZIT / krae2 |
+| 工作流副本 | `public/comfy-workflows/zit-guofeng.json` `krae2.json` | 来自本机旧/新环境；默认 prompt 已中性化 |
+| 创角 / 重绘 | `public/create.html` `public/create-character.html` | comfy 时 `skip_image` → 本地出图 → `/api/upload` → regen `image_url` |
+| 封面 | `public/hub.html` `public/world.html` | 封面生成走 image-provider |
+| 作品立绘 | `public/story-rogue.js` | 卡牌工作室「本地生图」 |
+| API | `POST /api/create` `skip_image`；`POST /api/create/regen-image` 可传 `image_url`；`GET /api/ai/status` 含 `local_comfy` | Workers **不**代理本机 Comfy |
+
+注意：HTTPS 线上页无法请求本机 http Comfy；请用 wrangler 以 `http://127.0.0.1` 打开。桌面 Comfy 默认端口 **8000**；ZIT 与 krae2 需切换对应环境。
 
 ## 角色与聊天（彼岸相关）
 
