@@ -250,6 +250,8 @@ textarea.txt{min-height:120px;resize:vertical}
   /* 卡牌RPG：作品库类型徽章 / 积木战斗摘要 / 配置弹窗 */
   .story-badge.kind{background:rgba(120,200,255,.16);color:#9fd8ff;border-color:rgba(120,200,255,.5)}
   .story-badge.kind.rpg{background:rgba(255,170,80,.18);color:#ffcf8a;border-color:rgba(255,170,80,.55)}
+  .story-badge.kind.rogue{background:rgba(180,140,255,.18);color:#d4c2ff;border-color:rgba(180,140,255,.5)}
+  .block.rogue{border-left:3px solid #c4a8ff}
   .block-sub{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.6}
   .rpg-cfg-btns{display:flex;flex-direction:column;gap:6px}
   .rpg-cfg-btns .btn{margin-top:0}
@@ -268,7 +270,32 @@ textarea.txt{min-height:120px;resize:vertical}
   .rpg-form-ops{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
   .rpg-check{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--bg3);cursor:pointer}
   .rpg-check input{width:auto;accent-color:var(--accent)}
-  .rpg-enemy-check{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .rpg-enemy-check,.rpg-party-check{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+
+  /* 卡牌库两栏：左侧列表 / 右侧「队伍总览 + 表单」 */
+  .rpg-form-title{font-size:13px;font-weight:700;color:var(--text)}
+  .rpg-split{display:flex;gap:14px;align-items:flex-start}
+  .rpg-split-left{flex:1 1 44%;min-width:0;max-height:52vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px}
+  .rpg-split-left .rpg-list{margin:0}
+  .rpg-split-right{flex:1 1 56%;min-width:0;max-height:52vh;overflow-y:auto;display:flex;flex-direction:column;gap:12px;border-left:1px solid var(--line);padding-left:14px}
+  .rpg-row{cursor:pointer}
+  .rpg-row.sel{border-color:var(--accent);background:rgba(139,123,255,.10)}
+  .rpg-team{border:1px solid var(--line);background:var(--bg3);border-radius:10px;padding:8px 10px}
+  .rpg-team-head{font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:4px}
+  .rpg-team-list{display:flex;flex-direction:column;gap:2px}
+  .rpg-team-item{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--text);border-bottom:1px dashed var(--line);padding:2px 0}
+  .rpg-team-item span{font-weight:600;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rpg-team-item em{font-style:normal;color:var(--muted);flex:0 0 auto}
+  .rpg-team-total{font-size:12px;color:#ffd76a;font-weight:600;margin-top:5px}
+
+  /* 战斗编辑器：出战角色卡行内快捷改数值 */
+  .rpg-check-item{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+  .rpg-gear{padding:2px 7px}
+  .rpg-inline-edit{flex:1 1 100%;display:flex;flex-direction:column;gap:6px;border:1px solid var(--line2);background:var(--bg3);border-radius:8px;padding:8px;margin-top:2px}
+  .rpg-inline-edit .row{display:flex;align-items:center;gap:8px}
+  .rpg-inline-edit .row label{font-size:11px;color:var(--muted);flex:0 0 auto}
+  .rpg-inline-edit .row input[type=number]{width:72px}
+  .rpg-inline-edit .row:last-child{justify-content:flex-end}
 
   /* 卡牌RPG：一键生成示例（新建区按钮 + 角色选择弹窗） */
   .demo-btn{flex:1 1 100%;margin-top:8px;border:1px dashed rgba(255,170,80,.5);background:rgba(255,170,80,.08);color:#ffcf8a}
@@ -292,52 +319,55 @@ textarea.txt{min-height:120px;resize:vertical}
   .bt-bg img,.bt-bg video{width:100%;height:100%;object-fit:cover;opacity:.4}
   .bt-enemies{position:relative;z-index:1;display:flex;justify-content:center;align-items:flex-start;gap:12px;flex-wrap:wrap;min-height:96px}
   .bt-enemy{width:150px;border:1px solid rgba(255,255,255,.16);background:rgba(8,8,18,.72);border-radius:12px;padding:8px 10px;text-align:left;cursor:default;transition:.15s}
-  .bt-enemy.targetable{cursor:pointer;border-color:rgba(255,120,90,.9);box-shadow:0 0 0 2px rgba(255,120,90,.45),0 6px 18px rgba(255,80,60,.25);animation:btPulse 1s ease-in-out infinite}
   .bt-enemy.dead{opacity:.45;filter:grayscale(1)}
-  @keyframes btPulse{0%,100%{box-shadow:0 0 0 2px rgba(255,120,90,.45)}50%{box-shadow:0 0 0 4px rgba(255,120,90,.65)}}
   .bt-enemy-name{font-size:13px;font-weight:700;color:#ffd9a8;margin-bottom:6px}
   .bt-enemy-meta{font-size:11px;color:var(--muted);margin-top:3px}
-  .bt-enemy-intent{font-size:10.5px;color:#ff9a8a;margin-top:4px}
-  .bt-enemy-intent.dead{color:var(--muted)}
   .bt-bar{flex:1;height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
   .bt-bar-fill{height:100%;border-radius:4px;transition:width .25s}
   .bt-bar-fill.enemy{background:linear-gradient(90deg,#ff5f4d,#ff9a5a)}
-  .bt-bar-fill.hp{background:linear-gradient(90deg,#3ad07a,#a5f27a)}
-  .bt-hero{position:relative;z-index:1;display:flex;align-items:center;gap:12px;justify-content:space-between}
-  .bt-hero-box{flex:1;min-width:0;border:1px solid rgba(255,255,255,.14);background:rgba(8,8,18,.72);border-radius:12px;padding:8px 12px}
-  .bt-hero-name{font-size:13px;font-weight:700;color:#cfc8ff;margin-bottom:5px}
+  .bt-bar-fill.spd{background:linear-gradient(90deg,#5ad0ff,#8b7bff);transition:width .08s linear}
+  .rg-spd{height:5px;margin-top:4px}
+  .rg-head{position:relative;z-index:1;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+  .rg-head b{font-size:14px}
+  .rg-head span{font-size:11px;color:var(--muted)}
+  .rg-speeds{display:flex;gap:6px;align-items:center;margin-left:auto}
+  .rg-pick,.rg-pick3{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;overflow:auto;flex:1}
+  .rg-unit,.rg-opt{width:160px;text-align:left;border:1px solid var(--line2);background:#12121c;color:var(--text);border-radius:12px;padding:10px;cursor:pointer;font-family:inherit}
+  .rg-unit.sel{border-color:var(--accent);background:rgba(139,123,255,.14)}
+  .rg-unit.front{box-shadow:0 0 0 1px rgba(255,215,106,.4)}
+  .rg-unit .nm,.rg-opt .nm{font-weight:700;font-size:13px}
+  .rg-unit .meta,.rg-opt .meta{font-size:11px;color:var(--muted);margin-top:4px}
+  .rg-ops{position:relative;z-index:1;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:8px 0}
+  .rg-map{position:relative;z-index:1;display:flex;flex-direction:column;gap:6px;overflow:auto;flex:1}
+  .rg-node{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12.5px;color:var(--muted)}
+  .rg-node.cur{border-color:var(--accent);color:var(--text);background:rgba(139,123,255,.12)}
+  .rg-node.done{opacity:.45}
+  .rg-teamline{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:6px}
+  .rg-chip{font-size:11px;border:1px solid var(--line2);border-radius:99px;padding:3px 8px}
+  .rg-chip.dead{opacity:.4}
+  .rg-event{position:relative;z-index:1;font-size:13.5px;line-height:1.7;padding:8px 4px;flex:1}
   .bt-hp-row{display:flex;align-items:center;gap:8px}
   .bt-hp-num{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;flex-shrink:0}
-  .bt-buffs{display:flex;align-items:center;gap:10px;margin-top:5px;flex-wrap:wrap}
-  .bt-shield{font-size:11.5px;color:#7fe3ff;background:rgba(95,200,255,.14);border:1px solid rgba(95,200,255,.45);border-radius:6px;padding:1px 7px}
-  .bt-energy{font-size:12px;color:#ffd76a;letter-spacing:2px;text-shadow:0 0 8px rgba(255,200,80,.5)}
-  .bt-deck-count{font-size:10.5px;color:var(--muted)}
-  .bt-msg{font-size:11.5px;color:#cfc8ff;margin-top:5px;min-height:16px}
-  .bt-end-turn{flex:0 0 auto}
-
-
-
-  .bt-hand{position:relative;z-index:1;display:flex;justify-content:center;align-items:flex-end;gap:8px;flex-wrap:wrap;min-height:118px;padding-top:6px}
-  .bt-hand-empty{color:var(--muted);font-size:12px;align-self:center}
-  .bt-card{position:relative;width:106px;height:128px;border:1px solid rgba(255,255,255,.2);border-radius:10px;background:linear-gradient(180deg,#2a2550,#171430);color:var(--text);cursor:pointer;text-align:left;padding:26px 8px 8px;transition:transform .12s,box-shadow .12s}
-  .bt-card:hover{transform:translateY(-6px);border-color:rgba(139,123,255,.7);box-shadow:0 10px 24px rgba(0,0,0,.5)}
-  .bt-card.poor{opacity:.55;filter:grayscale(.4)}
-  .bt-card.targeting{border-color:#ffcf8a;box-shadow:0 0 0 2px rgba(255,190,90,.55);transform:translateY(-6px)}
-  .bt-cost{position:absolute;top:6px;left:6px;width:20px;height:20px;border-radius:50%;background:#7d4cff;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
-  .bt-card-icon{font-size:24px;text-align:center;margin-bottom:5px}
-  .bt-card-name{font-size:11.5px;font-weight:700;text-align:center;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .bt-card-desc{font-size:9.5px;color:var(--muted);text-align:center;margin-top:4px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .bt-top{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .bt-round{font-size:14px;font-weight:800;color:#ffd76a;text-shadow:0 0 12px rgba(255,200,80,.35)}
+  .bt-skip{flex:0 0 auto}
+  .bt-party{position:relative;z-index:1;display:flex;justify-content:center;align-items:flex-start;gap:10px;flex-wrap:wrap;min-height:96px}
+  .bt-member{width:150px;border:1px solid rgba(255,255,255,.16);background:rgba(8,8,18,.72);border-radius:12px;padding:8px 10px;text-align:left;cursor:default;transition:.15s}
+  .bt-member.hero{border-color:rgba(255,215,106,.6);box-shadow:0 0 0 1px rgba(255,215,106,.35),0 6px 18px rgba(255,180,60,.12)}
+  .bt-member.dead{opacity:.45;filter:grayscale(1)}
+  .bt-member-name{font-size:13px;font-weight:700;color:#cfc8ff;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bt-member.hero .bt-member-name{color:#ffd76a}
+  .bt-member-meta{font-size:11px;color:var(--muted);margin-top:3px}
+  .bt-log{position:relative;z-index:1;flex:1;min-height:70px;max-height:160px;overflow-y:auto;border:1px solid rgba(255,255,255,.1);background:rgba(6,6,14,.55);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+  .bt-log-line{font-size:12px;color:var(--text);line-height:1.7;word-break:break-all}
+  .bt-log-line.round{color:#ffd76a;font-weight:700;margin-top:4px}
   .bt-result{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(6,6,14,.88);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);text-align:center;padding:20px}
   .bt-result-title{font-size:26px;font-weight:800;color:#ffd76a;text-shadow:0 0 20px rgba(255,200,80,.45)}
   .bt-result-title.lost{color:#ff7a6a}
   .bt-result-text{max-width:520px;font-size:14px;color:var(--text);line-height:1.8;white-space:pre-wrap;word-break:break-word}
   .bt-result-ops{display:flex;gap:12px}
-  .bt-intro{position:relative;z-index:1;margin:auto;max-width:560px;display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center;border:1px solid rgba(255,255,255,.16);background:rgba(8,8,18,.75);border-radius:18px;padding:28px 30px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 18px 50px rgba(0,0,0,.5)}
-  .bt-intro-title{font-size:24px;font-weight:800;color:#ffd76a;text-shadow:0 0 16px rgba(255,200,80,.4)}
-  .bt-intro-text{font-size:14px;color:var(--text);line-height:1.9;white-space:pre-wrap;word-break:break-word}
-  .bt-intro-meta{font-size:13px;color:var(--muted)}
-  .bt-intro-ops{display:flex;gap:12px;margin-top:6px}
-  .battle-view.result .bt-enemies,.battle-view.result .bt-hero,.battle-view.result .bt-hand{pointer-events:none;filter:blur(1.5px) brightness(.5)}
+  /* 战斗幕已改为「进入即自动开打」，无入场确认屏 */
+  .battle-view.result .bt-enemies,.battle-view.result .bt-party,.battle-view.result .bt-top{pointer-events:none;filter:blur(1.5px) brightness(.5)}
 
 @keyframes blockIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
@@ -346,6 +376,9 @@ textarea.txt{min-height:120px;resize:vertical}
   .editor-side{flex:0 0 auto;max-width:none;border-right:none;border-bottom:1px solid var(--line)}
   .editor-side .side-scroll{max-height:220px}
   .play-body{padding:18px}
+  .rpg-split{flex-direction:column}
+  .rpg-split-left,.rpg-split-right{max-height:none}
+  .rpg-split-right{border-left:none;padding-left:0;border-top:1px solid var(--line);padding-top:12px}
 }
 </style>
 </head>
@@ -355,7 +388,7 @@ textarea.txt{min-height:120px;resize:vertical}
   <a class="back" href="/fantasy.html">← 返回</a>
   <div class="brand">
     <span class="brand-name">作品编辑器</span>
-    <span class="brand-sub">STORY BUILDER · 互动小说 + 卡牌RPG</span>
+    <span class="brand-sub">STORY BUILDER · 互动小说 + 卡牌</span>
   </div>
   <div class="topbar-right">
     <button class="btn ghost hidden" id="libBtn">⬅ 作品库</button>
@@ -369,7 +402,7 @@ textarea.txt{min-height:120px;resize:vertical}
     <section class="hub-hero">
       <div class="hub-hero-kicker">STORY BUILDER</div>
       <h1 class="hub-hero-name">作品编辑器</h1>
-      <p class="hub-hero-meaning">像搭积木一样，搭出你的互动小说与卡牌RPG。</p>
+      <p class="hub-hero-meaning">像搭积木一样，搭出你的互动小说与卡牌作品。</p>
       <p class="hub-hero-tags" id="loginHint" style="display:none;margin-top:6px">🔑 登录后作品自动保存到云端，手机端也能同步继续。 <a href="/yonder.html?next=/story-editor" style="color:#b7b7ff">去登录</a></p>
     </section>
 
@@ -383,9 +416,11 @@ textarea.txt{min-height:120px;resize:vertical}
         </div>
         <div class="orient-pick" id="createKindRow" style="margin-top:8px">
           <button type="button" class="orient-card kind-card active" data-kind="story">📖 互动小说<span>剧情 + 画面 + 配音</span></button>
-          <button type="button" class="orient-card kind-card" data-kind="card_rpg">⚔️ 卡牌RPG<span>剧情 + 能量卡牌战斗</span></button>
+          <button type="button" class="orient-card kind-card" data-kind="gacha_rogue">🂠 卡牌游戏<span>挂机 / 排队技能 / 每局不同</span></button>
+          <button type="button" class="orient-card kind-card" data-kind="card_rpg">⚔️ 旧版互殴<span>已有作品仍可用</span></button>
         </div>
         <button type="button" class="btn ghost demo-btn hidden" id="rpgDemoBtn">⚡ 一键生成卡牌RPG 示例（用角色库角色当主角）</button>
+        <button type="button" class="btn ghost demo-btn hidden" id="rogueDemoBtn">⚡ 生成一套能玩的卡牌（放置挂机）</button>
         <button class="btn primary" id="createBtn">＋ 创建作品</button>
       </div>
     </section>
@@ -425,7 +460,15 @@ textarea.txt{min-height:120px;resize:vertical}
           <button class="btn wide" id="rpgHeroBtn">🦸 英雄</button>
           <button class="btn wide" id="rpgEnemiesBtn">👹 敌人</button>
         </div>
-        <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:6px">卡牌/英雄/敌人用于「⚔️ 卡牌战斗」积木；剧情、画面、配音、BGM 与互动小说通用。</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:6px">角色卡/英雄/敌人用于「⚔️ 卡牌战斗」积木；进入战斗自动攻击，玩家只负责配队。剧情、画面、配音、BGM 与互动小说通用。</div>
+      </section>
+      <section id="rogueConfig" style="display:none">
+        <h3>卡牌怎么玩</h3>
+        <div id="cardGuide" class="rpg-tip">选一种玩法，加角色和敌人，然后点播放。</div>
+        <div class="rpg-cfg-btns" style="margin-top:10px">
+          <button class="btn wide primary" id="cardStudioBtn">打开卡牌工作室</button>
+          <button class="btn wide" id="cardFillBtn">帮我填一套能玩的</button>
+        </div>
       </section>
       <section>
         <h3>章节</h3>

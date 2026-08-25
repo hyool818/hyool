@@ -4,6 +4,21 @@ HYOOL — Digital World
 
 Cloudflare Workers + D1 + Static Assets 项目。
 
+## 文档（给人和 Agent）
+
+不要通读仓库。按任务打开：
+
+| 文件 | 用途 |
+|---|---|
+| [docs/MASTER_SPEC.md](docs/MASTER_SPEC.md) | 总纲（必读） |
+| [docs/FEATURES.md](docs/FEATURES.md) | 功能 → 文件 / API |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构边界 |
+| [docs/DATA_STRUCTURE.md](docs/DATA_STRUCTURE.md) | 表与 JSON |
+| [docs/UI_GUIDE.md](docs/UI_GUIDE.md) | 视觉与画布 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 近期改动 |
+
+废弃代码进 `archive/`，不要放在 `src/`。
+
 ## 项目结构
 
 ```
@@ -25,6 +40,8 @@ hyool/
 ├── src/ai/gateway.js      # AI 网关（聊天 / 图片）
 ├── src/tts.js             # TTS 语音
 ├── schema/                # D1 数据库迁移 SQL
+├── docs/                  # 总纲与分册（Agent 按任务读）
+├── archive/               # 废弃/实验，不参与日常搜索
 └── wrangler.toml          # Workers / D1 / Assets 配置
 ```
 

@@ -1,0 +1,15 @@
+---
+description: HYOOL Agent 先读总纲，按功能打开文件，禁止通读仓库
+alwaysApply: true
+---
+
+# HYOOL Agent
+
+开工：读 `docs/MASTER_SPEC.md`，再读 `docs/FEATURES.md` 里**当前任务那一行**的文件。不要通读 `src/`、`public/`、`CONTEXT.md` 全文。
+
+- 改代码前必须 Grep/打开清单中的文件并读通局部逻辑；找不到就停，问用户。
+- 局部修改；不重构、不删功能、不改无关视觉。
+- `src/mvp.js` 只按路由 Grep 后分段读。
+- 不要读：`archive/`、`public/workspace/vendor/`、`.wrangler/`、`docs/history.md`（除非查历史）。
+- 无限、生命非任务则不改。当前优先彼岸、幻想。
+- 架构决策以 `docs/ARCHITECTURE.md` 为准，不要推翻。

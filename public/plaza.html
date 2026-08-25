@@ -67,6 +67,7 @@ a { color: inherit; text-decoration: none; }
 .badge.life { background: rgba(120,220,170,.14); color: #9fdcbb; }
 .badge.story { background: rgba(255,190,110,.14); color: #ffcf8e; }
 .badge.story.rpg { background: rgba(255,120,90,.16); color: #ffb3a3; }
+.badge.story.rogue { background: rgba(180,140,255,.16); color: #d4c2ff; }
 
 .empty { padding: 90px 20px; text-align: center; border: 1px dashed rgba(255,255,255,.10); border-radius: 20px; color: rgba(255,255,255,.32); font-size: 14px; }
 .loading { text-align: center; color: var(--muted); padding: 90px 0; }
@@ -142,9 +143,14 @@ async function loadPlaza() {
       const orient = s.orientation === "portrait" ? "📱 9:16 竖屏" : "🖥 16:9 横屏";
       const updated = s.updated_at ? new Date(s.updated_at).toLocaleDateString("zh-CN") : "";
       const isRpg = s.kind === "card_rpg";
-      const badge = isRpg ? `<span class="badge story rpg">⚔️ 卡牌RPG</span>` : `<span class="badge story">故事作品</span>`;
-      const hook = isRpg
-        ? `${Number(s.cards_count) || 0} 张卡 · ${Number(s.enemies_count) || 0} 个敌人 · 能量回合制战斗`
+      const isRogue = s.kind === "gacha_rogue";
+      const badge = isRogue
+        ? `<span class="badge story rogue">🂠 卡牌</span>`
+        : isRpg ? `<span class="badge story rpg">⚔️ 卡牌RPG</span>` : `<span class="badge story">故事作品</span>`;
+      const hook = isRogue
+        ? `卡牌：挂机 / 排队技能 / 每局不同`
+        : isRpg
+        ? `${Number(s.cards_count) || 0} 张角色卡 · ${Number(s.enemies_count) || 0} 个敌人 · 自动角色战斗`
         : `${Number(s.chapters_count) || 0} 章 · ${Number(s.blocks_count) || 0} 块积木 · ${orient}`;
       return `<div class="card" onclick="location.href='/story-editor.html?story=${s.id}&play=1&from=/plaza'">
         <img class="thumb" src="${escapeHtml(s.cover_image || '')}" alt="" loading="lazy" onerror="this.style.opacity=.2">
@@ -156,7 +162,7 @@ async function loadPlaza() {
             <div><div class="oname">${ownerName}</div>${ownerUser ? `<div class="ouname">${ownerUser}</div>` : ""}</div>
           </div>
           <div class="foot">
-            <span>${isRpg ? "⚔️ 卡牌战斗" : "文字剧情"}</span>
+            <span>${isRogue ? "🂠 肉鸽自动" : isRpg ? "⚔️ 自动战斗" : "文字剧情"}</span>
             <span>${updated}</span>
           </div>
         </div>

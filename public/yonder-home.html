@@ -1318,6 +1318,7 @@ body {
 .world-card .badge { font-size: .62rem; padding: 2px 8px; border-radius: 999px; background: rgba(139,139,255,.16); color: #b7b7ff; }
 .world-card .badge.form { background: rgba(120,220,170,.14); color: #9fdcbb; }
 .world-card .badge.form.rpg { background: rgba(255,120,90,.16); color: #ffb3a3; }
+.world-card .badge.form.rogue { background: rgba(180,140,255,.16); color: #d4c2ff; }
 
 /* 显示/隐藏按钮（主人视图：角色卡 / 世界卡） */
 .char-card, .world-card { position: relative; }
@@ -3250,7 +3251,7 @@ function renderStories() {
                 <div class="name">${escapeHtml(s.title || '未命名')}</div>
                 <div class="badges">
                     ${!sPublished ? `<span class="badge draft">未发布</span>` : ''}
-                    <span class="badge form${s.kind === 'card_rpg' ? ' rpg' : ''}">${s.kind === 'card_rpg' ? '⚔️ 卡牌RPG' : '故事作品'}</span>
+                    <span class="badge form${s.kind === 'card_rpg' ? ' rpg' : (s.kind === 'gacha_rogue' ? ' rogue' : '')}">${s.kind === 'gacha_rogue' ? '🂠 卡牌' : (s.kind === 'card_rpg' ? '⚔️ 卡牌RPG' : '故事作品')}</span>
                 </div>
             </div>
         </a>

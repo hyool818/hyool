@@ -797,7 +797,7 @@ export async function handleMvpRoutes(
                     id: row.id,
                     title: row.title || "未名作品",
                     cover_image: row.cover_image || "",
-                    kind: data.kind === "card_rpg" ? "card_rpg" : "story",
+                    kind: workKind(data.kind),
                     orientation: data.orientation === "portrait" ? "portrait" : "landscape",
                     chapters_count: chapters,
                     blocks_count: blocks,
@@ -890,7 +890,7 @@ export async function handleMvpRoutes(
             const shareId = "s" + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
             const orientation = body.orientation === "portrait" ? "portrait" : "landscape";
             const imgQuality = body.imgQuality === "hd" ? "hd" : "standard";
-            const kind = body.kind === "card_rpg" ? "card_rpg" : "story";
+            const kind = workKind(body.kind);
             const data = {
                 kind,
                 orientation,
@@ -904,7 +904,17 @@ export async function handleMvpRoutes(
             };
             // 卡牌RPG：创建时即带英雄/卡牌/敌人默认结构（薄壳分支共享 stories 存储）
             if (kind === "card_rpg") {
-                data.rpg = { hero: { name: "勇者", maxHp: 30, maxEnergy: 3 }, cards: [], enemies: [] };
+                data.rpg = { hero: { name: "勇者", maxHp: 30, attack: 8 }, cards: [], enemies: [] };
+            }
+            if (kind === "gacha_rogue") {
+                data.rogue = { mode: "idle", teamSize: 4, floors: 3, roster: [], skills: [], relics: [], events: [], enemies: [] };
+                data.chapters[0].blocks = [{
+                    id: "b_" + crypto.randomUUID().replace(/-/g, "").slice(0, 10),
+                    type: "rogue",
+                    content: "加角色和敌人后点播放。默认是放置挂机。",
+                    winContent: "",
+                    loseContent: ""
+                }];
             }
 
             await env.DB.prepare(
@@ -4286,6 +4296,12 @@ function isMissingTableError(error) {
     const message = String(error?.message || error || "").toLowerCase();
     return message.includes("no such table") ||
         message.includes("does not exist");
+}
+
+/** 作品类型：互动小说 / 卡牌RPG / 肉鸽卡牌（共享 stories 表） */
+function workKind(kind) {
+    if (kind === "card_rpg" || kind === "gacha_rogue") return kind;
+    return "story";
 }
 
 /** 解析 stories.data（作品 JSON）。PUT 时 body.data 已是对象，行内 data 是字符串，两种都兼容 */

@@ -1263,3 +1263,9 @@ if (id === "bgCoverFile" || id === "bgImageFile") e.target.value = "";
 
 ---
 
+## 文档分册（2026-08-25）
+
+目的：降低 Agent Token——总纲短、功能索引指向文件，禁止每次通读仓库。未搬迁 `public/`/`src/`；未造空 `assets/`/`data/`。新增 `docs/MASTER_SPEC.md` 等分册、`archive/`、`.cursor/rules/hyool-agent.mdc`、`AGENTS.md`；`CONTEXT.md` 降为操作纪律。`.cursorignore` 因环境权限未能写入（拟忽略 `archive/`、`vendor/`、`.wrangler/`）。
+
+---
+

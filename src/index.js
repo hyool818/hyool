@@ -1889,7 +1889,7 @@ async function buildYonderPayload(
         let kind = "story";
         try {
             const d = JSON.parse(s.data || "{}");
-            if (d && d.kind === "card_rpg") kind = "card_rpg";
+            if (d && (d.kind === "card_rpg" || d.kind === "gacha_rogue")) kind = d.kind;
         } catch (e) { /* 旧数据/坏数据默认互动小说 */ }
         return {
             id: s.id,
