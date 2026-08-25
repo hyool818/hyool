@@ -198,6 +198,9 @@ export function cardGuideText(story) {
 }
 
 function uid() { return 'g_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 function clamp(n, lo, hi, d) {
   const v = Number(n);
   if (!Number.isFinite(v)) return d;
@@ -936,10 +939,12 @@ function renderStudio(body, story, api) {
   const r = story.rogue;
   if (!Array.isArray(r.bonds)) r.bonds = [];
   if (!Array.isArray(r.stages)) r.stages = [];
-  const tip = document.createElement('div');
-  tip.className = 'rpg-tip';
-  tip.textContent = '像搭积木：先选玩法，再加「角色」和「关卡」。修仙玩法可再加「羁绊」（指定几人一起上场加攻击）。';
-  body.appendChild(tip);
+  if (!Array.isArray(r.relics)) r.relics = [];
+
+  const steps = document.createElement('div');
+  steps.className = 'rpg-tip';
+  steps.innerHTML = '<b>三步：</b>① 角色表 → ② 关卡表 → ③ 羁绊/遗物（可空）→ 关掉窗口点「试玩」。拖 ⋮⋮ 可调顺序。';
+  body.appendChild(steps);
 
   const modes = document.createElement('div');
   modes.className = 'orient-pick';
@@ -959,17 +964,67 @@ function renderStudio(body, story, api) {
   });
   body.appendChild(modes);
 
+  const mkTable = (headers) => {
+    const table = document.createElement('table');
+    table.className = 'studio-table';
+    const thead = document.createElement('thead');
+    const tr = document.createElement('tr');
+    headers.forEach(h => {
+      const th = document.createElement('th');
+      th.textContent = h;
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    return { table, tbody };
+  };
+
+  const bindRowDrag = (tbody, arr, onDone) => {
+    let from = -1;
+    tbody.querySelectorAll('tr[data-i]').forEach(tr => {
+      const handle = tr.querySelector('.row-handle');
+      if (!handle) return;
+      handle.draggable = true;
+      handle.addEventListener('dragstart', (e) => {
+        from = Number(tr.dataset.i);
+        tr.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      handle.addEventListener('dragend', () => {
+        tr.classList.remove('dragging');
+        from = -1;
+      });
+      tr.addEventListener('dragover', (e) => { e.preventDefault(); tr.classList.add('drag-over'); });
+      tr.addEventListener('dragleave', () => tr.classList.remove('drag-over'));
+      tr.addEventListener('drop', (e) => {
+        e.preventDefault();
+        tr.classList.remove('drag-over');
+        const to = Number(tr.dataset.i);
+        if (from < 0 || to < 0 || from === to) return;
+        const [item] = arr.splice(from, 1);
+        arr.splice(to, 0, item);
+        api.persist();
+        onDone();
+      });
+    });
+  };
+
   const h1 = document.createElement('h3');
-  h1.textContent = '积木 A · 角色';
+  h1.textContent = '① 角色表';
   body.appendChild(h1);
-  const listC = document.createElement('div');
-  listC.className = 'rpg-list';
+  const { table: tableC, tbody: bodyC } = mkTable(['', '名字', '阵营', '星', '招式', '']);
   r.roster.forEach((c, i) => {
-    const row = document.createElement('div');
-    row.className = 'rpg-row';
     const mine = skillsOf(r, c.id).filter(s => s.ownerId === c.id);
-    row.innerHTML = `<div class="rpg-row-info"><span class="rpg-name">${esc(c.name)}</span>
-      <span class="rpg-meta">${factionLabel(r.mode, c.faction)} · ${c.star || 1}星 · ${mine.map(s => s.name).join('、') || '普攻'}</span></div>`;
+    const tr = document.createElement('tr');
+    tr.dataset.i = String(i);
+    tr.innerHTML = `<td class="row-handle" title="拖动排序">⋮⋮</td>
+      <td>${esc(c.name)}</td>
+      <td>${factionLabel(r.mode, c.faction)}</td>
+      <td>${c.star || 1}</td>
+      <td>${mine.map(s => s.name).join('、') || '普攻'}</td>
+      <td></td>`;
     const del = document.createElement('button');
     del.className = 'btn tiny danger'; del.textContent = '删';
     del.addEventListener('click', () => {
@@ -979,10 +1034,11 @@ function renderStudio(body, story, api) {
       api.persist();
       renderStudio(body, story, api);
     });
-    row.appendChild(del);
-    listC.appendChild(row);
+    tr.lastElementChild.appendChild(del);
+    bodyC.appendChild(tr);
   });
-  body.appendChild(listC);
+  body.appendChild(tableC);
+  bindRowDrag(bodyC, r.roster, () => renderStudio(body, story, api));
 
   const name = inp('');
   const fac = sel(factionPairs(r.mode)[0][0], factionPairs(r.mode));
@@ -991,7 +1047,7 @@ function renderStudio(body, story, api) {
   const skk = sel('atk', [['atk', '打人'], ['heal', '救人'], ['buff', '蓄力']]);
   body.append(field('名字', name), field(r.mode === 'queue' ? '门派' : (r.mode === 'idle' ? '阵营' : '属性'), fac), field('星级', star), field('会的一招', skn), field('这一招干什么', skk));
   const addC = document.createElement('button');
-  addC.className = 'btn primary'; addC.textContent = '加上这块角色';
+  addC.className = 'btn primary'; addC.textContent = '加上角色';
   addC.addEventListener('click', () => {
     const n = name.value.trim();
     if (!n) { toast('先写名字，例如：月华', true); return; }
@@ -1009,59 +1065,41 @@ function renderStudio(body, story, api) {
     api.persist();
     name.value = '';
     renderStudio(body, story, api);
-    toast('角色积木加上了。');
+    toast('角色已加上。');
   });
   body.appendChild(addC);
 
   const h2 = document.createElement('h3');
-  h2.textContent = '积木 B · 关卡（每一关打谁）';
+  h2.textContent = '② 关卡表';
   h2.style.marginTop = '18px';
   body.appendChild(h2);
-  const listE = document.createElement('div');
-  listE.className = 'rpg-list';
-  r.enemies.forEach((e, i) => {
-    const row = document.createElement('div');
-    row.className = 'rpg-row';
-    row.innerHTML = `<div class="rpg-row-info"><span class="rpg-name">${e.isBoss ? '首领 · ' : ''}${esc(e.name)}</span>
-      <span class="rpg-meta">${elemLabel(e.elem)} 生命${e.hp}</span></div>`;
-    const del = document.createElement('button');
-    del.className = 'btn tiny danger'; del.textContent = '删';
-    del.addEventListener('click', () => {
-      const id = e.id;
-      r.enemies.splice(i, 1);
-      r.stages.forEach(s => { s.enemyIds = (s.enemyIds || []).filter(x => x !== id); });
-      r.stages = r.stages.filter(s => (s.enemyIds || []).length);
-      api.persist();
-      renderStudio(body, story, api);
-    });
-    row.appendChild(del);
-    listE.appendChild(row);
-  });
-  body.appendChild(listE);
-  const listS = document.createElement('div');
-  listS.className = 'rpg-list';
-  r.stages.forEach((s, i) => {
-    const names = (s.enemyIds || []).map(id => {
+  const { table: tableS, tbody: bodyS } = mkTable(['', '关卡', '敌人', '']);
+  r.stages.forEach((st, i) => {
+    const names = (st.enemyIds || []).map(id => {
       const e = r.enemies.find(x => x.id === id);
       return e ? e.name : '?';
     }).join('、');
-    const row = document.createElement('div');
-    row.className = 'rpg-row';
-    row.innerHTML = `<div class="rpg-row-info"><span class="rpg-name">${esc(s.title)}</span>
-      <span class="rpg-meta">${names || '还没指定敌人'}</span></div>`;
+    const tr = document.createElement('tr');
+    tr.dataset.i = String(i);
+    tr.innerHTML = `<td class="row-handle" title="拖动排序">⋮⋮</td>
+      <td>${esc(st.title)}</td>
+      <td>${names || '还没指定敌人'}</td>
+      <td></td>`;
     const del = document.createElement('button');
     del.className = 'btn tiny danger'; del.textContent = '删';
     del.addEventListener('click', () => { r.stages.splice(i, 1); api.persist(); renderStudio(body, story, api); });
-    row.appendChild(del);
-    listS.appendChild(row);
+    tr.lastElementChild.appendChild(del);
+    bodyS.appendChild(tr);
   });
-  body.appendChild(listS);
+  body.appendChild(tableS);
+  bindRowDrag(bodyS, r.stages, () => renderStudio(body, story, api));
+
   const en = inp('');
   const st = inp('第' + (r.stages.length + 1) + '关');
   const boss = document.createElement('input'); boss.type = 'checkbox';
   body.append(field('关卡名字', st), field('这一关的敌人名字', en), field('这是最后的首领', boss));
   const addE = document.createElement('button');
-  addE.className = 'btn primary'; addE.textContent = '加上这块关卡';
+  addE.className = 'btn primary'; addE.textContent = '加上关卡';
   addE.addEventListener('click', () => {
     const n = en.value.trim();
     if (!n) { toast('先写敌人名字，例如：山魈', true); return; }
@@ -1081,27 +1119,24 @@ function renderStudio(body, story, api) {
 
   if (r.mode === 'queue') {
     const hB = document.createElement('h3');
-    hB.textContent = '积木 C · 羁绊（可空。勾选的人同时上场才加攻击）';
+    hB.textContent = '③ 羁绊表（可空）';
     hB.style.marginTop = '18px';
     body.appendChild(hB);
-    const listB = document.createElement('div');
-    listB.className = 'rpg-list';
+    const { table: tableB, tbody: bodyB } = mkTable(['名字', '成员', '加成', '']);
     r.bonds.forEach((b, i) => {
       const names = (b.unitIds || []).map(id => {
         const c = r.roster.find(x => x.id === id);
         return c ? c.name : '?';
       }).join('、');
-      const row = document.createElement('div');
-      row.className = 'rpg-row';
-      row.innerHTML = `<div class="rpg-row-info"><span class="rpg-name">${esc(b.name)}</span>
-        <span class="rpg-meta">${names} · 攻击+${b.atkPct}%</span></div>`;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${esc(b.name)}</td><td>${names}</td><td>攻击+${b.atkPct}%</td><td></td>`;
       const del = document.createElement('button');
       del.className = 'btn tiny danger'; del.textContent = '删';
       del.addEventListener('click', () => { r.bonds.splice(i, 1); api.persist(); renderStudio(body, story, api); });
-      row.appendChild(del);
-      listB.appendChild(row);
+      tr.lastElementChild.appendChild(del);
+      bodyB.appendChild(tr);
     });
-    body.appendChild(listB);
+    body.appendChild(tableB);
     const bn = inp('同门');
     const wrap = document.createElement('div');
     wrap.className = 'rpg-list';
@@ -1119,7 +1154,7 @@ function renderStudio(body, story, api) {
     });
     body.append(field('羁绊名字', bn), wrap);
     const addB = document.createElement('button');
-    addB.className = 'btn'; addB.textContent = '加上这块羁绊';
+    addB.className = 'btn'; addB.textContent = '加上羁绊';
     addB.addEventListener('click', () => {
       const ids = checks.filter(c => c.checked).map(c => c.value);
       if (ids.length < 2) { toast('至少勾选两个人', true); return; }
@@ -1132,9 +1167,20 @@ function renderStudio(body, story, api) {
 
   if (r.mode === 'rogue') {
     const h3 = document.createElement('h3');
-    h3.textContent = '积木 C · 遗物（可空）';
+    h3.textContent = '③ 遗物表（可空）';
     h3.style.marginTop = '18px';
     body.appendChild(h3);
+    const { table: tableR, tbody: bodyR } = mkTable(['名字', '说明', '']);
+    r.relics.forEach((rel, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${esc(rel.name)}</td><td>${esc(rel.desc || '')}</td><td></td>`;
+      const del = document.createElement('button');
+      del.className = 'btn tiny danger'; del.textContent = '删';
+      del.addEventListener('click', () => { r.relics.splice(i, 1); api.persist(); renderStudio(body, story, api); });
+      tr.lastElementChild.appendChild(del);
+      bodyR.appendChild(tr);
+    });
+    body.appendChild(tableR);
     const rn = inp('');
     const rd = inp('打得更痛一点');
     const addR = document.createElement('button');
@@ -1159,7 +1205,7 @@ function renderStudio(body, story, api) {
     api.persist();
     renderStudio(body, story, api);
     if (api.onMode) api.onMode();
-    toast('已经填好角色和关卡，关掉窗口点播放即可。');
+    toast('已经填好角色和关卡，关掉窗口点试玩即可。');
   });
   body.appendChild(fill);
 }

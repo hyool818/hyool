@@ -23,6 +23,7 @@ import {
   startRogueRun, stopRogueRun,
   openCardStudio, applyStarterPack, cardGuideText,
 } from '/story-rogue.js';
+import { EDITOR_SAMPLES, buildSampleWork } from '/story-samples.js';
 
 const SAVE_KEY = 'hyool_stories_v1'; // 本地缓存键（旧数据迁移源）
 const TOKEN_KEY = 'hyool_token';
@@ -109,6 +110,7 @@ function normalizeStories(arr) {
     // 作品类型：默认互动小说；存量作品没有 kind 字段自动归为 story（不破坏旧数据）
     if (s.kind !== 'card_rpg' && s.kind !== 'gacha_rogue') s.kind = 'story';
     if (s.kind === 'gacha_rogue') s.rogue = normalizeRogue(s.rogue);
+    if (s.miniGame) delete s.miniGame;
     // 卡牌RPG 专用结构（rpg.hero / rpg.cards / rpg.enemies）：结构兜底 + 字段清洗
     if (s.kind === 'card_rpg') {
       if (!s.rpg || typeof s.rpg !== 'object' || Array.isArray(s.rpg)) s.rpg = {};
@@ -505,6 +507,10 @@ function renderEditor() {
   // 方向 / 画质切换按钮高亮
   document.querySelectorAll('#storyOrient .orient-btn').forEach(b => b.classList.toggle('active', b.dataset.orient === s.orientation));
   document.querySelectorAll('#storyQual .qual-btn').forEach(b => b.classList.toggle('active', b.dataset.qual === s.imgQuality));
+  const chipBattle = $('#chipBattle');
+  const chipRogue = $('#chipRogue');
+  if (chipBattle) chipBattle.classList.toggle('hidden', s.kind !== 'card_rpg');
+  if (chipRogue) chipRogue.classList.toggle('hidden', s.kind !== 'gacha_rogue');
   renderChapters();
   renderBlocks();
 }
@@ -543,7 +549,96 @@ function renderChapters() {
   });
 }
 
-// ---------- 积木 ----------
+// ---------- 积木（时间线：拖排序 / 行内改字 / 拖文件挂素材） ----------
+let dragBlockId = null;
+let inlineEditId = null;
+
+function reorderBlocks(fromId, toId) {
+  const ch = chapter();
+  if (!ch || fromId === toId) return;
+  const from = ch.blocks.findIndex(b => b.id === fromId);
+  const to = ch.blocks.findIndex(b => b.id === toId);
+  if (from < 0 || to < 0) return;
+  const [item] = ch.blocks.splice(from, 1);
+  ch.blocks.splice(to, 0, item);
+  persist();
+  renderBlocks();
+}
+
+async function attachDroppedFile(block, file) {
+  if (!file) return;
+  if (ALLOWED_MEDIA[file.type]) {
+    const s = story();
+    const result = await uploadFile(file, { compress: { orientation: s ? s.orientation : 'landscape', quality: s ? s.imgQuality : 'standard' } });
+    if (!result) return;
+    block.media = result;
+    persist();
+    renderBlocks();
+    toast('画面已挂上');
+    return;
+  }
+  if (ALLOWED_AUDIO[file.type]) {
+    const result = await uploadFile(file);
+    if (!result) return;
+    block.audio = { url: result.url, type: 'audio' };
+    persist();
+    renderBlocks();
+    toast('配音已挂上');
+    return;
+  }
+  toast('仅支持图片/视频或音频文件', true);
+}
+
+function beginInlineEdit(b, mainEl) {
+  if (b.type !== 'dialogue' && b.type !== 'scene') return;
+  inlineEditId = b.id;
+  mainEl.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'block-inline';
+  let speakerInput = null;
+  if (b.type === 'dialogue') {
+    speakerInput = document.createElement('input');
+    speakerInput.type = 'text';
+    speakerInput.className = 'txt';
+    speakerInput.maxLength = 20;
+    speakerInput.placeholder = '角色名';
+    speakerInput.value = b.speaker || DEFAULT_SPEAKER;
+    box.appendChild(speakerInput);
+  }
+  const ta = document.createElement('textarea');
+  ta.className = 'txt';
+  ta.rows = 3;
+  ta.placeholder = b.type === 'scene' ? '场景文字（可留空）' : '对白内容';
+  ta.value = b.content || '';
+  box.appendChild(ta);
+  const actions = document.createElement('div');
+  actions.className = 'block-inline-actions';
+  const save = document.createElement('button');
+  save.className = 'btn tiny primary';
+  save.textContent = '保存';
+  const more = document.createElement('button');
+  more.className = 'btn tiny';
+  more.textContent = '字号/颜色…';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn tiny ghost';
+  cancel.textContent = '取消';
+  const apply = () => {
+    if (b.type === 'dialogue') b.speaker = (speakerInput.value.trim() || DEFAULT_SPEAKER);
+    b.content = ta.value;
+    if (!b.subtitle) b.subtitle = { on: true };
+    inlineEditId = null;
+    persist();
+    renderBlocks();
+  };
+  save.addEventListener('click', apply);
+  more.addEventListener('click', () => { apply(); openSubtitleEditor(b); });
+  cancel.addEventListener('click', () => { inlineEditId = null; renderBlocks(); });
+  actions.append(save, more, cancel);
+  box.appendChild(actions);
+  mainEl.appendChild(box);
+  ta.focus();
+}
+
 function renderBlocks() {
   const ch = chapter();
   const host = $('#blockList');
@@ -556,11 +651,11 @@ function renderBlocks() {
     return;
   }
   headTitle.textContent = ch.title;
-  headCount.textContent = `${ch.blocks.length} 块积木`;
+  headCount.textContent = `${ch.blocks.length} 块 · 拖把手调序`;
   if (!ch.blocks.length) {
     const d = document.createElement('div');
     d.className = 'block-empty';
-    d.textContent = '这一章还没有内容。\n点击下方「＋ 添加内容」，开始搭第一块剧情积木。';
+    d.textContent = '这一章还是空的。\n点下方「＋ 加对白 / 加场景」，或把图片拖进这里。';
     host.appendChild(d);
     return;
   }
@@ -569,12 +664,49 @@ function renderBlocks() {
     el.className = 'block ' + b.type;
     el.dataset.blockId = b.id;
 
+    const handle = document.createElement('div');
+    handle.className = 'block-handle';
+    handle.title = '拖动调整顺序';
+    handle.textContent = '⋮⋮';
+    handle.draggable = true;
+    handle.addEventListener('dragstart', (e) => {
+      dragBlockId = b.id;
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/block-id', b.id);
+    });
+    handle.addEventListener('dragend', () => {
+      dragBlockId = null;
+      el.classList.remove('dragging');
+      host.querySelectorAll('.block.drag-over').forEach(n => n.classList.remove('drag-over'));
+    });
+
+    el.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (dragBlockId && dragBlockId !== b.id) el.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length) {
+        attachDroppedFile(b, files[0]);
+        return;
+      }
+      const fromId = (e.dataTransfer && e.dataTransfer.getData('text/block-id')) || dragBlockId;
+      if (fromId) reorderBlocks(fromId, b.id);
+    });
+
     const tag = document.createElement('div');
     tag.className = 'block-tag';
+    const idx = document.createElement('div');
+    idx.className = 'bt-idx';
+    idx.textContent = String(i + 1);
     const tagLabel = document.createElement('div');
     tagLabel.className = 'bt-label';
-    tagLabel.textContent = b.type === 'scene' ? '场景' : (b.type === 'battle' ? '战斗' : (b.type === 'rogue' ? '肉鸽' : '对白'));
-    tag.appendChild(tagLabel);
+    tagLabel.textContent = b.type === 'scene' ? '场景' : (b.type === 'battle' ? '战斗' : (b.type === 'rogue' ? '卡牌' : '对白'));
+    tag.append(idx, tagLabel);
     if (b.type === 'dialogue') {
       const sp = document.createElement('div');
       sp.className = 'bt-speaker';
@@ -584,61 +716,66 @@ function renderBlocks() {
 
     const main = document.createElement('div');
     main.className = 'block-main';
-    const text = document.createElement('div');
-    text.className = 'block-text';
-    const displayText = formatDialogue(b);
-    if (!displayText.trim()) {
-      text.classList.add('empty');
-      text.textContent = b.type === 'scene' ? '（暂无场景文字，点击 📝 场景文字 设置）' : (b.type === 'battle' ? '（战斗前剧情留空，点 ⚔️ 编辑战斗 设置）' : (b.type === 'rogue' ? '（肉鸽关卡：编组后进入随机地图）' : '（对白内容为空）'));
+    if (inlineEditId === b.id && (b.type === 'dialogue' || b.type === 'scene')) {
+      beginInlineEdit(b, main);
     } else {
-      text.textContent = displayText;
-    }
-    main.appendChild(text);
-    // 战斗积木摘要：出战敌人列表
-    if (b.type === 'battle') {
-      const lib = ((story() || {}).rpg || {}).enemies || [];
-      const names = (b.enemies || []).map(id => { const e = lib.find(x => x.id === id); return e ? e.name : '❓ 缺失'; });
-      const sub = document.createElement('div');
-      sub.className = 'block-sub';
-      sub.textContent = '⚔️ 出战敌人：' + (names.length ? names.join('、') : '（未选择，播放时自动用默认史莱姆）');
-      main.appendChild(sub);
-    }
-    if (b.type === 'rogue') {
-      const sub = document.createElement('div');
-      sub.className = 'block-sub';
-      sub.textContent = cardGuideText(story() || {}).line;
-      main.appendChild(sub);
+      const text = document.createElement('div');
+      text.className = 'block-text';
+      const displayText = formatDialogue(b);
+      if (!displayText.trim()) {
+        text.classList.add('empty');
+        text.textContent = b.type === 'scene' ? '（点这里写场景文字）' : (b.type === 'battle' ? '（点「编辑战斗」设本场）' : (b.type === 'rogue' ? '（卡牌关：工作室配好后试玩）' : '（点这里写对白）'));
+      } else {
+        text.textContent = displayText;
+      }
+      if (b.type === 'dialogue' || b.type === 'scene') {
+        text.title = '点击直接改字';
+        text.addEventListener('click', () => beginInlineEdit(b, main));
+      }
+      main.appendChild(text);
+      if (b.type === 'battle') {
+        const lib = ((story() || {}).rpg || {}).enemies || [];
+        const names = (b.enemies || []).map(id => { const e = lib.find(x => x.id === id); return e ? e.name : '❓ 缺失'; });
+        const sub = document.createElement('div');
+        sub.className = 'block-sub';
+        sub.textContent = '⚔️ 出战敌人：' + (names.length ? names.join('、') : '（未选，播放用默认史莱姆）');
+        main.appendChild(sub);
+      }
+      if (b.type === 'rogue') {
+        const sub = document.createElement('div');
+        sub.className = 'block-sub';
+        sub.textContent = cardGuideText(story() || {}).line;
+        main.appendChild(sub);
+      }
     }
 
     const ops = document.createElement('div');
     ops.className = 'block-ops';
-    const mkBtn = (label, title, onClick, disabled) => {
+    const mkBtn = (label, title, onClick, disabled, cls) => {
       const btn = document.createElement('button');
-      btn.className = 'btn tiny';
+      btn.className = 'btn tiny' + (cls ? ' ' + cls : '');
       btn.textContent = label;
       btn.title = title;
       btn.disabled = !!disabled;
       btn.addEventListener('click', onClick);
       ops.appendChild(btn);
     };
-    mkBtn('↑', '上移', () => moveBlock(i, -1), i === 0);
-    mkBtn('↓', '下移', () => moveBlock(i, 1), i === ch.blocks.length - 1);
+    mkBtn('↑', '上移', () => moveBlock(i, -1), i === 0, 'move-fallback');
+    mkBtn('↓', '下移', () => moveBlock(i, 1), i === ch.blocks.length - 1, 'move-fallback');
     if (b.type === 'dialogue') {
-      mkBtn('💬 对白框', '设置对白框：角色名 + 对白内容（播放时自动加引号、固定底部聊天框）、字号/颜色', () => openSubtitleEditor(b));
+      mkBtn('字号色', '字号/颜色等高级项', () => openSubtitleEditor(b));
     } else if (b.type === 'scene') {
-      mkBtn('📝 场景文字', '设置场景文字（播放时可拖拽到任意位置）与字号/颜色；留空则不显示', () => openSubtitleEditor(b));
+      mkBtn('字号色', '字号/颜色等高级项', () => openSubtitleEditor(b));
     } else if (b.type === 'battle') {
-      mkBtn('⚔️ 编辑战斗', '设置战斗前剧情 / 出战敌人 / 胜利·战败剧情', () => openBattleEditor(b));
-      mkBtn('▶ 试玩本场', '直接播放到这场战斗，试试打得过吗', () => previewBattle(b));
+      mkBtn('编辑', '编辑战斗', () => openBattleEditor(b));
+      mkBtn('试玩', '试玩本场', () => previewBattle(b));
     } else if (b.type === 'rogue') {
-      mkBtn('▶ 试玩本关', '按你选的玩法开打', () => previewBattle(b));
+      mkBtn('试玩', '试玩本关', () => previewBattle(b));
     }
-    mkBtn('🎵', '本幕 BGM（可覆盖章节曲）', () => openBlockBgmEditor(b));
-    mkBtn('🎼', '声音时间轴（配音 / 音效 / BGM 三轨可视化）', () => openTimelineEditor(b));
+    mkBtn('🎵', '本幕 BGM', () => openBlockBgmEditor(b));
+    mkBtn('🎼', '声音时间轴', () => openTimelineEditor(b));
+    mkBtn('删', '删除', () => deleteBlock(b.id));
 
-    mkBtn('删除', '删除', () => deleteBlock(b.id));
-
-    // 视觉素材（画面）：无 →「添加画面」按钮；有 → 预览 + 更换/移除
     const mediaWrap = document.createElement('div');
     mediaWrap.className = 'block-media';
     if (b.media && b.media.url) {
@@ -646,78 +783,63 @@ function renderBlocks() {
       prev.className = 'bm-preview';
       if (b.media.type === 'video') {
         const v = document.createElement('video');
-        v.src = b.media.url;
-        v.controls = true;
-        v.muted = true;
-        v.playsInline = true;
-        v.preload = 'metadata';
+        v.src = b.media.url; v.controls = true; v.muted = true; v.playsInline = true; v.preload = 'metadata';
         prev.appendChild(v);
         const badge = document.createElement('span');
-        badge.className = 'bm-type';
-        badge.textContent = 'MP4';
+        badge.className = 'bm-type'; badge.textContent = 'MP4';
         prev.appendChild(badge);
       } else {
         const img = document.createElement('img');
-        img.src = b.media.url;
-        img.alt = '画面';
-        img.loading = 'lazy';
+        img.src = b.media.url; img.alt = '画面'; img.loading = 'lazy';
         prev.appendChild(img);
       }
       const opsRow = document.createElement('div');
       opsRow.className = 'bm-ops';
       const chg = document.createElement('button');
-      chg.className = 'btn tiny';
-      chg.textContent = '更换画面';
+      chg.className = 'btn tiny'; chg.textContent = '换画面';
       chg.addEventListener('click', () => pickMedia(b, chg));
       const rm = document.createElement('button');
-      rm.className = 'btn tiny danger';
-      rm.textContent = '移除画面';
+      rm.className = 'btn tiny danger'; rm.textContent = '移除';
       rm.addEventListener('click', () => removeBlockMedia(b));
       opsRow.append(chg, rm);
       mediaWrap.append(prev, opsRow);
     } else {
       const add = document.createElement('button');
       add.className = 'media-add';
-      add.textContent = '🖼 添加画面';
+      add.textContent = '🖼 添加画面（或拖文件到本块）';
       add.title = MEDIA_TYPES_LABEL;
       add.addEventListener('click', () => pickMedia(b, add));
       mediaWrap.appendChild(add);
     }
 
-    // 配音：无 →「🎙 添加配音」按钮；有 → 试听条 + 更换/删除
     const audioWrap = document.createElement('div');
     audioWrap.className = 'block-audio';
     if (b.audio && b.audio.url) {
       const prev = document.createElement('div');
       prev.className = 'ba-preview';
       const au = document.createElement('audio');
-      au.src = b.audio.url;
-      au.controls = true;
-      au.preload = 'metadata';
+      au.src = b.audio.url; au.controls = true; au.preload = 'metadata';
       prev.appendChild(au);
       const opsRow = document.createElement('div');
       opsRow.className = 'bm-ops';
       const chg = document.createElement('button');
-      chg.className = 'btn tiny';
-      chg.textContent = '更换配音';
+      chg.className = 'btn tiny'; chg.textContent = '换配音';
       chg.addEventListener('click', () => pickAudio(b, chg));
       const rm = document.createElement('button');
-      rm.className = 'btn tiny danger';
-      rm.textContent = '删除配音';
+      rm.className = 'btn tiny danger'; rm.textContent = '删除';
       rm.addEventListener('click', () => removeBlockAudio(b));
       opsRow.append(chg, rm);
       audioWrap.append(prev, opsRow);
     } else {
       const add = document.createElement('button');
       add.className = 'media-add';
-      add.textContent = '🎙 添加配音';
+      add.textContent = '🎙 添加配音（音频也可拖入）';
       add.title = AUDIO_TYPES_LABEL;
       add.addEventListener('click', () => pickAudio(b, add));
       audioWrap.appendChild(add);
     }
 
-    el.append(tag, main, ops, mediaWrap, audioWrap);
-    // 音效轨：摘要 + 打开声音时间轴（三轨可视化编辑）
+    el.append(handle, tag, main, ops, mediaWrap, audioWrap);
     const sfxWrap = document.createElement('div');
     sfxWrap.className = 'block-audio';
     const sfxList = b.sfxList || [];
@@ -731,12 +853,10 @@ function renderBlocks() {
       const opsRow = document.createElement('div');
       opsRow.className = 'bm-ops';
       const tl = document.createElement('button');
-      tl.className = 'btn tiny';
-      tl.textContent = '🎼 打开声音轨';
+      tl.className = 'btn tiny'; tl.textContent = '🎼 声音轨';
       tl.addEventListener('click', () => openTimelineEditor(b));
       const rm = document.createElement('button');
-      rm.className = 'btn tiny danger';
-      rm.textContent = '清空音效';
+      rm.className = 'btn tiny danger'; rm.textContent = '清空';
       rm.addEventListener('click', () => removeBlockSfx(b));
       opsRow.append(tl, rm);
       sfxWrap.append(prev, opsRow);
@@ -748,7 +868,6 @@ function renderBlocks() {
       add.addEventListener('click', () => pickSfx(b, add));
       sfxWrap.appendChild(add);
     }
-
     el.append(sfxWrap);
     host.appendChild(el);
   });
@@ -1137,17 +1256,56 @@ async function createRpgDemoStory(heroName) {
 }
 
 async function generateRogueDemo() {
-  if (!loggedIn) { toast('请先登录后再生成示例', true); setLoginHint(true); return; }
-  const demo = { title: '卡牌·能玩的示例', ...buildRogueDemoData('idle') };
+  openSamplePicker();
+}
+
+function openSamplePicker() {
+  if (!loggedIn) { toast('请先登录后再生成样品', true); setLoginHint(true); return; }
+  openModal('参考样品（能玩，缺立绘）', (body) => {
+    const tip = document.createElement('div');
+    tip.className = 'rpg-tip';
+    tip.textContent = '从 GitHub 开源游戏里只抄「编辑器已经有的积木」：职业表、关卡表、战后三选一、场景对白。不搬引擎和图片。生成后直接播放，再自己加画面。';
+    body.appendChild(tip);
+    const list = document.createElement('div');
+    list.className = 'rpg-demo-chars';
+    list.id = 'samplePickList';
+    EDITOR_SAMPLES.forEach((s, i) => {
+      const label = document.createElement('label');
+      label.className = 'rpg-demo-char' + (i === 0 ? ' sel' : '');
+      const radio = document.createElement('input');
+      radio.type = 'radio'; radio.name = 'editorSample'; radio.value = s.id;
+      if (i === 0) radio.checked = true;
+      radio.addEventListener('change', () => {
+        list.querySelectorAll('.rpg-demo-char').forEach(x => x.classList.remove('sel'));
+        label.classList.add('sel');
+      });
+      const av = document.createElement('span'); av.className = 'av'; av.textContent = s.kind === 'story' ? '📖' : '🂠';
+      const inf = document.createElement('span'); inf.className = 'inf';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = s.title;
+      const ds = document.createElement('span'); ds.className = 'ds'; ds.textContent = s.blurb;
+      inf.append(nm, ds);
+      label.append(radio, av, inf);
+      list.appendChild(label);
+    });
+    body.appendChild(list);
+  }, () => {
+    const picked = document.querySelector('#samplePickList input[name="editorSample"]:checked');
+    createSampleStory(picked ? picked.value : 'dungeon');
+  });
+}
+
+async function createSampleStory(sampleId) {
+  if (!loggedIn) { toast('请先登录后再生成样品', true); setLoginHint(true); return; }
+  const demo = buildSampleWork(sampleId);
   try {
     const res = await fetch('/api/stories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ title: demo.title, orientation: demo.orientation, imgQuality: demo.imgQuality, kind: ROGUE_KIND })
+      body: JSON.stringify({ title: demo.title, orientation: demo.orientation, imgQuality: demo.imgQuality, kind: demo.kind })
     });
     const d = await res.json();
     if (!d.success || !d.story) throw new Error((d && d.error) || '创建失败，请重试');
-    const full = normalizeStories([{ ...d.story, ...demo, id: d.story.id, kind: ROGUE_KIND }])[0];
+    const full = normalizeStories([{ ...d.story, ...demo, id: d.story.id, kind: demo.kind }])[0];
     const up = await fetch('/api/stories/' + encodeURIComponent(full.id), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -1159,7 +1317,7 @@ async function generateRogueDemo() {
     persist();
     renderLibrary();
     openStory(full.id);
-    toast('示例是「女神挂机」。点播放会自动连打关卡。工作室里可换成修仙自动战或每局不同。');
+    toast('样品已生成。点播放即可；立绘请在积木上「添加画面」。');
   } catch (e) {
     toast((e && e.message) || '生成失败，请重试', true);
   }
@@ -3328,6 +3486,15 @@ function init() {
   $('#castBtn').addEventListener('click', openCastEditor);
   $('#addBlockBtn').addEventListener('click', openAddPicker);
   $('#playBtn').addEventListener('click', startPlay);
+  const playInline = $('#playBtnInline');
+  if (playInline) playInline.addEventListener('click', startPlay);
+  // 底部芯片：一键加对白/场景/战斗/卡牌关
+  document.querySelectorAll('#addChipBar [data-add]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = btn.dataset.add;
+      if (t === 'dialogue' || t === 'scene' || t === 'battle' || t === 'rogue') addBlock(t);
+    });
+  });
   $('#playExit').addEventListener('click', stopPlay);
   $('#playNext').addEventListener('click', playNext);
   $('#playPrev').addEventListener('click', playPrev);
@@ -3343,17 +3510,21 @@ function init() {
   });
   $('#libBtn').addEventListener('click', backToLibrary);
   // 新建作品：作品类型（互动小说 / 卡牌RPG）；选卡牌RPG 时显示「一键生成示例」按钮
-  document.querySelectorAll('#createKindRow .kind-card').forEach(btn => {
+  function bindKindCards(sel) {
+  document.querySelectorAll(sel).forEach(btn => {
     btn.addEventListener('click', () => {
       const k = btn.dataset.kind;
       createKind = (k === 'card_rpg' || k === 'gacha_rogue') ? k : 'story';
-      document.querySelectorAll('#createKindRow .kind-card').forEach(x => x.classList.toggle('active', x === btn));
+      document.querySelectorAll('#createKindRow .kind-card, #createKindMore .kind-card').forEach(x => x.classList.toggle('active', x === btn));
       const demoBtn = $('#rpgDemoBtn');
       if (demoBtn) demoBtn.classList.toggle('hidden', createKind !== 'card_rpg');
       const rogueDemo = $('#rogueDemoBtn');
       if (rogueDemo) rogueDemo.classList.toggle('hidden', createKind !== 'gacha_rogue');
     });
   });
+}
+  bindKindCards('#createKindRow .kind-card');
+  bindKindCards('#createKindMore .kind-card');
   // 编辑器：卡牌RPG 配置区（卡牌库 / 英雄 / 敌人）
   $('#rpgCardsBtn').addEventListener('click', openRpgCardsEditor);
   $('#rpgHeroBtn').addEventListener('click', openRpgHeroEditor);
@@ -3362,6 +3533,7 @@ function init() {
   $('#cardFillBtn').addEventListener('click', fillCurrentCardPack);
   $('#rpgDemoBtn').addEventListener('click', generateRpgDemo);
   $('#rogueDemoBtn').addEventListener('click', generateRogueDemo);
+  $('#samplePackBtn').addEventListener('click', openSamplePicker);
   // 新建作品：分辨率选择卡（16:9 横屏 / 9:16 竖屏）
   document.querySelectorAll('#createOrient .orient-card').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -3598,13 +3770,17 @@ window.StoryEditor = {
   rpgDemo: (heroName) => buildRpgDemoData(heroName || '勇者'),
   generateRpgDemo,
   generateRogueDemo,
+  openSamplePicker,
+  createSampleStory,
   rogueDemo: (mode) => buildRogueDemoData(mode || 'idle'),
+  sample: (id) => buildSampleWork(id),
   setKindById: (id, kind) => {
     const s = stories.find(x => x.id === id);
     if (!s || (kind !== 'story' && kind !== 'card_rpg' && kind !== 'gacha_rogue')) return false;
     s.kind = kind;
     if (kind === 'card_rpg' && !s.rpg) s.rpg = { hero: { name: '勇者', maxHp: 30, attack: 8 }, cards: [], enemies: [] };
     if (kind === 'gacha_rogue' && !s.rogue) s.rogue = emptyRogue();
+    if (s.miniGame) delete s.miniGame;
     persist(); renderEditor(); renderLibrary(); return true;
   },
   rpg: () => (story() ? { kind: story().kind, rpg: story().rpg || null } : null),

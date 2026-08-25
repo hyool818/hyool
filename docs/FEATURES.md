@@ -24,14 +24,13 @@
 | 广场露出 | `public/plaza.html` | `GET /api/plaza` 的 `stories` | 已发布 + `share_id` 非空 |
 | 产品愿景 | `docs/editor-vision.md` | — | 仅改长期类型地图时读 |
 
-作品 `kind`：`story` | `card_rpg`（旧互殴）| `gacha_rogue`（三种积木玩法：女神挂机 idle / 修仙自动战 queue / 每局不同 rogue）。工作室积木：角色、关卡、羁绊（queue）、遗物（rogue）。不要再拆五个配置弹窗。不要整仓 vendoring GPL 游戏。
+作品 `kind`：`story` | `card_rpg`（旧互殴）| `gacha_rogue`（女神挂机 / 修仙自动战 / 每局不同）。编辑壳：作品库三步创建 → 剪映式时间线（积木拖排序、文件拖上积木、对白/场景点开行内改字、底栏芯片加块、顶栏常驻试玩）。卡牌工作室：角色/关卡表格 + 行拖排序 + 三步指引。参考样品：`public/story-samples.js`。底座原则：小白积木 → 可上线作品；接水果/打地鼠类已下线且不再加回；`game-studio.html` / `game-workshop.html` 重定向到作品编辑器。不要再拆五个配置弹窗。不要整仓 vendoring GPL 游戏。
 
-## 幻想 · 游戏工坊
+## 幻想 · 游戏工坊（已下线）
 
-| 功能 | 文件 |
-|---|---|
-| 工坊页 | `public/game-studio.html` `public/workspace/js/game-studio.js` |
-| 旧入口 | `public/game-workshop.html` |
+| 功能 | 文件 | 说明 |
+|---|---|---|
+| 旧模板页 | `public/game-studio.html` `public/game-workshop.html` | 重定向到 `story-editor.html`；不再作为产品入口 |
 
 ## 生命（保留，非任务勿改）
 

@@ -1,12 +1,17 @@
-// game-studio.js — 游戏工坊（PixiJS 模板化小游戏生成器，Canvas2D 兜底）
-// 引擎：PixiJS v8 从 jsDelivr 懒加载（WebGL）；加载/初始化失败自动回退 Canvas 2D。
-// 存档：localStorage（hyool_games_v1），纯前端，不上传任何服务器。
+// game-studio.js — 作品编辑器 · 小游戏模板工坊（原游戏工坊）
+// 引擎：PixiJS v8 CDN 懒加载；失败回退 Canvas 2D。
+// 存档：浏览器 localStorage；若带 ?story= 则同时写回该作品的 miniGame 字段（云端 stories）。
 import { $, toast } from './ui.js';
 
 const PIXI_CDN = 'https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.mjs';
 const SAVE_KEY = 'hyool_games_v1';
 const W = 640;
 const H = 420;
+const qs = new URLSearchParams(location.search);
+const storyId = qs.get('story') || '';
+const fromEditor = qs.get('from') === 'editor' || !!storyId;
+const autoPlay = qs.get('play') === '1';
+const TOKEN_KEY = 'hyool_token';
 
 const TEMPLATES = {
   catch: { name: '接水果', icon: '🧺', hero: '🧺', items: ['🍎', '🍊', '🍋', '🍇', '🍓'], desc: '移动篮子接住掉落的果子' },
@@ -26,6 +31,66 @@ let savedGames = loadList();
 let currentGame = null;
 let engineMode = 'idle';
 
+function authHeaders() {
+  try {
+    const t = localStorage.getItem(TOKEN_KEY);
+    return t ? { Authorization: 'Bearer ' + t } : {};
+  } catch (e) { return {}; }
+}
+async function loadStoryMiniGame() {
+  if (!storyId) return null;
+  try {
+    const res = await fetch('/api/stories/' + encodeURIComponent(storyId), {
+      credentials: 'include', headers: authHeaders(),
+    });
+    const d = await res.json();
+    if (!d.success || !d.story) return null;
+    const data = d.story.data && typeof d.story.data === 'object' ? d.story.data : d.story;
+    return data && data.miniGame ? data.miniGame : null;
+  } catch (e) { return null; }
+}
+async function saveStoryMiniGame() {
+  if (!storyId) return false;
+  try {
+    const res = await fetch('/api/stories/' + encodeURIComponent(storyId), {
+      credentials: 'include', headers: authHeaders(),
+    });
+    const d = await res.json();
+    if (!d.success || !d.story) return false;
+    const full = { ...d.story };
+    const data = (full.data && typeof full.data === 'object') ? { ...full.data } : { ...full };
+    data.kind = 'mini_game';
+    data.miniGame = {
+      template: cfg.template,
+      name: cfg.name,
+      hero: cfg.hero,
+      item: cfg.item,
+      bg: cfg.bg,
+      difficulty: cfg.difficulty,
+      sound: cfg.sound,
+      time: cfg.time,
+    };
+    const up = await fetch('/api/stories/' + encodeURIComponent(storyId), {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ data }),
+    });
+    const ud = await up.json();
+    return !!ud.success;
+  } catch (e) { return false; }
+}
+function applyMiniFromStory(mg) {
+  if (!mg) return;
+  if (TEMPLATES[mg.template]) cfg.template = mg.template;
+  if (mg.name) cfg.name = String(mg.name).slice(0, 40);
+  if (mg.hero) cfg.hero = String(mg.hero).slice(0, 8);
+  if (mg.item != null) cfg.item = String(mg.item).slice(0, 8);
+  if (mg.bg) cfg.bg = String(mg.bg).slice(0, 20);
+  if (mg.difficulty) cfg.difficulty = Math.max(1, Math.min(3, Number(mg.difficulty) || 2));
+  cfg.sound = mg.sound !== false;
+  if (mg.time) cfg.time = Math.max(10, Math.min(120, Number(mg.time) || 30));
+}
 function loadList() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -607,6 +672,12 @@ function saveCurrent() {
   }
   persistList();
   renderSaveList();
+  if (storyId) {
+    saveStoryMiniGame().then((ok) => {
+      if (ok) toast('已同步到作品');
+      else toast('本地已存；云端同步失败（需登录）', true);
+    });
+  }
 }
 
 function launchSaved(s, autoPlay) {
@@ -657,6 +728,15 @@ function renderSaveList() {
 }
 // ---------- 初始化 / 事件 ----------
 function init() {
+  if (fromEditor) {
+    const back = document.getElementById('studioBack');
+    if (back) {
+      back.href = storyId
+        ? '/story-editor.html?story=' + encodeURIComponent(storyId)
+        : '/story-editor.html';
+      back.textContent = '← 作品编辑器';
+    }
+  }
   renderTemplatePicker();
   applyCfgToForm(cfg);
   renderSaveList();
@@ -691,6 +771,20 @@ function init() {
   window.addEventListener('keyup', (e) => {
     if (currentGame) currentGame.keys.delete(e.code);
   });
+
+  if (storyId) {
+    loadStoryMiniGame().then((mg) => {
+      if (mg) {
+        applyMiniFromStory(mg);
+        applyCfgToForm(cfg);
+        renderTemplatePicker();
+      }
+      if (autoPlay) { readForm(); startGame(); }
+    });
+  } else if (autoPlay) {
+    readForm();
+    startGame();
+  }
 }
 // ---------- 对外测试 API ----------
 window.GameStudio = {

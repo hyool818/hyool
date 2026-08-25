@@ -15,18 +15,25 @@ input.txt, textarea.txt{width:100%;min-width:0;background:var(--bg3);border:1px 
 input.txt:focus, textarea.txt:focus{outline:none;border-color:var(--accent)}
 textarea.txt{min-height:120px;resize:vertical}
 
-/* ---------- 视图1：作品库 ---------- */
-.new-story{display:flex;gap:10px;flex-wrap:wrap}
-.new-story .txt{flex:1 1 280px;width:auto}
-/* 新建作品：分辨率选择卡（16:9 横屏 / 9:16 竖屏） */
-.orient-pick{display:flex;gap:10px;flex:0 0 auto}
-.orient-card{display:flex;flex-direction:column;align-items:center;gap:3px;background:#171726;
-  border:1px solid var(--line2);border-radius:10px;padding:9px 14px;cursor:pointer;font-family:inherit;
-  color:var(--text);transition:.15s;font-size:12.5px;font-weight:600;line-height:1.4}
-.orient-card span{font-size:10.5px;font-weight:400;color:var(--muted)}
+/* ---------- 视图1：作品库（三步向导） ---------- */
+.wizard-steps{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.wizard-step{font-size:12px;color:var(--muted);padding:6px 12px;border-radius:99px;border:1px solid var(--line2);background:#12121c}
+.wizard-step.on{color:var(--accent2);border-color:rgba(95,200,255,.45);background:rgba(95,200,255,.08)}
+.new-story{display:flex;gap:10px;flex-wrap:wrap;flex-direction:column}
+.new-story .txt{width:100%;max-width:520px}
+.orient-pick{display:flex;gap:10px;flex-wrap:wrap}
+.orient-card{display:flex;flex-direction:column;align-items:flex-start;gap:4px;background:#171726;
+  border:1px solid var(--line2);border-radius:12px;padding:14px 16px;cursor:pointer;font-family:inherit;
+  color:var(--text);transition:.15s;font-size:14px;font-weight:600;line-height:1.4;min-width:140px;flex:1 1 160px}
+.orient-card span{font-size:11px;font-weight:400;color:var(--muted)}
 .orient-card:hover{border-color:var(--accent)}
 .orient-card.active{border-color:var(--accent);background:rgba(139,123,255,.14)}
-/* 编辑器侧边栏：方向 / 画质切换 */
+.orient-card.kind-card{min-height:78px}
+.create-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.create-actions .btn.primary{min-width:140px;padding:12px 18px;font-size:14px}
+.more-kinds{margin-top:4px}
+.more-kinds summary{cursor:pointer;color:var(--muted);font-size:12px;user-select:none}
+.more-kinds .orient-pick{margin-top:8px}
 .orient-row{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
 .orient-row .mini-btn{visibility:visible}
 .mini-btn.active{border-color:var(--accent);background:rgba(139,123,255,.18);color:var(--accent)}
@@ -45,39 +52,62 @@ textarea.txt{min-height:120px;resize:vertical}
 .story-card .ops{display:flex;gap:8px;margin-top:auto}
 .story-card .ops .btn{flex:1}
 
-/* ---------- 视图2：编辑器 ---------- */
+/* ---------- 视图2：剪映式编辑壳 ---------- */
 .editor-wrap{flex:1 1 auto;display:flex;min-height:0}
-.editor-side{flex:0 0 300px;max-width:40vw;display:flex;flex-direction:column;min-height:0;
+.editor-side{flex:0 0 240px;max-width:36vw;display:flex;flex-direction:column;min-height:0;
   border-right:1px solid var(--line);background:var(--bg2)}
-.editor-side .side-scroll{flex:1 1 auto;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:20px}
-.editor-side h3{font-size:12px;letter-spacing:.12em;color:var(--muted);margin-bottom:10px;font-weight:600}
+.editor-side .side-scroll{flex:1 1 auto;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:16px}
+.editor-side h3{font-size:11px;letter-spacing:.14em;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase}
+.editor-side details.settings-fold{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#101018}
+.editor-side details.settings-fold>summary{cursor:pointer;font-size:12px;color:var(--muted);user-select:none}
 .editor-stage{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;min-height:0;
   background:
     radial-gradient(1200px 600px at 20% 0%,rgba(139,123,255,.06),transparent 60%),
     radial-gradient(900px 500px at 90% 100%,rgba(95,200,255,.05),transparent 60%),
     var(--bg)}
-.stage-head{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:12px 20px;
-  border-bottom:1px solid var(--line);background:rgba(5,5,10,.5)}
+.stage-head{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:10px 16px;
+  border-bottom:1px solid var(--line);background:rgba(5,5,10,.65)}
 .stage-head .ch-title{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stage-head .ch-count{font-size:11px;color:var(--muted)}
-.stage-scroll{flex:1 1 auto;overflow-y:auto;padding:16px 20px 6px;display:flex;flex-direction:column;gap:12px}
+.stage-scroll{flex:1 1 auto;overflow-y:auto;padding:14px 16px 6px;display:flex;flex-direction:column;gap:10px}
+.add-chip-bar{flex:0 0 auto;display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px 16px;border-top:1px solid var(--line);
+  background:rgba(8,8,14,.85)}
+.add-chip{border:1px solid var(--line2);background:#151522;color:var(--text);border-radius:999px;padding:8px 14px;
+  font-size:12.5px;cursor:pointer;font-family:inherit;transition:.15s}
+.add-chip:hover{border-color:var(--accent2);color:var(--accent2);background:rgba(95,200,255,.08)}
+.add-chip.primary{border-color:rgba(139,123,255,.55);background:rgba(139,123,255,.14);color:#c8c0ff}
 
-/* 剧情积木 */
-.block{display:flex;flex-wrap:wrap;gap:12px;border:1px solid var(--line2);border-radius:12px;background:#12121c;
-  padding:13px 14px;transition:.15s;animation:blockIn .18s ease}
+/* 时间线积木 */
+.block{display:grid;grid-template-columns:28px 56px 1fr auto;gap:10px 12px;align-items:start;
+  border:1px solid var(--line2);border-radius:14px;background:#12121c;padding:12px 12px 12px 8px;
+  transition:.15s;animation:blockIn .18s ease;position:relative}
 .block:hover{border-color:rgba(139,123,255,.5)}
+.block.drag-over{border-color:var(--accent2);box-shadow:0 0 0 1px rgba(95,200,255,.35)}
+.block.dragging{opacity:.45}
 .block.scene{border-left:3px solid var(--accent2)}
 .block.dialogue{border-left:3px solid var(--accent)}
-.block-tag{flex:0 0 60px;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:3px}
+.block.battle,.block.rogue{border-left:3px solid #e8a45c}
+.block-handle{grid-row:1 / span 3;align-self:stretch;display:flex;align-items:center;justify-content:center;
+  cursor:grab;color:#6a6a7c;font-size:14px;user-select:none;border-radius:8px}
+.block-handle:active{cursor:grabbing}
+.block-handle:hover{background:rgba(255,255,255,.04);color:var(--accent2)}
+.block-tag{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:2px}
 .block-tag .bt-label{font-size:10px;letter-spacing:.12em;color:var(--muted)}
-.block-tag .bt-speaker{font-size:13px;font-weight:700;color:var(--accent);line-height:1.4;
-  overflow:hidden;max-width:60px;word-break:break-all}
-.block-main{flex:1 1 auto;min-width:0;display:flex;align-items:center}
-.block-text{font-size:13.5px;color:#e8e8f0;line-height:1.75;white-space:pre-wrap;word-break:break-word}
+.block-tag .bt-idx{font-size:11px;color:#6a6a7c;font-variant-numeric:tabular-nums}
+.block-tag .bt-speaker{font-size:12px;font-weight:700;color:var(--accent);line-height:1.3;
+  overflow:hidden;max-width:56px;word-break:break-all;text-align:center}
+.block-main{min-width:0;display:flex;flex-direction:column;gap:6px}
+.block-text{font-size:13.5px;color:#e8e8f0;line-height:1.7;white-space:pre-wrap;word-break:break-word;cursor:pointer;border-radius:8px;padding:4px 6px;margin:-4px -6px}
+.block-text:hover{background:rgba(255,255,255,.04)}
 .block-text.empty{color:#7a7a8c;font-style:italic}
 .block.dialogue .block-text{color:#d9d9e6}
-.block-ops{flex:0 0 auto;display:flex;flex-direction:column;gap:5px;justify-content:center}
+.block-inline{display:flex;flex-direction:column;gap:8px;padding:4px 0}
+.block-inline .txt{font-size:13px}
+.block-inline-actions{display:flex;gap:8px;flex-wrap:wrap}
+.block-ops{display:flex;flex-direction:column;gap:5px;justify-content:flex-start}
 .block-ops .btn{text-align:center}
+.block-ops .btn.move-fallback{opacity:.55;font-size:11px;padding:4px 6px}
+.block-media,.block-audio{grid-column:2 / -1}
 
 /* 积木上的视觉素材（画面） */
 .block-media{flex:1 1 100%;min-width:0;display:flex;flex-direction:column;gap:8px;padding-top:2px}
@@ -255,6 +285,14 @@ textarea.txt{min-height:120px;resize:vertical}
   .block-sub{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.6}
   .rpg-cfg-btns{display:flex;flex-direction:column;gap:6px}
   .rpg-cfg-btns .btn{margin-top:0}
+
+  .studio-table{width:100%;border-collapse:collapse;margin:8px 0 12px;font-size:12.5px}
+  .studio-table th,.studio-table td{border:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:middle}
+  .studio-table th{color:var(--muted);font-weight:600;background:#12121c;font-size:11px}
+  .studio-table tr.dragging{opacity:.45}
+  .studio-table tr.drag-over{outline:1px solid var(--accent2)}
+  .studio-table .row-handle{cursor:grab;color:#6a6a7c;width:28px;text-align:center;user-select:none}
+  .studio-table .row-handle:active{cursor:grabbing}
   .rpg-tip{font-size:11.5px;color:var(--muted);line-height:1.7;border:1px dashed var(--line2);border-radius:8px;padding:8px 10px}
   .rpg-field{margin:10px 0}
   .rpg-field label{font-size:12px;margin-bottom:4px}
@@ -375,6 +413,9 @@ textarea.txt{min-height:120px;resize:vertical}
   .editor-wrap{flex-direction:column}
   .editor-side{flex:0 0 auto;max-width:none;border-right:none;border-bottom:1px solid var(--line)}
   .editor-side .side-scroll{max-height:220px}
+  .block{grid-template-columns:24px 48px 1fr}
+  .block-ops{grid-column:2 / -1;flex-direction:row;flex-wrap:wrap}
+  .block-handle{grid-row:1 / span 2}
   .play-body{padding:18px}
   .rpg-split{flex-direction:column}
   .rpg-split-left,.rpg-split-right{max-height:none}
@@ -396,32 +437,45 @@ textarea.txt{min-height:120px;resize:vertical}
   </div>
 </header>
 
-<!-- ============ 视图1：作品库 ============ -->
+<!-- ============ 视图1：作品库（三步） ============ -->
 <div class="hub" id="viewLibrary">
   <main class="hub-main">
     <section class="hub-hero">
       <div class="hub-hero-kicker">STORY BUILDER</div>
       <h1 class="hub-hero-name">作品编辑器</h1>
-      <p class="hub-hero-meaning">像搭积木一样，搭出你的互动小说与卡牌作品。</p>
+      <p class="hub-hero-meaning">三步开干：选类型 → 起名 → 拖积木。做出能上线的小说与卡牌。</p>
       <p class="hub-hero-tags" id="loginHint" style="display:none;margin-top:6px">🔑 登录后作品自动保存到云端，手机端也能同步继续。 <a href="/yonder.html?next=/story-editor" style="color:#b7b7ff">去登录</a></p>
     </section>
 
     <section class="hub-section">
-      <h2 class="hub-sec-title">新建作品 <span>从第一个章节开始</span></h2>
+      <h2 class="hub-sec-title">新建作品 <span>① 选类型 → ② 起名/样品 → ③ 开始搭</span></h2>
+      <div class="wizard-steps" aria-hidden="true">
+        <span class="wizard-step on">① 选类型与画幅</span>
+        <span class="wizard-step on">② 起名或样品</span>
+        <span class="wizard-step">③ 进入时间线</span>
+      </div>
       <div class="new-story">
-        <input type="text" class="txt" id="newTitle" maxlength="40" placeholder="输入作品名称，例如：长安雨">
+        <div class="orient-pick" id="createKindRow">
+          <button type="button" class="orient-card kind-card active" data-kind="story">📖 互动小说<span>能上线的剧情 + 画面 + 配音</span></button>
+          <button type="button" class="orient-card kind-card" data-kind="gacha_rogue">🂠 卡牌游戏<span>能上线的挂机 / 自动战 / 肉鸽</span></button>
+        </div>
+        <details class="more-kinds">
+          <summary>更多（旧版互殴，已有作品仍可用）</summary>
+          <div class="orient-pick" id="createKindMore">
+            <button type="button" class="orient-card kind-card" data-kind="card_rpg">⚔️ 旧版互殴<span>兼容旧作品</span></button>
+          </div>
+        </details>
         <div class="orient-pick" id="createOrient">
           <button type="button" class="orient-card active" data-orient="landscape">🖥 16:9 横屏<span>电脑 · 宽幅</span></button>
           <button type="button" class="orient-card" data-orient="portrait">📱 9:16 竖屏<span>手机 · 短视频</span></button>
         </div>
-        <div class="orient-pick" id="createKindRow" style="margin-top:8px">
-          <button type="button" class="orient-card kind-card active" data-kind="story">📖 互动小说<span>剧情 + 画面 + 配音</span></button>
-          <button type="button" class="orient-card kind-card" data-kind="gacha_rogue">🂠 卡牌游戏<span>女神挂机 / 修仙自动战 / 每局不同</span></button>
-          <button type="button" class="orient-card kind-card" data-kind="card_rpg">⚔️ 旧版互殴<span>已有作品仍可用</span></button>
+        <input type="text" class="txt" id="newTitle" maxlength="40" placeholder="给作品起个名字，例如：长安雨">
+        <div class="create-actions">
+          <button class="btn primary" id="createBtn">＋ 创建作品</button>
+          <button type="button" class="btn ghost demo-btn" id="samplePackBtn">用参考样品起步</button>
+          <button type="button" class="btn ghost demo-btn hidden" id="rpgDemoBtn">一键卡牌RPG 示例</button>
+          <button type="button" class="btn ghost demo-btn hidden" id="rogueDemoBtn">生成能玩卡牌包</button>
         </div>
-        <button type="button" class="btn ghost demo-btn hidden" id="rpgDemoBtn">⚡ 一键生成卡牌RPG 示例（用角色库角色当主角）</button>
-        <button type="button" class="btn ghost demo-btn hidden" id="rogueDemoBtn">⚡ 生成一套能玩的卡牌（女神挂机）</button>
-        <button class="btn primary" id="createBtn">＋ 创建作品</button>
       </div>
     </section>
 
@@ -432,41 +486,43 @@ textarea.txt{min-height:120px;resize:vertical}
   </main>
 </div>
 
-<!-- ============ 视图2：编辑器 ============ -->
+<!-- ============ 视图2：剪映式编辑壳 ============ -->
 <div class="editor-wrap hidden" id="viewEditor">
   <aside class="editor-side">
     <div class="side-scroll">
       <section>
-        <h3>作品信息</h3>
+        <h3>作品</h3>
         <div class="field" style="margin:0">
-          <input type="text" class="txt" id="storyTitle" maxlength="40">
-        </div>
-        <div class="orient-row" id="storyOrient" title="画面方向：16:9 横屏（电脑）/ 9:16 竖屏（手机），影响播放画幅与后续上传压缩">
-          <button type="button" class="mini-btn orient-btn" data-orient="landscape">🖥 16:9</button>
-          <button type="button" class="mini-btn orient-btn" data-orient="portrait">📱 9:16</button>
-          <span class="orient-row-label">画面方向</span>
-        </div>
-        <div class="orient-row" id="storyQual" title="上传画面压缩规格：标准（1280 档）/ 高清（1920 档）">
-          <button type="button" class="mini-btn qual-btn" data-qual="standard">标准</button>
-          <button type="button" class="mini-btn qual-btn" data-qual="hd">高清</button>
-          <span class="orient-row-label">画面画质</span>
+          <input type="text" class="txt" id="storyTitle" maxlength="40" placeholder="作品名称">
         </div>
         <button class="btn wide" id="castBtn" style="margin-top:10px">🎭 角色声音</button>
+        <details class="settings-fold" style="margin-top:10px">
+          <summary>作品设置（画幅 / 画质）</summary>
+          <div class="orient-row" id="storyOrient" title="画面方向：16:9 横屏 / 9:16 竖屏">
+            <button type="button" class="mini-btn orient-btn" data-orient="landscape">🖥 16:9</button>
+            <button type="button" class="mini-btn orient-btn" data-orient="portrait">📱 9:16</button>
+            <span class="orient-row-label">方向</span>
+          </div>
+          <div class="orient-row" id="storyQual" title="上传压缩：标准 1280 / 高清 1920">
+            <button type="button" class="mini-btn qual-btn" data-qual="standard">标准</button>
+            <button type="button" class="mini-btn qual-btn" data-qual="hd">高清</button>
+            <span class="orient-row-label">画质</span>
+          </div>
+        </details>
       </section>
       <section id="rpgConfig" style="display:none">
-        <h3>卡牌RPG</h3>
+        <h3>卡牌 RPG</h3>
         <div class="rpg-cfg-btns">
           <button class="btn wide" id="rpgCardsBtn">🃏 卡牌库</button>
           <button class="btn wide" id="rpgHeroBtn">🦸 英雄</button>
           <button class="btn wide" id="rpgEnemiesBtn">👹 敌人</button>
         </div>
-        <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:6px">角色卡/英雄/敌人用于「⚔️ 卡牌战斗」积木；进入战斗自动攻击，玩家只负责配队。剧情、画面、配音、BGM 与互动小说通用。</div>
       </section>
       <section id="rogueConfig" style="display:none">
-        <h3>卡牌怎么玩</h3>
-        <div id="cardGuide" class="rpg-tip">选一种玩法，用工作室搭角色和关卡，然后点播放。</div>
+        <h3>卡牌工作室</h3>
+        <div id="cardGuide" class="rpg-tip">三步：角色表 → 关卡表 → 试玩</div>
         <div class="rpg-cfg-btns" style="margin-top:10px">
-          <button class="btn wide primary" id="cardStudioBtn">打开卡牌工作室</button>
+          <button class="btn wide primary" id="cardStudioBtn">打开工作室</button>
           <button class="btn wide" id="cardFillBtn">帮我填一套能玩的</button>
         </div>
       </section>
@@ -476,7 +532,7 @@ textarea.txt{min-height:120px;resize:vertical}
         <div id="chapterList" style="margin-top:10px"></div>
       </section>
       <section style="font-size:11px;color:var(--muted);line-height:1.8">
-        积木改动自动保存到云端（登录后跨设备同步），刷新不丢失。
+        拖左侧把手可调顺序；把图片/音频拖到积木上即可挂上。改动自动云存。
       </section>
     </div>
   </aside>
@@ -486,11 +542,16 @@ textarea.txt{min-height:120px;resize:vertical}
       <span class="ch-count" id="chapterCount"></span>
       <span style="flex:1"></span>
       <button class="btn small ghost" id="bgmBtn">🎵 BGM</button>
-      <button class="btn small ghost" id="renameChapterBtn">重命名章节</button>
+      <button class="btn small ghost" id="renameChapterBtn">重命名</button>
+      <button class="btn small primary" id="playBtnInline" title="与顶栏播放相同">▶ 试玩</button>
     </div>
     <div class="stage-scroll" id="blockList"></div>
-    <div style="padding:14px 20px 22px">
-      <button class="add-block" id="addBlockBtn">＋ 添加内容</button>
+    <div class="add-chip-bar" id="addChipBar">
+      <button type="button" class="add-chip primary" data-add="dialogue">＋ 加对白</button>
+      <button type="button" class="add-chip" data-add="scene">＋ 加场景</button>
+      <button type="button" class="add-chip hidden" data-add="battle" id="chipBattle">＋ 加战斗</button>
+      <button type="button" class="add-chip hidden" data-add="rogue" id="chipRogue">＋ 加卡牌关</button>
+      <button type="button" class="add-chip" id="addBlockBtn">更多…</button>
     </div>
   </div>
 </div>
