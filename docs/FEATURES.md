@@ -19,12 +19,12 @@
 |---|---|---|---|
 | 制作总览 | `public/fantasy.html` | — | 入口卡片 |
 | 编辑器 UI | `public/story-editor.html` | — | 样式 + 壳 |
-| 编辑器逻辑 | `public/story-editor.js` `public/story-rogue.js` | `/api/stories*` `/api/tts` `/api/upload` | 积木、播放、卡牌RPG、肉鸽卡牌、云同步 |
+| 编辑器逻辑 | `public/story-editor.js` `public/story-rogue.js` `public/story-idle.js` | `/api/stories*` `/api/tts` `/api/upload` | 积木、播放、卡牌RPG、女神挂机壳、肉鸽卡牌、云同步 |
 | 作品 CRUD | — | `GET/POST /api/stories` `GET/PUT /api/stories/:id` `POST .../publish` `POST .../delete` | `src/mvp.js` stories 段 |
 | 广场露出 | `public/plaza.html` | `GET /api/plaza` 的 `stories` | 已发布 + `share_id` 非空 |
 | 产品愿景 | `docs/editor-vision.md` | — | 仅改长期类型地图时读 |
 
-作品 `kind`：`story` | `card_rpg`（旧互殴）| `gacha_rogue`（女神挂机 / 修仙自动战 / 每局不同）。编辑壳：作品库三步创建 → 剪映式时间线（积木拖排序、文件拖上积木、对白/场景点开行内改字、底栏芯片加块、顶栏常驻试玩）。卡牌工作室：角色/关卡表格 + 行拖排序 + 三步指引。参考样品：`public/story-samples.js`。底座原则：小白积木 → 可上线作品；接水果/打地鼠类已下线且不再加回；`game-studio.html` / `game-workshop.html` 重定向到作品编辑器。不要再拆五个配置弹窗。不要整仓 vendoring GPL 游戏。
+作品 `kind`：`story` | `card_rpg`（旧互殴）| `gacha_rogue`（女神挂机 / 修仙自动战 / 每局不同）。编辑壳：作品库三步创建 → 剪映式时间线（小说）/ 卡牌试玩壳。**女神挂机**：主城立绘阵容 → 女神册选人 → 召唤卡池 · 升级升星 · 挂机推关；工作室可上传角色立绘（`roster[].portrait`）；进度在 `rogue.progress`（stageIdx/gold/teamIds）。卡牌工作室：角色/关卡表格 + 行拖排序 + 立绘按钮。参考样品：`public/story-samples.js`。挂机壳：`public/story-idle.js`。底座原则：小白积木 → 可上线作品；接水果/打地鼠类已下线且不再加回。
 
 ## 幻想 · 游戏工坊（已下线）
 

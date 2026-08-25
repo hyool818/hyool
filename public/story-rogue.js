@@ -1,14 +1,27 @@
 // 卡牌内核：数据表驱动（角色/关卡/羁绊），战斗是速度条自动出手。
 // 不整仓搬 GPL 游戏；表结构参考常见 MIT 自动战斗原型（单位+关卡+加成）。
-import { $, toast } from '/workspace/js/ui.js';
+import {
+  paintIdleShell,
+  normalizeIdleProgress,
+  idleProgressOf,
+  rewardIdleStage,
+  portraitHtml,
+  pullGacha,
+  levelUpChar,
+  starUpChar,
+  ownedOf,
+  fightHp,
+  fightAtk,
+  renderGachaResult,
+} from '/story-idle.js';
 
 export const ROGUE_KIND = 'gacha_rogue';
 export const CARD_MODES = {
   idle: {
     id: 'idle',
     label: '女神挂机',
-    hint: '像挂机卡牌：关卡从上往下连打，对局不用点。积木 = 角色 + 关卡。',
-    need: '至少 1 个角色、1 关。',
+    hint: '竖屏挂机：主城立绘 · 召唤卡池 · 升级升星 · 挂机推关。',
+    need: '至少 1 个角色（可上传立绘）、1 关。',
   },
   queue: {
     id: 'queue',
@@ -66,6 +79,8 @@ export function emptyRogue() {
     enemies: [],
     bonds: [],
     stages: [],
+    progress: { stageIdx: 0, gold: 500, teamIds: [], chars: {} },
+    gacha: { cost: 80 },
   };
 }
 
@@ -86,6 +101,7 @@ export function normalizeRogue(raw) {
     atk: clamp(c.atk, 4, 99, 18),
     spd: clamp(c.spd, 6, 40, 16),
     skillIds: Array.isArray(c.skillIds) ? c.skillIds.map(String).slice(0, 8) : [],
+    portrait: String(c.portrait || '').trim().slice(0, 240),
   }));
   out.roster.forEach(c => {
     if (out.mode === 'rogue') {
@@ -178,6 +194,7 @@ export function normalizeRogue(raw) {
       enemyIds: [e.id],
     }));
   }
+  out.progress = normalizeIdleProgress(out, out.stages.length);
   return out;
 }
 
@@ -327,17 +344,102 @@ export function startRogueRun(block, ctx) {
   stopRogueRun();
   const story = ctx.story;
   const rogue = normalizeRogue(story && story.rogue);
+  if (story) story.rogue = rogue;
   const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
   run = {
     ctx, story, block: block || {}, rogue, seed, rng: mulberry(seed),
     phase: 'pick_team', team: [], relics: [], nodes: [], nodeIdx: 0,
-    speed: 1, battle: null, pickOpts: null,
+    speed: 1, battle: null, pickOpts: null, idleTab: 'home',
   };
+  bindIdleCtx(ctx);
   if (!rogue.roster.length) { run.phase = 'empty'; paint(); return; }
-  if (rogue.mode === 'idle' || rogue.roster.length <= rogue.teamSize) {
+  if (rogue.mode === 'idle') {
+    run.phase = 'home';
+    paint();
+    return;
+  }
+  if (rogue.roster.length <= rogue.teamSize) {
     beginRun(rogue.roster.slice(0, rogue.teamSize).map(c => c.id));
     return;
   }
+  paint();
+}
+
+function bindIdleCtx(ctx) {
+  ctx.onIdleTab = (tab) => {
+    if (!run || run.rogue.mode !== 'idle') return;
+    const ok = tab === 'book' || tab === 'stages' || tab === 'gacha';
+    run.idleTab = ok ? tab : 'home';
+    run.phase = run.idleTab === 'home' ? 'home' : run.idleTab;
+    paint();
+  };
+  ctx.onIdlePush = (teamIds) => {
+    if (!run || run.rogue.mode !== 'idle') return;
+    const ids = (teamIds && teamIds.length)
+      ? teamIds
+      : (run.rogue.progress.teamIds || []).slice(0, run.rogue.teamSize);
+    if (!ids.length) { toast('先在女神册选人', true); return; }
+    beginRun(ids);
+  };
+  ctx.onIdleToggleTeam = (id) => {
+    if (!run || run.rogue.mode !== 'idle') return;
+    const r = run.rogue;
+    const prog = normalizeIdleProgress(r, (r.stages || []).length);
+    if (!prog.chars[id]) { toast('先召唤到这个角色', true); return; }
+    const i = prog.teamIds.indexOf(id);
+    if (i >= 0) prog.teamIds.splice(i, 1);
+    else if (prog.teamIds.length < (r.teamSize || 4)) prog.teamIds.push(id);
+    else { toast('阵容已满，先点掉一个', true); return; }
+    r.progress = prog;
+    if (run.story) run.story.rogue = r;
+    if (run.ctx.onPersist) run.ctx.onPersist();
+    run.phase = 'book';
+    run.idleTab = 'book';
+    paint();
+  };
+  ctx.onIdleGacha = (n) => {
+    if (!run || run.rogue.mode !== 'idle') return;
+    const res = pullGacha(run.rogue, n);
+    if (!res.ok) { toast(res.error || '抽卡失败', true); return; }
+    run.gachaLast = res.results;
+    if (run.story) run.story.rogue = run.rogue;
+    if (run.ctx.onPersist) run.ctx.onPersist();
+    toast(n >= 10 ? '十连完成' : '抽到了！');
+    run.phase = 'gacha';
+    run.idleTab = 'gacha';
+    paint();
+  };
+  ctx.onIdleLevelUp = (id) => {
+    if (!run || run.rogue.mode !== 'idle') return;
+    const res = levelUpChar(run.rogue, id);
+    if (!res.ok) { toast(res.error || '升级失败', true); return; }
+    if (run.story) run.story.rogue = run.rogue;
+    if (run.ctx.onPersist) run.ctx.onPersist();
+    toast('升到 Lv.' + res.level);
+    run.idleCharId = id;
+    run.phase = 'book';
+    run.idleTab = 'book';
+    paint();
+  };
+  ctx.onIdleStarUp = (id) => {
+    if (!run || run.rogue.mode !== 'idle') return;
+    const res = starUpChar(run.rogue, id);
+    if (!res.ok) { toast(res.error || '升星失败', true); return; }
+    if (run.story) run.story.rogue = run.rogue;
+    if (run.ctx.onPersist) run.ctx.onPersist();
+    toast('升到 ' + res.star + '★');
+    run.idleCharId = id;
+    run.phase = 'book';
+    run.idleTab = 'book';
+    paint();
+  };
+}
+
+function goIdleHome() {
+  if (!run) return;
+  run.phase = 'home';
+  run.idleTab = 'home';
+  run.battle = null;
   paint();
 }
 
@@ -354,6 +456,13 @@ function paint() {
       <div class="bt-result-text">打开「卡牌工作室」，加一块角色和一块关卡；或点「帮我填一套能玩的」。</div>
       <div class="bt-result-ops"><button class="btn ghost" id="rgExit">退出</button></div></div>`;
     frame.querySelector('#rgExit').addEventListener('click', run.ctx.onExit);
+    return;
+  }
+  if (run.phase === 'home' || run.phase === 'book' || run.phase === 'stages' || run.phase === 'gacha') {
+    paintIdleShell(frame, run, run.phase === 'home' ? 'home' : run.phase);
+    if (run.phase === 'gacha' && run.gachaLast && run.gachaLast.length) {
+      renderGachaResult(frame, run.rogue, run.gachaLast);
+    }
     return;
   }
   if (run.phase === 'pick_team') return paintPick(frame);
@@ -415,21 +524,29 @@ function beginRun(ids) {
   const r = run.rogue;
   const rng = run.rng;
   const bond = bondAtkMul(r, ids);
+  const prog = normalizeIdleProgress(r, (r.stages || []).length);
   run.team = ids.map((id, slot) => {
     const c = r.roster.find(x => x.id === id) || r.roster[0];
-    const star = clamp(c.star, 1, 5, 1);
-    const atk = Math.round(c.atk * (1 + (star - 1) * 0.08) * bond);
-    const hp = Math.round(c.hp * (1 + (star - 1) * 0.06));
+    const owned = prog.chars[id] || { level: 1, exp: 0, star: c.star || 1, copies: 0 };
+    const atk = Math.round(fightAtk(c, owned) * bond);
+    const hp = fightHp(c, owned);
     return {
       id: c.id, name: c.name, elem: c.elem, slot, front: slot < 2,
-      maxHp: hp, hp, atk, spd: c.spd,
+      maxHp: hp, hp, atk, spd: c.spd, portrait: c.portrait || '',
       gauge: 0, buff: 0, next: 0, cards: charCards(r, c, rng),
     };
   });
   run.nodes = r.mode === 'rogue'
     ? buildRogueMap(rng, r.floors, r.enemies)
     : stageNodes(r);
-  run.nodeIdx = 0;
+  run.nodeIdx = (r.mode === 'idle')
+    ? Math.min(prog.stageIdx, Math.max(0, run.nodes.length - 1))
+    : 0;
+  if (r.mode === 'idle' && prog.stageIdx >= run.nodes.length) {
+    toast('已经通关了，可在工作室加更多关卡');
+    goIdleHome();
+    return;
+  }
   run.relics = [];
   run.phase = 'map';
   paint();
@@ -582,8 +699,30 @@ function finishBattle(win) {
 function afterWin() {
   if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
   run.team.forEach(m => { if (m.hp > 0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp * 0.12)); });
+  if (run.rogue.mode === 'idle') {
+    const reward = rewardIdleStage(run.rogue, run.nodeIdx);
+    if (run.story) run.story.rogue = run.rogue;
+    if (run.ctx.onPersist) run.ctx.onPersist();
+    toast('通关 +' + reward.gold + ' 金币，上阵角色 +' + reward.exp + ' 经验');
+  }
   if (run.rogue.mode === 'rogue') startCardPick();
   else advanceNode();
+}
+
+function advanceNode() {
+  run.nodeIdx++;
+  if (run.nodeIdx >= run.nodes.length) {
+    if (run.rogue.mode === 'idle') {
+      toast('全部关卡打完了');
+      goIdleHome();
+      return;
+    }
+    run.phase = 'won';
+    paint();
+    return;
+  }
+  run.phase = 'map';
+  paint();
 }
 
 function startCardPick() {
@@ -637,6 +776,7 @@ function paintBattle(frame) {
     </div>`).join('');
   const party = run.team.map(m => `
     <div class="bt-member${m.hp <= 0 ? ' dead' : ''}${m.front ? ' hero' : ''}">
+      ${m.portrait ? `<div class="bt-portrait"><img src="${esc(m.portrait)}" alt=""/></div>` : ''}
       <div class="bt-member-name">${m.front ? '前' : '后'} ${esc(m.name)} · ${elemLabel(m.elem)}</div>
       <div class="bt-hp-row"><div class="bt-bar"><div class="bt-bar-fill hp" style="width:${pct(m.hp, m.maxHp)}%"></div></div><span class="bt-hp-num">${m.hp}/${m.maxHp}</span></div>
       <div class="bt-bar rg-spd"><div class="bt-bar-fill spd" style="width:${Math.min(100, m.gauge || 0)}%"></div></div>
@@ -650,7 +790,7 @@ function paintBattle(frame) {
   } else if (b.phase === 'lost') {
     result = `<div class="bt-result"><div class="bt-result-title lost">倒下了</div>
       <div class="bt-result-text">${loseHint}</div>
-      <div class="bt-result-ops"><button class="btn primary" id="rgRetry">再来一次</button>
+      <div class="bt-result-ops"><button class="btn primary" id="rgRetry">${run.rogue.mode === 'idle' ? '回主城' : '再来一次'}</button>
       <button class="btn ghost" id="rgExit2">退出</button></div></div>`;
   }
   frame.innerHTML = `${top}<div class="bt-enemies">${foes}</div><div class="bt-party">${party}</div>
@@ -667,7 +807,10 @@ function paintBattle(frame) {
   const nx = frame.querySelector('#rgNext');
   if (nx) nx.addEventListener('click', afterWin);
   const rt = frame.querySelector('#rgRetry');
-  if (rt) rt.addEventListener('click', () => startRogueRun(run.block, run.ctx));
+  if (rt) rt.addEventListener('click', () => {
+    if (run.rogue.mode === 'idle') goIdleHome();
+    else startRogueRun(run.block, run.ctx);
+  });
   const e2 = frame.querySelector('#rgExit2');
   if (e2) e2.addEventListener('click', run.ctx.onExit);
 }
@@ -739,15 +882,17 @@ function paintRest(frame) {
 }
 function paintEnd(frame) {
   const win = run.phase === 'won';
+  const idle = run.rogue.mode === 'idle';
   frame.innerHTML = `<div class="bt-result">
     <div class="bt-result-title${win ? '' : ' lost'}">${win ? '打完了' : '没打过'}</div>
-    <div class="bt-result-text">${win ? (run.block.winContent || '可以改角色数值，或换一种玩法再试。') : (run.block.loseContent || '把敌人生命调低，或把角色攻击调高。')}</div>
+    <div class="bt-result-text">${win ? (run.block.winContent || (idle ? '回主城继续养成和推关。' : '可以改角色数值，或换一种玩法再试。')) : (run.block.loseContent || '把敌人生命调低，或把角色攻击调高。')}</div>
     <div class="bt-result-ops">
-      <button class="btn primary" id="rgA">${win ? '回到剧情' : '再来一次'}</button>
+      <button class="btn primary" id="rgA">${idle ? (win ? '回主城' : '回主城再试') : (win ? '回到剧情' : '再来一次')}</button>
       <button class="btn ghost" id="rgB">退出</button>
     </div></div>`;
   frame.querySelector('#rgB').addEventListener('click', run.ctx.onExit);
   frame.querySelector('#rgA').addEventListener('click', () => {
+    if (idle) { goIdleHome(); return; }
     if (win) { const n = run.ctx.onWin; stopRogueRun(); if (n) n(); }
     else startRogueRun(run.block, run.ctx);
   });
@@ -783,12 +928,16 @@ function starterByMode(mode) {
   if (mode === 'idle') {
     return {
       roster: [
-        { id: 'c_yue', name: '月华', elem: 'light', faction: 'light', star: 3, hp: 130, atk: 18, spd: 16, skillIds: ['sk_yue'] },
-        { id: 'c_ye', name: '夜羽', elem: 'dark', faction: 'dark', star: 3, hp: 125, atk: 20, spd: 17, skillIds: ['sk_ye'] },
+        { id: 'c_yue', name: '月华', elem: 'light', faction: 'light', star: 4, hp: 140, atk: 20, spd: 16, skillIds: ['sk_yue'], portrait: '' },
+        { id: 'c_ye', name: '夜羽', elem: 'dark', faction: 'dark', star: 4, hp: 130, atk: 22, spd: 18, skillIds: ['sk_ye'], portrait: '' },
+        { id: 'c_xia', name: '绯霞', elem: 'light', faction: 'light', star: 3, hp: 125, atk: 19, spd: 17, skillIds: ['sk_xia'], portrait: '' },
+        { id: 'c_ling', name: '铃兰', elem: 'dark', faction: 'dark', star: 3, hp: 135, atk: 18, spd: 15, skillIds: ['sk_ling'], portrait: '' },
       ],
       skills: [
-        { id: 'sk_yue', name: '月辉', kind: 'atk', power: 115, elem: 'light', ownerId: 'c_yue' },
-        { id: 'sk_ye', name: '影刺', kind: 'atk', power: 120, elem: 'dark', ownerId: 'c_ye' },
+        { id: 'sk_yue', name: '月辉', kind: 'atk', power: 118, elem: 'light', ownerId: 'c_yue' },
+        { id: 'sk_ye', name: '影刺', kind: 'atk', power: 122, elem: 'dark', ownerId: 'c_ye' },
+        { id: 'sk_xia', name: '霞光', kind: 'heal', power: 100, elem: 'light', ownerId: 'c_xia' },
+        { id: 'sk_ling', name: '铃斩', kind: 'atk', power: 115, elem: 'dark', ownerId: 'c_ling' },
       ],
       enemies: [
         { id: 'e1', name: '残影', elem: 'dark', hp: 45, atk: 8, spd: 12 },
@@ -801,6 +950,18 @@ function starterByMode(mode) {
         { id: 'st3', title: '首领 深渊使', enemyIds: ['e3'] },
       ],
       bonds: [], relics: [], events: [],
+      progress: {
+        stageIdx: 0,
+        gold: 800,
+        teamIds: ['c_yue', 'c_ye', 'c_xia', 'c_ling'],
+        chars: {
+          c_yue: { level: 1, exp: 0, star: 4, copies: 0 },
+          c_ye: { level: 1, exp: 0, star: 4, copies: 0 },
+          c_xia: { level: 1, exp: 0, star: 3, copies: 0 },
+          c_ling: { level: 1, exp: 0, star: 3, copies: 0 },
+        },
+      },
+      gacha: { cost: 80 },
     };
   }
   if (mode === 'queue') {
@@ -924,6 +1085,34 @@ function sel(val, opts) {
   return s;
 }
 
+function pickPortrait(char, done, api) {
+  if (!api || typeof api.upload !== 'function') {
+    toast('当前环境不能上传立绘', true);
+    return;
+  }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/jpeg,image/png,image/webp,image/gif';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    input.remove();
+    if (!file) return;
+    toast('正在上传立绘…');
+    try {
+      const res = await api.upload(file);
+      if (!res || !res.url) { toast('立绘上传失败', true); return; }
+      char.portrait = res.url;
+      toast('立绘已挂上');
+      if (done) done();
+    } catch (e) {
+      toast('立绘上传失败', true);
+    }
+  });
+  input.click();
+}
+
 export function openCardStudio(story, api) {
   ensureRogue(story);
   const card = document.querySelector('#modal .modal-card');
@@ -940,7 +1129,9 @@ function renderStudio(body, story, api) {
 
   const steps = document.createElement('div');
   steps.className = 'rpg-tip';
-  steps.innerHTML = '<b>三步：</b>① 角色表 → ② 关卡表 → ③ 羁绊/遗物（可空）→ 关掉窗口点「试玩」。拖 ⋮⋮ 可调顺序。';
+  steps.innerHTML = r.mode === 'idle'
+    ? '<b>女神挂机：</b>① 加角色并点「立绘」上传 → ② 加关卡 → 关掉窗口点试玩进主城。'
+    : '<b>三步：</b>① 角色表 → ② 关卡表 → ③ 羁绊/遗物（可空）→ 关掉窗口点「试玩」。拖 ⋮⋮ 可调顺序。';
   body.appendChild(steps);
 
   const modes = document.createElement('div');
@@ -1011,17 +1202,29 @@ function renderStudio(body, story, api) {
   const h1 = document.createElement('h3');
   h1.textContent = '① 角色表';
   body.appendChild(h1);
-  const { table: tableC, tbody: bodyC } = mkTable(['', '名字', '阵营', '星', '招式', '']);
+  const { table: tableC, tbody: bodyC } = mkTable(['', '立绘', '名字', '阵营', '星', '招式', '']);
   r.roster.forEach((c, i) => {
     const mine = skillsOf(r, c.id).filter(s => s.ownerId === c.id);
     const tr = document.createElement('tr');
     tr.dataset.i = String(i);
+    const thumb = c.portrait
+      ? `<img class="studio-thumb" src="${esc(c.portrait)}" alt=""/>`
+      : '<span class="studio-thumb empty">无</span>';
     tr.innerHTML = `<td class="row-handle" title="拖动排序">⋮⋮</td>
+      <td>${thumb}</td>
       <td>${esc(c.name)}</td>
       <td>${factionLabel(r.mode, c.faction)}</td>
       <td>${c.star || 1}</td>
       <td>${mine.map(s => s.name).join('、') || '普攻'}</td>
       <td></td>`;
+    const ops = tr.lastElementChild;
+    const up = document.createElement('button');
+    up.className = 'btn tiny'; up.textContent = '立绘';
+    up.title = '上传角色立绘';
+    up.addEventListener('click', () => pickPortrait(c, () => {
+      api.persist();
+      renderStudio(body, story, api);
+    }, api));
     const del = document.createElement('button');
     del.className = 'btn tiny danger'; del.textContent = '删';
     del.addEventListener('click', () => {
@@ -1031,7 +1234,7 @@ function renderStudio(body, story, api) {
       api.persist();
       renderStudio(body, story, api);
     });
-    tr.lastElementChild.appendChild(del);
+    ops.append(up, del);
     bodyC.appendChild(tr);
   });
   body.appendChild(tableC);
@@ -1053,7 +1256,7 @@ function renderStudio(body, story, api) {
     const elem = elemFromFaction(r.mode, fac.value);
     r.roster.push({
       id, name: n.slice(0, 16), elem, faction: fac.value,
-      star: Number(star.value) || 3, hp: 120, atk: 18, spd: 16, skillIds: [sid],
+      star: Number(star.value) || 3, hp: 120, atk: 18, spd: 16, skillIds: [sid], portrait: '',
     });
     r.skills.push({
       id: sid, name: (skn.value.trim() || '普攻').slice(0, 16),

@@ -1328,6 +1328,7 @@ function cardStudioApi() {
     persist,
     openModal,
     toast,
+    upload: (file) => uploadFile(file, { compress: { orientation: 'portrait', quality: 'standard' } }),
     onMode: () => { renderEditor(); renderLibrary(); },
   };
 }
@@ -3334,6 +3335,7 @@ function renderPlay() {
       orientation: sPlay.orientation,
       onWin: playNext,
       onExit: stopPlay,
+      onPersist: persist,
     });
     return;
   }
@@ -3516,6 +3518,10 @@ function init() {
       const k = btn.dataset.kind;
       createKind = (k === 'card_rpg' || k === 'gacha_rogue') ? k : 'story';
       document.querySelectorAll('#createKindRow .kind-card, #createKindMore .kind-card').forEach(x => x.classList.toggle('active', x === btn));
+      if (createKind === 'gacha_rogue') {
+        createOrientation = 'portrait';
+        document.querySelectorAll('#createOrientRow .orient-card').forEach(x => x.classList.toggle('active', x.dataset.orient === 'portrait'));
+      }
       const demoBtn = $('#rpgDemoBtn');
       if (demoBtn) demoBtn.classList.toggle('hidden', createKind !== 'card_rpg');
       const rogueDemo = $('#rogueDemoBtn');

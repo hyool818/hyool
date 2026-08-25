@@ -293,6 +293,65 @@ textarea.txt{min-height:120px;resize:vertical}
   .studio-table tr.drag-over{outline:1px solid var(--accent2)}
   .studio-table .row-handle{cursor:grab;color:#6a6a7c;width:28px;text-align:center;user-select:none}
   .studio-table .row-handle:active{cursor:grabbing}
+  .studio-thumb{width:36px;height:48px;object-fit:cover;border-radius:6px;display:block;background:#1a1a28;vertical-align:middle}
+  span.studio-thumb.empty{display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);border:1px dashed var(--line2);width:36px;height:48px;box-sizing:border-box}
+
+  /* 女神挂机壳 */
+  .idle-shell{display:flex;flex-direction:column;height:100%;min-height:0;background:linear-gradient(180deg,#14121f 0%,#0c0b14 55%,#12101c 100%);padding:12px 12px 8px;box-sizing:border-box}
+  .idle-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .idle-brand{font-weight:700;font-size:15px;letter-spacing:.04em;color:#f0e6ff}
+  .idle-gold{margin-left:auto;font-size:12px;color:#ffd76a}
+  .idle-stage-banner{border:1px solid rgba(180,140,255,.28);background:rgba(40,28,70,.45);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+  .idle-stage-title{font-size:14px;font-weight:650;color:#efe8ff}
+  .idle-stage-sub{font-size:11px;color:var(--muted);margin-top:4px}
+  .idle-party{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;min-height:150px;margin:8px 0 12px}
+  .goddess-card{width:78px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161422;overflow:hidden;position:relative;text-align:center;padding:0 0 8px;color:var(--text)}
+  .goddess-card .star{position:absolute;top:6px;right:6px;font-size:10px;background:rgba(0,0,0,.55);border-radius:999px;padding:2px 6px;color:#ffd76a}
+  .goddess-card .nm{display:block;font-size:12px;font-weight:650;margin-top:6px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .goddess-card .meta{font-size:10px;color:var(--muted);margin-top:4px;padding:0 6px}
+  .goddess-card.book{width:118px;padding-bottom:8px;cursor:pointer;border:1px solid var(--line2);background:#14121f}
+  .goddess-card.book.sel{border-color:rgba(180,140,255,.75);box-shadow:0 0 0 1px rgba(180,140,255,.35)}
+  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img{width:100%;height:110px;object-fit:cover;display:block}
+  .bt-member .bt-portrait{width:100%;height:54px;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#1a1a28}
+  .bt-member .bt-portrait img{width:100%;height:100%;object-fit:cover;display:block}
+  .idle-stage-title{font-size:14px;font-weight:650;color:#efe8ff}
+  .idle-stage-sub{font-size:11px;color:var(--muted);margin-top:4px}
+  .idle-party{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;min-height:150px;margin:8px 0 12px}
+  .goddess-card{width:78px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161422;overflow:hidden;position:relative;text-align:center;padding:0 0 8px;color:var(--text)}
+  .goddess-card.slot{width:86px}
+  .goddess-card.empty{border-style:dashed;opacity:.7;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:130px}
+  .goddess-card .ch{display:flex;align-items:center;justify-content:center;height:96px;font-size:28px;font-weight:700}
+  .goddess-card.tone-light .ch{background:linear-gradient(180deg,#3a3358,#1c1830);color:#f4ecff}
+  .goddess-card.tone-dark .ch{background:linear-gradient(180deg,#2a2038,#120e1c);color:#d9c7ff}
+  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img{width:100%;height:110px;object-fit:cover;display:block}
+  .goddess-card .star{position:absolute;top:6px;right:6px;font-size:10px;background:rgba(0,0,0,.55);border-radius:999px;padding:2px 6px;color:#ffd76a}
+  .goddess-card .nm{display:block;font-size:12px;font-weight:650;margin-top:6px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .goddess-card.book{width:118px;padding-bottom:8px;cursor:pointer;border:1px solid var(--line2);background:#14121f}
+  .goddess-card.book.sel{border-color:rgba(180,140,255,.75);box-shadow:0 0 0 1px rgba(180,140,255,.35)}
+  .goddess-card.book .meta{font-size:10px;color:var(--muted);margin-top:4px;padding:0 6px}
+  .idle-cta{margin-top:auto;padding:8px 0}
+  .idle-cta .btn.wide{width:100%}
+  .idle-tabs{display:flex;gap:6px;margin-top:8px}
+  .idle-tab{flex:1;border:1px solid var(--line2);background:#151320;color:var(--muted);border-radius:10px;padding:9px 6px;font-size:12px;cursor:pointer}
+  .idle-tab.active{color:#efe8ff;border-color:rgba(180,140,255,.55);background:rgba(139,123,255,.16)}
+  .idle-book{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;overflow:auto;flex:1;padding:4px 0 10px}
+  .idle-stage-list{display:flex;flex-direction:column;gap:8px;overflow:auto;flex:1;padding:4px 0 10px}
+  .idle-stage-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#14121c;font-size:13px}
+  .idle-stage-row.cur{border-color:rgba(180,140,255,.55);background:rgba(139,123,255,.12)}
+  .idle-stage-row.done{opacity:.7}
+  .idle-stage-row .mk{width:1.4em;text-align:center}
+  .idle-empty{color:var(--muted);font-size:12px;text-align:center;padding:24px 12px;line-height:1.7}
+  .goddess-card.tone-light .ch{background:linear-gradient(180deg,#3a3358,#1c1830);color:#f4ecff}
+  .goddess-card.tone-dark .ch{background:linear-gradient(180deg,#2a2038,#120e1c);color:#d9c7ff}
+  .goddess-card.has-img img{width:100%;height:110px;object-fit:cover;display:block}
+  .rogue-view.portrait .idle-shell{max-width:420px;margin:0 auto}
+  .idle-stage-row.cur{border-color:rgba(180,140,255,.55);background:rgba(139,123,255,.12)}
+  .idle-stage-row.done{opacity:.7}
+  .idle-stage-row .mk{width:1.4em;text-align:center}
+  .idle-empty{color:var(--muted);font-size:12px;text-align:center;padding:24px 12px;line-height:1.7}
+  .bt-portrait{width:100%;height:54px;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#1a1a28}
+  .bt-portrait img{width:100%;height:100%;object-fit:cover;display:block}
+  .rogue-view.portrait .idle-shell{max-width:420px;margin:0 auto}
   .rpg-tip{font-size:11.5px;color:var(--muted);line-height:1.7;border:1px dashed var(--line2);border-radius:8px;padding:8px 10px}
   .rpg-field{margin:10px 0}
   .rpg-field label{font-size:12px;margin-bottom:4px}
@@ -421,6 +480,24 @@ textarea.txt{min-height:120px;resize:vertical}
   .rpg-split-left,.rpg-split-right{max-height:none}
   .rpg-split-right{border-left:none;padding-left:0;border-top:1px solid var(--line);padding-top:12px}
 }
+
+  .idle-detail{margin:8px 0 4px}
+  .idle-detail-card{border:1px solid rgba(180,140,255,.28);background:rgba(30,22,50,.55);border-radius:12px;padding:10px 12px}
+  .idle-detail-name{font-weight:700;font-size:13px;color:#efe8ff}
+  .idle-detail-meta{font-size:11px;color:var(--muted);margin-top:4px}
+  .idle-detail-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .gacha-pool{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:8px 0}
+  .gacha-ops{display:flex;gap:8px}
+  .gacha-ops .btn{flex:1}
+  .gacha-result{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;min-height:36px;margin:8px 0}
+  .gacha-chip{font-size:11px;border:1px solid var(--line2);border-radius:999px;padding:4px 10px;background:#161422;color:var(--text)}
+  .gacha-chip.star3{border-color:rgba(120,200,255,.45)}
+  .gacha-chip.star4,.gacha-chip.star5{border-color:rgba(255,215,106,.55);color:#ffd76a}
+  .gacha-chip span{margin-left:4px;color:var(--muted)}
+  .idle-detail-card{border:1px solid rgba(180,140,255,.28);background:rgba(30,22,50,.55);border-radius:12px;padding:10px 12px;margin-top:8px}
+  .idle-detail-name{font-weight:700;font-size:13px;color:#efe8ff}
+  .idle-detail-meta{font-size:11px;color:var(--muted);margin-top:4px}
+  .idle-detail-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 </style>
 </head>
 <body>
