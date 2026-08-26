@@ -1120,6 +1120,75 @@ const RES_ITEMS = [
   { id: 'ai', icon: '🤖', label: 'AI' },
 ];
 const ASSET_CATS = { assets: null, music: 'music', sfx: 'sfx' };
+const STORY_SIMPLE_UI_KEY = 'hyool_story_simple_ui_v1';
+const STORY_GUIDE_DISMISS_KEY = 'hyool_story_guide_dismiss_v1';
+
+function isStorySimpleUi() {
+  const s = story();
+  if (!s || s.kind !== 'story') return false;
+  try { return localStorage.getItem(STORY_SIMPLE_UI_KEY) !== '0'; } catch (e) { return true; }
+}
+
+function setStorySimpleUi(on) {
+  try { localStorage.setItem(STORY_SIMPLE_UI_KEY, on ? '1' : '0'); } catch (e) { /* ignore */ }
+  renderEditor();
+}
+
+function applyStorySimpleUiChrome() {
+  const simple = isStorySimpleUi();
+  document.querySelectorAll('.story-advanced').forEach((el) => {
+    el.classList.toggle('story-advanced-hidden', simple);
+  });
+  const dock = $('#timelineDock');
+  if (dock && simple) dock.classList.add('collapsed');
+  const propHead = $('#propHead');
+  if (propHead) propHead.textContent = simple ? '镜头属性' : '属性';
+  const blockLabel = $('#blockListLabel');
+  if (blockLabel) blockLabel.textContent = simple ? '镜头列表（从上到下播放）' : '镜头列表';
+}
+
+function renderStoryGuideBar() {
+  const bar = $('#storyGuideBar');
+  if (!bar) return;
+  const s = story();
+  let dismissed = false;
+  try { dismissed = localStorage.getItem(STORY_GUIDE_DISMISS_KEY) === '1'; } catch (e) { /* ignore */ }
+  if (!s || s.kind !== 'story' || !isStorySimpleUi() || dismissed) {
+    bar.classList.add('hidden');
+    return;
+  }
+  bar.classList.remove('hidden');
+}
+
+function renderStoryEmptyChapter(host) {
+  host.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'beginner-empty';
+  const title = document.createElement('div');
+  title.className = 'be-title';
+  title.textContent = '从这里开始写故事';
+  const sub = document.createElement('div');
+  sub.className = 'be-sub';
+  sub.textContent = '像做游戏场景一样：先加一句对白，再给它配一张背景图，最后点顶栏预览。';
+  const btns = document.createElement('div');
+  btns.className = 'be-btns';
+  const addDlg = document.createElement('button');
+  addDlg.type = 'button';
+  addDlg.className = 'btn primary';
+  addDlg.textContent = '① 先加一句对白';
+  addDlg.addEventListener('click', () => addBlock('dialogue'));
+  const addScene = document.createElement('button');
+  addScene.type = 'button';
+  addScene.className = 'btn';
+  addScene.textContent = '或：加一段场景文字';
+  addScene.addEventListener('click', () => addBlock('scene'));
+  btns.append(addDlg, addScene);
+  const tip = document.createElement('div');
+  tip.className = 'be-tip';
+  tip.textContent = '加完后点选镜头 → 右侧写台词、加背景图';
+  box.append(title, sub, btns, tip);
+  host.appendChild(box);
+}
 
 function assetUid() {
   return 'a_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -1528,7 +1597,10 @@ function renderResTree() {
   if (!host) return;
   const s = story();
   host.innerHTML = '';
-  RES_ITEMS.forEach(item => {
+  const items = (s && s.kind === 'story' && isStorySimpleUi())
+    ? RES_ITEMS.filter((item) => item.id === 'plot' || item.id === 'characters')
+    : RES_ITEMS;
+  items.forEach(item => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.title = item.label;
@@ -1542,6 +1614,14 @@ function renderResTree() {
     });
     host.appendChild(btn);
   });
+  if (s && s.kind === 'story' && isStorySimpleUi()) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.title = '显示全部工具';
+    more.innerHTML = '⋯<span>更多</span>';
+    more.addEventListener('click', () => { setStorySimpleUi(false); toast('已显示全部功能'); });
+    host.appendChild(more);
+  }
 }
 
 function renderResPanel() {
@@ -1616,7 +1696,9 @@ function renderResPanel() {
     renderChaptersInto(list);
     const tip = document.createElement('p');
     tip.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.8;margin-top:8px';
-    tip.textContent = '中间为剧情积木流；选中一块后右侧改属性、底部看多轨时间轴。';
+    tip.textContent = isStorySimpleUi()
+      ? '选章节 → 中间加对白 → 右侧改台词和背景图。'
+      : '中间为剧情积木流；选中一块后右侧改属性、底部看多轨时间轴。';
     host.appendChild(tip);
     const fold = document.createElement('details');
     fold.className = 'settings-fold';
@@ -2033,7 +2115,11 @@ function renderPropertyPanel() {
   if (!b) {
     if (head) head.textContent = '属性';
     const s = story();
-    body.innerHTML = '<div class="prop-empty">' + (s && s.kind === 'comic' ? '点选中间一格，右侧可选气泡样式、写对白、加画面。' : '选中一块积木后，在这里改对白、配音与字幕等设置。') + '</div>';
+    body.innerHTML = '<div class="prop-empty">' + (s && s.kind === 'comic'
+      ? '点选中间一格，右侧可选气泡样式、写对白、加画面。'
+      : (isStorySimpleUi()
+        ? '← 先点「加对白」创建镜头，再点选镜头。<br>这里写台词、加背景图。'
+        : '选中一块积木后，在这里改对白、配音与字幕等设置。')) + '</div>';
     return;
   }
   const typeLabel = b.type === 'scene' ? '场景' : b.type === 'dialogue' ? '对白' : b.type === 'battle' ? '战斗' : b.type === 'rogue' ? '卡牌关' : '积木';
@@ -2219,6 +2305,8 @@ function renderEditor() {
   renderPropertyPanel();
   renderTimelineDock();
   renderEditorLoginBanner();
+  applyStorySimpleUiChrome();
+  renderStoryGuideBar();
 }
 
 function renderChapters() {
@@ -2491,12 +2579,16 @@ function renderBlocks() {
     return;
   }
   headTitle.textContent = ch.title;
-  headCount.textContent = `${ch.blocks.length} 块 · 拖把手调序`;
+  headCount.textContent = isStorySimpleUi() ? `${ch.blocks.length} 个镜头` : `${ch.blocks.length} 块 · 拖把手调序`;
   if (!ch.blocks.length) {
-    const d = document.createElement('div');
-    d.className = 'block-empty';
-    d.textContent = '这一章还是空的。\n点下方「＋ 加对白 / 加场景 / 加选项 / 加演出」，或把图片拖进这里。';
-    host.appendChild(d);
+    if (story() && story().kind === 'story' && isStorySimpleUi()) {
+      renderStoryEmptyChapter(host);
+    } else {
+      const d = document.createElement('div');
+      d.className = 'block-empty';
+      d.textContent = '这一章还是空的。\n点下方「＋ 加对白 / 加场景 / 加选项 / 加演出」，或把图片拖进这里。';
+      host.appendChild(d);
+    }
     return;
   }
   ch.blocks.forEach((b, i) => {
@@ -2889,10 +2981,12 @@ function renderStagePreview() {
     }
   }
   if (!b) {
-    if (hint) hint.textContent = '点左侧积木 · 拖立绘 · 双击改字';
+    if (hint) hint.textContent = '还没有选中镜头。点左边列表里的一项。';
     const empty = document.createElement('div');
     empty.className = 'sc-empty';
-    empty.textContent = '还没有选中积木。\n点左侧时间线里的一块，这里会显示本幕画面。';
+    empty.textContent = isStorySimpleUi()
+      ? '选中左边一个镜头，这里会显示背景和对白。\n加完对白后，点上方「＋ 背景图」。'
+      : '还没有选中积木。\n点左侧时间线里的一块，这里会显示本幕画面。';
     canvas.appendChild(empty);
     return;
   }
@@ -6672,6 +6766,13 @@ function init() {
   });
   bindInit($('#createBtn'), 'click', createStory);
   bindInit($('#newTitle'), 'keydown', (e) => { if (e.key === 'Enter') createStory(); });
+  const guideAdv = $('#storyGuideAdvanced');
+  if (guideAdv) guideAdv.addEventListener('click', () => { setStorySimpleUi(false); toast('已显示分支图、选项、时间轴等全部功能'); });
+  const guideDismiss = $('#storyGuideDismiss');
+  if (guideDismiss) guideDismiss.addEventListener('click', () => {
+    try { localStorage.setItem(STORY_GUIDE_DISMISS_KEY, '1'); } catch (e) { /* ignore */ }
+    renderStoryGuideBar();
+  });
   $('#storyTitle').addEventListener('input', () => {
     const s = story();
     const v = $('#storyTitle').value.trim();

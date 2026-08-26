@@ -118,6 +118,21 @@ textarea.txt{min-height:120px;resize:vertical}
 .comic-panel .cp-upload-label.cp-change:hover{color:var(--accent2);border-color:var(--accent2)}
 .editor-login-banner{padding:10px 16px;font-size:12.5px;line-height:1.6;color:#ece6ff;background:linear-gradient(90deg,rgba(80,50,160,.45),rgba(40,80,140,.35));border-bottom:1px solid rgba(139,123,255,.35);text-align:center}
 .editor-login-banner a{color:#9fd4ff;font-weight:600}
+/* 互动小说 · 新手引导（Cocos 式：章节 / 镜头 / 预览 / 属性） */
+.story-guide-bar{padding:12px 16px;font-size:12.5px;line-height:1.65;color:#e8e4ff;background:linear-gradient(90deg,rgba(30,24,52,.95),rgba(18,28,48,.92));border-bottom:1px solid rgba(139,123,255,.28)}
+.story-guide-bar.hidden{display:none}
+.story-guide-bar .sg-steps{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:6px}
+.story-guide-bar .sg-step{padding:4px 10px;border-radius:99px;border:1px solid rgba(139,123,255,.35);background:rgba(139,123,255,.1);font-size:11.5px;white-space:nowrap}
+.story-guide-bar .sg-actions{margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.story-guide-bar .sg-link{background:none;border:none;color:#9fd4ff;font-size:11.5px;cursor:pointer;font-family:inherit;padding:0;text-decoration:underline}
+.zone-label{flex:0 0 auto;padding:6px 16px 0;font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.beginner-empty{text-align:center;padding:28px 16px 32px;line-height:1.7}
+.beginner-empty .be-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
+.beginner-empty .be-sub{font-size:12.5px;color:var(--muted);margin-bottom:18px;max-width:360px;margin-left:auto;margin-right:auto}
+.beginner-empty .be-btns{display:flex;flex-direction:column;gap:10px;max-width:280px;margin:0 auto 14px}
+.beginner-empty .be-btns .btn{padding:12px 16px;font-size:14px}
+.beginner-empty .be-tip{font-size:11px;color:var(--muted)}
+.story-advanced-hidden{display:none!important}
 .bm-ops .cp-upload-label.btn-file{display:inline-flex;align-items:center;justify-content:center;min-height:0;width:auto;inset:auto;position:relative;padding:6px 12px;font-size:12px;border:1px solid var(--line2);border-radius:8px;background:#151522;color:var(--text)}
 .bm-ops .cp-upload-label.btn-file input[type=file]{position:absolute;inset:0}
 .comic-panel.drag-over{border-color:var(--accent2);background:rgba(95,200,255,.06)}
@@ -857,6 +872,19 @@ textarea.txt{min-height:120px;resize:vertical}
 <!-- ============ 视图2：HYOOL Studio 编辑壳 ============ -->
 <div class="editor-wrap hidden" id="viewEditor">
   <div class="editor-login-banner hidden" id="editorLoginBanner"></div>
+  <div class="story-guide-bar hidden" id="storyGuideBar">
+    <strong>互动小说 · 四步就会</strong>
+    <div class="sg-steps">
+      <span class="sg-step">① 左侧选章节</span>
+      <span class="sg-step">② 点「加对白」写台词</span>
+      <span class="sg-step">③ 选中镜头 → 右侧加背景图</span>
+      <span class="sg-step">④ 顶栏「预览 ▶」试玩</span>
+    </div>
+    <div class="sg-actions">
+      <button type="button" class="sg-link" id="storyGuideAdvanced">我是老手，显示全部功能</button>
+      <button type="button" class="sg-link" id="storyGuideDismiss">知道了，收起提示</button>
+    </div>
+  </div>
   <div class="studio-shell">
     <div class="studio-row">
       <aside class="studio-left">
@@ -869,41 +897,42 @@ textarea.txt{min-height:120px;resize:vertical}
             <span class="ch-title" id="chapterTitle"></span>
             <span class="ch-count" id="chapterCount"></span>
             <span style="flex:1"></span>
-            <button class="btn small ghost" id="mapBtn" title="查看跳转、死端与孤儿积木">🗺 分支图</button>
+            <button class="btn small ghost story-advanced" id="mapBtn" title="查看跳转、死端与孤儿积木">🗺 分支图</button>
             <button class="btn small ghost" id="bgmBtn">🎵 BGM</button>
             <button class="btn small ghost" id="renameChapterBtn">重命名</button>
             <button class="btn small primary" id="playBtnInline" title="与顶栏预览相同">▶ 试玩</button>
           </div>
           <div class="stage-work">
             <div class="stage-timeline">
+              <div class="zone-label" id="blockListLabel">镜头列表</div>
               <div class="stage-scroll" id="blockList"></div>
               <div class="add-chip-bar" id="addChipBar">
                 <button type="button" class="add-chip primary" data-add="dialogue">＋ 加对白</button>
                 <button type="button" class="add-chip" data-add="scene">＋ 加场景</button>
-                <button type="button" class="add-chip" data-add="choice">＋ 加选项</button>
-                <button type="button" class="add-chip" data-add="perf">＋ 加演出</button>
+                <button type="button" class="add-chip story-advanced" data-add="choice" id="chipChoice">＋ 加选项</button>
+                <button type="button" class="add-chip story-advanced" data-add="perf" id="chipPerf">＋ 加演出</button>
                 <button type="button" class="add-chip hidden" data-add="battle" id="chipBattle">＋ 加战斗</button>
                 <button type="button" class="add-chip hidden" data-add="rogue" id="chipRogue">＋ 加卡牌关</button>
-                <button type="button" class="add-chip" id="addBlockBtn">更多…</button>
+                <button type="button" class="add-chip story-advanced" id="addBlockBtn">更多…</button>
               </div>
             </div>
             <div class="stage-pane" id="stagePane">
               <div class="stage-pane-head">
-                <span class="sp-title">本幕舞台</span>
-                <span class="sp-hint" id="stageHint">点左侧积木 · 拖立绘 · 双击改字</span>
+                <span class="sp-title" id="stagePaneTitle">画面预览</span>
+                <span class="sp-hint" id="stageHint">选中镜头后，这里看这一幕长什么样</span>
                 <span style="flex:1"></span>
-                <label class="stage-trans">转场
+                <label class="stage-trans story-advanced">转场
                   <select id="stageTransSel" title="进入本幕时的转场">
                     <option value="fade">淡入</option>
                     <option value="fadeblack">黑场</option>
                     <option value="none">无</option>
                   </select>
                 </label>
-                <button type="button" class="btn tiny" id="stageBgBtn" title="为本幕设置背景画面">背景</button>
-                <button type="button" class="btn tiny" id="stageFigBtn" title="叠加角色立绘（最多3，可拖/滚轮缩放）">立绘</button>
-                <button type="button" class="btn tiny" id="stageScaleDown" title="缩小选中立绘">－</button>
-                <button type="button" class="btn tiny" id="stageScaleUp" title="放大选中立绘">＋</button>
-                <button type="button" class="btn tiny ghost" id="stageClearFigBtn" title="移除选中立绘">清立绘</button>
+                <button type="button" class="btn tiny primary" id="stageBgBtn" title="为本幕设置背景画面">＋ 背景图</button>
+                <button type="button" class="btn tiny story-advanced" id="stageFigBtn" title="叠加角色立绘（最多3，可拖/滚轮缩放）">立绘</button>
+                <button type="button" class="btn tiny story-advanced" id="stageScaleDown" title="缩小选中立绘">－</button>
+                <button type="button" class="btn tiny story-advanced" id="stageScaleUp" title="放大选中立绘">＋</button>
+                <button type="button" class="btn tiny ghost story-advanced" id="stageClearFigBtn" title="移除选中立绘">清立绘</button>
               </div>
               <div class="stage-canvas-host" id="stageCanvasHost">
                 <div class="stage-canvas" id="stageCanvas"></div>
@@ -917,7 +946,7 @@ textarea.txt{min-height:120px;resize:vertical}
         </aside>
       </div>
     </div>
-    <footer class="studio-timeline" id="timelineDock">
+    <footer class="studio-timeline story-advanced" id="timelineDock">
       <div class="tl-dock-head">
         <span class="tl-dock-title">时间轴</span>
         <span id="tlDockHint">选中一块积木以编辑多轨</span>
@@ -993,6 +1022,6 @@ textarea.txt{min-height:120px;resize:vertical}
 </div>
 
 <div class="toast" id="toast"></div>
-<script type="module" src="/story-editor.js?v=20260826g"></script>
+<script type="module" src="/story-editor.js?v=20260826h"></script>
 </body>
 </html>
