@@ -12,6 +12,7 @@
 | 我的彼岸 | `public/hub.html` `/hub` | `GET /api/hub`（角色列表，**不是** `/api/hub/`） | `src/mvp.js` |
 | 邀请码 | yonder / hub 管理 UI | `/api/invite-codes*` | `src/index.js`（仅用户 `333123`） |
 | 上传素材 | 各页 | `POST /api/upload` | `src/assets-storage.js` → R2 + `file_objects`（失败回退 D1 chunks） |
+| 我的专属库 | `public/my-vault.html` | `GET /api/my-vault` `DELETE /api/my-vault/:id` | 登录用户云端素材列表与删除（R2 + `file_objects`） |
 | 旧图回填 R2 | 管理 | `POST /api/admin/backfill-r2` | 仅 `333123`；把无 `file_objects` 的 `image_chunks` 迁到 R2 |
 
 ## 幻想 · 作品编辑器

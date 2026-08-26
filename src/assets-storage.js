@@ -209,3 +209,54 @@ export async function backfillChunksToR2(env, { limit = 20, ownerId = "legacy" }
 
     return { migrated, skipped, errors, remainingHint: list.length >= limit };
 }
+
+/** 列出当前用户的云端素材（file_objects / R2） */
+export async function listUserVault(env, ownerId, { category, limit = 100 } = {}) {
+    let sql = `SELECT id, content_type, byte_size, category, created_at
+                 FROM file_objects WHERE owner_id = ?`;
+    const binds = [String(ownerId)];
+    if (category && category !== "all") {
+        sql += " AND category = ?";
+        binds.push(String(category));
+    }
+    sql += " ORDER BY datetime(created_at) DESC LIMIT ?";
+    binds.push(Math.max(1, Math.min(200, Number(limit) || 100)));
+    const rows = await env.DB.prepare(sql).bind(...binds).all();
+    return (rows.results || []).map((row) => {
+        const cat = categoryFromMime(row.content_type);
+        return {
+            id: row.id,
+            url: `/img/${row.id}`,
+            type: cat === "audio" ? "audio" : cat === "video" ? "video" : "image",
+            contentType: row.content_type,
+            byteSize: row.byte_size,
+            category: row.category || cat,
+            createdAt: row.created_at,
+        };
+    });
+}
+
+/** 删除用户自己的云端素材（R2 + 元数据；已挂在作品里的 URL 不会自动改） */
+export async function deleteUserFileObject(env, ownerId, fileId) {
+    const meta = await getFileObject(env, fileId);
+    if (!meta || String(meta.owner_id) !== String(ownerId)) {
+        return { ok: false, error: "not_found" };
+    }
+    const bucket = assetsBucket(env);
+    if (bucket && meta.r2_key) {
+        try {
+            await bucket.delete(meta.r2_key);
+        } catch (err) {
+            console.error("R2 delete failed:", err);
+        }
+    }
+    await env.DB.prepare("DELETE FROM file_objects WHERE id = ? AND owner_id = ?")
+        .bind(fileId, String(ownerId)).run();
+    try {
+        await env.DB.prepare("DELETE FROM image_chunks WHERE image_id = ?").bind(fileId).run();
+        await env.DB.prepare("DELETE FROM images WHERE id = ?").bind(fileId).run();
+    } catch {
+        /* ignore */
+    }
+    return { ok: true };
+}

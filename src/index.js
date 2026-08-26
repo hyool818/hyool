@@ -4,6 +4,8 @@ import { handleHubRoutes } from "./hub/index.js";
 import {
     backfillChunksToR2,
     bytesToBase64,
+    deleteUserFileObject,
+    listUserVault,
     serveFromR2,
     storeD1Chunks,
     storeUploadBytes,
@@ -1281,6 +1283,44 @@ export default {
                     success: false,
                     error: error && error.message ? error.message : "回填失败",
                 }, 500);
+            }
+        }
+
+        /* =====================================================
+           MY VAULT — 用户专属云端素材库（R2 + file_objects）
+           GET /api/my-vault?category=image|audio|video|all
+           DELETE /api/my-vault/:id
+        ===================================================== */
+        if (pathname === "/api/my-vault" && request.method === "GET") {
+            try {
+                const user = await getAuthenticatedUser(request, env);
+                if (!user) {
+                    return json({ success: false, error: "请先登录。" }, 401);
+                }
+                const category = url.searchParams.get("category") || "all";
+                const items = await listUserVault(env, user.id, { category });
+                return json({ success: true, items });
+            } catch (error) {
+                console.error("MY VAULT LIST ERROR:", error);
+                return json({ success: false, error: "加载专属库失败。" }, 500);
+            }
+        }
+
+        const vaultDelMatch = pathname.match(/^\/api\/my-vault\/(img_[a-z0-9]+)$/);
+        if (vaultDelMatch && request.method === "DELETE") {
+            try {
+                const user = await getAuthenticatedUser(request, env);
+                if (!user) {
+                    return json({ success: false, error: "请先登录。" }, 401);
+                }
+                const result = await deleteUserFileObject(env, user.id, vaultDelMatch[1]);
+                if (!result.ok) {
+                    return json({ success: false, error: "素材不存在或无权删除。" }, 404);
+                }
+                return json({ success: true });
+            } catch (error) {
+                console.error("MY VAULT DELETE ERROR:", error);
+                return json({ success: false, error: "删除失败。" }, 500);
             }
         }
 

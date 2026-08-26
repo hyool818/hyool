@@ -28,6 +28,7 @@ import {
 } from '/story-rogue.js';
 import { EDITOR_SAMPLES, buildSampleWork } from '/story-samples.js';
 import { listAssets, addAsset, removeAsset, harvestFromStory } from '/story-assets.js';
+import { vaultLoggedIn, fetchMyVault, deleteVaultItem, formatBytes } from '/my-vault-api.js';
 
 const SAVE_KEY = 'hyool_stories_v1'; // 本地缓存键（旧数据迁移源）
 const PLAY_SAVE_KEY = 'hyool_play_saves_v1'; // 播放中途存档（本机 3 槽）
@@ -1147,7 +1148,7 @@ const RES_ITEMS = [
   { id: 'plot', icon: '📖', label: '剧情' },
   { id: 'characters', icon: '👤', label: '角色' },
   { id: 'world', icon: '🌍', label: '世界' },
-  { id: 'assets', icon: '🖼', label: '素材' },
+  { id: 'assets', icon: '🗄', label: '专属库' },
   { id: 'music', icon: '🎵', label: '音乐' },
   { id: 'sfx', icon: '🔊', label: '音效' },
   { id: 'ai', icon: '🤖', label: 'AI' },
@@ -1893,10 +1894,99 @@ function renderResPanel() {
 function renderAssetsPanel(host, categoryFilter) {
   const s = story();
   if (!s) return;
-  const title = categoryFilter === 'music' ? '音乐' : categoryFilter === 'sfx' ? '音效' : '素材';
+  const title = categoryFilter === 'music' ? '音乐' : categoryFilter === 'sfx' ? '音效' : '我的专属库';
   const h = document.createElement('h3');
   h.textContent = title;
   host.appendChild(h);
+  if (!categoryFilter && vaultLoggedIn()) {
+    const cloudTip = document.createElement('p');
+    cloudTip.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:8px';
+    cloudTip.textContent = '云端只存你的素材，可跨作品复用。删除后文件从 R2 移除。';
+    host.appendChild(cloudTip);
+    const openVault = document.createElement('a');
+    openVault.href = '/my-vault';
+    openVault.className = 'btn wide';
+    openVault.style.cssText = 'display:block;text-align:center;text-decoration:none;margin-bottom:10px';
+    openVault.textContent = '打开专属库管理页 →';
+    host.appendChild(openVault);
+    const cloudGrid = document.createElement('div');
+    cloudGrid.className = 'asset-grid';
+    cloudGrid.style.marginBottom = '14px';
+    host.appendChild(cloudGrid);
+    fetchMyVault('all').then((items) => {
+      cloudGrid.innerHTML = '';
+      if (!items.length) {
+        const em = document.createElement('p');
+        em.style.cssText = 'font-size:11px;color:var(--muted);grid-column:1/-1;line-height:1.6';
+        em.textContent = '云端还没有素材。下方上传或去专属库页批量管理。';
+        cloudGrid.appendChild(em);
+        return;
+      }
+      items.slice(0, 12).forEach((a) => {
+        const card = document.createElement('div');
+        card.className = 'asset-card';
+        card.title = formatBytes(a.byteSize);
+        if (a.type === 'audio') {
+          const ic = document.createElement('div');
+          ic.className = 'asset-audio';
+          ic.textContent = '♪';
+          card.appendChild(ic);
+        } else if (a.type === 'video') {
+          const v = document.createElement('video');
+          v.src = a.url; v.muted = true; v.playsInline = true; v.preload = 'metadata';
+          card.appendChild(v);
+        } else {
+          const img = document.createElement('img');
+          img.src = a.url; img.alt = ''; img.loading = 'lazy';
+          card.appendChild(img);
+        }
+        const del = document.createElement('button');
+        del.className = 'btn tiny danger';
+        del.style.cssText = 'position:absolute;top:4px;right:4px;padding:2px 5px;font-size:10px';
+        del.textContent = '×';
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!confirm('从专属库永久删除？')) return;
+          deleteVaultItem(a.id).then(() => { toast('已删除'); renderResPanel(); }).catch((err) => toast(err.message || '删除失败', true));
+        });
+        card.style.position = 'relative';
+        card.appendChild(del);
+        card.addEventListener('click', () => {
+          if (selectedComicPanelId && a.type !== 'audio') {
+            const hit = findComicPanel(selectedComicPanelId);
+            if (hit) {
+              hit.panel.media = { url: a.url, type: a.type === 'video' ? 'video' : 'image' };
+              persist(); renderComicEditor(); renderPropertyPanel(); toast('已贴到漫画分格');
+              return;
+            }
+          }
+          if (selectedBlockId) {
+            const b = findBlock(selectedBlockId);
+            if (b) {
+              if (a.type === 'audio') b.audio = { url: a.url, type: 'audio' };
+              else b.media = { url: a.url, type: a.type === 'video' ? 'video' : 'image' };
+              persist(); renderBlocks(); renderPropertyPanel(); toast('已挂到当前镜头');
+              return;
+            }
+          }
+          registerAsset(a.url, a.type, a.category || 'other');
+          toast('已加入本作品引用');
+        });
+        cloudGrid.appendChild(card);
+      });
+    }).catch(() => {
+      cloudGrid.innerHTML = '<p style="font-size:11px;color:var(--muted);grid-column:1/-1">云端加载失败，请稍后重试。</p>';
+    });
+    const sub = document.createElement('h3');
+    sub.style.cssText = 'font-size:11px;letter-spacing:.1em;color:var(--muted);margin:8px 0 6px';
+    sub.textContent = '本作品快捷引用';
+    host.appendChild(sub);
+  } else if (!categoryFilter && !vaultLoggedIn()) {
+    const loginTip = document.createElement('p');
+    loginTip.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:8px';
+    loginTip.innerHTML = '登录后可用云端专属库。<a href="/yonder.html?next=/story-editor" style="color:var(--accent2)">去登录</a>';
+    host.appendChild(loginTip);
+  }
   if (!categoryFilter) {
     const filters = document.createElement('div');
     filters.className = 'asset-filters';

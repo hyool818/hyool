@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>我的专属库 · HYOOL</title>
+<link rel="stylesheet" href="/workspace/css/workspace.css">
+<style>
+.vault-main{max-width:960px;margin:0 auto;padding:0 16px 48px}
+.vault-hero{margin-bottom:20px}
+.vault-hero p{color:var(--muted);font-size:13px;line-height:1.7;margin-top:8px}
+.vault-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0}
+.vault-filters{display:flex;flex-wrap:wrap;gap:6px}
+.vault-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;margin-top:12px}
+.vault-card{position:relative;border:1px solid var(--line2);border-radius:12px;background:#12121c;overflow:hidden;aspect-ratio:1;display:flex;flex-direction:column}
+.vault-card .thumb{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;background:#0a0a12;overflow:hidden}
+.vault-card .thumb img,.vault-card .thumb video{width:100%;height:100%;object-fit:cover}
+.vault-card .thumb .ic{font-size:28px;color:var(--muted)}
+.vault-card .meta{flex:0 0 auto;padding:8px 10px;font-size:10px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line)}
+.vault-card .meta b{display:block;color:var(--text);font-size:11px;margin-bottom:2px;font-weight:600}
+.vault-card .del{position:absolute;top:6px;right:6px;padding:4px 8px;font-size:10px;border-radius:99px;background:rgba(0,0,0,.72);border:1px solid rgba(255,100,100,.45);color:#ffb4b4;cursor:pointer;font-family:inherit}
+.vault-card .del:hover{background:rgba(80,20,20,.85)}
+.vault-empty{text-align:center;padding:48px 16px;color:var(--muted);line-height:1.8;font-size:13px}
+.vault-login{padding:32px 16px;text-align:center;color:var(--muted);line-height:1.8}
+.vault-login a{color:var(--accent2)}
+</style>
+</head>
+<body>
+<div class="hub">
+  <header class="hub-topbar">
+    <a class="back" href="/fantasy.html">← 幻想</a>
+    <div class="hub-brand">
+      <span class="hub-brand-name">我的专属库</span>
+      <span class="hub-brand-en">MY VAULT · 仅你的素材</span>
+    </div>
+  </header>
+  <main class="vault-main">
+    <section class="vault-hero">
+      <h1 class="hub-hero-name" style="font-size:22px;margin:12px 0 0">云端素材库</h1>
+      <p>登录后上传的图片、音频、视频都存在这里，<strong>只有你能看、能删</strong>。作品里引用过的地址，删库后那些镜头会缺图（需重新上传）。</p>
+    </section>
+    <div id="vaultLogin" class="vault-login hidden">
+      请先 <a href="/yonder.html?next=/my-vault">登录彼岸</a> 后再使用专属库。
+    </div>
+    <div id="vaultApp" class="hidden">
+      <div class="vault-bar">
+        <div class="vault-filters" id="vaultFilters"></div>
+        <span style="flex:1"></span>
+        <button type="button" class="btn primary" id="vaultUploadBtn">＋ 上传素材</button>
+        <input type="file" id="vaultFileInput" hidden accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,audio/ogg">
+      </div>
+      <div id="vaultGrid" class="vault-grid"></div>
+      <div id="vaultEmpty" class="vault-empty hidden">还没有素材。点「＋ 上传素材」把图片/配音加进来。</div>
+    </div>
+  </main>
+</div>
+<script type="module" src="/my-vault.js?v=20260826v"></script>
+</body>
+</html>
