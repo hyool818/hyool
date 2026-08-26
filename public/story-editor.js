@@ -119,7 +119,7 @@ const DEFAULT_CARD_STATS = { hp: 20, attack: 5 };                  // 旧「技�
 const BATTLE_ROUND_MS = 850; // 自动战斗每回合间隔（点「⏩ 跳过」后 0ms 连跑）
 const rpgUid = () => 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
-let stories = normalizeStories(loadStories());
+let stories = [];
 let currentId = null;   // 当前打开的作品 id
 let selectedBlockId = null; // 当前选中积木（舞台预览 + 属性栏 + 底栏时间轴）
 let selectedFigureIdx = 0;  // 舞台当前操作的立绘下标（缩放/清除）
@@ -7118,6 +7118,7 @@ window.StoryEditor = {
   localStorage: () => { try { return localStorage.getItem(SAVE_KEY); } catch (e) { return null; } },
 };
 
+stories = normalizeStories(loadStories());
 init();
 
 
