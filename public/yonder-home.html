@@ -3304,10 +3304,6 @@ function renderStories() {
             <div class="plus">+</div>
             <div class="label">创造作品</div>
         </a>`;
-        html += `<a href="/my-vault" class="create-card">
-            <div class="plus">🗄</div>
-            <div class="label">专属库</div>
-        </a>`;
     }
     html += visible.map((s, i) => {
         const sVisible = !!(s.share_id && s.share_id !== "");
