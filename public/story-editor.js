@@ -1630,8 +1630,8 @@ function stagePickBackground() {
   const b = selectedBlock();
   if (!b) { toast('先点左侧选一块积木', true); return; }
   openAssetLibrary({
-    type: 'image',
     onPick: (a) => {
+      if (a.type === 'audio') { toast('背景请选图片或视频', true); return; }
       b.media = { url: a.url, type: a.type === 'video' ? 'video' : 'image' };
       persist();
       renderBlocks();
