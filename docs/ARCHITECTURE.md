@@ -75,4 +75,75 @@ Cron：`scheduled` → `handleWorldCron`（生命世界，15 分钟）。
 
 ## 配置
 
-`wrangler.toml`：`ASSETS`、`DB`、`AI`、`VECTORIZE`、cron。Secrets 用 `.dev.vars`（不入库）。
+`wrangler.toml`：`ASSETS`、`DB`、`AI`、`VECTORIZE`、`ASSETS_BUCKET`（R2）、cron。Secrets 用 `.dev.vars`（不入库）。
+
+## 数据分区（R2 / D1）— 2026-08-26 定案
+
+**硬规则**：D1 只存元数据与 URL 引用；任何二进制（图片/音频/视频/动图/模型权重）一律进 R2。
+
+| 存储 | 放什么 | 不放什么 |
+|------|--------|----------|
+| **R2** `ASSETS_BUCKET` | 文件本体：图片、GIF/WebP、MP4/WebM、音频、未来模型/动图二进制 | 用户表、任务状态、业务 JSON |
+| **D1** | 用户/会话、作品/角色/世界、任务记录、配置、`file_objects` 元数据（含 R2 key） | `image_chunks.data` 等 BLOB/base64 |
+
+### 现状 → 目标
+
+| 链路 | 现状 | 目标 |
+|------|------|------|
+| `POST /api/upload` | 文件 → base64 分块 → D1 `image_chunks` | 文件 → R2 `put` → D1 `file_objects` 一行 |
+| `GET /img/:id` | 从 D1 拼 chunk 返回 | 查 D1 元数据 → R2 `get`（或 302 到公开域）；**对外 URL 保持 `/img/:id` 不变** |
+| 中枢 `hub.store` | 已写 R2 逻辑，但 `HUB_BUCKET` 未绑定 | 与全站共用 `ASSETS_BUCKET` |
+| 作品 `stories.data` / `assets[]` | 已只存 `{ url, type }` | 继续；禁止 base64 内嵌 |
+| 无限工具箱 | 浏览器本地 WASM，不上云 | 不变；用户主动「存入作品」才走 upload |
+
+### D1 元数据表（替代 `images` + `image_chunks`）
+
+新表 `file_objects`（迁移后 `image_chunks` 废弃，旧数据可只读回退或后台搬 R2）：
+
+```
+file_objects
+  id            TEXT PK          -- 对外 id，仍 img_xxx 兼容旧 URL
+  owner_id      TEXT NOT NULL
+  r2_key        TEXT NOT NULL    -- 例 u/{owner}/a/{id}.webp
+  content_type  TEXT NOT NULL
+  byte_size     INTEGER NOT NULL
+  sha256        TEXT             -- 可选，去重/校验
+  scope         TEXT             -- story | character | world | hub | avatar
+  scope_id      TEXT             -- 关联作品/角色 id（可空）
+  category      TEXT             -- image | audio | video | frame | model | other
+  created_at    TIMESTAMP
+```
+
+- 已有 `assets` 表（角色素材元数据）保留：**只存 url + meta_json**，url 指向 `/img/:id` 或未来 CDN。
+- 任务类（中枢 DAG、异步生图）另可加 `hub_tasks` / `hub_task_steps`（状态、错误、产出 `file_object_id`），**任务表也不存 bytes**。
+
+### R2 Key 约定
+
+```
+u/{owner_id}/a/{file_id}.{ext}     # 用户上传 / 作品素材
+hub/{run_id}/{task_id}.{ext}       # 中枢流水线产出（可选）
+models/{model_id}/...              # 未来：卡牌框、Live2D、权重（单独 MIME 白名单）
+```
+
+- Bucket 私有；通过 Worker `GET /img/:id` 鉴权/限流（与现网一致）。
+- 单文件上限从 5MB 起步，R2 阶段可按类型放宽（视频/模型另设 cap）。
+
+### 引用契约（全站统一）
+
+业务 JSON 里只允许：
+
+```json
+{ "url": "/img/img_abc123", "type": "image|video|audio", "assetId": "可选，指向 file_objects.id" }
+```
+
+禁止：`data:` URL 入库、`base64` 字段、D1 TEXT 塞二进制。
+
+### 迁移阶段
+
+1. **Binding** ✅：`wrangler.toml` → `ASSETS_BUCKET` = `hyool-assets`；`hub.store` 走 `assetsBucket()`。
+2. **双写** ✅：`POST /api/upload` → R2 + `file_objects`；失败回退 D1 chunks。`GET /img` 先 R2 后 chunk。
+3. **回填** ✅：`POST /api/admin/backfill-r2`（仅账号 `333123`，可传 `{ limit }` 分批）。
+4. **切读**：新上传已以 R2 为准；旧图回填完成后可停写 chunks。
+5. **清理**（未做）：确认无 chunk-only 引用后再 DROP `image_chunks`。
+
+实现：`src/assets-storage.js`、`schema/migrate_file_objects.sql`。

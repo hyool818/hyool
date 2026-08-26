@@ -14,6 +14,18 @@ import {
   fightHp,
   fightAtk,
   renderGachaResult,
+  bindPortraitZoom,
+  makePortraitZoomCtx,
+  buildCharSheet,
+  CARD_FRAMES,
+  normalizeCardFrame,
+  frameLabel,
+  frameLabelFor,
+  frameOverlayHtml,
+  cardFrameClass,
+  portraitKindOf,
+  portraitThumbHtml,
+  portraitMediaInner,
 } from '/story-idle.js';
 
 export const ROGUE_KIND = 'gacha_rogue';
@@ -102,7 +114,11 @@ export function normalizeRogue(raw) {
     atk: clamp(c.atk, 4, 99, 18),
     spd: clamp(c.spd, 6, 40, 16),
     skillIds: Array.isArray(c.skillIds) ? c.skillIds.map(String).slice(0, 8) : [],
-    portrait: String(c.portrait || '').trim().slice(0, 240),
+    portrait: String(c.portrait || '').trim().slice(0, 512),
+    portraitKind: c.portraitKind === 'video' ? 'video' : 'image',
+    desc: String(c.desc || '').trim().slice(0, 120),
+    frame: normalizeCardFrame(c.frame, c.star),
+    frameAssetId: String(c.frameAssetId || '').trim().slice(0, 64),
   }));
   out.roster.forEach(c => {
     if (out.mode === 'rogue') {
@@ -540,6 +556,8 @@ function beginRun(ids) {
     return {
       id: c.id, name: c.name, elem: c.elem, slot, front: slot < 2,
       maxHp: hp, hp, atk, spd: c.spd, portrait: c.portrait || '',
+      portraitKind: portraitKindOf(c), star: c.star || 1,
+      frame: normalizeCardFrame(c.frame, c.star),
       gauge: 0, buff: 0, next: 0, cards: charCards(r, c, rng),
     };
   });
@@ -796,19 +814,24 @@ function paintBattle(frame) {
     </div>
     <button class="btn tiny ghost" id="rgExit">退出</button></div>`;
   const foes = (b.enemies || []).map(e => `
-    <div class="bt-enemy${e.hp <= 0 ? ' dead' : ''}">
-      ${e.portrait ? `<div class="bt-portrait"><img src="${esc(e.portrait)}" alt=""/></div>` : ''}
+    <div class="bt-enemy${e.hp <= 0 ? ' dead' : ''}" data-enemy-id="${esc(e.id)}">
+      ${e.portrait ? `<div class="bt-portrait"><div class="card-art">${portraitMediaInner(e)}</div></div>` : ''}
       <div class="bt-enemy-name">${esc(e.name)} · ${elemLabel(e.elem)}</div>
       <div class="bt-hp-row"><div class="bt-bar"><div class="bt-bar-fill enemy" style="width:${pct(e.hp, e.maxHp)}%"></div></div><span class="bt-hp-num">${e.hp}/${e.maxHp}</span></div>
       <div class="bt-bar rg-spd"><div class="bt-bar-fill spd" style="width:${Math.min(100, e.gauge || 0)}%"></div></div>
     </div>`).join('');
-  const party = run.team.map(m => `
-    <div class="bt-member${m.hp <= 0 ? ' dead' : ''}${m.front ? ' hero' : ''}">
-      ${m.portrait ? `<div class="bt-portrait"><img src="${esc(m.portrait)}" alt=""/></div>` : ''}
+  const party = run.team.map(m => {
+    const assets = (run.story && run.story.assets) || [];
+    const fcls = cardFrameClass(m, assets);
+    const overlay = frameOverlayHtml(m, assets);
+    return `
+    <div class="bt-member${m.hp <= 0 ? ' dead' : ''}${m.front ? ' hero' : ''}" data-char-id="${esc(m.id)}">
+      ${m.portrait ? `<div class="bt-portrait ${fcls}"><div class="card-art">${portraitMediaInner(m)}</div>${overlay}</div>` : ''}
       <div class="bt-member-name">${m.front ? '前' : '后'} ${esc(m.name)} · ${elemLabel(m.elem)}</div>
       <div class="bt-hp-row"><div class="bt-bar"><div class="bt-bar-fill hp" style="width:${pct(m.hp, m.maxHp)}%"></div></div><span class="bt-hp-num">${m.hp}/${m.maxHp}</span></div>
       <div class="bt-bar rg-spd"><div class="bt-bar-fill spd" style="width:${Math.min(100, m.gauge || 0)}%"></div></div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const log = (b.log || []).slice(-10).map(l => `<div class="bt-log-line">${esc(l)}</div>`).join('');
   let result = '';
   if (b.phase === 'won') {
@@ -841,6 +864,7 @@ function paintBattle(frame) {
   });
   const e2 = frame.querySelector('#rgExit2');
   if (e2) e2.addEventListener('click', run.ctx.onExit);
+  bindPortraitZoom(frame, makePortraitZoomCtx(run));
 }
 
 function pct(a, b) { return b ? Math.max(0, Math.min(100, Math.round(a / b * 100))) : 0; }
@@ -956,16 +980,16 @@ function starterByMode(mode) {
   if (mode === 'idle') {
     return {
       roster: [
-        { id: 'c_yue', name: '月华', elem: 'light', faction: 'light', star: 4, hp: 140, atk: 20, spd: 16, skillIds: ['sk_yue'], portrait: '' },
-        { id: 'c_ye', name: '夜羽', elem: 'dark', faction: 'dark', star: 4, hp: 130, atk: 22, spd: 18, skillIds: ['sk_ye'], portrait: '' },
-        { id: 'c_xia', name: '绯霞', elem: 'light', faction: 'light', star: 3, hp: 125, atk: 19, spd: 17, skillIds: ['sk_xia'], portrait: '' },
-        { id: 'c_ling', name: '铃兰', elem: 'dark', faction: 'dark', star: 3, hp: 135, atk: 18, spd: 15, skillIds: ['sk_ling'], portrait: '' },
+        { id: 'c_yue', name: '月华', elem: 'light', faction: 'light', star: 4, hp: 140, atk: 20, spd: 16, skillIds: ['sk_yue'], portrait: '', desc: '神殿骑士，以月华之光斩灭暗影。' },
+        { id: 'c_ye', name: '夜羽', elem: 'dark', faction: 'dark', star: 4, hp: 130, atk: 22, spd: 18, skillIds: ['sk_ye'], portrait: '', desc: '暗影刺客，擅长高速突袭。' },
+        { id: 'c_xia', name: '绯霞', elem: 'light', faction: 'light', star: 3, hp: 125, atk: 19, spd: 17, skillIds: ['sk_xia'], portrait: '', desc: '治愈修女，能在战斗中抚慰队友。' },
+        { id: 'c_ling', name: '铃兰', elem: 'dark', faction: 'dark', star: 3, hp: 135, atk: 18, spd: 15, skillIds: ['sk_ling'], portrait: '', desc: '铃兰骑士，攻守均衡。' },
       ],
       skills: [
-        { id: 'sk_yue', name: '月辉', kind: 'atk', power: 118, elem: 'light', ownerId: 'c_yue' },
-        { id: 'sk_ye', name: '影刺', kind: 'atk', power: 122, elem: 'dark', ownerId: 'c_ye' },
-        { id: 'sk_xia', name: '霞光', kind: 'heal', power: 100, elem: 'light', ownerId: 'c_xia' },
-        { id: 'sk_ling', name: '铃斩', kind: 'atk', power: 115, elem: 'dark', ownerId: 'c_ling' },
+        { id: 'sk_yue', name: '月辉', kind: 'atk', power: 118, elem: 'light', ownerId: 'c_yue', desc: '单体光属性斩击。' },
+        { id: 'sk_ye', name: '影刺', kind: 'atk', power: 122, elem: 'dark', ownerId: 'c_ye', desc: '高速暗刺，伤害偏高。' },
+        { id: 'sk_xia', name: '霞光', kind: 'heal', power: 100, elem: 'light', ownerId: 'c_xia', desc: '为生命最低的队友回血。' },
+        { id: 'sk_ling', name: '铃斩', kind: 'atk', power: 115, elem: 'dark', ownerId: 'c_ling', desc: '暗属性斩击。' },
       ],
       enemies: [
         { id: 'e1', name: '残影', elem: 'dark', hp: 45, atk: 8, spd: 12 },
@@ -1126,19 +1150,20 @@ function pickPortrait(char, done, api) {
   }
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'image/jpeg,image/png,image/webp,image/gif';
+  input.accept = 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm';
   input.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
   document.body.appendChild(input);
   input.addEventListener('change', async () => {
     const file = input.files && input.files[0];
     try { input.remove(); } catch (_) {}
     if (!file) return;
-    tip('正在上传立绘…');
+    tip('正在上传立绘…（图片 / GIF / MP4 / WebM，≤5MB）');
     try {
       const res = await api.upload(file);
-      if (!res || !res.url) { tip('立绘上传失败（需登录，且图片 ≤5MB）', true); return; }
+      if (!res || !res.url) { tip('立绘上传失败（需登录，且文件 ≤5MB）', true); return; }
       char.portrait = res.url;
-      tip('立绘已挂上');
+      char.portraitKind = (res.type === 'video' || String(file.type || '').startsWith('video/')) ? 'video' : 'image';
+      tip(char.portraitKind === 'video' ? '动图立绘已挂上' : '立绘已挂上');
       if (done) done();
     } catch (e) {
       tip((e && e.message) || '立绘上传失败', true);
@@ -1159,6 +1184,7 @@ async function genLocalPortrait(char, done, api) {
     const r = await mod.generateAndResolveUrl({ prompt, width: 576, height: 1024 });
     if (!r || !r.url) { toast('生图失败', true); return; }
     char.portrait = r.url;
+    char.portraitKind = 'image';
     toast('立绘已挂上');
     if (done) done();
   } catch (e) {
@@ -1286,17 +1312,17 @@ function renderStudio(body, story, api) {
   const h1 = document.createElement('h3');
   h1.textContent = '① 角色表';
   body.appendChild(h1);
-  const { table: tableC, tbody: bodyC } = mkTable(['', '立绘', '名字', '阵营', '星', '招式', '']);
+  const { table: tableC, tbody: bodyC } = mkTable(['', '立绘', '名字', '装饰', '阵营', '星', '招式', '']);
   r.roster.forEach((c, i) => {
     const mine = skillsOf(r, c.id).filter(s => s.ownerId === c.id);
     const tr = document.createElement('tr');
     tr.dataset.i = String(i);
-    const thumb = c.portrait
-      ? `<img class="studio-thumb" src="${esc(c.portrait)}" alt=""/>`
-      : '<span class="studio-thumb empty">无</span>';
+    tr.dataset.charId = c.id;
+    const thumb = portraitThumbHtml(c);
     tr.innerHTML = `<td class="row-handle" title="拖动排序">⋮⋮</td>
       <td>${thumb}</td>
       <td>${esc(c.name)}</td>
+      <td>${esc(frameLabelFor(c, story.assets))}</td>
       <td>${factionLabel(r.mode, c.faction)}</td>
       <td>${c.star || 1}</td>
       <td>${mine.map(s => s.name).join('、') || '普攻'}</td>
@@ -1380,10 +1406,21 @@ function renderStudio(body, story, api) {
     String(editing ? (editing.star || 3) : 3),
     [['1', '1星'], ['2', '2星'], ['3', '3星'], ['4', '4星'], ['5', '5星']]
   );
+  const assets = (story && story.assets) || [];
+  const frameAssets = assets.filter((a) => a && a.category === 'frame' && a.url);
+  const frame = sel(
+    editing ? normalizeCardFrame(editing.frame, editing.star) : 'white',
+    [['auto', '自动（跟星级）'], ...Object.keys(CARD_FRAMES).map((id) => [id, CARD_FRAMES[id].label + '（CSS）'])]
+  );
+  const frameAsset = sel(
+    editing ? (editing.frameAssetId || '') : '',
+    [['', '不用素材边框'], ...frameAssets.map((a) => [a.id, '素材 · ' + a.name])]
+  );
   const hp = inp(String(editing ? (editing.hp || 120) : 120), 'number');
   const atk = inp(String(editing ? (editing.atk || 18) : 18), 'number');
   const spd = inp(String(editing ? (editing.spd || 16) : 16), 'number');
   const skn = inp(editSkill ? editSkill.name : '普攻');
+  const skd = inp(editSkill ? (editSkill.desc || '') : '');
   const skk = sel(
     editSkill ? (editSkill.kind || 'atk') : 'atk',
     [['atk', '打人'], ['heal', '救人'], ['buff', '蓄力']]
@@ -1392,19 +1429,26 @@ function renderStudio(body, story, api) {
     field('名字', name),
     field(r.mode === 'queue' ? '门派' : (r.mode === 'idle' ? '阵营' : '属性'), fac),
     field('星级', star),
+    field('卡牌装饰框', frame),
+    field('素材边框（优先）', frameAsset),
     field('生命', hp),
     field('攻击', atk),
     field('速度', spd),
     field('会的一招', skn),
+    field('技能说明', skd),
     field('这一招干什么', skk)
   );
+  const intro = document.createElement('textarea');
+  intro.rows = 2;
+  intro.placeholder = '角色介绍，例如：月华是神殿骑士…';
+  intro.value = editing ? (editing.desc || '') : '';
+  intro.style.cssText = 'width:100%;max-width:360px;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:var(--bg3);color:var(--text);font-family:inherit;font-size:13px;resize:vertical';
+  formWrap.append(field('角色介绍', intro));
   if (editing) {
     const porRow = document.createElement('div');
     porRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0';
     const thumb = document.createElement('div');
-    thumb.innerHTML = editing.portrait
-      ? `<img class="studio-thumb" src="${esc(editing.portrait)}" alt=""/>`
-      : '<span class="studio-thumb empty">无立绘</span>';
+    thumb.innerHTML = portraitThumbHtml(editing);
     const upP = document.createElement('button');
     upP.type = 'button'; upP.className = 'btn tiny'; upP.textContent = '上传立绘';
     upP.addEventListener('click', (ev) => {
@@ -1421,6 +1465,7 @@ function renderStudio(body, story, api) {
     clrP.type = 'button'; clrP.className = 'btn tiny danger'; clrP.textContent = '清立绘';
     clrP.addEventListener('click', () => {
       editing.portrait = '';
+      delete editing.portraitKind;
       api.persist();
       renderStudio(body, story, api);
     });
@@ -1443,9 +1488,12 @@ function renderStudio(body, story, api) {
       editing.faction = fac.value;
       editing.elem = elem;
       editing.star = starN;
+      editing.frameAssetId = frameAsset.value || '';
+      editing.frame = frameAsset.value ? '' : (frame.value === 'auto' ? '' : frame.value);
       editing.hp = hpN;
       editing.atk = atkN;
       editing.spd = spdN;
+      editing.desc = intro.value.trim().slice(0, 120);
       let sk = (r.skills || []).find(s => s.ownerId === editing.id);
       if (!sk) {
         sk = { id: uid(), name: '普攻', kind: 'atk', power: 110, elem, ownerId: editing.id, desc: '' };
@@ -1456,6 +1504,7 @@ function renderStudio(body, story, api) {
       sk.name = (skn.value.trim() || '普攻').slice(0, 16);
       sk.kind = skk.value;
       sk.elem = elem;
+      sk.desc = skd.value.trim().slice(0, 60);
       if (r.progress && r.progress.chars && r.progress.chars[editing.id]) {
         r.progress.chars[editing.id].star = Math.max(
           r.progress.chars[editing.id].star || 1,
@@ -1473,10 +1522,14 @@ function renderStudio(body, story, api) {
     r.roster.push({
       id, name: n.slice(0, 16), elem, faction: fac.value,
       star: starN, hp: hpN, atk: atkN, spd: spdN, skillIds: [sid], portrait: '',
+      desc: intro.value.trim().slice(0, 120),
+      frame: frameAsset.value ? '' : (frame.value === 'auto' ? '' : frame.value),
+      frameAssetId: frameAsset.value || '',
     });
     r.skills.push({
       id: sid, name: (skn.value.trim() || '普攻').slice(0, 16),
-      kind: skk.value, power: 110, elem, ownerId: id, desc: '',
+      kind: skk.value, power: 110, elem, ownerId: id,
+      desc: skd.value.trim().slice(0, 60),
     });
     api.persist();
     renderStudio(body, story, api);
@@ -1509,9 +1562,7 @@ function renderStudio(body, story, api) {
     const stats = en.length
       ? (en.length + '人 · ' + names)
       : names;
-    const thumb = e0 && e0.portrait
-      ? `<img class="studio-thumb" src="${esc(e0.portrait)}" alt=""/>`
-      : '<span class="studio-thumb empty">无</span>';
+    const thumb = portraitThumbHtml(e0 || {});
     const tr = document.createElement('tr');
     tr.dataset.i = String(i);
     tr.innerHTML = `<td class="row-handle" title="拖动排序">⋮⋮</td>
@@ -1622,9 +1673,7 @@ function renderStudio(body, story, api) {
       const porRow = document.createElement('div');
       porRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px';
       const thumbEl = document.createElement('div');
-      thumbEl.innerHTML = base.portrait
-        ? `<img class="studio-thumb" src="${esc(base.portrait)}" alt=""/>`
-        : '<span class="studio-thumb empty">无立绘</span>';
+      thumbEl.innerHTML = portraitThumbHtml(base || {});
       const up2 = document.createElement('button');
       up2.type = 'button'; up2.className = 'btn tiny'; up2.textContent = '上传立绘';
       up2.addEventListener('click', (ev) => {
@@ -1641,6 +1690,7 @@ function renderStudio(body, story, api) {
       clr.type = 'button'; clr.className = 'btn tiny danger'; clr.textContent = '清立绘';
       clr.addEventListener('click', () => {
         base.portrait = '';
+        delete base.portraitKind;
         api.persist();
         renderStudio(body, story, api);
       });
@@ -1837,6 +1887,13 @@ function renderStudio(body, story, api) {
     toast('已经填好角色和关卡，关掉窗口点试玩即可。');
   });
   body.appendChild(fill);
+  bindPortraitZoom(body, {
+    resolveSheet(el) {
+      const tr = el.closest('tr[data-char-id]');
+      if (tr && tr.dataset.charId) return buildCharSheet(r, tr.dataset.charId);
+      return null;
+    },
+  });
 }
 
 export function setCardMode(story, mode) {

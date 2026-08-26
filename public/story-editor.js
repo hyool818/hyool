@@ -62,6 +62,7 @@ const ALLOWED_MEDIA = { // MIME → media.type
   'image/gif': 'image',
   'image/webp': 'image',
   'video/mp4': 'video',
+  'video/webm': 'video',
 };
 const MEDIA_TYPES_LABEL = '图片 / GIF / WebP / MP4（限 5MB）';
 const ALLOWED_AUDIO = { // MIME → audio.type（配音）
@@ -73,8 +74,45 @@ const ALLOWED_AUDIO = { // MIME → audio.type（配音）
 };
 const AUDIO_TYPES_LABEL = '配音：MP3 / WAV / M4A / OGG（限 5MB）';
 
+function mimeFromFilename(name) {
+  const n = String(name || '').toLowerCase();
+  if (n.endsWith('.png')) return 'image/png';
+  if (n.endsWith('.gif')) return 'image/gif';
+  if (n.endsWith('.webp')) return 'image/webp';
+  if (n.endsWith('.svg')) return 'image/svg+xml';
+  if (/\.jpe?g$/.test(n)) return 'image/jpeg';
+  if (n.endsWith('.mp4')) return 'video/mp4';
+  if (n.endsWith('.webm')) return 'video/webm';
+  if (n.endsWith('.mp3')) return 'audio/mpeg';
+  if (n.endsWith('.wav')) return 'audio/wav';
+  if (n.endsWith('.m4a')) return 'audio/mp4';
+  if (n.endsWith('.ogg')) return 'audio/ogg';
+  return '';
+}
+
+function resolveFileMediaKind(file) {
+  if (!file) return null;
+  if (ALLOWED_MEDIA[file.type]) return ALLOWED_MEDIA[file.type];
+  if (ALLOWED_AUDIO[file.type]) return ALLOWED_AUDIO[file.type];
+  const mime = mimeFromFilename(file.name);
+  if (ALLOWED_MEDIA[mime]) return ALLOWED_MEDIA[mime];
+  if (ALLOWED_AUDIO[mime]) return ALLOWED_AUDIO[mime];
+  return null;
+}
+
+function ensureUploadFile(file, kind) {
+  const mime = file.type || mimeFromFilename(file.name) || (kind === 'image' ? 'image/jpeg' : kind === 'video' ? 'video/mp4' : kind === 'audio' ? 'audio/mpeg' : '');
+  if (!mime || file.type === mime) return file;
+  return new File([file], file.name || 'upload', { type: mime, lastModified: file.lastModified || Date.now() });
+}
+
 // ---------- 作品类型（kind）：互动小说（story）默认；卡牌RPG（card_rpg）在共享编辑器中分支 ----------
-const KIND_LABEL = { story: '互动小说', card_rpg: '卡牌RPG（旧）', gacha_rogue: '卡牌游戏' };
+const KIND_LABEL = { story: '互动小说', comic: '漫画', card_rpg: '卡牌RPG（旧）', gacha_rogue: '卡牌游戏' };
+const COMIC_CAPTION_STYLES = [
+  { id: 'bar', label: '底部条' },
+  { id: 'bubble', label: '气泡' },
+  { id: 'narration', label: '旁白' },
+];
 // 卡牌RPG 自动战斗：卡牌=角色，进入战斗自动互殴。以下是兜底属性（作品没配也能试玩/播放）
 const DEFAULT_HERO_STATS = { name: '勇者', maxHp: 30, attack: 8 }; // 英雄缺省
 const DEFAULT_CARD_STATS = { hp: 20, attack: 5 };                  // 旧「技能卡」迁移成角色卡时的兜底
@@ -98,6 +136,13 @@ let playBgmChapter = null; // 当前 BGM 所属章节 id（跨章节才切换）
 let ttsCache = new Map();  // TTS 预合成缓存：key(story|block|voice|content前40字) → blobUrl
 let ttsVoices = [];        // /api/tts/voices 列表缓存
 let selectedSfxId = null;  // 时间轴弹窗中当前选中的音效条目 id
+let studioRes = 'plot';    // 左侧资源树：plot | characters | world | assets | music | sfx | ai
+let selectedBlockId = null; // 当前选中积木（属性栏 + 底栏时间轴）
+let comicPageId = null;
+let selectedComicPanelId = null;
+let assetCatFilter = 'all'; // all | image | frame | music | sfx
+let timelineDockCollapsed = false;
+let saveStatus = 'local'; // local | saving | ok | err
 let createOrientation = 'landscape'; // 新建作品时选定的画面方向
 let createKind = 'story';            // 新建：story / card_rpg / gacha_rogue
 let battle = null;                   // 播放中卡牌战斗状态（battle 幕专用；null = 非战斗幕）
@@ -116,8 +161,21 @@ function normalizeStories(arr) {
   if (!Array.isArray(arr)) return [];
   arr.forEach(s => {
     // 作品类型：默认互动小说；存量作品没有 kind 字段自动归为 story（不破坏旧数据）
-    if (s.kind !== 'card_rpg' && s.kind !== 'gacha_rogue') s.kind = 'story';
+    if (s.kind !== 'card_rpg' && s.kind !== 'gacha_rogue' && s.kind !== 'comic') s.kind = 'story';
     if (s.kind === 'gacha_rogue') s.rogue = normalizeRogue(s.rogue);
+    if (s.kind === 'comic') s.comic = normalizeComic(s.comic);
+    if (!s.world || typeof s.world !== 'object' || Array.isArray(s.world)) {
+      s.world = { name: '', synopsis: '', locations: [] };
+    } else {
+      s.world.name = String(s.world.name || '').slice(0, 40);
+      s.world.synopsis = String(s.world.synopsis || '').slice(0, 500);
+      if (!Array.isArray(s.world.locations)) s.world.locations = [];
+      s.world.locations = s.world.locations.filter(l => l && l.name).map(l => ({
+        id: l.id || ('w_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)),
+        name: String(l.name).trim().slice(0, 24),
+        desc: String(l.desc || '').trim().slice(0, 200),
+      }));
+    }
     if (s.miniGame) delete s.miniGame;
     // 卡牌RPG 专用结构（rpg.hero / rpg.cards / rpg.enemies）：结构兜底 + 字段清洗
     if (s.kind === 'card_rpg') {
@@ -154,6 +212,14 @@ function normalizeStories(arr) {
     if (s.imgQuality !== 'hd') s.imgQuality = 'standard'; // 默认标准画质（1280 档）
     if (!s.cast || typeof s.cast !== 'object') s.cast = {};
     s.logic = normalizeLogic(s.logic);
+    if (!Array.isArray(s.assets)) s.assets = [];
+    s.assets = s.assets.filter(a => a && a.url).map(a => ({
+      id: a.id || assetUid(),
+      name: String(a.name || a.url.split('/').pop() || '素材').slice(0, 40),
+      kind: a.kind === 'video' ? 'video' : (a.kind === 'audio' ? 'audio' : 'image'),
+      url: a.url,
+      category: ['image', 'music', 'sfx', 'frame', 'other'].includes(a.category) ? a.category : 'other',
+    }));
     if (!Array.isArray(s.chapters)) s.chapters = []; // 兜底：坏数据/旧数据不崩溃
     (s.chapters || []).forEach(c => {
       (c.blocks || []).forEach(b => {
@@ -710,6 +776,14 @@ let loggedIn = false;
 let uploadTimer = null;
 let saveErrorShownAt = 0;
 
+function setSaveStatus(st) {
+  saveStatus = st;
+  const el = $('#saveStatus');
+  if (!el) return;
+  el.classList.toggle('ok', st === 'ok');
+  el.textContent = st === 'saving' ? '保存中…' : st === 'ok' ? '已保存 ✓' : st === 'err' ? '保存失败' : '本地';
+}
+
 function setLoginHint(show) {
   const el = $('#loginHint');
   if (el) el.style.display = show ? '' : 'none';
@@ -726,6 +800,7 @@ function showSaveError(msg) {
 function scheduleUpload() {
   const s = story();
   if (!s || !loggedIn) return;
+  setSaveStatus('saving');
   if (uploadTimer) clearTimeout(uploadTimer);
   uploadTimer = setTimeout(() => uploadStory(s), 800);
 }
@@ -733,6 +808,7 @@ async function uploadStory(s) {
   if (!s || !loggedIn) return;
   const storyId = s.id;
   try {
+    if (s.kind === 'comic') await uploadPendingComicLocalMedia(s);
     const res = await fetch('/api/stories/' + encodeURIComponent(storyId), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -740,10 +816,12 @@ async function uploadStory(s) {
     });
     const d = await res.json();
     if (!d.success) {
+      setSaveStatus('err');
       if (res.status === 401) { loggedIn = false; setLoginHint(true); toast('登录已失效，请重新登录后继续保存', true); }
       else showSaveError(d.error || '云端保存失败');
       return;
     }
+    setSaveStatus('ok');
     if (d.story) {
       const cur = stories.find(x => x.id === storyId);
       if (cur) {
@@ -753,6 +831,7 @@ async function uploadStory(s) {
       }
     }
   } catch (e) {
+    setSaveStatus('err');
     showSaveError('云端保存失败（网络异常），内容已保留在本地');
   }
 }
@@ -883,7 +962,7 @@ function renderLibrary() {
     m.prepend(badge);
     // 作品类型徽章（卡牌RPG 分支）
     const kindBadge = document.createElement('span');
-    kindBadge.className = 'story-badge kind' + (s.kind === 'card_rpg' ? ' rpg' : (s.kind === 'gacha_rogue' ? ' rogue' : ''));
+    kindBadge.className = 'story-badge kind' + (s.kind === 'card_rpg' ? ' rpg' : (s.kind === 'gacha_rogue' ? ' rogue' : (s.kind === 'comic' ? ' comic' : '')));
     kindBadge.textContent = KIND_LABEL[s.kind] || '互动小说';
     m.appendChild(kindBadge);
     const ops = document.createElement('div');
@@ -972,6 +1051,11 @@ async function createStory() {
       return;
     }
     const s = normalizeStories([d.story])[0];
+    if (createKind === 'comic') {
+      s.kind = 'comic';
+      s.comic = emptyComic();
+      s.chapters = [];
+    }
     stories.unshift(s);
     persist();
     input.value = '';
@@ -988,12 +1072,24 @@ function showEditor() {
   $('#viewEditor').classList.remove('hidden');
   $('#playBtn').classList.remove('hidden');
   $('#libBtn').classList.remove('hidden');
+  const stb = $('#studioTopbar');
+  if (stb) stb.classList.remove('hidden');
+  renderEditorLoginBanner();
 }
 function openStory(id) {
   currentId = id;
   selectedBlockId = null;
   const s = story();
-  chapterId = (s.chapters[0] && s.chapters[0].id) || null;
+  if (s && s.kind === 'comic') {
+    s.comic = normalizeComic(s.comic);
+    comicPageId = (s.comic.pages[0] && s.comic.pages[0].id) || null;
+    selectedComicPanelId = null;
+    chapterId = null;
+  } else {
+    chapterId = (s.chapters[0] && s.chapters[0].id) || null;
+    comicPageId = null;
+    selectedComicPanelId = null;
+  }
   try { if (s) harvestFromStory(s); } catch (e) { /* ignore */ }
   renderEditor();
   showEditor();
@@ -1003,50 +1099,1051 @@ function backToLibrary() {
   chapterId = null;
   selectedBlockId = null;
   playFlat = [];
+  selectedBlockId = null;
+  tlStop();
   $('#viewEditor').classList.add('hidden');
   $('#playBtn').classList.add('hidden');
   $('#libBtn').classList.add('hidden');
+  const stb = $('#studioTopbar');
+  if (stb) stb.classList.add('hidden');
   renderLibrary();
   $('#viewLibrary').classList.remove('hidden');
 }
 
-// ---------- 编辑器 ----------
-function renderEditor() {
-  const s = story();
-  if (!s) return;
-  $('#storyTitle').value = s.title;
-  // 卡牌RPG 分支：只有卡牌RPG 作品显示「卡牌库/英雄/敌人」配置区
-  const rpgCfg = $('#rpgConfig');
-  if (rpgCfg) rpgCfg.style.display = s.kind === 'card_rpg' ? '' : 'none';
-  const rogueCfg = $('#rogueConfig');
-  if (rogueCfg) rogueCfg.style.display = s.kind === 'gacha_rogue' ? '' : 'none';
-  const g = $('#cardGuide');
-  if (g && s.kind === 'gacha_rogue') {
-    const t = cardGuideText(s);
-    g.innerHTML = `<b>${t.title}</b> ${t.hint}<br>${t.counts}<br>${t.line}`;
-  }
-  // 方向 / 画质切换按钮高亮
-  document.querySelectorAll('#storyOrient .orient-btn').forEach(b => b.classList.toggle('active', b.dataset.orient === s.orientation));
-  document.querySelectorAll('#storyQual .qual-btn').forEach(b => b.classList.toggle('active', b.dataset.qual === s.imgQuality));
-  const chipBattle = $('#chipBattle');
-  const chipRogue = $('#chipRogue');
-  if (chipBattle) chipBattle.classList.toggle('hidden', s.kind !== 'card_rpg');
-  if (chipRogue) chipRogue.classList.toggle('hidden', s.kind !== 'gacha_rogue');
-  renderChapters();
-  renderBlocks();
+// ---------- HYOOL Studio 壳：资源树 / 素材库 / 属性栏 ----------
+const RES_ITEMS = [
+  { id: 'plot', icon: '📖', label: '剧情' },
+  { id: 'characters', icon: '👤', label: '角色' },
+  { id: 'world', icon: '🌍', label: '世界' },
+  { id: 'assets', icon: '🖼', label: '素材' },
+  { id: 'music', icon: '🎵', label: '音乐' },
+  { id: 'sfx', icon: '🔊', label: '音效' },
+  { id: 'ai', icon: '🤖', label: 'AI' },
+];
+const ASSET_CATS = { assets: null, music: 'music', sfx: 'sfx' };
+
+function assetUid() {
+  return 'a_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-function renderChapters() {
+function emptyComic() {
+  const pageId = 'pg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const mk = (i) => ({ id: 'pn_' + i + '_' + Math.random().toString(36).slice(2, 6), index: i, caption: '', captionStyle: 'bar' });
+  return {
+    pages: [{
+      id: pageId,
+      title: '第 1 页',
+      rows: 2,
+      cols: 2,
+      panels: [mk(0), mk(1), mk(2), mk(3)],
+    }],
+  };
+}
+
+function normalizeComic(raw) {
+  const c = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : emptyComic();
+  if (!Array.isArray(c.pages) || !c.pages.length) c.pages = emptyComic().pages;
+  c.pages = c.pages.map((p, pi) => {
+    const rows = Math.max(1, Math.min(6, Number(p.rows) || 2));
+    const cols = Math.max(1, Math.min(6, Number(p.cols) || 2));
+    const count = rows * cols;
+    let panels = Array.isArray(p.panels) ? p.panels.slice(0, count) : [];
+    while (panels.length < count) {
+      panels.push({ id: 'pn_' + panels.length + '_' + Math.random().toString(36).slice(2, 6), index: panels.length, caption: '' });
+    }
+    panels = panels.map((pan, i) => {
+      const out = {
+        id: pan.id || ('pn_' + i + '_' + Math.random().toString(36).slice(2, 6)),
+        index: i,
+        caption: String(pan.caption || '').slice(0, 200),
+        captionStyle: COMIC_CAPTION_STYLES.some(x => x.id === pan.captionStyle) ? pan.captionStyle : 'bar',
+        media: pan.media && pan.media.url ? { url: pan.media.url, type: pan.media.type === 'video' ? 'video' : 'image' } : undefined,
+      };
+      const sp = String(pan.speaker || '').trim().slice(0, 20);
+      if (sp) out.speaker = sp;
+      if (pan.subtitle && typeof pan.subtitle === 'object') {
+        const sub = {};
+        if (pan.subtitle.color) sub.color = String(pan.subtitle.color).slice(0, 16);
+        if (pan.subtitle.x != null) sub.x = Math.min(100, Math.max(0, Number(pan.subtitle.x) || 0));
+        if (pan.subtitle.y != null) sub.y = Math.min(100, Math.max(0, Number(pan.subtitle.y) || 0));
+        if (Object.keys(sub).length) out.subtitle = sub;
+      }
+      return out;
+    });
+    return {
+      id: p.id || ('pg_' + pi + '_' + Math.random().toString(36).slice(2, 6)),
+      title: String(p.title || ('第 ' + (pi + 1) + ' 页')).slice(0, 30),
+      rows, cols, panels,
+    };
+  });
+  return c;
+}
+
+function comicData() {
   const s = story();
-  const host = $('#chapterList');
+  if (!s || s.kind !== 'comic') return null;
+  if (!s.comic) s.comic = normalizeComic(null);
+  return s.comic;
+}
+
+function comicPage() {
+  const c = comicData();
+  if (!c) return null;
+  return c.pages.find(p => p.id === comicPageId) || c.pages[0] || null;
+}
+
+function findComicPanel(panelId) {
+  const c = comicData();
+  if (!c || !panelId) return null;
+  for (const p of c.pages) {
+    const pan = (p.panels || []).find(x => x.id === panelId);
+    if (pan) return { page: p, panel: pan };
+  }
+  return null;
+}
+
+function selectComicPanel(id) {
+  selectedComicPanelId = id;
+  selectedBlockId = null;
+  renderComicEditor();
+  renderPropertyPanel();
+  renderTimelineDock();
+}
+
+let comicRenderTimer = null;
+function scheduleComicEditorRender() {
+  if (comicRenderTimer) clearTimeout(comicRenderTimer);
+  comicRenderTimer = setTimeout(() => {
+    comicRenderTimer = null;
+    renderComicEditor();
+  }, 80);
+}
+
+function comicCaptionStyle(pan) {
+  return COMIC_CAPTION_STYLES.some(x => x.id === pan.captionStyle) ? pan.captionStyle : 'bar';
+}
+
+let comicLocalFiles = new Map(); // panelId → File（未登录本地预览，登录保存时上传）
+
+function hasAuthToken() {
+  return !!localStorage.getItem(TOKEN_KEY);
+}
+
+function renderEditorLoginBanner() {
+  const bar = $('#editorLoginBanner');
+  if (!bar) return;
+  if (loggedIn || hasAuthToken()) {
+    bar.classList.add('hidden');
+    bar.innerHTML = '';
+    return;
+  }
+  bar.classList.remove('hidden');
+  bar.innerHTML = '未登录也可先加图预览。点分格里的「＋ 加画面」或拖图片进来。 <a href="/yonder.html?next=/story-editor">去登录</a> 后点保存同步云端。';
+}
+
+const COMIC_FILE_ACCEPT = 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm';
+
+function appendComicFilePicker(parent, panelId, text, extraClass) {
+  const label = document.createElement('label');
+  label.className = 'cp-upload-label' + (extraClass ? ' ' + extraClass : '');
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = COMIC_FILE_ACCEPT;
+  inp.addEventListener('change', async () => {
+    const file = inp.files && inp.files[0];
+    inp.value = '';
+    if (!file) return;
+    selectedComicPanelId = panelId;
+    selectedBlockId = null;
+    await applyComicPanelFile(panelId, file);
+  });
+  label.appendChild(inp);
+  const span = document.createElement('span');
+  span.textContent = text;
+  label.appendChild(span);
+  label.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectedComicPanelId = panelId;
+    selectedBlockId = null;
+  });
+  parent.appendChild(label);
+  return label;
+}
+
+let comicDropHostBound = false;
+function bindComicDropHost() {
+  const host = $('#blockList');
+  if (!host || comicDropHostBound) return;
+  comicDropHostBound = true;
+  host.addEventListener('dragover', (e) => {
+    if (!story() || story().kind !== 'comic') return;
+    const cell = e.target.closest('.comic-panel');
+    if (!cell) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    host.querySelectorAll('.comic-panel.drag-over').forEach((n) => { if (n !== cell) n.classList.remove('drag-over'); });
+    cell.classList.add('drag-over');
+  });
+  host.addEventListener('dragleave', (e) => {
+    const cell = e.target.closest('.comic-panel');
+    if (cell && !cell.contains(e.relatedTarget)) cell.classList.remove('drag-over');
+  });
+  host.addEventListener('drop', async (e) => {
+    if (!story() || story().kind !== 'comic') return;
+    const cell = e.target.closest('.comic-panel');
+    if (!cell) return;
+    e.preventDefault();
+    e.stopPropagation();
+    host.querySelectorAll('.comic-panel.drag-over').forEach((n) => n.classList.remove('drag-over'));
+    const panelId = cell.dataset.panelId;
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (!panelId || !files || !files.length) return;
+    selectedComicPanelId = panelId;
+    selectedBlockId = null;
+    await attachDroppedFileToComicPanel(panelId, files[0]);
+  });
+}
+
+function applyMediaToComicPanel(panelOrId, result) {
+  const id = typeof panelOrId === 'string' ? panelOrId : (panelOrId && panelOrId.id);
+  const hit = id ? findComicPanel(id) : null;
+  const pan = hit && hit.panel;
+  if (!pan || !result) return;
+  pan.media = { url: result.url, type: result.type };
+  if (result.local) pan.media.local = true;
+  else delete pan.media.local;
+  if (!result.local) registerAsset(result.url, result.type, 'image');
+  persist();
+  renderComicEditor();
+  renderPropertyPanel();
+  renderTimelineDock();
+  toast(result.local ? '分格画面已加上（本地预览）' : '分格画面已更新');
+}
+
+async function uploadPendingComicLocalMedia(s) {
+  if (!s || s.kind !== 'comic' || !hasAuthToken()) return false;
+  let changed = false;
+  for (const page of (s.comic?.pages || [])) {
+    for (const pan of (page.panels || [])) {
+      if (!pan.media || !pan.media.local || !String(pan.media.url || '').startsWith('blob:')) continue;
+      const file = comicLocalFiles.get(pan.id);
+      if (!file) continue;
+      const kind = pan.media.type === 'video' ? 'video' : 'image';
+      const result = await uploadFile(ensureUploadFile(file, kind), { compress: { orientation: s.orientation, quality: s.imgQuality } });
+      if (!result) continue;
+      try { URL.revokeObjectURL(pan.media.url); } catch (e) { /* ignore */ }
+      comicLocalFiles.delete(pan.id);
+      pan.media = { url: result.url, type: result.type };
+      registerAsset(result.url, result.type, 'image');
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+async function applyComicPanelFile(panelOrId, file) {
+  const id = typeof panelOrId === 'string' ? panelOrId : (panelOrId && panelOrId.id);
+  if (!file || !id) return;
+  const kind = resolveFileMediaKind(file);
+  if (!kind || kind === 'audio') {
+    toast('仅支持 ' + MEDIA_TYPES_LABEL, true);
+    return;
+  }
+  const prepared = ensureUploadFile(file, kind);
+  if (!hasAuthToken()) {
+    const prev = findComicPanel(id);
+    if (prev && prev.panel && prev.panel.media && prev.panel.media.local && String(prev.panel.media.url || '').startsWith('blob:')) {
+      try { URL.revokeObjectURL(prev.panel.media.url); } catch (e) { /* ignore */ }
+    }
+    comicLocalFiles.set(id, prepared);
+    applyMediaToComicPanel(id, { url: URL.createObjectURL(prepared), type: kind, local: true });
+    renderEditorLoginBanner();
+    return;
+  }
+  const s = story();
+  const result = await uploadFile(prepared, { compress: { orientation: s ? s.orientation : 'landscape', quality: s ? s.imgQuality : 'standard' } });
+  if (!result) return;
+  comicLocalFiles.delete(id);
+  applyMediaToComicPanel(id, result);
+}
+
+async function attachDroppedFileToComicPanel(panelOrId, file) {
+  await applyComicPanelFile(panelOrId, file);
+}
+
+function appendComicCaptionPreview(parent, pan, { inCell } = {}) {
+  const text = (pan.caption || '').trim();
+  if (!text && !(pan.speaker || '').trim()) return;
+  const style = comicCaptionStyle(pan);
+  const cap = document.createElement('div');
+  cap.className = 'cp-cap style-' + style;
+  if ((pan.speaker || '').trim() && style !== 'narration') {
+    const sp = document.createElement('div');
+    sp.className = 'cp-speaker';
+    sp.textContent = pan.speaker;
+    cap.appendChild(sp);
+  }
+  if (text) {
+    const line = document.createElement('div');
+    line.textContent = text;
+    cap.appendChild(line);
+  }
+  if (pan.subtitle && pan.subtitle.color) cap.style.color = pan.subtitle.color;
+  if (!inCell && style !== 'bar') {
+    cap.style.left = (pan.subtitle && pan.subtitle.x != null ? pan.subtitle.x : (style === 'bubble' ? 50 : 12)) + '%';
+    cap.style.top = (pan.subtitle && pan.subtitle.y != null ? pan.subtitle.y : (style === 'bubble' ? 72 : 10)) + '%';
+  }
+  parent.appendChild(cap);
+}
+
+function appendComicCaptionPlay(frame, pan) {
+  const text = (pan.caption || '').trim();
+  if (!text && !(pan.speaker || '').trim()) return;
+  const style = comicCaptionStyle(pan);
+  const sub = pan.subtitle || {};
+  const sz = getGlobalSubSize();
+  const color = sub.color || '#e8e8f0';
+  if (style === 'bar') {
+    const dlg = document.createElement('div');
+    dlg.className = 'play-dialogue';
+    if ((pan.speaker || '').trim()) {
+      const sp = document.createElement('div');
+      sp.className = 'pd-speaker';
+      sp.textContent = pan.speaker;
+      sp.style.fontSize = Math.round(sz * 1.3) + 'px';
+      sp.style.color = color;
+      dlg.appendChild(sp);
+    }
+    if (text) {
+      const ln = document.createElement('div');
+      ln.className = 'pd-line';
+      ln.textContent = text;
+      ln.style.fontSize = sz + 'px';
+      ln.style.color = color;
+      dlg.appendChild(ln);
+    }
+    frame.appendChild(dlg);
+    return;
+  }
+  if (style === 'bubble') {
+    const bub = document.createElement('div');
+    bub.className = 'play-comic-bubble';
+    bub.style.left = (sub.x != null ? sub.x : 50) + '%';
+    bub.style.top = (sub.y != null ? sub.y : 72) + '%';
+    if ((pan.speaker || '').trim()) {
+      const sp = document.createElement('div');
+      sp.className = 'pcb-speaker';
+      sp.textContent = pan.speaker;
+      sp.style.color = color;
+      bub.appendChild(sp);
+    }
+    if (text) {
+      const ln = document.createElement('div');
+      ln.className = 'pcb-line';
+      ln.textContent = text;
+      ln.style.fontSize = sz + 'px';
+      ln.style.color = color;
+      bub.appendChild(ln);
+    }
+    makeTextDraggable(bub, pan, { comic: true });
+    frame.appendChild(bub);
+    return;
+  }
+  const nar = document.createElement('div');
+  nar.className = 'play-comic-narration';
+  nar.textContent = text;
+  nar.style.left = (sub.x != null ? sub.x : 12) + '%';
+  nar.style.top = (sub.y != null ? sub.y : 10) + '%';
+  nar.style.fontSize = Math.max(SUB_SIZE_MIN, sz - 2) + 'px';
+  nar.style.color = color;
+  makeTextDraggable(nar, pan, { comic: true });
+  frame.appendChild(nar);
+}
+
+function ensureAssets(s) {
+  if (!s) return [];
+  if (!Array.isArray(s.assets)) s.assets = [];
+  return s.assets;
+}
+
+function registerAsset(url, kind, category, name) {
+  const s = story();
+  if (!s || !url) return null;
+  const list = ensureAssets(s);
+  const hit = list.find(a => a.url === url);
+  if (hit) return hit;
+  const cat = ['image', 'music', 'sfx', 'frame', 'other'].includes(category) ? category : 'other';
+  const item = {
+    id: assetUid(),
+    name: String(name || url.split('/').pop() || '素材').slice(0, 40),
+    kind: kind === 'video' ? 'video' : (kind === 'audio' ? 'audio' : 'image'),
+    url,
+    category: cat,
+  };
+  list.push(item);
+  persist();
+  return item;
+}
+
+function removeAsset(id) {
+  const s = story();
+  if (!s) return;
+  s.assets = ensureAssets(s).filter(a => a.id !== id);
+  persist();
+  renderResPanel();
+  renderPropertyPanel();
+}
+
+function selectBlock(id) {
+  selectedBlockId = id || null;
+  selectedComicPanelId = null;
+  document.querySelectorAll('#blockList .block.selected, #blockList .block.sel').forEach((n) => n.classList.remove('selected', 'sel'));
+  if (selectedBlockId) {
+    const el = document.querySelector('#blockList [data-block-id="' + selectedBlockId + '"]');
+    if (el) el.classList.add('selected', 'sel');
+  }
+  renderStagePreview();
+  renderPropertyPanel();
+  renderTimelineDock();
+}
+
+function renderStudioTopbar() {
+  const s = story();
+  const bar = $('#studioTopbar');
+  if (!bar || !s) return;
+  bar.classList.remove('hidden');
+  const kindEl = $('#studioKind');
+  if (kindEl) kindEl.textContent = KIND_LABEL[s.kind] || '作品';
+  const topTitle = $('#storyTitleTop');
+  if (topTitle && document.activeElement !== topTitle) topTitle.value = s.title || '';
+  const pub = $('#studioPublishBtn');
+  if (pub) {
+    pub.textContent = s.status === 'published' ? '下架' : '发布 ↑';
+    pub.classList.toggle('pub', s.status === 'published');
+  }
+  setSaveStatus(loggedIn ? saveStatus : 'local');
+}
+
+function renderResTree() {
+  const host = $('#resTree');
+  if (!host) return;
+  const s = story();
+  host.innerHTML = '';
+  RES_ITEMS.forEach(item => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.title = item.label;
+    btn.className = studioRes === item.id ? 'on' : '';
+    const plotLabel = item.id === 'plot' && s && s.kind === 'comic' ? '页' : item.label;
+    btn.innerHTML = item.icon + '<span>' + plotLabel + '</span>';
+    btn.addEventListener('click', () => {
+      studioRes = item.id;
+      renderResTree();
+      renderResPanel();
+    });
+    host.appendChild(btn);
+  });
+}
+
+function renderResPanel() {
+  const host = $('#resPanel');
+  const s = story();
+  if (!host || !s) return;
+  host.innerHTML = '';
+  if (studioRes === 'plot') {
+    if (s.kind === 'comic') {
+      const h = document.createElement('h3');
+      h.textContent = '漫画页';
+      host.appendChild(h);
+      const add = document.createElement('button');
+      add.className = 'btn wide';
+      add.textContent = '＋ 新建一页';
+      add.addEventListener('click', addComicPage);
+      host.appendChild(add);
+      const list = document.createElement('div');
+      list.style.marginTop = '10px';
+      const comic = comicData();
+      (comic.pages || []).forEach((p) => {
+        const item = document.createElement('div');
+        item.className = 'ch-item' + (p.id === comicPageId ? ' active' : '');
+        item.textContent = p.title + '（' + p.rows + '×' + p.cols + '）';
+        item.addEventListener('click', () => { comicPageId = p.id; renderEditor(); });
+        list.appendChild(item);
+      });
+      host.appendChild(list);
+      const tip = document.createElement('p');
+      tip.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.8;margin-top:8px';
+      tip.textContent = '中间是分格画布；点一格后在右侧加图、选气泡样式、写对白。';
+      host.appendChild(tip);
+      const fold = document.createElement('details');
+      fold.className = 'settings-fold';
+      fold.style.marginTop = '8px';
+      fold.innerHTML = '<summary>画幅 / 画质</summary>';
+      const or = document.createElement('div');
+      or.className = 'orient-row';
+      or.innerHTML = '<button type="button" class="mini-btn orient-btn" data-orient="landscape">🖥 16:9</button><button type="button" class="mini-btn orient-btn" data-orient="portrait">📱 9:16</button><span class="orient-row-label">方向</span>';
+      const qu = document.createElement('div');
+      qu.className = 'orient-row';
+      qu.innerHTML = '<button type="button" class="mini-btn qual-btn" data-qual="standard">标准</button><button type="button" class="mini-btn qual-btn" data-qual="hd">高清</button><span class="orient-row-label">画质</span>';
+      fold.append(or, qu);
+      host.appendChild(fold);
+      or.querySelectorAll('.orient-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.orient === s.orientation));
+      qu.querySelectorAll('.qual-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.qual === s.imgQuality));
+      or.querySelectorAll('.orient-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          s.orientation = btn.dataset.orient === 'portrait' ? 'portrait' : 'landscape';
+          persist(); renderEditor(); toast('画面方向：' + ORIENT_LABEL[s.orientation]);
+        });
+      });
+      qu.querySelectorAll('.qual-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          s.imgQuality = btn.dataset.qual === 'hd' ? 'hd' : 'standard';
+          persist(); renderEditor(); toast('画质：' + QUAL_LABEL[s.imgQuality]);
+        });
+      });
+    } else {
+    const h = document.createElement('h3');
+    h.textContent = '章节';
+    host.appendChild(h);
+    const add = document.createElement('button');
+    add.className = 'btn wide';
+    add.textContent = '＋ 新建章节';
+    add.addEventListener('click', () => $('#addChapterBtn').click());
+    host.appendChild(add);
+    const list = document.createElement('div');
+    list.id = 'chapterListVisible';
+    list.style.marginTop = '10px';
+    host.appendChild(list);
+    renderChaptersInto(list);
+    const tip = document.createElement('p');
+    tip.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.8;margin-top:8px';
+    tip.textContent = '中间为剧情积木流；选中一块后右侧改属性、底部看多轨时间轴。';
+    host.appendChild(tip);
+    const fold = document.createElement('details');
+    fold.className = 'settings-fold';
+    fold.style.marginTop = '8px';
+    fold.innerHTML = '<summary>画幅 / 画质</summary>';
+    const or = document.createElement('div');
+    or.className = 'orient-row';
+    or.id = 'storyOrientVisible';
+    or.innerHTML = '<button type="button" class="mini-btn orient-btn" data-orient="landscape">🖥 16:9</button><button type="button" class="mini-btn orient-btn" data-orient="portrait">📱 9:16</button><span class="orient-row-label">方向</span>';
+    const qu = document.createElement('div');
+    qu.className = 'orient-row';
+    qu.id = 'storyQualVisible';
+    qu.innerHTML = '<button type="button" class="mini-btn qual-btn" data-qual="standard">标准</button><button type="button" class="mini-btn qual-btn" data-qual="hd">高清</button><span class="orient-row-label">画质</span>';
+    fold.append(or, qu);
+    host.appendChild(fold);
+    document.querySelectorAll('#storyOrientVisible .orient-btn').forEach(b => b.classList.toggle('active', b.dataset.orient === s.orientation));
+    document.querySelectorAll('#storyQualVisible .qual-btn').forEach(b => b.classList.toggle('active', b.dataset.qual === s.imgQuality));
+    or.querySelectorAll('.orient-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        s.orientation = btn.dataset.orient === 'portrait' ? 'portrait' : 'landscape';
+        persist(); renderEditor(); toast('画面方向：' + ORIENT_LABEL[s.orientation]);
+      });
+    });
+    qu.querySelectorAll('.qual-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        s.imgQuality = btn.dataset.qual === 'hd' ? 'hd' : 'standard';
+        persist(); renderEditor(); toast('画质：' + QUAL_LABEL[s.imgQuality]);
+      });
+    });
+    }
+    return;
+  }
+  if (studioRes === 'characters') {
+    const h = document.createElement('h3');
+    h.textContent = '角色';
+    host.appendChild(h);
+    const castBtn = document.createElement('button');
+    castBtn.className = 'btn wide';
+    castBtn.textContent = '🎭 角色声音表';
+    castBtn.addEventListener('click', openCastEditor);
+    host.appendChild(castBtn);
+    if (s.kind === 'card_rpg') {
+      ['🃏 卡牌库', '🦸 英雄', '👹 敌人'].forEach((label, i) => {
+        const b = document.createElement('button');
+        b.className = 'btn wide';
+        b.style.marginTop = '8px';
+        b.textContent = label;
+        b.addEventListener('click', () => [$('#rpgCardsBtn'), $('#rpgHeroBtn'), $('#rpgEnemiesBtn')][i].click());
+        host.appendChild(b);
+      });
+    }
+    if (s.kind === 'gacha_rogue') {
+      const g = document.createElement('div');
+      g.className = 'rpg-tip';
+      g.style.marginTop = '8px';
+      const t = cardGuideText(s);
+      g.innerHTML = '<b>' + t.title + '</b> ' + t.hint;
+      host.appendChild(g);
+      const studio = document.createElement('button');
+      studio.className = 'btn wide primary';
+      studio.style.marginTop = '8px';
+      studio.textContent = '打开卡牌工作室';
+      studio.addEventListener('click', () => openCardStudio(s, cardStudioApi()));
+      host.appendChild(studio);
+      const fill = document.createElement('button');
+      fill.className = 'btn wide';
+      fill.style.marginTop = '6px';
+      fill.textContent = '帮我填一套能玩的';
+      fill.addEventListener('click', fillCurrentCardPack);
+      host.appendChild(fill);
+    }
+    const sp = castSpeakers();
+    if (sp.length) {
+      const ul = document.createElement('div');
+      ul.style.cssText = 'margin-top:10px;font-size:12px;line-height:1.9';
+      sp.forEach(name => {
+        const row = document.createElement('div');
+        row.textContent = '· ' + name;
+        ul.appendChild(row);
+      });
+      host.appendChild(ul);
+    }
+    return;
+  }
+  if (studioRes === 'world') {
+    const h = document.createElement('h3');
+    h.textContent = '世界设定';
+    host.appendChild(h);
+    const tip = document.createElement('p');
+    tip.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px';
+    tip.textContent = '作品内的世界名、梗概与地点（暂不关联彼岸账号数据）。';
+    host.appendChild(tip);
+    const w = s.world || { name: '', synopsis: '', locations: [] };
+    const fName = document.createElement('div');
+    fName.className = 'field';
+    fName.innerHTML = '<label>世界名称</label>';
+    const inName = document.createElement('input');
+    inName.className = 'txt'; inName.maxLength = 40; inName.value = w.name || '';
+    inName.addEventListener('change', () => { w.name = inName.value.trim(); s.world = w; persist(); });
+    fName.appendChild(inName);
+    host.appendChild(fName);
+    const fSyn = document.createElement('div');
+    fSyn.className = 'field';
+    fSyn.innerHTML = '<label>世界梗概</label>';
+    const taSyn = document.createElement('textarea');
+    taSyn.className = 'txt'; taSyn.rows = 4; taSyn.value = w.synopsis || '';
+    taSyn.addEventListener('change', () => { w.synopsis = taSyn.value.trim(); s.world = w; persist(); });
+    fSyn.appendChild(taSyn);
+    host.appendChild(fSyn);
+    const lh = document.createElement('h3');
+    lh.textContent = '地点';
+    lh.style.marginTop = '12px';
+    host.appendChild(lh);
+    const locHost = document.createElement('div');
+    locHost.id = 'worldLocList';
+    host.appendChild(locHost);
+    const renderLocs = () => {
+      locHost.innerHTML = '';
+      (w.locations || []).forEach((loc, i) => {
+        const box = document.createElement('div');
+        box.className = 'world-loc';
+        const nm = document.createElement('input');
+        nm.className = 'txt'; nm.placeholder = '地点名'; nm.value = loc.name || '';
+        nm.addEventListener('change', () => { loc.name = nm.value.trim(); persist(); });
+        const ds = document.createElement('textarea');
+        ds.className = 'txt'; ds.rows = 2; ds.placeholder = '简述'; ds.value = loc.desc || '';
+        ds.addEventListener('change', () => { loc.desc = ds.value.trim(); persist(); });
+        const del = document.createElement('button');
+        del.className = 'btn tiny danger'; del.textContent = '删除';
+        del.addEventListener('click', () => { w.locations.splice(i, 1); persist(); renderLocs(); });
+        box.append(nm, ds, del);
+        locHost.appendChild(box);
+      });
+    };
+    renderLocs();
+    const addLoc = document.createElement('button');
+    addLoc.className = 'btn wide';
+    addLoc.textContent = '＋ 添加地点';
+    addLoc.addEventListener('click', () => {
+      if (!Array.isArray(w.locations)) w.locations = [];
+      w.locations.push({ id: 'w_' + Date.now().toString(36), name: '新地点', desc: '' });
+      s.world = w; persist(); renderLocs();
+    });
+    host.appendChild(addLoc);
+    return;
+  }
+  if (studioRes === 'ai') {
+    host.innerHTML = '<h3>AI</h3><p style="font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:10px">角色 AI 音色在「角色 → 角色声音表」里配置；卡牌立绘可在工作室用本地 Comfy 生图。</p>';
+    const b = document.createElement('button');
+    b.className = 'btn wide';
+    b.textContent = '打开角色声音（TTS）';
+    b.addEventListener('click', openCastEditor);
+    host.appendChild(b);
+    return;
+  }
+  renderAssetsPanel(host, ASSET_CATS[studioRes] || null);
+}
+
+function renderAssetsPanel(host, categoryFilter) {
+  const s = story();
+  if (!s) return;
+  const title = categoryFilter === 'music' ? '音乐' : categoryFilter === 'sfx' ? '音效' : '素材';
+  const h = document.createElement('h3');
+  h.textContent = title;
+  host.appendChild(h);
+  if (!categoryFilter) {
+    const filters = document.createElement('div');
+    filters.className = 'asset-filters';
+    [['all', '全部'], ['image', '图片'], ['frame', '边框'], ['music', '音乐'], ['sfx', '音效']].forEach(([id, label]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn tiny' + (assetCatFilter === id ? ' on' : '');
+      b.textContent = label;
+      b.addEventListener('click', () => { assetCatFilter = id; renderResPanel(); });
+      filters.appendChild(b);
+    });
+    host.appendChild(filters);
+  }
+  const up = document.createElement('div');
+  up.className = 'asset-upload';
+  const uploadCat = categoryFilter || (assetCatFilter === 'frame' ? 'frame' : assetCatFilter === 'music' ? 'music' : assetCatFilter === 'sfx' ? 'sfx' : 'other');
+  up.textContent = '＋ 上传' + (uploadCat === 'frame' ? ' 边框 PNG/GIF' : uploadCat === 'music' ? ' BGM' : uploadCat === 'sfx' ? ' 音效' : ' 图片/视频/音频');
+  host.appendChild(up);
+  const grid = document.createElement('div');
+  grid.className = 'asset-grid';
+  grid.style.marginTop = '10px';
+  host.appendChild(grid);
+  const list = ensureAssets(s).filter(a => {
+    if (categoryFilter === 'music') return a.category === 'music' || (a.kind === 'audio' && a.category !== 'sfx');
+    if (categoryFilter === 'sfx') return a.category === 'sfx';
+    if (assetCatFilter === 'image') return a.category === 'image' || (a.kind !== 'audio' && a.category !== 'frame' && a.category !== 'music' && a.category !== 'sfx');
+    if (assetCatFilter === 'frame') return a.category === 'frame';
+    if (assetCatFilter === 'music') return a.category === 'music' || (a.kind === 'audio' && a.category !== 'sfx');
+    if (assetCatFilter === 'sfx') return a.category === 'sfx';
+    return true;
+  });
+  if (!list.length) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'font-size:11.5px;color:var(--muted);grid-column:1/-1;line-height:1.7';
+    empty.textContent = '还没有素材。上传后会保存在本作品，可在积木上引用。';
+    grid.appendChild(empty);
+  }
+  list.forEach(a => {
+    const card = document.createElement('div');
+    card.className = 'asset-card';
+    card.title = a.name;
+    if (a.kind === 'audio') {
+      const ic = document.createElement('div');
+      ic.className = 'asset-audio';
+      ic.textContent = a.category === 'sfx' ? '🔊' : '🎵';
+      card.appendChild(ic);
+    } else if (a.kind === 'video') {
+      const v = document.createElement('video');
+      v.src = a.url; v.muted = true; v.playsInline = true; v.preload = 'metadata';
+      card.appendChild(v);
+    } else {
+      const img = document.createElement('img');
+      img.src = a.url; img.alt = a.name; img.loading = 'lazy';
+      card.appendChild(img);
+    }
+    const nm = document.createElement('div');
+    nm.className = 'asset-name';
+    nm.textContent = a.name;
+    card.appendChild(nm);
+    card.addEventListener('click', () => {
+      if (selectedComicPanelId && a.kind !== 'audio') {
+        const hit = findComicPanel(selectedComicPanelId);
+        if (hit) {
+          hit.panel.media = { url: a.url, type: a.kind === 'video' ? 'video' : 'image' };
+          persist();
+          renderComicEditor();
+          renderPropertyPanel();
+          renderTimelineDock();
+          toast('已贴到当前漫画分格');
+          return;
+        }
+      }
+      if (selectedBlockId) {
+        const b = findBlock(selectedBlockId);
+        if (b) {
+          if (a.kind === 'audio') {
+            if (categoryFilter === 'sfx' || a.category === 'sfx') {
+              if (!Array.isArray(b.sfxList)) b.sfxList = [];
+              b.sfxList.push({ id: 'sfx_' + Date.now().toString(36), url: a.url, type: 'audio', offsetMs: 0, loop: false, volume: 0.8 });
+            } else b.audio = { url: a.url, type: 'audio' };
+          } else b.media = { url: a.url, type: a.kind === 'video' ? 'video' : 'image' };
+          persist();
+          renderBlocks();
+          renderPropertyPanel();
+          renderTimelineDock();
+          toast('已挂到当前选中积木');
+          return;
+        }
+      }
+      navigator.clipboard && navigator.clipboard.writeText(a.url).then(() => toast('已复制素材地址')).catch(() => toast(a.url));
+    });
+    const del = document.createElement('button');
+    del.className = 'btn tiny danger';
+    del.style.cssText = 'position:absolute;top:4px;right:4px;padding:2px 5px;font-size:10px';
+    del.textContent = '×';
+    del.addEventListener('click', (e) => { e.stopPropagation(); if (confirm('从作品素材库移除？（已引用的积木不会自动删）')) removeAsset(a.id); });
+    card.style.position = 'relative';
+    card.appendChild(del);
+    grid.appendChild(card);
+  });
+  up.addEventListener('click', () => pickAssetUpload(uploadCat === 'other' ? null : uploadCat));
+}
+
+let assetUploadInput = null;
+function pickAssetUpload(categoryFilter) {
+  if (!assetUploadInput) {
+    assetUploadInput = document.createElement('input');
+    assetUploadInput.type = 'file';
+    assetUploadInput.style.display = 'none';
+    assetUploadInput.addEventListener('change', async () => {
+      const file = assetUploadInput.files && assetUploadInput.files[0];
+      assetUploadInput.value = '';
+      if (!file) return;
+      const s = story();
+      const cat = assetUploadInput._cat || 'other';
+      const kind = ALLOWED_MEDIA[file.type] ? ALLOWED_MEDIA[file.type] : (ALLOWED_AUDIO[file.type] ? 'audio' : null);
+      if (!kind) { toast('不支持的文件类型', true); return; }
+      const result = await uploadFile(file, kind === 'image' ? { compress: { orientation: s.orientation, quality: s.imgQuality } } : undefined);
+      if (!result) return;
+      const category = cat === 'frame' ? 'frame' : (cat === 'music' || cat === 'sfx' ? cat : (kind === 'audio' ? 'music' : 'image'));
+      registerAsset(result.url, result.type, category, file.name);
+      renderResPanel();
+      toast('已加入作品素材库');
+    });
+    document.body.appendChild(assetUploadInput);
+  }
+  assetUploadInput._cat = categoryFilter || 'other';
+  assetUploadInput.accept = categoryFilter === 'music' || categoryFilter === 'sfx'
+    ? 'audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,audio/ogg'
+    : 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,audio/ogg';
+  assetUploadInput.click();
+}
+
+function renderPropertyPanel() {
+  const head = $('#propHead');
+  const body = $('#propBody');
+  if (!body) return;
+  body.innerHTML = '';
+  const comicHit = selectedComicPanelId ? findComicPanel(selectedComicPanelId) : null;
+  if (comicHit) {
+    const pan = comicHit.panel;
+    if (head) head.textContent = '分格设置';
+    const wrap = document.createElement('div');
+    wrap.className = 'prop-field';
+    if (!hasAuthToken()) {
+      const loginNote = document.createElement('p');
+      loginNote.style.cssText = 'font-size:11.5px;color:#c8b8ff;line-height:1.7;padding:8px 10px;border-radius:8px;background:rgba(139,123,255,.1);border:1px solid rgba(139,123,255,.25);margin:0 0 10px';
+      loginNote.innerHTML = '可先加图本地预览。<a href="/yonder.html?next=/story-editor" style="color:#9fd4ff">登录</a> 后保存会同步云端。';
+      wrap.appendChild(loginNote);
+    }
+    if (pan.media && pan.media.url) {
+      const prev = document.createElement('div');
+      prev.className = 'prop-preview';
+      if (pan.media.type === 'video') {
+        const v = document.createElement('video');
+        v.src = pan.media.url; v.controls = true; v.muted = true; v.playsInline = true;
+        prev.appendChild(v);
+      } else {
+        const img = document.createElement('img');
+        img.src = pan.media.url; img.alt = '';
+        prev.appendChild(img);
+      }
+      wrap.appendChild(prev);
+    }
+    const f0 = document.createElement('div');
+    f0.className = 'field';
+    f0.innerHTML = '<label>对白样式</label>';
+    const styleRow = document.createElement('div');
+    styleRow.className = 'comic-style-row';
+    COMIC_CAPTION_STYLES.forEach((st) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn tiny' + (comicCaptionStyle(pan) === st.id ? ' on' : '');
+      b.textContent = st.label;
+      b.addEventListener('click', () => {
+        pan.captionStyle = st.id;
+        persist();
+        renderComicEditor();
+        renderPropertyPanel();
+        renderTimelineDock();
+      });
+      styleRow.appendChild(b);
+    });
+    f0.appendChild(styleRow);
+    wrap.appendChild(f0);
+    if (comicCaptionStyle(pan) !== 'narration') {
+      const fSp = document.createElement('div');
+      fSp.className = 'field';
+      fSp.innerHTML = '<label>角色名（可选）</label>';
+      const sp = document.createElement('input');
+      sp.type = 'text'; sp.className = 'txt'; sp.maxLength = 20; sp.value = pan.speaker || '';
+      sp.placeholder = '留空则不显示名字';
+      sp.addEventListener('input', () => {
+        const v = sp.value.trim();
+        if (v) pan.speaker = v; else delete pan.speaker;
+        persist(); scheduleComicEditorRender();
+      });
+      fSp.appendChild(sp);
+      wrap.appendChild(fSp);
+    }
+    const f1 = document.createElement('div');
+    f1.className = 'field';
+    f1.innerHTML = '<label>对白 / 旁白文字</label>';
+    const ta = document.createElement('textarea');
+    ta.className = 'txt'; ta.rows = 4; ta.value = pan.caption || '';
+    ta.placeholder = comicCaptionStyle(pan) === 'narration' ? '旁白文字，如：三年后……' : '对白内容';
+    ta.addEventListener('input', () => { pan.caption = ta.value; persist(); scheduleComicEditorRender(); });
+    f1.appendChild(ta);
+    wrap.appendChild(f1);
+    const colorRow = document.createElement('div');
+    colorRow.className = 'field';
+    colorRow.innerHTML = '<label>文字颜色</label>';
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = (pan.subtitle && pan.subtitle.color) || '#e8e8f0';
+    colorInput.style.cssText = 'width:44px;height:32px;padding:2px;border-radius:8px;background:var(--bg3);border:1px solid var(--line2);cursor:pointer';
+    colorInput.addEventListener('input', () => {
+      pan.subtitle = pan.subtitle || {};
+      pan.subtitle.color = colorInput.value;
+      persist(); scheduleComicEditorRender();
+    });
+    colorRow.appendChild(colorInput);
+    const sizeBtn = document.createElement('button');
+    sizeBtn.className = 'btn tiny';
+    sizeBtn.style.marginLeft = '8px';
+    sizeBtn.textContent = '字号 ' + getGlobalSubSize() + 'px';
+    sizeBtn.addEventListener('click', () => openComicFontEditor(pan));
+    colorRow.appendChild(sizeBtn);
+    wrap.appendChild(colorRow);
+    const hint = document.createElement('p');
+    hint.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.6;margin:0';
+    hint.textContent = comicCaptionStyle(pan) === 'bar'
+      ? '底部条：预览时固定在画面下方。'
+      : '气泡 / 旁白：预览时可拖拽文字位置。';
+    wrap.appendChild(hint);
+    const ops = document.createElement('div');
+    ops.className = 'bm-ops';
+    appendComicFilePicker(ops, pan.id, pan.media ? '换画面' : '加画面', 'btn-file');
+    const rm = document.createElement('button');
+    rm.className = 'btn tiny danger';
+    rm.textContent = '清画面';
+    rm.addEventListener('click', () => { delete pan.media; persist(); renderComicEditor(); renderPropertyPanel(); });
+    ops.append(rm);
+    wrap.appendChild(ops);
+    body.appendChild(wrap);
+    return;
+  }
+  const b = selectedBlockId ? findBlock(selectedBlockId) : null;
+  if (!b) {
+    if (head) head.textContent = '属性';
+    const s = story();
+    body.innerHTML = '<div class="prop-empty">' + (s && s.kind === 'comic' ? '点选中间一格，右侧可选气泡样式、写对白、加画面。' : '选中一块积木后，在这里改对白、配音与字幕等设置。') + '</div>';
+    return;
+  }
+  const typeLabel = b.type === 'scene' ? '场景' : b.type === 'dialogue' ? '对白' : b.type === 'battle' ? '战斗' : b.type === 'rogue' ? '卡牌关' : '积木';
+  if (head) head.textContent = typeLabel + '设置';
+  const wrap = document.createElement('div');
+  wrap.className = 'prop-field';
+  if (b.media && b.media.url) {
+    const prev = document.createElement('div');
+    prev.className = 'prop-preview';
+    if (b.media.type === 'video') {
+      const v = document.createElement('video');
+      v.src = b.media.url; v.controls = true; v.muted = true; v.playsInline = true;
+      prev.appendChild(v);
+    } else {
+      const img = document.createElement('img');
+      img.src = b.media.url; img.alt = '';
+      prev.appendChild(img);
+    }
+    wrap.appendChild(prev);
+  }
+  if (b.type === 'dialogue') {
+    const f1 = document.createElement('div');
+    f1.className = 'field';
+    f1.innerHTML = '<label>角色</label>';
+    const sp = document.createElement('input');
+    sp.type = 'text'; sp.className = 'txt'; sp.maxLength = 20; sp.value = b.speaker || DEFAULT_SPEAKER;
+    sp.addEventListener('change', () => { b.speaker = sp.value.trim() || DEFAULT_SPEAKER; persist(); renderBlocks(); });
+    f1.appendChild(sp);
+    wrap.appendChild(f1);
+  }
+  if (b.type === 'dialogue' || b.type === 'scene') {
+    const f2 = document.createElement('div');
+    f2.className = 'field';
+    f2.innerHTML = '<label>文本</label>';
+    const ta = document.createElement('textarea');
+    ta.className = 'txt'; ta.rows = 4;
+    ta.value = b.content || '';
+    ta.placeholder = b.type === 'scene' ? '场景文字' : '对白内容';
+    ta.addEventListener('change', () => { b.content = ta.value; persist(); renderBlocks(); renderTimelineDock(); });
+    f2.appendChild(ta);
+    wrap.appendChild(f2);
+    const entry = (story().cast || {})[b.speaker || DEFAULT_SPEAKER];
+    const voiceNote = document.createElement('p');
+    voiceNote.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.6';
+    voiceNote.textContent = b.audio && b.audio.url ? '配音：积木手动音频' : (entry && entry.kind === 'tts' ? '配音：AI 音色 · ' + (entry.voice || '') : (entry && entry.kind === 'audio' ? '配音：角色音频' : '配音：未配置（可在角色声音表设 TTS）'));
+    wrap.appendChild(voiceNote);
+    const vol = makeVolSlider(b.audio ? 1 : (entry && entry.volume != null ? entry.volume : 1), (v) => {
+      if (b.audio) { /* block audio has no volume field */ }
+      else if (entry) { entry.volume = v; persist(); }
+    });
+    if (entry || b.audio) wrap.appendChild(vol);
+    const row = document.createElement('div');
+    row.className = 'bm-ops';
+    row.style.marginTop = '6px';
+    const subBtn = document.createElement('button');
+    subBtn.className = 'btn tiny';
+    subBtn.textContent = '字号 / 颜色';
+    subBtn.addEventListener('click', () => openSubtitleEditor(b));
+    const castBtn = document.createElement('button');
+    castBtn.className = 'btn tiny';
+    castBtn.textContent = '角色声音';
+    castBtn.addEventListener('click', openCastEditor);
+    row.append(subBtn, castBtn);
+    wrap.appendChild(row);
+  }
+  if (b.type === 'battle') {
+    const p = document.createElement('button');
+    p.className = 'btn wide';
+    p.textContent = '编辑战斗';
+    p.addEventListener('click', () => openBattleEditor(b));
+    wrap.appendChild(p);
+  }
+  if (b.type === 'rogue') {
+    const p = document.createElement('button');
+    p.className = 'btn wide';
+    p.textContent = '试玩本关';
+    p.addEventListener('click', () => previewBattle(b));
+    wrap.appendChild(p);
+  }
+  const ops = document.createElement('div');
+  ops.className = 'bm-ops';
+  ops.style.marginTop = '8px';
+  const mediaBtn = document.createElement('button');
+  mediaBtn.className = 'btn tiny';
+  mediaBtn.textContent = b.media ? '换画面' : '加画面';
+  mediaBtn.addEventListener('click', () => pickMedia(b, mediaBtn));
+  const audioBtn = document.createElement('button');
+  audioBtn.className = 'btn tiny';
+  audioBtn.textContent = b.audio ? '换配音' : '加配音';
+  audioBtn.addEventListener('click', () => pickAudio(b, audioBtn));
+  const bgmBtn = document.createElement('button');
+  bgmBtn.className = 'btn tiny';
+  bgmBtn.textContent = '本幕 BGM';
+  bgmBtn.addEventListener('click', () => openBlockBgmEditor(b));
+  ops.append(mediaBtn, audioBtn, bgmBtn);
+  wrap.appendChild(ops);
+  body.appendChild(wrap);
+}
+
+function renderChaptersInto(host) {
+  const s = story();
+  if (!host || !s) return;
   host.innerHTML = '';
   s.chapters.forEach(c => {
     const item = document.createElement('div');
     item.className = 'ch-item' + (c.id === chapterId ? ' active' : '');
-    item.dataset.chapterId = c.id;
     const name = document.createElement('span');
     name.className = 'ch-name';
-    name.textContent = c.blocks.length ? `${c.title}（${c.blocks.length}）` : c.title;
+    name.textContent = c.blocks.length ? c.title + '（' + c.blocks.length + '）' : c.title;
     const ren = document.createElement('button');
     ren.className = 'mini-btn';
     ren.textContent = '重命名';
@@ -1057,7 +2154,7 @@ function renderChapters() {
     del.addEventListener('click', (e) => {
       e.stopPropagation();
       if (s.chapters.length <= 1) { toast('至少保留一个章节', true); return; }
-      if (!confirm(`确定删除章节「${c.title}」？其中的积木也会一起删除。`)) return;
+      if (!confirm('确定删除章节「' + c.title + '」？')) return;
       s.chapters = s.chapters.filter(x => x.id !== c.id);
       if (chapterId === c.id) chapterId = s.chapters[0].id;
       persist();
@@ -1068,6 +2165,68 @@ function renderChapters() {
     item.addEventListener('click', () => { chapterId = c.id; renderEditor(); });
     host.appendChild(item);
   });
+}
+
+async function publishCurrentStory() {
+  const s = story();
+  if (!s) return;
+  if (!loggedIn) { toast('请先登录', true); setLoginHint(true); return; }
+  const target = s.status !== 'published';
+  try {
+    const res = await fetch('/api/stories/' + encodeURIComponent(s.id) + '/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ published: target })
+    });
+    const d = await res.json();
+    if (!d.success) {
+      if (res.status === 401) { loggedIn = false; setLoginHint(true); }
+      toast(d.error || '操作失败', true);
+      return;
+    }
+    s.status = target ? 'published' : 'draft';
+    if (d.share_id) s.share_id = d.share_id;
+    persist();
+    renderStudioTopbar();
+    renderLibrary();
+    toast(target ? '已发布到广场' : '已下架');
+  } catch (e) {
+    toast('网络异常', true);
+  }
+}
+
+// ---------- 编辑器 ----------
+function renderEditor() {
+  const s = story();
+  if (!s) return;
+  $('#storyTitle').value = s.title;
+  const topTitle = $('#storyTitleTop');
+  if (topTitle && document.activeElement !== topTitle) topTitle.value = s.title;
+  const chipBattle = $('#chipBattle');
+  const chipRogue = $('#chipRogue');
+  if (chipBattle) chipBattle.classList.toggle('hidden', s.kind !== 'card_rpg');
+  if (chipRogue) chipRogue.classList.toggle('hidden', s.kind !== 'gacha_rogue');
+  const chipBar = $('#addChipBar');
+  if (chipBar) chipBar.style.display = s.kind === 'comic' ? 'none' : '';
+  const bgmBtn = $('#bgmBtn');
+  if (bgmBtn) bgmBtn.style.display = s.kind === 'comic' ? 'none' : '';
+  document.querySelectorAll('#storyOrient .orient-btn').forEach(b => b.classList.toggle('active', b.dataset.orient === s.orientation));
+  document.querySelectorAll('#storyQual .qual-btn').forEach(b => b.classList.toggle('active', b.dataset.qual === s.imgQuality));
+  renderStudioTopbar();
+  renderResTree();
+  renderResPanel();
+  renderChapters();
+  renderBlocks();
+  renderPropertyPanel();
+  renderTimelineDock();
+  renderEditorLoginBanner();
+}
+
+function renderChapters() {
+  const vis = $('#chapterListVisible');
+  if (vis) renderChaptersInto(vis);
+  const host = $('#chapterList');
+  if (host) renderChaptersInto(host);
 }
 
 // ---------- 积木（时间线：拖排序 / 行内改字 / 拖文件挂素材） ----------
@@ -1088,22 +2247,29 @@ function reorderBlocks(fromId, toId) {
 
 async function attachDroppedFile(block, file) {
   if (!file) return;
-  if (ALLOWED_MEDIA[file.type]) {
+  const kind = resolveFileMediaKind(file);
+  if (kind === 'image' || kind === 'video') {
     const s = story();
-    const result = await uploadFile(file, { compress: { orientation: s ? s.orientation : 'landscape', quality: s ? s.imgQuality : 'standard' } });
+    const result = await uploadFile(ensureUploadFile(file, kind), { compress: { orientation: s ? s.orientation : 'landscape', quality: s ? s.imgQuality : 'standard' } });
     if (!result) return;
     block.media = result;
+    registerAsset(result.url, result.type, 'image');
     persist();
     renderBlocks();
+    renderPropertyPanel();
+    renderTimelineDock();
     toast('画面已挂上');
     return;
   }
-  if (ALLOWED_AUDIO[file.type]) {
-    const result = await uploadFile(file);
+  if (kind === 'audio') {
+    const result = await uploadFile(ensureUploadFile(file, 'audio'));
     if (!result) return;
     block.audio = { url: result.url, type: 'audio' };
+    registerAsset(result.url, 'audio', 'music');
     persist();
     renderBlocks();
+    renderPropertyPanel();
+    renderTimelineDock();
     toast('配音已挂上');
     return;
   }
@@ -1160,7 +2326,161 @@ function beginInlineEdit(b, mainEl) {
   ta.focus();
 }
 
+function addComicPage() {
+  const c = comicData();
+  if (!c) return;
+  const page = {
+    id: 'pg_' + Date.now().toString(36),
+    title: '第 ' + (c.pages.length + 1) + ' 页',
+    rows: 2,
+    cols: 2,
+    panels: [0, 1, 2, 3].map((i) => ({ id: 'pn_' + i + '_' + Date.now().toString(36), index: i, caption: '', captionStyle: 'bar' })),
+  };
+  c.pages.push(page);
+  comicPageId = page.id;
+  persist();
+  renderEditor();
+  toast('已新建漫画页');
+}
+
+function renderComicEditor() {
+  const s = story();
+  const host = $('#blockList');
+  const headTitle = $('#chapterTitle');
+  const headCount = $('#chapterCount');
+  if (!host || !s || s.kind !== 'comic') return;
+  const page = comicPage();
+  if (!page) {
+    headTitle.textContent = '';
+    headCount.textContent = '';
+    host.innerHTML = '<div class="block-empty">还没有漫画页。左侧「剧情」里新建一页。</div>';
+    return;
+  }
+  if (!comicPageId) comicPageId = page.id;
+  headTitle.textContent = page.title;
+  headCount.textContent = page.rows + '×' + page.cols + ' 分格 · 点格编辑';
+  host.innerHTML = '';
+  const bar = document.createElement('div');
+  bar.className = 'comic-toolbar';
+  const rowsSel = document.createElement('select');
+  rowsSel.className = 'txt';
+  rowsSel.style.maxWidth = '88px';
+  [1, 2, 3, 4].forEach((n) => {
+    const o = document.createElement('option');
+    o.value = String(n); o.textContent = n + ' 行';
+    if (n === page.rows) o.selected = true;
+    rowsSel.appendChild(o);
+  });
+  const colsSel = document.createElement('select');
+  colsSel.className = 'txt';
+  colsSel.style.maxWidth = '88px';
+  [1, 2, 3, 4].forEach((n) => {
+    const o = document.createElement('option');
+    o.value = String(n); o.textContent = n + ' 列';
+    if (n === page.cols) o.selected = true;
+    colsSel.appendChild(o);
+  });
+  const applyGrid = () => {
+    const nr = Math.max(1, Math.min(4, Number(rowsSel.value) || 2));
+    const nc = Math.max(1, Math.min(4, Number(colsSel.value) || 2));
+    s.comic = normalizeComic({ pages: s.comic.pages.map((p) => {
+      if (p.id !== page.id) return p;
+      return { ...p, rows: nr, cols: nc };
+    }) });
+    persist();
+    renderEditor();
+  };
+  rowsSel.addEventListener('change', applyGrid);
+  colsSel.addEventListener('change', applyGrid);
+  const ren = document.createElement('button');
+  ren.className = 'btn tiny';
+  ren.textContent = '重命名本页';
+  ren.addEventListener('click', () => {
+    const t = prompt('本页标题', page.title);
+    if (t == null) return;
+    page.title = String(t).trim().slice(0, 30) || page.title;
+    persist(); renderEditor();
+  });
+  bar.append(rowsSel, colsSel, ren);
+  host.appendChild(bar);
+  const grid = document.createElement('div');
+  grid.className = 'comic-grid';
+  grid.style.gridTemplateColumns = 'repeat(' + page.cols + ', 1fr)';
+  grid.style.gridTemplateRows = 'repeat(' + page.rows + ', minmax(120px, 1fr))';
+  (page.panels || []).forEach((pan, i) => {
+    const cell = document.createElement('div');
+    const capStyle = comicCaptionStyle(pan);
+    cell.className = 'comic-panel' + (selectedComicPanelId === pan.id ? ' sel' : '') + (!(pan.media && pan.media.url) && !(pan.caption || '').trim() ? ' empty' : '');
+    cell.dataset.panelId = pan.id;
+    cell.addEventListener('click', () => selectComicPanel(pan.id));
+    const idx = document.createElement('span');
+    idx.className = 'cp-idx';
+    idx.textContent = String(i + 1);
+    cell.appendChild(idx);
+    const media = document.createElement('div');
+    media.className = 'cp-media';
+    media.style.position = 'relative';
+    if (pan.media && pan.media.url) {
+      if (pan.media.type === 'video') {
+        const v = document.createElement('video');
+        v.src = pan.media.url; v.muted = true; v.playsInline = true; v.preload = 'metadata';
+        media.appendChild(v);
+      } else {
+        const img = document.createElement('img');
+        img.src = pan.media.url; img.alt = '';
+        media.appendChild(img);
+      }
+      appendComicFilePicker(media, pan.id, '换图', 'cp-change');
+    } else {
+      appendComicFilePicker(media, pan.id, '＋ 点这里加画面（或拖图片进来）');
+    }
+    cell.appendChild(media);
+    if (capStyle === 'narration') {
+      appendComicCaptionPreview(cell, pan, { inCell: true });
+    } else if ((pan.caption || '').trim() || (pan.speaker || '').trim()) {
+      appendComicCaptionPreview(cell, pan, { inCell: true });
+    }
+    grid.appendChild(cell);
+  });
+  host.appendChild(grid);
+}
+
+function openComicFontEditor(pan) {
+  openModal('漫画字号', (body) => {
+    const f5 = document.createElement('div');
+    f5.className = 'field';
+    f5.style.margin = '0';
+    const l5 = document.createElement('label');
+    l5.textContent = '字号（全局统一，默认 27px；修改后所有文字生效）';
+    const sizeRow = document.createElement('div');
+    sizeRow.style.cssText = 'display:flex;align-items:center;gap:10px';
+    const sizeRange = document.createElement('input');
+    sizeRange.type = 'range';
+    sizeRange.min = SUB_SIZE_MIN; sizeRange.max = SUB_SIZE_MAX; sizeRange.step = 1;
+    sizeRange.style.flex = '1';
+    const initSize = getGlobalSubSize();
+    sizeRange.value = initSize;
+    const sizeVal = document.createElement('span');
+    sizeVal.style.cssText = 'font-size:12px;color:var(--muted);min-width:36px;text-align:right';
+    sizeVal.textContent = initSize + 'px';
+    sizeRange.addEventListener('input', () => { sizeVal.textContent = sizeRange.value + 'px'; });
+    sizeRow.append(sizeRange, sizeVal);
+    f5.append(l5, sizeRow);
+    body.appendChild(f5);
+  }, () => {
+    setGlobalSubSize(Number(($('#modalBody input[type=range]') || {}).value) || SUB_SIZE_DEFAULT);
+    persist();
+    renderPropertyPanel();
+    toast('字号已更新');
+  });
+}
+
 function renderBlocks() {
+  const s = story();
+  if (s && s.kind === 'comic') {
+    renderComicEditor();
+    return;
+  }
   const ch = chapter();
   const host = $('#blockList');
   host.innerHTML = '';
@@ -1182,8 +2502,12 @@ function renderBlocks() {
   }
   ch.blocks.forEach((b, i) => {
     const el = document.createElement('div');
-    el.className = 'block ' + b.type;
+    el.className = 'block ' + b.type + (selectedBlockId === b.id ? ' sel' : '');
     el.dataset.blockId = b.id;
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('button, input, textarea, audio, video, .block-handle')) return;
+      selectBlock(b.id);
+    });
 
     const handle = document.createElement('div');
     handle.className = 'block-handle';
@@ -1491,16 +2815,6 @@ function renderBlocks() {
     }
   } else {
     selectedBlockId = null;
-  }
-  renderStagePreview();
-}
-
-function selectBlock(id) {
-  selectedBlockId = id || null;
-  document.querySelectorAll('#blockList .block.selected').forEach((n) => n.classList.remove('selected'));
-  if (selectedBlockId) {
-    const el = document.querySelector('#blockList [data-block-id="' + selectedBlockId + '"]');
-    if (el) el.classList.add('selected');
   }
   renderStagePreview();
 }
@@ -1906,8 +3220,7 @@ function addBlock(type) {
   }
   ch.blocks.push(block);
   persist();
-  selectedBlockId = block.id;
-  renderBlocks();
+  selectBlock(block.id);
   if (type === 'battle') openBattleEditor(block);
   else if (type === 'choice') openChoiceEditor(block);
   else if (type === 'perf') openPerfEditor(block);
@@ -2393,6 +3706,8 @@ function deleteBlock(id) {
   if (selectedBlockId === id) selectedBlockId = null;
   persist();
   renderBlocks();
+  renderPropertyPanel();
+  renderTimelineDock();
   toast('已删除该积木');
 }
 
@@ -3220,13 +4535,14 @@ async function compressImageFile(file, orientation, quality) {
 // 上传到现有 /api/upload（D1 分块存储），成功返回 {url,type}，失败返回 null 并 toast
 // opts.compress = { orientation, quality }：图片画面按作品方向/画质前端压缩后再上传（GIF/视频/音频不压缩）
 async function uploadFile(file, opts) {
-  const kind = ALLOWED_MEDIA[file.type] || ALLOWED_AUDIO[file.type] || null;
+  const kind = resolveFileMediaKind(file);
   if (!kind) { toast('仅支持 ' + MEDIA_TYPES_LABEL + '，或 ' + AUDIO_TYPES_LABEL, true); return null; }
+  file = ensureUploadFile(file, kind);
   if (file.size > MAX_MEDIA_SIZE) { toast('文件过大（限 5MB 以内）', true); return null; }
   if (!localStorage.getItem('hyool_token')) { toast('上传需要先登录', true); return null; }
   if (kind === 'image' && opts && opts.compress) {
     const compressed = await compressImageFile(file, opts.compress.orientation, opts.compress.quality);
-    if (compressed !== file) file = compressed; // 压缩成功则上传压缩结果
+    if (compressed !== file) file = ensureUploadFile(compressed, 'image');
   }
   const fd = new FormData();
   fd.append('file', file);
@@ -4009,67 +5325,137 @@ function closeModal() {
   $('#modalBody').className = 'modal-body';
   modalOk = null;
 }
-// ---------- 三轨时间轴（配音 / 音效 / BGM 可视化） ----------
-let tlState = null; // 时间轴弹窗运行状态
+// ---------- 多轨时间轴（底栏 + 弹窗共用） ----------
+let tlState = null; // 时间轴运行状态
+function renderTimelineDock() {
+  const dock = $('#timelineDock');
+  const body = $('#tlDockBody');
+  const hint = $('#tlDockHint');
+  if (!dock || !body) return;
+  dock.classList.toggle('collapsed', timelineDockCollapsed);
+  const s = story();
+  const b = selectedBlockId ? findBlock(selectedBlockId) : null;
+  const comicHit = selectedComicPanelId && s && s.kind === 'comic' ? findComicPanel(selectedComicPanelId) : null;
+  if (hint) {
+    if (b) hint.textContent = '第 ' + (blockIndex(b.id) + 1) + ' 块 · ' + (b.type === 'dialogue' ? '对白' : b.type === 'scene' ? '场景' : b.type);
+    else if (comicHit) hint.textContent = '漫画分格 · ' + (comicHit.page.title || '');
+    else hint.textContent = s && s.kind === 'comic' ? '选中一格漫画分格' : '选中一块积木以编辑多轨';
+  }
+  if (!b && !comicHit) {
+    body.innerHTML = '<div class="tl-edit-empty">' + (s && s.kind === 'comic' ? '在中间点选漫画分格，右侧改对白、气泡与画面。' : '在中间点选一块积木，底部显示画面 / 对白 / 配音 / BGM / 音效 / 字幕轨。') + '</div>';
+    tlStop();
+    tlState = null;
+    return;
+  }
+  if (comicHit && !b) {
+    const pan = comicHit.panel;
+    body.innerHTML = '';
+    const quick = document.createElement('div');
+    quick.className = 'tl-edit';
+    quick.style.padding = '8px 4px';
+    const row = document.createElement('div');
+    row.className = 'comic-style-row';
+    COMIC_CAPTION_STYLES.forEach((st) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn tiny' + (comicCaptionStyle(pan) === st.id ? ' on' : '');
+      btn.textContent = st.label;
+      btn.addEventListener('click', () => {
+        pan.captionStyle = st.id;
+        persist();
+        renderComicEditor();
+        renderPropertyPanel();
+        renderTimelineDock();
+      });
+      row.appendChild(btn);
+    });
+    quick.appendChild(row);
+    const note = document.createElement('p');
+    note.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.7;margin:8px 0 0';
+    note.textContent = '当前格：' + (comicHit.page.title || '') + ' · 样式与文字在右侧属性栏编辑；预览时可拖气泡/旁白位置。';
+    quick.appendChild(note);
+    body.appendChild(quick);
+    tlStop();
+    tlState = null;
+    return;
+  }
+  if (!tlState || tlState.b !== b) {
+    selectedSfxId = null;
+    tlState = { b, totalMs: 10000, playing: false, voiceDur: 0, sfxDurs: [], bgm: null, voice: null, sfx: [], sfxTimers: [], raf: 0 };
+  }
+  body.innerHTML = `
+    <div class="tl">
+      <div class="tl-head">
+        <button class="btn tiny" id="tlPlayBtn">▶ 试听本幕</button>
+        <button class="btn tiny hidden" id="tlStopBtn">⏹ 停止</button>
+        <span class="tl-time" id="tlTime">0.00s</span>
+        <span class="tl-total" id="tlTotal"></span>
+        <span style="flex:1"></span>
+        <button class="btn tiny" id="tlAddSfx">＋ 添加音效</button>
+      </div>
+      <div class="tl-board">
+        <div class="tl-playhead" id="tlPlayhead"></div>
+        <div class="tl-lane tl-ruler-row">
+          <div class="tl-label"></div>
+          <div class="tl-track"><div class="tl-ruler" id="tlRuler"></div></div>
+        </div>
+        <div class="tl-lane">
+          <div class="tl-label">画面</div>
+          <div class="tl-track"><div class="tl-clip tl-visual" id="tlVisualClip"></div></div>
+        </div>
+        <div class="tl-lane">
+          <div class="tl-label">对白</div>
+          <div class="tl-track"><div class="tl-clip tl-dialogue" id="tlDialogueClip"></div></div>
+        </div>
+        <div class="tl-lane">
+          <div class="tl-label">配音</div>
+          <div class="tl-track"><div class="tl-clip tl-voice" id="tlVoiceClip"></div></div>
+        </div>
+        <div class="tl-lane">
+          <div class="tl-label">BGM</div>
+          <div class="tl-track"><div class="tl-clip tl-bgm" id="tlBgmClip"></div></div>
+        </div>
+        <div class="tl-lane">
+          <div class="tl-label">音效</div>
+          <div class="tl-track" id="tlSfxTrack"></div>
+        </div>
+        <div class="tl-lane">
+          <div class="tl-label">字幕</div>
+          <div class="tl-track"><div class="tl-clip tl-subtitle" id="tlSubtitleClip"></div></div>
+        </div>
+      </div>
+      <div class="tl-edit" id="tlEdit"></div>
+    </div>`;
+  $('#tlPlayBtn').addEventListener('click', tlPlay);
+  $('#tlStopBtn').addEventListener('click', tlStop);
+  $('#tlAddSfx').addEventListener('click', () => pickTimelineSfx(b));
+  const ch = chapter();
+  const bgm = b.bgmOverride || (ch && ch.bgm) || null;
+  const voice = resolveBlockVoice(b);
+  const durJobs = (b.sfxList || []).map(sf => loadAudioDuration(sf.url));
+  Promise.all([loadAudioDuration(bgm && bgm.url), loadAudioDuration(voice && voice.url), Promise.all(durJobs)])
+    .then(([bgmDur, voiceDur, sfxDurs]) => {
+      if (!tlState || tlState.b !== b) return;
+      tlState.voiceDur = voiceDur || 0;
+      tlState.sfxDurs = (b.sfxList || []).map((sf, i) => ({ id: sf.id, dur: sfxDurs[i] || 0 }));
+      const maxSfxEnd = Math.max(0, ...(b.sfxList || []).map((sf, i) => {
+        const d = sf.loop ? 2000 : Math.max(300, sf.durationMs || (sfxDurs[i] || 0) * 1000 || 800);
+        return (sf.offsetMs || 0) + d;
+      }));
+      const voiceEnd = Math.round((voiceDur || 0) * 1000) + 600;
+      tlState.totalMs = Math.max(10000, maxSfxEnd, voiceEnd);
+      tlRender(b);
+    });
+}
+
 function openTimelineEditor(b) {
   if (!b) return;
-  const card = document.querySelector('#modal .modal-card');
-  if (card) card.classList.add('modal-wide');
-  selectedSfxId = null;
-  tlState = { b, totalMs: 10000, playing: false, voiceDur: 0, sfxDurs: [], bgm: null, voice: null, sfx: [], sfxTimers: [], raf: 0 };
-  openModal('🎼 声音时间轴（三轨）', (body) => {
-    body.innerHTML = `
-      <div class="tl">
-        <div class="tl-head">
-          <button class="btn tiny" id="tlPlayBtn">▶ 试听本幕</button>
-          <button class="btn tiny hidden" id="tlStopBtn">⏹ 停止</button>
-          <span class="tl-time" id="tlTime">0.00s</span>
-          <span class="tl-total" id="tlTotal"></span>
-          <span style="flex:1"></span>
-          <button class="btn tiny" id="tlAddSfx">＋ 添加音效</button>
-        </div>
-        <div class="tl-board">
-          <div class="tl-playhead" id="tlPlayhead"></div>
-          <div class="tl-lane">
-            <div class="tl-label"></div>
-            <div class="tl-track"><div class="tl-ruler" id="tlRuler"></div></div>
-          </div>
-          <div class="tl-lane">
-            <div class="tl-label">🎵 BGM</div>
-            <div class="tl-track"><div class="tl-clip tl-bgm" id="tlBgmClip"></div></div>
-          </div>
-          <div class="tl-lane">
-            <div class="tl-label">🎙 配音</div>
-            <div class="tl-track"><div class="tl-clip tl-voice" id="tlVoiceClip"></div></div>
-          </div>
-          <div class="tl-lane">
-            <div class="tl-label">🔊 音效</div>
-            <div class="tl-track" id="tlSfxTrack"></div>
-          </div>
-        </div>
-        <div class="tl-edit" id="tlEdit"></div>
-      </div>`;
-    $('#tlPlayBtn').addEventListener('click', tlPlay);
-    $('#tlStopBtn').addEventListener('click', tlStop);
-    $('#tlAddSfx').addEventListener('click', () => pickTimelineSfx(b));
-    // 加载音频真实时长后首绘
-    const ch = chapter();
-    const bgm = b.bgmOverride || (ch && ch.bgm) || null;
-    const voice = resolveBlockVoice(b);
-    const durJobs = (b.sfxList || []).map(sf => loadAudioDuration(sf.url));
-    Promise.all([loadAudioDuration(bgm && bgm.url), loadAudioDuration(voice && voice.url), Promise.all(durJobs)])
-      .then(([bgmDur, voiceDur, sfxDurs]) => {
-        tlState.voiceDur = voiceDur || 0;
-        tlState.sfxDurs = (b.sfxList || []).map((sf, i) => ({ id: sf.id, dur: sfxDurs[i] || 0 }));
-        const maxSfxEnd = Math.max(0, ...(b.sfxList || []).map((sf, i) => {
-          const d = sf.loop ? 2000 : Math.max(300, sf.durationMs || (sfxDurs[i] || 0) * 1000 || 800);
-          return (sf.offsetMs || 0) + d;
-        }));
-        const voiceEnd = Math.round((voiceDur || 0) * 1000) + 600;
-        tlState.totalMs = Math.max(10000, maxSfxEnd, voiceEnd);
-        tlRender(b);
-      });
-  }, () => { tlStop(); persist(); renderBlocks(); });
+  selectBlock(b.id);
+  timelineDockCollapsed = false;
+  const dock = $('#timelineDock');
+  if (dock) dock.classList.remove('collapsed');
+  renderTimelineDock();
+  dock && dock.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function tlRender(b) {
   const st = tlState;
@@ -4102,8 +5488,47 @@ function tlRender(b) {
       bgmClip.textContent = (b.bgmOverride ? '本幕 BGM · ' : '章节 BGM · ') + (bgm.url.split('/').pop() || '');
     } else bgmClip.style.display = 'none';
   }
-  // 配音轨
+  // 画面轨
+  const visualClip = $('#tlVisualClip');
+  if (visualClip) {
+    if (b.media && b.media.url) {
+      visualClip.style.display = 'block';
+      visualClip.style.left = '0';
+      visualClip.style.width = '100%';
+      visualClip.textContent = (b.media.type === 'video' ? '视频' : '图片') + ' · ' + (b.media.url.split('/').pop() || '');
+    } else visualClip.style.display = 'none';
+  }
+  // 对白轨（与配音同宽，无配音时估 2s）
+  const dlgClip = $('#tlDialogueClip');
   const voice = resolveBlockVoice(b);
+  const dlgDur = st.voiceDur || (b.type === 'dialogue' && (b.content || '').trim() ? 2 : 0);
+  if (dlgClip) {
+    if (b.type === 'dialogue' && (b.content || '').trim()) {
+      const w = Math.max(4, dlgDur / totalSec * 100);
+      dlgClip.style.display = 'block';
+      dlgClip.style.left = '0';
+      dlgClip.style.width = Math.min(w, 100) + '%';
+      dlgClip.textContent = (b.speaker || DEFAULT_SPEAKER) + '：' + (b.content || '').slice(0, 24);
+    } else if (b.type === 'scene' && (b.content || '').trim()) {
+      dlgClip.style.display = 'block';
+      dlgClip.style.left = '0';
+      dlgClip.style.width = '40%';
+      dlgClip.textContent = '场景：' + (b.content || '').slice(0, 20);
+    } else dlgClip.style.display = 'none';
+  }
+  // 字幕轨
+  const subClip = $('#tlSubtitleClip');
+  if (subClip) {
+    const subOn = !b.subtitle || b.subtitle.on !== false;
+    if (subOn && ((b.type === 'dialogue' && (b.content || '').trim()) || (b.type === 'scene' && (b.content || '').trim()))) {
+      const w = Math.max(4, dlgDur / totalSec * 100);
+      subClip.style.display = 'block';
+      subClip.style.left = '0';
+      subClip.style.width = Math.min(w, 100) + '%';
+      subClip.textContent = '字幕';
+    } else subClip.style.display = 'none';
+  }
+  // 配音轨
   const voiceClip = $('#tlVoiceClip');
   if (voiceClip) {
     if (voice && voice.url) {
@@ -4618,6 +6043,15 @@ async function prewarmTts(s) {
 
 function buildPlayFlat() {
   const s = story();
+  if (s && s.kind === 'comic') {
+    const flat = [];
+    (s.comic && s.comic.pages || []).forEach((page) => {
+      (page.panels || []).forEach((pan) => {
+        flat.push({ type: 'comic_panel', ...pan, pageTitle: page.title, chapterTitle: page.title });
+      });
+    });
+    return flat;
+  }
   const flat = [];
   for (const ch of s.chapters) {
     for (const b of ch.blocks) flat.push({ ...b, chapterTitle: ch.title, chapterId: ch.id, bgm: ch.bgm || null });
@@ -4625,8 +6059,12 @@ function buildPlayFlat() {
   return flat;
 }
 function startPlay() {
+  const s = story();
   playFlat = buildPlayFlat();
-  if (!playFlat.length) { toast('这个作品还没有积木，先去添加内容吧', true); return; }
+  if (!playFlat.length) {
+    toast(s && s.kind === 'comic' ? '还没有漫画分格，先去画格里加内容吧' : '这个作品还没有积木，先去添加内容吧', true);
+    return;
+  }
   playIdx = 0;
   resetPlayState();
   $('#playBody').innerHTML = ''; // 进入播放先清空画幅残留（重复 startPlay 直接换画面不叠加，避免旧画幅撑出滚动条压缩新画幅）
@@ -4860,7 +6298,7 @@ function makeTextDraggable(el, b, opts = {}) {
     el.style.left = px + '%';
     el.style.top = py + '%';
     el.style.transform = 'translate(-50%,-50%)';
-    const real = findBlock(b.id);
+    const real = opts.comic ? (findComicPanel(b.id) || {}).panel : findBlock(b.id);
     if (real) {
       real.subtitle = real.subtitle || { on: true };
       real.subtitle.x = px;
@@ -4895,6 +6333,56 @@ function renderPlay() {
   const b = playFlat[playIdx];
   markVisited(b);
   const sPlay = story();
+  if (b.type === 'comic_panel' && sPlay && sPlay.kind === 'comic') {
+    const navEl = $('#playNav');
+    if (navEl) navEl.classList.remove('hidden');
+    stopBattleTimer();
+    stopRogueRun();
+    battle = null;
+    body.querySelectorAll('.play-frame').forEach((f) => {
+      if (!f.classList.contains('tl-leave')) f.classList.add('tl-leave');
+      setTimeout(() => f.remove(), 260);
+    });
+    const overlay = $('#playOverlay');
+    const frame = document.createElement('div');
+    frame.className = 'play-frame';
+    if (sPlay.orientation === 'portrait') {
+      const fw = body.clientWidth;
+      const fh = body.clientHeight;
+      const pw = Math.min(fw, Math.round(fh * 9 / 16));
+      frame.style.width = pw + 'px';
+      frame.style.height = Math.round(pw * 16 / 9) + 'px';
+    }
+    overlay.classList.toggle('orient-portrait', sPlay.orientation === 'portrait');
+    overlay.classList.toggle('orient-landscape', sPlay.orientation !== 'portrait');
+    if (b.media && b.media.url) {
+      const bg = document.createElement('div');
+      bg.className = 'play-media-bg';
+      if (b.media.type === 'video') {
+        const v = document.createElement('video');
+        v.src = b.media.url; v.autoplay = true; v.loop = true; v.muted = true; v.playsInline = true;
+        bg.appendChild(v);
+      } else {
+        const img = document.createElement('img');
+        img.src = b.media.url; img.alt = '';
+        bg.appendChild(img);
+      }
+      frame.appendChild(bg);
+      overlay.classList.add('has-media');
+    } else {
+      overlay.classList.remove('has-media');
+    }
+    if ((b.caption || '').trim() || (b.speaker || '').trim()) {
+      appendComicCaptionPlay(frame, b);
+    }
+    const fore = document.createElement('div');
+    fore.className = 'play-fore dlg-fore';
+    fore.title = '点击下一条';
+    fore.addEventListener('click', playNext);
+    frame.appendChild(fore);
+    body.appendChild(frame);
+    return;
+  }
   // 卡牌RPG 分支：battle 幕 → 战斗视图（战前剧情并入战斗日志 → 自动战斗 → 胜败结算），不套用叙事画幅
   if (b.type === 'battle' && sPlay && sPlay.kind === 'card_rpg') {
     const nav = $('#playNav');
@@ -5172,13 +6660,56 @@ function jumpPlayTo(jump) {
 }
 
 // ---------- 初始化 / 事件 ----------
+function bindInit(el, event, fn) {
+  if (!el) return;
+  el.addEventListener(event, fn);
+}
+
 function init() {
-  $('#createBtn').addEventListener('click', createStory);
-  $('#newTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') createStory(); });
+  try {
+  bindComicDropHost();
+  window.addEventListener('error', (e) => {
+    if (e && e.message) toast('编辑器异常：' + String(e.message).slice(0, 80), true);
+  });
+  bindInit($('#createBtn'), 'click', createStory);
+  bindInit($('#newTitle'), 'keydown', (e) => { if (e.key === 'Enter') createStory(); });
   $('#storyTitle').addEventListener('input', () => {
     const s = story();
     const v = $('#storyTitle').value.trim();
-    if (v && s && s.title !== v) { s.title = v; persist(); }
+    if (v && s && s.title !== v) { s.title = v; persist(); renderStudioTopbar(); }
+  });
+  const topTitle = $('#storyTitleTop');
+  if (topTitle) {
+    topTitle.addEventListener('input', () => {
+      const s = story();
+      const v = topTitle.value.trim();
+      if (s && s.title !== v) {
+        s.title = v || s.title;
+        $('#storyTitle').value = s.title;
+        persist();
+        renderLibrary();
+      }
+    });
+  }
+  const studioSave = $('#studioSaveBtn');
+  if (studioSave) studioSave.addEventListener('click', async () => {
+    const s = story();
+    if (!s) return;
+    if (s.kind === 'comic' && hasAuthToken()) await uploadPendingComicLocalMedia(s);
+    persist();
+    if (loggedIn) uploadStory(s);
+    else toast('已保存到本机；登录后才会同步云端', true);
+  });
+  const studioPlay = $('#studioPlayBtn');
+  if (studioPlay) studioPlay.addEventListener('click', startPlay);
+  const studioPub = $('#studioPublishBtn');
+  if (studioPub) studioPub.addEventListener('click', publishCurrentStory);
+  const tlToggle = $('#tlDockToggle');
+  if (tlToggle) tlToggle.addEventListener('click', () => {
+    timelineDockCollapsed = !timelineDockCollapsed;
+    tlToggle.textContent = timelineDockCollapsed ? '展开' : '收起';
+    const dock = $('#timelineDock');
+    if (dock) dock.classList.toggle('collapsed', timelineDockCollapsed);
   });
   $('#addChapterBtn').addEventListener('click', () => {
     const s = story();
@@ -5250,7 +6781,7 @@ function init() {
   document.querySelectorAll(sel).forEach(btn => {
     btn.addEventListener('click', () => {
       const k = btn.dataset.kind;
-      createKind = (k === 'card_rpg' || k === 'gacha_rogue') ? k : 'story';
+      createKind = (k === 'card_rpg' || k === 'gacha_rogue' || k === 'comic') ? k : 'story';
       document.querySelectorAll('#createKindRow .kind-card, #createKindMore .kind-card').forEach(x => x.classList.toggle('active', x === btn));
       if (createKind === 'gacha_rogue') {
         createOrientation = 'portrait';
@@ -5304,6 +6835,10 @@ function init() {
   renderLibrary();
   // 启动云端同步：拉取 /api/stories 并合并本地旧作品（登录后自动迁移上传）
   syncWithServer();
+  } catch (e) {
+    console.error(e);
+    toast('编辑器启动失败：' + (e && e.message ? e.message : String(e)).slice(0, 80), true);
+  }
 }
 
 // ---------- 对外测试 API ----------
@@ -5320,7 +6855,7 @@ window.StoryEditor = {
       // API 创建路径同步新建区选择卡高亮，与点击行为一致
       document.querySelectorAll('#createOrient .orient-card').forEach(x => x.classList.toggle('active', x.dataset.orient === orientation));
     }
-    if (kind === 'card_rpg' || kind === 'story' || kind === 'gacha_rogue') {
+    if (kind === 'card_rpg' || kind === 'story' || kind === 'gacha_rogue' || kind === 'comic') {
       createKind = kind;
       document.querySelectorAll('#createKindRow .kind-card').forEach(x => x.classList.toggle('active', x.dataset.kind === kind));
       const demoBtn = $('#rpgDemoBtn');
@@ -5560,8 +7095,9 @@ window.StoryEditor = {
   sample: (id) => buildSampleWork(id),
   setKindById: (id, kind) => {
     const s = stories.find(x => x.id === id);
-    if (!s || (kind !== 'story' && kind !== 'card_rpg' && kind !== 'gacha_rogue')) return false;
+    if (!s || (kind !== 'story' && kind !== 'card_rpg' && kind !== 'gacha_rogue' && kind !== 'comic')) return false;
     s.kind = kind;
+    if (kind === 'comic' && !s.comic) s.comic = normalizeComic(null);
     if (kind === 'card_rpg' && !s.rpg) s.rpg = { hero: { name: '勇者', maxHp: 30, attack: 8 }, cards: [], enemies: [] };
     if (kind === 'gacha_rogue' && !s.rogue) s.rogue = emptyRogue();
     if (s.miniGame) delete s.miniGame;

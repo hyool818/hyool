@@ -52,8 +52,92 @@ textarea.txt{min-height:120px;resize:vertical}
 .story-card .ops{display:flex;gap:8px;margin-top:auto}
 .story-card .ops .btn{flex:1}
 
-/* ---------- 视图2：剪映式编辑壳 ---------- */
-.editor-wrap{flex:1 1 auto;display:flex;min-height:0}
+/* ---------- 视图2：HYOOL Studio 五区骨架 ---------- */
+.editor-wrap{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.studio-shell{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.studio-row{flex:1 1 auto;display:flex;min-height:0}
+.studio-left{flex:0 0 248px;max-width:38vw;display:flex;min-height:0;border-right:1px solid var(--line);background:var(--bg2)}
+.res-tree{flex:0 0 52px;display:flex;flex-direction:column;gap:4px;padding:8px 6px;border-right:1px solid var(--line);background:#0c0c14}
+.res-tree button{width:40px;height:40px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--muted);
+  font-size:17px;cursor:pointer;font-family:inherit;transition:.15s;line-height:1}
+.res-tree button:hover{border-color:var(--line2);color:var(--text);background:#151522}
+.res-tree button.on{border-color:rgba(139,123,255,.55);background:rgba(139,123,255,.14);color:#cfc8ff}
+.res-tree button span{display:block;font-size:8px;letter-spacing:.02em;margin-top:2px}
+.res-panel{flex:1 1 auto;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.res-panel h3{font-size:11px;letter-spacing:.14em;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase}
+.studio-center{flex:1 1 auto;min-width:0;display:flex;min-height:0}
+.studio-props{flex:0 0 268px;max-width:34vw;display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);background:rgba(8,8,14,.92)}
+.studio-props-head{flex:0 0 auto;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em}
+.studio-props-body{flex:1 1 auto;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+.prop-empty{color:var(--muted);font-size:12px;line-height:1.8;text-align:center;padding:24px 8px}
+.prop-field .field{margin-bottom:10px}
+.prop-field label{font-size:11px;color:var(--muted)}
+.prop-preview{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#000;margin-bottom:10px}
+.prop-preview img,.prop-preview video{display:block;width:100%;max-height:180px;object-fit:cover}
+.studio-timeline{flex:0 0 auto;max-height:min(42vh,320px);display:flex;flex-direction:column;border-top:1px solid var(--line);background:#0a0a12}
+.studio-timeline.collapsed{max-height:36px;overflow:hidden}
+.tl-dock-head{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted)}
+.tl-dock-head .tl-dock-title{font-weight:700;color:var(--text);letter-spacing:.06em}
+.tl-dock-body{flex:1 1 auto;overflow:auto;padding:8px 12px 10px}
+.studio-topbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+.studio-topbar .studio-kind{font-size:10px;letter-spacing:.08em;padding:4px 10px;border-radius:99px;border:1px solid rgba(139,123,255,.4);
+  background:rgba(139,123,255,.12);color:#b8b0ff;white-space:nowrap}
+.studio-topbar .studio-title{min-width:120px;max-width:280px}
+.studio-topbar .save-dot{font-size:11px;color:var(--muted);white-space:nowrap}
+.studio-topbar .save-dot.ok{color:#5fd9a8}
+.asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px}
+.asset-card{position:relative;border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:#12121c;cursor:pointer;aspect-ratio:1}
+.asset-card:hover{border-color:var(--accent2)}
+.asset-card img,.asset-card video{width:100%;height:100%;object-fit:cover;display:block}
+.asset-card .asset-audio{display:flex;align-items:center;justify-content:center;height:100%;font-size:22px;background:#151522}
+.asset-card .asset-name{position:absolute;left:0;right:0;bottom:0;font-size:9px;padding:3px 5px;background:rgba(0,0,0,.72);color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asset-card.sel{outline:2px solid var(--accent2)}
+.asset-upload{border:1px dashed var(--line2);border-radius:10px;padding:14px;text-align:center;font-size:12px;color:var(--muted);cursor:pointer}
+.asset-upload:hover{border-color:var(--accent2);color:var(--accent2)}
+.asset-filters{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.asset-filters .btn.tiny{padding:4px 10px}
+.asset-filters .btn.tiny.on{border-color:var(--accent2);color:var(--accent2)}
+.world-loc{border:1px solid var(--line2);border-radius:10px;padding:10px;margin-bottom:8px;background:#12121c}
+.comic-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.comic-grid{display:grid;gap:8px;max-width:720px;margin:0 auto}
+.comic-panel{position:relative;border:2px solid var(--line2);border-radius:10px;min-height:120px;background:#0d0d16;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.comic-panel:hover{border-color:rgba(139,123,255,.45)}
+.comic-panel.sel{border-color:var(--accent2);box-shadow:0 0 0 1px rgba(95,200,255,.35)}
+.comic-panel .cp-media{flex:1 1 auto;min-height:80px;display:flex;align-items:center;justify-content:center;background:#000}
+.comic-panel .cp-media img,.comic-panel .cp-media video{max-width:100%;max-height:220px;object-fit:contain}
+.comic-panel .cp-cap{flex:0 0 auto;font-size:11px;padding:6px 8px;color:#cfcfe8;line-height:1.5}
+.comic-panel .cp-cap.style-bar{border-top:1px solid var(--line);background:rgba(8,8,14,.92)}
+.comic-panel .cp-cap.style-bubble{margin:6px 8px 8px;border-radius:14px;border:1px solid rgba(180,160,255,.45);background:rgba(22,18,38,.92);box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.comic-panel .cp-cap.style-narration{position:absolute;left:8px;top:28px;max-width:72%;padding:4px 8px;font-size:10px;font-style:italic;color:#d8d0ff;background:rgba(0,0,0,.45);border-radius:6px;border:none;z-index:2}
+.comic-panel .cp-cap .cp-speaker{font-size:10px;font-weight:700;color:var(--accent2);margin-bottom:2px}
+.comic-panel .cp-idx{position:absolute;top:6px;left:8px;font-size:10px;color:var(--muted);background:rgba(0,0,0,.55);padding:2px 6px;border-radius:99px;z-index:2}
+.comic-panel .cp-upload-label{position:relative;display:flex;align-items:center;justify-content:center;flex:1;min-height:80px;width:100%;cursor:pointer;text-align:center;padding:12px;color:var(--muted);font-size:12px;border-radius:8px}
+.comic-panel .cp-upload-label:hover{color:var(--accent2);background:rgba(95,200,255,.08)}
+.comic-panel .cp-upload-label input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;font-size:0}
+.comic-panel .cp-upload-label.cp-change{position:absolute;right:8px;bottom:8px;z-index:3;min-height:0;width:auto;inset:auto 8px 8px auto;padding:5px 12px;font-size:11px;border-radius:99px;background:rgba(0,0,0,.72);border:1px solid var(--line2);color:#e8e8f0}
+.comic-panel .cp-upload-label.cp-change:hover{color:var(--accent2);border-color:var(--accent2)}
+.editor-login-banner{padding:10px 16px;font-size:12.5px;line-height:1.6;color:#ece6ff;background:linear-gradient(90deg,rgba(80,50,160,.45),rgba(40,80,140,.35));border-bottom:1px solid rgba(139,123,255,.35);text-align:center}
+.editor-login-banner a{color:#9fd4ff;font-weight:600}
+.bm-ops .cp-upload-label.btn-file{display:inline-flex;align-items:center;justify-content:center;min-height:0;width:auto;inset:auto;position:relative;padding:6px 12px;font-size:12px;border:1px solid var(--line2);border-radius:8px;background:#151522;color:var(--text)}
+.bm-ops .cp-upload-label.btn-file input[type=file]{position:absolute;inset:0}
+.comic-panel.drag-over{border-color:var(--accent2);background:rgba(95,200,255,.06)}
+.comic-panel .cp-media .cp-upload-hint{position:absolute;bottom:6px;right:8px;font-size:10px;color:var(--muted);pointer-events:none}
+.comic-style-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.comic-style-row .btn.tiny.on{border-color:var(--accent2);color:var(--accent2)}
+.play-comic-bubble{position:absolute;max-width:78%;padding:12px 14px;border-radius:18px;border:2px solid rgba(200,180,255,.55);
+  background:rgba(18,14,32,.88);box-shadow:0 8px 28px rgba(0,0,0,.45);transform:translate(-50%,-50%);pointer-events:auto;cursor:grab;text-align:left}
+.play-comic-bubble .pcb-speaker{font-size:clamp(14px,2.2vw,18px);font-weight:700;color:var(--accent2);margin-bottom:4px}
+.play-comic-bubble .pcb-line{font-size:clamp(14px,2.2vw,18px);line-height:1.7;color:#ece8ff;white-space:pre-wrap;word-break:break-word}
+.play-comic-narration{position:absolute;max-width:70%;padding:6px 10px;font-size:clamp(13px,2vw,16px);font-style:italic;line-height:1.6;
+  color:#e0d8ff;text-shadow:0 1px 8px rgba(0,0,0,.85);transform:translate(-50%,-50%);pointer-events:auto;cursor:grab;white-space:pre-wrap}
+.play-comic-bubble.dragging,.play-comic-narration.dragging{cursor:grabbing;opacity:.92}
+.card-frame-asset{position:relative}
+.card-frame-asset .card-frame-img,.bt-portrait.card-frame-asset .card-frame-img{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;object-fit:fill;z-index:3}
+.card-frame-asset .card-art{position:relative;z-index:1}
+.block.sel{border-color:var(--accent2);box-shadow:0 0 0 1px rgba(95,200,255,.35)}
+.tl-visual{background:rgba(120,200,255,.2);border:1px solid rgba(120,200,255,.55);color:#c8e8ff}
+.tl-dialogue{background:rgba(180,140,255,.22);border:1px solid rgba(180,140,255,.55);color:#e8d8ff}
+.tl-subtitle{background:rgba(200,200,220,.15);border:1px solid rgba(200,200,220,.45);color:#d8d8e8;border-style:dashed}
 .editor-side{flex:0 0 240px;max-width:36vw;display:flex;flex-direction:column;min-height:0;
   border-right:1px solid var(--line);background:var(--bg2)}
 .editor-side .side-scroll{flex:1 1 auto;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:16px}
@@ -409,7 +493,37 @@ textarea.txt{min-height:120px;resize:vertical}
     .goddess-card.slot{width:22%;max-width:86px;min-width:72px}
   }
   .goddess-card.book.sel{border-color:rgba(180,140,255,.75);box-shadow:0 0 0 1px rgba(180,140,255,.35)}
-  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img{width:100%;aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;display:block}
+  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img,.goddess-card .card-art img,.goddess-card .card-art video{width:100%;aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;display:block;background:#000}
+  .goddess-card .card-art video.card-portrait-vid,.bt-portrait video.card-portrait-vid,.idle-detail-portrait video,.portrait-lightbox video.sheet-portrait-vid{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;background:#000}
+  .studio-thumb{width:42px;aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;border-radius:6px;display:block;background:#1a1a28;vertical-align:middle}
+  video.studio-thumb{background:#000;pointer-events:none}
+  .bt-portrait .card-art,.bt-portrait .card-art video,.bt-portrait .card-art img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block}
+  .bt-member .bt-portrait img,.bt-member .bt-portrait video{width:100%;height:100%;object-fit:cover;display:block}
+  .goddess-card.card-frame .card-art{width:calc(100% - 6px);margin:3px auto 0;aspect-ratio:9/16;border-radius:9px 9px 0 0;overflow:hidden;background:#1a1a28}
+  .goddess-card.card-frame .card-art img{width:100%;height:100%;object-fit:cover;object-position:center top}
+  .goddess-card.frame-white{box-shadow:0 0 0 2px #e4e4ee,0 0 10px rgba(220,220,235,.22)}
+  .goddess-card.frame-green{box-shadow:0 0 0 2px #5ecf7a,0 0 12px rgba(80,210,120,.35)}
+  .goddess-card.frame-blue{box-shadow:0 0 0 2px #5eb8ff,0 0 12px rgba(80,170,255,.35)}
+  .goddess-card.frame-purple{box-shadow:0 0 0 2px #c07cff,0 0 14px rgba(170,100,255,.4)}
+  .goddess-card.frame-red{box-shadow:0 0 0 2px #ff6a6a,0 0 14px rgba(255,90,90,.42)}
+  .goddess-card.frame-gold{box-shadow:0 0 0 2px #ffd76a,0 0 16px rgba(255,200,90,.48)}
+  .goddess-card.frame-rainbow{box-shadow:0 0 0 2px #fff,0 0 18px rgba(255,120,220,.45)}
+  .goddess-card.fx-glow::after,.bt-portrait.fx-glow::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;animation:card-glow 2.4s ease-in-out infinite}
+  .goddess-card.fx-pulse,.bt-portrait.fx-pulse{animation:card-pulse 2.2s ease-in-out infinite}
+  .goddess-card.fx-shimmer::after,.bt-portrait.fx-shimmer::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(115deg,transparent 30%,rgba(255,240,180,.35) 50%,transparent 70%);background-size:220% 100%;animation:card-shimmer 2.8s linear infinite}
+  .goddess-card.fx-rainbow,.bt-portrait.fx-rainbow{animation:card-rainbow 4s linear infinite}
+  .bt-portrait.card-frame{position:relative;box-sizing:border-box}
+  .bt-portrait.frame-white{box-shadow:0 0 0 2px #e4e4ee}
+  .bt-portrait.frame-green{box-shadow:0 0 0 2px #5ecf7a,0 0 8px rgba(80,210,120,.3)}
+  .bt-portrait.frame-blue{box-shadow:0 0 0 2px #5eb8ff,0 0 8px rgba(80,170,255,.3)}
+  .bt-portrait.frame-purple{box-shadow:0 0 0 2px #c07cff,0 0 10px rgba(170,100,255,.35)}
+  .bt-portrait.frame-red{box-shadow:0 0 0 2px #ff6a6a,0 0 10px rgba(255,90,90,.38)}
+  .bt-portrait.frame-gold{box-shadow:0 0 0 2px #ffd76a,0 0 12px rgba(255,200,90,.45)}
+  .bt-portrait.frame-rainbow{box-shadow:0 0 0 2px #fff,0 0 14px rgba(255,120,220,.4)}
+  @keyframes card-glow{0%,100%{box-shadow:inset 0 0 0 0 rgba(255,255,255,0)}50%{box-shadow:inset 0 0 18px 2px rgba(255,255,255,.12)}}
+  @keyframes card-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.08)}}
+  @keyframes card-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  @keyframes card-rainbow{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(360deg)}}
   .bt-member .bt-portrait{width:100%;aspect-ratio:9/16;height:auto;max-height:88px;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#1a1a28}
   .bt-member .bt-portrait img{width:100%;height:100%;object-fit:cover;display:block}
   .idle-stage-title{font-size:14px;font-weight:650;color:#efe8ff}
@@ -421,7 +535,37 @@ textarea.txt{min-height:120px;resize:vertical}
   .goddess-card .ch{display:flex;align-items:center;justify-content:center;aspect-ratio:9/16;height:auto;min-height:96px;font-size:28px;font-weight:700}
   .goddess-card.tone-light .ch{background:linear-gradient(180deg,#3a3358,#1c1830);color:#f4ecff}
   .goddess-card.tone-dark .ch{background:linear-gradient(180deg,#2a2038,#120e1c);color:#d9c7ff}
-  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img{width:100%;aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;display:block}
+  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img,.goddess-card .card-art img,.goddess-card .card-art video{width:100%;aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;display:block;background:#000}
+  .goddess-card .card-art video.card-portrait-vid,.bt-portrait video.card-portrait-vid,.idle-detail-portrait video,.portrait-lightbox video.sheet-portrait-vid{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;background:#000}
+  .studio-thumb{width:42px;aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;border-radius:6px;display:block;background:#1a1a28;vertical-align:middle}
+  video.studio-thumb{background:#000;pointer-events:none}
+  .bt-portrait .card-art,.bt-portrait .card-art video,.bt-portrait .card-art img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block}
+  .bt-member .bt-portrait img,.bt-member .bt-portrait video{width:100%;height:100%;object-fit:cover;display:block}
+  .goddess-card.card-frame .card-art{width:calc(100% - 6px);margin:3px auto 0;aspect-ratio:9/16;border-radius:9px 9px 0 0;overflow:hidden;background:#1a1a28}
+  .goddess-card.card-frame .card-art img{width:100%;height:100%;object-fit:cover;object-position:center top}
+  .goddess-card.frame-white{box-shadow:0 0 0 2px #e4e4ee,0 0 10px rgba(220,220,235,.22)}
+  .goddess-card.frame-green{box-shadow:0 0 0 2px #5ecf7a,0 0 12px rgba(80,210,120,.35)}
+  .goddess-card.frame-blue{box-shadow:0 0 0 2px #5eb8ff,0 0 12px rgba(80,170,255,.35)}
+  .goddess-card.frame-purple{box-shadow:0 0 0 2px #c07cff,0 0 14px rgba(170,100,255,.4)}
+  .goddess-card.frame-red{box-shadow:0 0 0 2px #ff6a6a,0 0 14px rgba(255,90,90,.42)}
+  .goddess-card.frame-gold{box-shadow:0 0 0 2px #ffd76a,0 0 16px rgba(255,200,90,.48)}
+  .goddess-card.frame-rainbow{box-shadow:0 0 0 2px #fff,0 0 18px rgba(255,120,220,.45)}
+  .goddess-card.fx-glow::after,.bt-portrait.fx-glow::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;animation:card-glow 2.4s ease-in-out infinite}
+  .goddess-card.fx-pulse,.bt-portrait.fx-pulse{animation:card-pulse 2.2s ease-in-out infinite}
+  .goddess-card.fx-shimmer::after,.bt-portrait.fx-shimmer::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(115deg,transparent 30%,rgba(255,240,180,.35) 50%,transparent 70%);background-size:220% 100%;animation:card-shimmer 2.8s linear infinite}
+  .goddess-card.fx-rainbow,.bt-portrait.fx-rainbow{animation:card-rainbow 4s linear infinite}
+  .bt-portrait.card-frame{position:relative;box-sizing:border-box}
+  .bt-portrait.frame-white{box-shadow:0 0 0 2px #e4e4ee}
+  .bt-portrait.frame-green{box-shadow:0 0 0 2px #5ecf7a,0 0 8px rgba(80,210,120,.3)}
+  .bt-portrait.frame-blue{box-shadow:0 0 0 2px #5eb8ff,0 0 8px rgba(80,170,255,.3)}
+  .bt-portrait.frame-purple{box-shadow:0 0 0 2px #c07cff,0 0 10px rgba(170,100,255,.35)}
+  .bt-portrait.frame-red{box-shadow:0 0 0 2px #ff6a6a,0 0 10px rgba(255,90,90,.38)}
+  .bt-portrait.frame-gold{box-shadow:0 0 0 2px #ffd76a,0 0 12px rgba(255,200,90,.45)}
+  .bt-portrait.frame-rainbow{box-shadow:0 0 0 2px #fff,0 0 14px rgba(255,120,220,.4)}
+  @keyframes card-glow{0%,100%{box-shadow:inset 0 0 0 0 rgba(255,255,255,0)}50%{box-shadow:inset 0 0 18px 2px rgba(255,255,255,.12)}}
+  @keyframes card-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.08)}}
+  @keyframes card-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  @keyframes card-rainbow{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(360deg)}}
   .goddess-card .star{position:absolute;top:6px;right:6px;font-size:10px;background:rgba(0,0,0,.55);border-radius:999px;padding:2px 6px;color:#ffd76a}
   .goddess-card .nm{display:block;font-size:12px;font-weight:650;margin-top:6px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .goddess-card.book{width:104px;padding-bottom:8px;cursor:pointer;border:1px solid var(--line2);background:#14121f}
@@ -596,6 +740,38 @@ textarea.txt{min-height:120px;resize:vertical}
   .idle-detail-name{font-weight:700;font-size:13px;color:#efe8ff}
   .idle-detail-meta{font-size:11px;color:var(--muted);margin-top:4px}
   .idle-detail-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .idle-detail-portrait{display:flex;justify-content:center;margin-bottom:10px}
+  .idle-detail-portrait img{width:min(220px,56vw);aspect-ratio:9/16;height:auto;object-fit:cover;object-position:center top;border-radius:12px;border:1px solid rgba(180,140,255,.35);cursor:zoom-in;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+  .goddess-card.has-img img,.goddess-card .inner.has-img img,.goddess-card.has-img > img{cursor:zoom-in}
+  .bt-portrait img{cursor:zoom-in}
+  .studio-thumb:not(.empty){cursor:zoom-in}
+  .portrait-lightbox{position:fixed;inset:0;z-index:12000;background:rgba(4,4,12,.9);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px 16px;cursor:zoom-out;overflow:auto}
+  .portrait-lightbox-inner{display:flex;flex-direction:column;align-items:center;gap:10px;max-width:min(480px,94vw)}
+  .portrait-lightbox-inner.sheet{align-items:stretch;max-width:min(720px,96vw);background:rgba(18,14,32,.92);border:1px solid rgba(180,140,255,.28);border-radius:16px;padding:14px;cursor:default}
+  .portrait-lightbox-inner.sheet .sheet-visual{display:flex;justify-content:center;flex-shrink:0}
+  .portrait-lightbox-inner.sheet .sheet-info{flex:1;min-width:0}
+  .portrait-lightbox img,.portrait-lightbox .sheet-visual img{max-width:min(280px,42vw);max-height:62vh;width:auto;height:auto;object-fit:contain;border-radius:14px;box-shadow:0 12px 48px rgba(0,0,0,.55);cursor:default}
+  .portrait-lightbox .sheet-placeholder{width:min(220px,42vw);aspect-ratio:9/16;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:800;color:#efe8ff;background:linear-gradient(180deg,#3a3358,#1c1830)}
+  .portrait-lightbox .cap{font-size:18px;font-weight:700;color:#efe8ff}
+  .portrait-lightbox .sheet-sub{font-size:12px;color:#b8aed8;margin-top:4px}
+  .portrait-lightbox .sheet-stats{font-size:12px;color:#9a92b8;margin-top:6px}
+  .portrait-lightbox .sheet-desc{font-size:13px;color:#cfc8e8;line-height:1.7;margin-top:8px;white-space:pre-wrap}
+  .portrait-lightbox .sheet-skills-title{font-size:12px;color:#d4c4ff;margin:12px 0 6px;letter-spacing:.06em}
+  .portrait-lightbox .sheet-skills{display:flex;flex-direction:column;gap:6px}
+  .portrait-lightbox .skill-chip{border:1px solid rgba(180,140,255,.22);border-radius:10px;padding:8px 10px;background:rgba(10,8,20,.55)}
+  .portrait-lightbox .skill-chip .nm{font-weight:650;font-size:13px;color:#efe8ff}
+  .portrait-lightbox .skill-chip .meta{font-size:11px;color:#9a92b8;margin-top:2px}
+  .portrait-lightbox .skill-chip .desc{font-size:11px;color:#cfc8e8;margin-top:4px;line-height:1.5}
+  .idle-detail-desc{font-size:12px;color:#cfc8e8;line-height:1.7;margin:8px 0 4px;white-space:pre-wrap}
+  .idle-detail-skills{display:flex;flex-direction:column;gap:6px;margin:8px 0 2px}
+  .idle-skill-chip{border:1px solid rgba(180,140,255,.2);border-radius:10px;padding:8px 10px;background:rgba(10,8,20,.35)}
+  .idle-skill-chip .nm{font-weight:650;font-size:12px;color:#efe8ff}
+  .idle-skill-chip .meta{font-size:11px;color:#9a92b8;margin-top:2px}
+  .idle-skill-chip .ds{font-size:11px;color:#cfc8e8;margin-top:4px;line-height:1.5}
+  @media (min-width:560px){
+    .portrait-lightbox-inner.sheet{flex-direction:row;align-items:flex-start;gap:16px}
+    .portrait-lightbox img,.portrait-lightbox .sheet-visual img{max-width:min(300px,34vw)}
+  }
   .gacha-pool{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:8px 0}
   .gacha-ops{display:flex;gap:8px}
   .gacha-ops .btn{flex:1}
@@ -604,10 +780,6 @@ textarea.txt{min-height:120px;resize:vertical}
   .gacha-chip.star3{border-color:rgba(120,200,255,.45)}
   .gacha-chip.star4,.gacha-chip.star5{border-color:rgba(255,215,106,.55);color:#ffd76a}
   .gacha-chip span{margin-left:4px;color:var(--muted)}
-  .idle-detail-card{border:1px solid rgba(180,140,255,.28);background:rgba(30,22,50,.55);border-radius:12px;padding:10px 12px;margin-top:8px}
-  .idle-detail-name{font-weight:700;font-size:13px;color:#efe8ff}
-  .idle-detail-meta{font-size:11px;color:var(--muted);margin-top:4px}
-  .idle-detail-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -615,8 +787,16 @@ textarea.txt{min-height:120px;resize:vertical}
 <header class="topbar">
   <a class="back" href="/fantasy.html">← 返回</a>
   <div class="brand">
-    <span class="brand-name">作品编辑器</span>
-    <span class="brand-sub">STORY BUILDER · 互动小说 + 卡牌</span>
+    <span class="brand-name">HYOOL Studio</span>
+    <span class="brand-sub">作品编辑器 · 互动小说 + 卡牌</span>
+  </div>
+  <div class="topbar-right studio-topbar hidden" id="studioTopbar">
+    <span class="studio-kind" id="studioKind">互动小说</span>
+    <input type="text" class="txt studio-title" id="storyTitleTop" maxlength="40" placeholder="作品名称">
+    <span class="save-dot" id="saveStatus">本地</span>
+    <button class="btn small ghost" id="studioSaveBtn" title="立即保存">保存</button>
+    <button class="btn small primary" id="studioPlayBtn">预览 ▶</button>
+    <button class="btn small" id="studioPublishBtn">发布 ↑</button>
   </div>
   <div class="topbar-right">
     <button class="btn ghost hidden" id="libBtn">⬅ 作品库</button>
@@ -644,6 +824,7 @@ textarea.txt{min-height:120px;resize:vertical}
       <div class="new-story">
         <div class="orient-pick" id="createKindRow">
           <button type="button" class="orient-card kind-card active" data-kind="story">📖 互动小说<span>能上线的剧情 + 画面 + 配音</span></button>
+          <button type="button" class="orient-card kind-card" data-kind="comic">📚 漫画<span>分格画布 + 对白气泡</span></button>
           <button type="button" class="orient-card kind-card" data-kind="gacha_rogue">🂠 卡牌游戏<span>能上线的挂机 / 自动战 / 肉鸽</span></button>
         </div>
         <details class="more-kinds">
@@ -673,104 +854,97 @@ textarea.txt{min-height:120px;resize:vertical}
   </main>
 </div>
 
-<!-- ============ 视图2：剪映式编辑壳 ============ -->
+<!-- ============ 视图2：HYOOL Studio 编辑壳 ============ -->
 <div class="editor-wrap hidden" id="viewEditor">
-  <aside class="editor-side">
-    <div class="side-scroll">
-      <section>
-        <h3>作品</h3>
-        <div class="field" style="margin:0">
-          <input type="text" class="txt" id="storyTitle" maxlength="40" placeholder="作品名称">
-        </div>
-        <button class="btn wide" id="castBtn" style="margin-top:10px">🎭 角色声音</button>
-        <button class="btn wide" id="logicBtn" style="margin-top:8px">⚙ 剧情变量</button>
-        <button class="btn wide" id="assetsBtn" style="margin-top:8px">🖼 素材库</button>
-        <details class="settings-fold" style="margin-top:10px">
-          <summary>作品设置（画幅 / 画质）</summary>
-          <div class="orient-row" id="storyOrient" title="画面方向：16:9 横屏 / 9:16 竖屏">
-            <button type="button" class="mini-btn orient-btn" data-orient="landscape">🖥 16:9</button>
-            <button type="button" class="mini-btn orient-btn" data-orient="portrait">📱 9:16</button>
-            <span class="orient-row-label">方向</span>
+  <div class="editor-login-banner hidden" id="editorLoginBanner"></div>
+  <div class="studio-shell">
+    <div class="studio-row">
+      <aside class="studio-left">
+        <nav class="res-tree" id="resTree" aria-label="作品资源"></nav>
+        <div class="res-panel" id="resPanel"></div>
+      </aside>
+      <div class="studio-center">
+        <div class="editor-stage">
+          <div class="stage-head">
+            <span class="ch-title" id="chapterTitle"></span>
+            <span class="ch-count" id="chapterCount"></span>
+            <span style="flex:1"></span>
+            <button class="btn small ghost" id="mapBtn" title="查看跳转、死端与孤儿积木">🗺 分支图</button>
+            <button class="btn small ghost" id="bgmBtn">🎵 BGM</button>
+            <button class="btn small ghost" id="renameChapterBtn">重命名</button>
+            <button class="btn small primary" id="playBtnInline" title="与顶栏预览相同">▶ 试玩</button>
           </div>
-          <div class="orient-row" id="storyQual" title="上传压缩：标准 1280 / 高清 1920">
-            <button type="button" class="mini-btn qual-btn" data-qual="standard">标准</button>
-            <button type="button" class="mini-btn qual-btn" data-qual="hd">高清</button>
-            <span class="orient-row-label">画质</span>
+          <div class="stage-work">
+            <div class="stage-timeline">
+              <div class="stage-scroll" id="blockList"></div>
+              <div class="add-chip-bar" id="addChipBar">
+                <button type="button" class="add-chip primary" data-add="dialogue">＋ 加对白</button>
+                <button type="button" class="add-chip" data-add="scene">＋ 加场景</button>
+                <button type="button" class="add-chip" data-add="choice">＋ 加选项</button>
+                <button type="button" class="add-chip" data-add="perf">＋ 加演出</button>
+                <button type="button" class="add-chip hidden" data-add="battle" id="chipBattle">＋ 加战斗</button>
+                <button type="button" class="add-chip hidden" data-add="rogue" id="chipRogue">＋ 加卡牌关</button>
+                <button type="button" class="add-chip" id="addBlockBtn">更多…</button>
+              </div>
+            </div>
+            <div class="stage-pane" id="stagePane">
+              <div class="stage-pane-head">
+                <span class="sp-title">本幕舞台</span>
+                <span class="sp-hint" id="stageHint">点左侧积木 · 拖立绘 · 双击改字</span>
+                <span style="flex:1"></span>
+                <label class="stage-trans">转场
+                  <select id="stageTransSel" title="进入本幕时的转场">
+                    <option value="fade">淡入</option>
+                    <option value="fadeblack">黑场</option>
+                    <option value="none">无</option>
+                  </select>
+                </label>
+                <button type="button" class="btn tiny" id="stageBgBtn" title="为本幕设置背景画面">背景</button>
+                <button type="button" class="btn tiny" id="stageFigBtn" title="叠加角色立绘（最多3，可拖/滚轮缩放）">立绘</button>
+                <button type="button" class="btn tiny" id="stageScaleDown" title="缩小选中立绘">－</button>
+                <button type="button" class="btn tiny" id="stageScaleUp" title="放大选中立绘">＋</button>
+                <button type="button" class="btn tiny ghost" id="stageClearFigBtn" title="移除选中立绘">清立绘</button>
+              </div>
+              <div class="stage-canvas-host" id="stageCanvasHost">
+                <div class="stage-canvas" id="stageCanvas"></div>
+              </div>
+            </div>
           </div>
-        </details>
-      </section>
-      <section id="rpgConfig" style="display:none">
-        <h3>卡牌 RPG</h3>
-        <div class="rpg-cfg-btns">
-          <button class="btn wide" id="rpgCardsBtn">🃏 卡牌库</button>
-          <button class="btn wide" id="rpgHeroBtn">🦸 英雄</button>
-          <button class="btn wide" id="rpgEnemiesBtn">👹 敌人</button>
         </div>
-      </section>
-      <section id="rogueConfig" style="display:none">
-        <h3>卡牌工作室</h3>
-        <div id="cardGuide" class="rpg-tip">三步：角色表 → 关卡表 → 试玩</div>
-        <div class="rpg-cfg-btns" style="margin-top:10px">
-          <button class="btn wide primary" id="cardStudioBtn">打开工作室</button>
-          <button class="btn wide" id="cardFillBtn">帮我填一套能玩的</button>
-        </div>
-      </section>
-      <section>
-        <h3>章节</h3>
-        <button class="btn wide" id="addChapterBtn">＋ 新建章节</button>
-        <div id="chapterList" style="margin-top:10px"></div>
-      </section>
-      <section style="font-size:11px;color:var(--muted);line-height:1.8">
-        拖左侧把手可调顺序；把图片/音频拖到积木上即可挂上。改动自动云存。
-      </section>
-    </div>
-  </aside>
-  <div class="editor-stage">
-    <div class="stage-head">
-      <span class="ch-title" id="chapterTitle"></span>
-      <span class="ch-count" id="chapterCount"></span>
-      <span style="flex:1"></span>
-      <button class="btn small ghost" id="mapBtn" title="查看跳转、死端与孤儿积木">🗺 分支图</button>
-      <button class="btn small ghost" id="bgmBtn">🎵 BGM</button>
-      <button class="btn small ghost" id="renameChapterBtn">重命名</button>
-      <button class="btn small primary" id="playBtnInline" title="与顶栏播放相同">▶ 试玩</button>
-    </div>
-    <div class="stage-work">
-      <div class="stage-timeline">
-        <div class="stage-scroll" id="blockList"></div>
-        <div class="add-chip-bar" id="addChipBar">
-          <button type="button" class="add-chip primary" data-add="dialogue">＋ 加对白</button>
-          <button type="button" class="add-chip" data-add="scene">＋ 加场景</button>
-          <button type="button" class="add-chip" data-add="choice">＋ 加选项</button>
-          <button type="button" class="add-chip" data-add="perf">＋ 加演出</button>
-          <button type="button" class="add-chip hidden" data-add="battle" id="chipBattle">＋ 加战斗</button>
-          <button type="button" class="add-chip hidden" data-add="rogue" id="chipRogue">＋ 加卡牌关</button>
-          <button type="button" class="add-chip" id="addBlockBtn">更多…</button>
-        </div>
-      </div>
-      <div class="stage-pane" id="stagePane">
-        <div class="stage-pane-head">
-          <span class="sp-title">本幕舞台</span>
-          <span class="sp-hint" id="stageHint">点左侧积木 · 拖立绘 · 双击改字</span>
-          <span style="flex:1"></span>
-          <label class="stage-trans">转场
-            <select id="stageTransSel" title="进入本幕时的转场">
-              <option value="fade">淡入</option>
-              <option value="fadeblack">黑场</option>
-              <option value="none">无</option>
-            </select>
-          </label>
-          <button type="button" class="btn tiny" id="stageBgBtn" title="为本幕设置背景画面">背景</button>
-          <button type="button" class="btn tiny" id="stageFigBtn" title="叠加角色立绘（最多3，可拖/滚轮缩放）">立绘</button>
-          <button type="button" class="btn tiny" id="stageScaleDown" title="缩小选中立绘">－</button>
-          <button type="button" class="btn tiny" id="stageScaleUp" title="放大选中立绘">＋</button>
-          <button type="button" class="btn tiny ghost" id="stageClearFigBtn" title="移除选中立绘">清立绘</button>
-        </div>
-        <div class="stage-canvas-host" id="stageCanvasHost">
-          <div class="stage-canvas" id="stageCanvas"></div>
-        </div>
+        <aside class="studio-props">
+          <div class="studio-props-head" id="propHead">属性</div>
+          <div class="studio-props-body" id="propBody"></div>
+        </aside>
       </div>
     </div>
+    <footer class="studio-timeline" id="timelineDock">
+      <div class="tl-dock-head">
+        <span class="tl-dock-title">时间轴</span>
+        <span id="tlDockHint">选中一块积木以编辑多轨</span>
+        <span style="flex:1"></span>
+        <button type="button" class="btn tiny ghost" id="tlDockToggle">收起</button>
+      </div>
+      <div class="tl-dock-body" id="tlDockBody"></div>
+    </footer>
+  </div>
+  <!-- 隐藏：作品设置控件仍由 JS 绑定 -->
+  <div class="hidden" aria-hidden="true">
+    <input type="text" id="storyTitle" maxlength="40">
+    <div id="storyOrient">
+      <button type="button" class="mini-btn orient-btn" data-orient="landscape">🖥 16:9</button>
+      <button type="button" class="mini-btn orient-btn" data-orient="portrait">📱 9:16</button>
+    </div>
+    <div id="storyQual">
+      <button type="button" class="mini-btn qual-btn" data-qual="standard">标准</button>
+      <button type="button" class="mini-btn qual-btn" data-qual="hd">高清</button>
+    </div>
+    <button id="castBtn"></button>
+    <button id="logicBtn"></button>
+    <button id="assetsBtn"></button>
+    <button id="addChapterBtn"></button>
+    <div id="chapterList"></div>
+    <div id="rpgConfig"><button id="rpgCardsBtn"></button><button id="rpgHeroBtn"></button><button id="rpgEnemiesBtn"></button></div>
+    <div id="rogueConfig"><div id="cardGuide"></div><button id="cardStudioBtn"></button><button id="cardFillBtn"></button></div>
   </div>
 </div>
 
@@ -819,6 +993,6 @@ textarea.txt{min-height:120px;resize:vertical}
 </div>
 
 <div class="toast" id="toast"></div>
-<script type="module" src="/story-editor.js"></script>
+<script type="module" src="/story-editor.js?v=20260826e"></script>
 </body>
 </html>

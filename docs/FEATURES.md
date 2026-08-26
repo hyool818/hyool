@@ -11,15 +11,16 @@
 | 主页作品流 | 同上 | 主页组装含 `works.stories` | `src/index.js`（stories 查询） |
 | 我的彼岸 | `public/hub.html` `/hub` | `GET /api/hub`（角色列表，**不是** `/api/hub/`） | `src/mvp.js` |
 | 邀请码 | yonder / hub 管理 UI | `/api/invite-codes*` | `src/index.js`（仅用户 `333123`） |
-| 上传分块图 | 各页 | `POST /api/upload` | `src/index.js` → D1 `images` |
+| 上传素材 | 各页 | `POST /api/upload` | `src/assets-storage.js` → R2 + `file_objects`（失败回退 D1 chunks） |
+| 旧图回填 R2 | 管理 | `POST /api/admin/backfill-r2` | 仅 `333123`；把无 `file_objects` 的 `image_chunks` 迁到 R2 |
 
 ## 幻想 · 作品编辑器
 
 | 功能 | 页面 | API | 说明 |
 |---|---|---|---|
 | 制作总览 | `public/fantasy.html` | — | 入口卡片 |
-| 编辑器 UI | `public/story-editor.html` | — | 样式 + 壳 |
-| 编辑器逻辑 | `public/story-editor.js` `public/story-rogue.js` `public/story-idle.js` | `/api/stories*` `/api/tts` `/api/upload` `/api/hub/live-line` | 积木 + **本幕舞台**（多立绘/双击改字/缩放/转场）+ choice/perf/变量/分支图/存档、卡牌、云同步 |
+| 编辑器 UI | `public/story-editor.html` | — | HYOOL Studio 五区壳 + **本幕舞台**预览 |
+| 编辑器逻辑 | `public/story-editor.js` `public/story-rogue.js` `public/story-idle.js` | `/api/stories*` `/api/tts` `/api/upload` `/api/hub/live-line` | 积木 + 舞台（多立绘/双击改字/缩放/转场）+ choice/perf/变量/分支图/存档、漫画分格、素材库、卡牌、云同步 |
 | 作品 CRUD | — | `GET/POST /api/stories` `GET/PUT /api/stories/:id` `POST .../publish` `POST .../delete` | `src/mvp.js` stories 段 |
 | 广场露出 | `public/plaza.html` | `GET /api/plaza` 的 `stories` | 已发布 + `share_id` 非空 |
 | 产品愿景 | `docs/editor-vision.md` | — | 仅改长期类型地图时读 |

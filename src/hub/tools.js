@@ -11,6 +11,7 @@
  */
 import { synthesizeEdgeTts } from "../tts.js";
 import { composeStoryJSON } from "./blueprint.js";
+import { assetsBucket } from "../assets-storage.js";
 
 const POLLINATIONS_IMG =
     "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&nologo=true&model=flux&seed={seed}";
@@ -50,17 +51,17 @@ export async function toolEdgeTts(input, ctx) {
 }
 
 /**
- * 素材入库：bytes → R2（env.HUB_BUCKET），返回 /img/<key> 引用。
- * 未配置 R2 时降级为「未持久化」，标记 ephemeral 并回传 sourceUrl，
- * 保证流程可端到端跑通（Phase 1 接入 R2 后即自动启用）。
+ * 素材入库：bytes → R2（ASSETS_BUCKET / HUB_BUCKET），返回 /img/<key> 引用。
+ * 未配置 R2 时降级为 ephemeral，并回传 sourceUrl。
  * input.sourceDep：依赖的生成任务 id，bytes 由编排层 ctx.deps 注入。
  */
 export async function toolStoreAsset(input, ctx) {
     const { key, mime, sourceDep, sourceUrl } = input;
     const dep = sourceDep ? ctx.deps?.get(sourceDep) : null;
     const bytes = input.bytes || dep?.result?.bytes;
-    if (ctx.env?.HUB_BUCKET && bytes) {
-        await ctx.env.HUB_BUCKET.put(key, bytes, { httpMetadata: { contentType: mime || "application/octet-stream" } });
+    if (assetsBucket(ctx.env) && bytes) {
+        const bucket = assetsBucket(ctx.env);
+        await bucket.put(key, bytes, { httpMetadata: { contentType: mime || "application/octet-stream" } });
         return { result: { url: `/img/${key}`, stored: true }, meta: { bucket: "r2" } };
     }
     return { result: { url: sourceUrl || dep?.result?.url || null, stored: false, ephemeral: true }, meta: { bucket: "none" } };

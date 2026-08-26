@@ -1,6 +1,13 @@
 import { handleMvpRoutes, handleWorldCron } from "./mvp.js";
 import { handleTtsRequest, TTS_VOICES } from "./tts.js";
 import { handleHubRoutes } from "./hub/index.js";
+import {
+    backfillChunksToR2,
+    bytesToBase64,
+    serveFromR2,
+    storeD1Chunks,
+    storeUploadBytes,
+} from "./assets-storage.js";
 
 // 收费/免费作品列自动补列（幂等；正式迁移见 schema/migrate_monetization.sql）
 let monetizationEnsured = false;
@@ -1244,7 +1251,41 @@ export default {
 
 
         /* =====================================================
-           UPLOAD FILE (chunked D1 storage)
+           ADMIN: 旧 image_chunks → R2 回填（仅 333123）
+           POST /api/admin/backfill-r2  body: { limit?: number }
+        ===================================================== */
+        if (pathname === "/api/admin/backfill-r2" && request.method === "POST") {
+            try {
+                const user = await getAuthenticatedUser(request, env);
+                if (!user) {
+                    return json({ success: false, error: "请先登录。" }, 401);
+                }
+                if (user.username !== "333123") {
+                    return json({ success: false, error: "无权访问。" }, 403);
+                }
+                let limit = 20;
+                try {
+                    const body = await request.json();
+                    if (body && body.limit != null) limit = Number(body.limit) || 20;
+                } catch {
+                    /* 无 body 用默认 */
+                }
+                const result = await backfillChunksToR2(env, {
+                    limit,
+                    ownerId: user.id,
+                });
+                return json({ success: true, ...result });
+            } catch (error) {
+                console.error("BACKFILL R2 ERROR:", error);
+                return json({
+                    success: false,
+                    error: error && error.message ? error.message : "回填失败",
+                }, 500);
+            }
+        }
+
+        /* =====================================================
+           UPLOAD FILE — R2 + file_objects（双写）；无 R2 时回退 D1 chunks
            POST /api/upload
         ===================================================== */
 
@@ -1329,14 +1370,6 @@ export default {
                 const bytes =
                     new Uint8Array(arrayBuffer);
 
-                // base64 转换必须分块：String.fromCharCode.apply 传参过多会栈溢出（RangeError），
-                // 导致稍大的图片（> 几十 KB）上传必失败。分块拼接可安全处理 5MB 上限内的任意文件。
-                let binaryStr = "";
-                for (let i = 0; i < bytes.length; i += 32768) {
-                    binaryStr += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
-                }
-                const base64 = btoa(binaryStr);
-
                 const imageId =
                     "img_" +
                     crypto
@@ -1344,27 +1377,29 @@ export default {
                         .replace(/-/g, "")
                         .slice(0, 16);
 
-                const chunkLen = 400000;
-                const chunkCount = Math.ceil(
-                    base64.length / chunkLen
-                );
+                const scope = String(formData.get("scope") || "upload").slice(0, 24);
+                const scopeId = formData.get("scope_id")
+                    ? String(formData.get("scope_id")).slice(0, 64)
+                    : null;
 
-                await env.DB.prepare(
-                    "INSERT INTO images (id, content_type, total_size, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)"
-                )
-                    .bind(imageId, file.type, file.size)
-                    .run();
+                const { storedR2 } = await storeUploadBytes(env, {
+                    fileId: imageId,
+                    ownerId: user.id,
+                    mime: file.type,
+                    bytes,
+                    scope,
+                    scopeId,
+                });
 
-                for (let i = 0; i < chunkCount; i++) {
-                    const chunkData = base64.substring(
-                        i * chunkLen,
-                        (i + 1) * chunkLen
-                    );
+                if (storedR2) {
                     await env.DB.prepare(
-                        "INSERT INTO image_chunks (image_id, chunk_index, data) VALUES (?, ?, ?)"
+                        "INSERT INTO images (id, content_type, total_size, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)"
                     )
-                        .bind(imageId, i, chunkData)
+                        .bind(imageId, file.type, file.size)
                         .run();
+                } else {
+                    const base64 = bytesToBase64(bytes);
+                    await storeD1Chunks(env, imageId, file.type, file.size, base64);
                 }
 
                 const imgUrl = `/img/${imageId}`;
@@ -1373,7 +1408,8 @@ export default {
                     success: true,
                     url: imgUrl,
                     size: file.size,
-                    type: file.type
+                    type: file.type,
+                    storage: storedR2 ? "r2" : "d1"
                 });
 
             } catch (error) {
@@ -1419,6 +1455,9 @@ export default {
                     );
                 }
                 const imageId = imgMatch[1];
+
+                const r2Response = await serveFromR2(env, imageId, request);
+                if (r2Response) return r2Response;
 
                 const imageMeta = await env.DB
                     .prepare(
@@ -1889,7 +1928,7 @@ async function buildYonderPayload(
         let kind = "story";
         try {
             const d = JSON.parse(s.data || "{}");
-            if (d && (d.kind === "card_rpg" || d.kind === "gacha_rogue")) kind = d.kind;
+            if (d && (d.kind === "card_rpg" || d.kind === "gacha_rogue" || d.kind === "comic")) kind = d.kind;
         } catch (e) { /* 旧数据/坏数据默认互动小说 */ }
         return {
             id: s.id,

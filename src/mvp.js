@@ -942,6 +942,23 @@ export async function handleMvpRoutes(
                     loseContent: ""
                 }];
             }
+            if (kind === "comic") {
+                const pgId = "pg_" + crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+                data.chapters = [];
+                data.comic = {
+                    pages: [{
+                        id: pgId,
+                        title: "第 1 页",
+                        rows: 2,
+                        cols: 2,
+                        panels: [0, 1, 2, 3].map((i) => ({
+                            id: "pn_" + i + "_" + crypto.randomUUID().replace(/-/g, "").slice(0, 6),
+                            index: i,
+                            caption: ""
+                        }))
+                    }]
+                };
+            }
 
             await env.DB.prepare(
                 `INSERT INTO stories (id, owner_id, title, data, cover_image, status, share_id, created_at, updated_at)
@@ -4329,9 +4346,9 @@ function isMissingTableError(error) {
         message.includes("does not exist");
 }
 
-/** 作品类型：互动小说 / 卡牌RPG / 肉鸽卡牌（共享 stories 表） */
+/** 作品类型：互动小说 / 卡牌RPG / 肉鸽卡牌 / 漫画（共享 stories 表） */
 function workKind(kind) {
-    if (kind === "card_rpg" || kind === "gacha_rogue") return kind;
+    if (kind === "card_rpg" || kind === "gacha_rogue" || kind === "comic") return kind;
     return "story";
 }
 
@@ -4354,6 +4371,13 @@ function extractStoryCover(data) {
         for (const b of (c.blocks || [])) {
             if (b && b.media && b.media.url && b.media.type === "image") {
                 return String(b.media.url).trim().slice(0, 2000);
+            }
+        }
+    }
+    for (const p of ((data.comic || {}).pages || [])) {
+        for (const pan of (p.panels || [])) {
+            if (pan && pan.media && pan.media.url && pan.media.type === "image") {
+                return String(pan.media.url).trim().slice(0, 2000);
             }
         }
     }

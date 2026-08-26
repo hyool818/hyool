@@ -16,9 +16,11 @@
 - `companion_inbox`
 - `assets`（角色相关元数据）
 
-**上传**
+**上传（迁移中）**
 
-- `images` + `image_chunks`（`/api/upload`）
+- **目标**：二进制 → **R2**；D1 表 `file_objects` 只存 `r2_key` + 元数据（见 `ARCHITECTURE.md` 数据分区）。
+- **现状（待迁移）**：`images` + `image_chunks`（`/api/upload` 把 base64 分块塞进 D1）。
+- 对外 URL 统一 **`/img/:id`**，业务侧只保存该 path，不存 bytes。
 
 **生命世界**
 
