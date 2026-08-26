@@ -284,6 +284,39 @@ function normalizeVarName(name) {
 
 const REQUIRE_OPS = ['>=', '<=', '==', '>', '<', '!='];
 const EFFECT_OPS = ['+', '-', '='];
+const VAR_NAME_LEGEND = [
+  { en: 'trust', cn: '信任度' },
+  { en: 'fear', cn: '恐惧值' },
+  { en: 'bond', cn: '好感 / 羁绊' },
+  { en: 'gold', cn: '金钱' },
+  { en: 'flag1', cn: '某个剧情开关' },
+];
+
+function appendVarNameLegend(parent) {
+  if (!parent) return;
+  const box = document.createElement('div');
+  box.style.cssText = 'margin-top:14px;padding:10px 12px;border:1px solid var(--line2);border-radius:10px;background:rgba(139,123,255,.06);font-size:11.5px;line-height:1.7;color:var(--muted)';
+  const title = document.createElement('div');
+  title.style.cssText = 'font-weight:600;color:var(--text);margin-bottom:6px;font-size:12px';
+  title.textContent = '英文变量 · 你可以理解成';
+  box.appendChild(title);
+  const table = document.createElement('div');
+  table.style.cssText = 'display:grid;grid-template-columns:auto 1fr;gap:4px 12px';
+  VAR_NAME_LEGEND.forEach(({ en, cn }) => {
+    const k = document.createElement('code');
+    k.style.cssText = 'color:var(--accent2);font-size:11px';
+    k.textContent = en;
+    const v = document.createElement('span');
+    v.textContent = cn;
+    table.append(k, v);
+  });
+  box.appendChild(table);
+  const note = document.createElement('div');
+  note.style.cssText = 'margin-top:8px;font-size:11px';
+  note.textContent = '变量名须小写英文；上表可直接复制使用。';
+  box.appendChild(note);
+  parent.appendChild(box);
+}
 
 function normalizeCondList(list, ops) {
   if (!Array.isArray(list)) return [];
@@ -3551,6 +3584,7 @@ function openChoiceEditor(b) {
     tip.style.cssText = 'font-size:12px;color:var(--muted);line-height:1.6';
     tip.innerHTML = '先在侧栏「剧情变量」声明变量（如 trust）。条件/效果用小写英文名。<br>程序落账，AI 不参与选分支。';
     body.appendChild(tip);
+    appendVarNameLegend(body);
 
     body._choiceSave = () => {
       b.content = prompt.value.trim().slice(0, 200);
@@ -3630,6 +3664,7 @@ function openLogicEditor() {
       render();
     });
     body.appendChild(add);
+    appendVarNameLegend(body);
     body._logicSave = () => {
       const state = {};
       draft.forEach((row) => {
