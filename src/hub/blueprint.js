@@ -292,14 +292,25 @@ export function composeStoryJSON(bp, assetMap) {
                     subtitle: { on: true }
                 };
             }
-            // choice：降级对白 + 保留 _choice（Phase 2 分支引擎升级）
-            const opts = (b.options || []).map((o) => o.label).join("　｜　");
+            if (b.type === "choice") {
+                const opts = Array.isArray(b.options) ? b.options : [];
+                return {
+                    id: b.id,
+                    type: "choice",
+                    content: b.prompt || b.content || "请选择：",
+                    choices: opts.map((o, i) => ({
+                        id: o.id || `${b.id}_opt_${i}`,
+                        label: String(o.label || `选项${i + 1}`).slice(0, 40),
+                        jump: String(o.target || "next").slice(0, 96)
+                    })),
+                    _choice: b
+                };
+            }
+            // 未知类型：降级为场景文字，避免丢块
             return {
                 id: b.id,
-                type: "dialogue",
-                speaker: "",
-                content: `【选择】${b.prompt || ""}\n${opts}`,
-                _choice: b,
+                type: "scene",
+                content: b.content || b.prompt || "",
                 subtitle: { on: true }
             };
         })

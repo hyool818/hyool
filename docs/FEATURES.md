@@ -73,11 +73,24 @@
 | Companion | buddy / hub | `/api/companion/inbox*` `/api/buddy/:id/relation` | `src/companion.js` |
 | TTS | — | `/api/tts` `/api/tts/voices` | `src/tts.js`（鉴权在 `index.js`） |
 
-## AI 中枢（一句话出作品，前端页未做）
+## AI 中枢（一句话出作品）
 
-仅改规划/DAG/工具时读：`src/hub/*` + `docs/hyool-brain-architecture.md`。  
-路由：`GET /api/hub/meta` `POST /api/hub/plan` `POST /api/hub/run`（`src/hub/index.js`）。  
+| 功能 | 页面 | API | 后端 |
+|---|---|---|---|
+| 中枢页 | `public/brain.html` `public/brain.js` | `/api/hub/meta` `/api/hub/plan` `/api/hub/run` | `src/hub/*` |
+| 幻想入口 | `public/fantasy.html` | — | 卡片链到 brain |
+
+规划/DAG/工具细节：`docs/hyool-brain-architecture.md`。  
 **不要**把 `/api/hub` 和 `/api/hub/` 搞混。
+
+## 作品素材库（本机引用）
+
+| 功能 | 文件 | 说明 |
+|---|---|---|
+| 库逻辑 | `public/story-assets.js` | `localStorage.hyool_assets_v1`：只存 URL/类型/标签；上传成功自动入库；可粘贴外链 |
+| 编辑器入口 | `public/story-editor.html` / `story-editor.js` | 侧栏「素材库」；积木「从素材库选用」画面/配音 |
+
+硬约束：不做「图片上传服务器当素材库卖点」；作品媒体仍走 `/api/upload` URL 引用。
 
 ## 冒烟页（回归用，不是产品）
 

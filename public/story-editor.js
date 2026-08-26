@@ -24,6 +24,7 @@ import {
   openCardStudio, applyStarterPack, cardGuideText,
 } from '/story-rogue.js';
 import { EDITOR_SAMPLES, buildSampleWork } from '/story-samples.js';
+import { listAssets, addAsset, removeAsset, harvestFromStory } from '/story-assets.js';
 
 const SAVE_KEY = 'hyool_stories_v1'; // 本地缓存键（旧数据迁移源）
 const TOKEN_KEY = 'hyool_token';
@@ -493,6 +494,7 @@ function openStory(id) {
   currentId = id;
   const s = story();
   chapterId = (s.chapters[0] && s.chapters[0].id) || null;
+  try { if (s) harvestFromStory(s); } catch (e) { /* ignore */ }
   renderEditor();
   showEditor();
 }
@@ -832,10 +834,21 @@ function renderBlocks() {
       const chg = document.createElement('button');
       chg.className = 'btn tiny'; chg.textContent = '换画面';
       chg.addEventListener('click', () => pickMedia(b, chg));
+      const fromLib = document.createElement('button');
+      fromLib.className = 'btn tiny'; fromLib.textContent = '素材库';
+      fromLib.addEventListener('click', () => openAssetLibrary({
+        type: 'image',
+        onPick: (a) => {
+          b.media = { url: a.url, type: a.type === 'video' ? 'video' : 'image' };
+          persist();
+          renderBlocks();
+          toast('已从素材库挂上画面');
+        },
+      }));
       const rm = document.createElement('button');
       rm.className = 'btn tiny danger'; rm.textContent = '移除';
       rm.addEventListener('click', () => removeBlockMedia(b));
-      opsRow.append(chg, rm);
+      opsRow.append(chg, fromLib, rm);
       mediaWrap.append(prev, opsRow);
     } else {
       const add = document.createElement('button');
@@ -843,7 +856,20 @@ function renderBlocks() {
       add.textContent = '🖼 添加画面（或拖文件到本块）';
       add.title = MEDIA_TYPES_LABEL;
       add.addEventListener('click', () => pickMedia(b, add));
-      mediaWrap.appendChild(add);
+      const fromLib = document.createElement('button');
+      fromLib.className = 'media-add';
+      fromLib.style.marginTop = '6px';
+      fromLib.textContent = '📂 从素材库选用';
+      fromLib.addEventListener('click', () => openAssetLibrary({
+        type: 'image',
+        onPick: (a) => {
+          b.media = { url: a.url, type: a.type === 'video' ? 'video' : 'image' };
+          persist();
+          renderBlocks();
+          toast('已从素材库挂上画面');
+        },
+      }));
+      mediaWrap.append(add, fromLib);
     }
 
     const audioWrap = document.createElement('div');
@@ -859,10 +885,21 @@ function renderBlocks() {
       const chg = document.createElement('button');
       chg.className = 'btn tiny'; chg.textContent = '换配音';
       chg.addEventListener('click', () => pickAudio(b, chg));
+      const fromLib = document.createElement('button');
+      fromLib.className = 'btn tiny'; fromLib.textContent = '素材库';
+      fromLib.addEventListener('click', () => openAssetLibrary({
+        type: 'audio',
+        onPick: (a) => {
+          b.audio = { url: a.url, type: 'audio' };
+          persist();
+          renderBlocks();
+          toast('已从素材库挂上配音');
+        },
+      }));
       const rm = document.createElement('button');
       rm.className = 'btn tiny danger'; rm.textContent = '删除';
       rm.addEventListener('click', () => removeBlockAudio(b));
-      opsRow.append(chg, rm);
+      opsRow.append(chg, fromLib, rm);
       audioWrap.append(prev, opsRow);
     } else {
       const add = document.createElement('button');
@@ -870,7 +907,20 @@ function renderBlocks() {
       add.textContent = '🎙 添加配音（音频也可拖入）';
       add.title = AUDIO_TYPES_LABEL;
       add.addEventListener('click', () => pickAudio(b, add));
-      audioWrap.appendChild(add);
+      const fromLib = document.createElement('button');
+      fromLib.className = 'media-add';
+      fromLib.style.marginTop = '6px';
+      fromLib.textContent = '📂 从素材库选用配音';
+      fromLib.addEventListener('click', () => openAssetLibrary({
+        type: 'audio',
+        onPick: (a) => {
+          b.audio = { url: a.url, type: 'audio' };
+          persist();
+          renderBlocks();
+          toast('已从素材库挂上配音');
+        },
+      }));
+      audioWrap.append(add, fromLib);
     }
 
     el.append(handle, tag, main, ops, mediaWrap, audioWrap);
@@ -1997,6 +2047,15 @@ async function uploadFile(file, opts) {
     else toast(data.error || '上传失败，请稍后再试。', true);
     return null;
   }
+  // 上传成功 → 记入本机素材库（只存 URL 引用）
+  try {
+    addAsset({
+      url: data.url,
+      type: kind,
+      label: (file && file.name ? String(file.name).replace(/\.[^.]+$/, '') : '').slice(0, 40),
+      source: 'upload',
+    });
+  } catch (e) { /* ignore */ }
   return { url: data.url, type: kind };
 }
 function removeBlockMedia(b) {
@@ -2365,6 +2424,109 @@ async function playVoicePreviewText(text, voice, btn) {
   }
 }
 // 角色声音表弹窗：列出作品全部对白角色，逐个配置声音
+function openAssetLibrary(opts) {
+  const filterType = opts && opts.type ? opts.type : null;
+  const onPick = opts && typeof opts.onPick === 'function' ? opts.onPick : null;
+  openModal(onPick ? '从素材库选用' : '素材库', (body) => {
+    const tip = document.createElement('div');
+    tip.className = 'hint';
+    tip.style.cssText = 'font-size:12px;color:var(--muted);line-height:1.6';
+    tip.textContent = '只存 URL 引用在本机。作品画面仍走现有上传；库用于复用与粘贴外链。';
+    body.appendChild(tip);
+
+    const addRow = document.createElement('div');
+    addRow.style.cssText = 'display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px';
+    const urlIn = document.createElement('input');
+    urlIn.className = 'txt';
+    urlIn.placeholder = '粘贴图片/音频/视频 URL';
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'btn small';
+    addBtn.textContent = '加入';
+    addRow.append(urlIn, addBtn);
+    body.appendChild(addRow);
+
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:50vh;overflow:auto';
+    body.appendChild(list);
+
+    const render = () => {
+      list.innerHTML = '';
+      const items = listAssets(filterType ? { type: filterType } : null);
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'font-size:13px;color:var(--muted);padding:12px 0';
+        empty.textContent = '还没有素材。上传画面/配音，或粘贴 URL。';
+        list.appendChild(empty);
+        return;
+      }
+      items.forEach((a) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:grid;grid-template-columns:56px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px';
+        const thumb = document.createElement('div');
+        thumb.style.cssText = 'width:56px;height:40px;border-radius:6px;overflow:hidden;background:#0a0a12;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted)';
+        if (a.type === 'image') {
+          const img = document.createElement('img');
+          img.src = a.url;
+          img.alt = '';
+          img.loading = 'lazy';
+          img.style.cssText = 'width:100%;height:100%;object-fit:cover';
+          thumb.appendChild(img);
+        } else {
+          thumb.textContent = a.type === 'video' ? 'MP4' : '♪';
+        }
+        const meta = document.createElement('div');
+        meta.style.minWidth = '0';
+        const name = document.createElement('div');
+        name.style.cssText = 'font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        name.textContent = a.label || a.type;
+        const url = document.createElement('div');
+        url.style.cssText = 'font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        url.textContent = a.url;
+        meta.append(name, url);
+        const ops = document.createElement('div');
+        ops.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+        if (onPick) {
+          const use = document.createElement('button');
+          use.type = 'button';
+          use.className = 'btn tiny primary';
+          use.textContent = '选用';
+          use.addEventListener('click', () => {
+            onPick(a);
+            closeModal();
+          });
+          ops.appendChild(use);
+        }
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'btn tiny danger';
+        rm.textContent = '移除';
+        rm.addEventListener('click', () => {
+          removeAsset(a.id);
+          render();
+        });
+        ops.appendChild(rm);
+        row.append(thumb, meta, ops);
+        list.appendChild(row);
+      });
+    };
+    addBtn.addEventListener('click', () => {
+      const u = (urlIn.value || '').trim();
+      if (!u) { toast('先粘贴 URL', true); return; }
+      let type = 'image';
+      if (/\.(mp3|wav|m4a|ogg)(\?|$)/i.test(u) || u.includes('/audio')) type = 'audio';
+      else if (/\.(mp4|webm)(\?|$)/i.test(u)) type = 'video';
+      if (filterType === 'audio') type = 'audio';
+      if (filterType === 'image') type = type === 'video' ? 'video' : 'image';
+      addAsset({ url: u, type, label: '外链', source: 'url' });
+      urlIn.value = '';
+      render();
+      toast('已加入素材库');
+    });
+    render();
+  }, null);
+}
+
 function openCastEditor() {
   const s = story();
   if (!s) return;
@@ -3746,6 +3908,8 @@ function init() {
   });
   $('#bgmBtn').addEventListener('click', openBgmEditor);
   $('#castBtn').addEventListener('click', openCastEditor);
+  const assetsBtn = $('#assetsBtn');
+  if (assetsBtn) assetsBtn.addEventListener('click', () => openAssetLibrary(null));
   $('#addBlockBtn').addEventListener('click', openAddPicker);
   $('#playBtn').addEventListener('click', startPlay);
   const playInline = $('#playBtnInline');
@@ -4039,6 +4203,7 @@ window.StoryEditor = {
   },
   openChoiceEditor,
   openCastEditor,
+  openAssetLibrary,
   openBattleEditor,
   openRpgCardsEditor,
   openRpgHeroEditor,

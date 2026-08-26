@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>AI 中枢 · 一句话出作品 · HYOOL</title>
+<link rel="stylesheet" href="/workspace/css/workspace.css">
+<style>
+:root{
+  --bg:#05050a;--line:rgba(255,255,255,.09);--line2:rgba(255,255,255,.16);
+  --text:#e8e8f0;--muted:#8a8aa0;--accent:#8b7bff;--accent2:#5fc8ff;--good:#4ade80;--bad:#f87171;
+}
+body{margin:0;min-height:100vh;background:
+  radial-gradient(900px 480px at 15% 0%,rgba(139,123,255,.12),transparent 55%),
+  radial-gradient(700px 420px at 90% 80%,rgba(95,200,255,.08),transparent 50%),
+  var(--bg);color:var(--text);
+  font-family:"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif}
+.hidden{display:none!important}
+.top{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.top .back{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:8px}
+.top .back:hover{color:#fff}
+.brand{display:flex;flex-direction:column;line-height:1.25}
+.brand b{font-size:16px;letter-spacing:.06em}
+.brand span{font-size:11px;color:var(--muted);letter-spacing:.1em}
+.who{margin-left:auto;font-size:12px;color:var(--accent2)}
+.wrap{max-width:720px;margin:0 auto;padding:28px 18px 80px}
+.wiz{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.wiz-step{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+.wiz-step.on{color:#fff;border-color:rgba(139,123,255,.55);background:rgba(139,123,255,.14)}
+.wiz-step.done{color:var(--good);border-color:rgba(74,222,128,.35)}
+h1{font-size:clamp(28px,5vw,40px);margin:0 0 8px;letter-spacing:.04em;font-weight:700}
+.lead{color:var(--muted);font-size:14px;line-height:1.7;margin:0 0 22px}
+.panel{border:1px solid var(--line);background:rgba(12,12,20,.72);border-radius:14px;padding:18px;margin-bottom:16px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+textarea,input,select{width:100%;box-sizing:border-box;background:#10101a;border:1px solid var(--line2);
+  color:var(--text);border-radius:10px;padding:12px 14px;font:inherit;outline:none}
+textarea{min-height:110px;resize:vertical;line-height:1.6}
+textarea:focus,input:focus,select:focus{border-color:rgba(139,123,255,.55)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.btn{background:#151522;color:var(--text);border:1px solid var(--line2);border-radius:10px;
+  padding:10px 16px;font-size:14px;cursor:pointer;font-family:inherit}
+.btn:hover{border-color:rgba(255,255,255,.3)}
+.btn.primary{background:linear-gradient(120deg,var(--accent),#6a5ae0);border-color:transparent;color:#fff;font-weight:600}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6}
+ul{margin:8px 0 0;padding-left:18px;color:#cfcfe0;font-size:13px;line-height:1.7}
+details{margin-top:8px;border-top:1px solid var(--line);padding-top:8px}
+summary{cursor:pointer;color:var(--accent2);font-size:13px}
+.gate{border:1px dashed rgba(248,113,113,.4);background:rgba(248,113,113,.06);border-radius:12px;padding:16px;margin-bottom:18px}
+.gate a{color:var(--accent2)}
+.bar{height:6px;background:#1a1a28;border-radius:99px;overflow:hidden;margin:14px 0}
+.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;
+  background:#1a1a28;border:1px solid var(--line2);padding:10px 16px;border-radius:10px;font-size:13px;
+  transition:.2s;pointer-events:none;z-index:50;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.bad{border-color:rgba(248,113,113,.5);color:#fecaca}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="back" href="/fantasy.html">← 幻想</a>
+  <div class="brand">
+    <b>AI 中枢</b>
+    <span>BRAIN · 一句话出作品</span>
+  </div>
+  <span class="who" id="who"></span>
+</header>
+
+<main class="wrap">
+  <div class="wiz" aria-hidden="true">
+    <span class="wiz-step on" data-wiz="1">① 一句话</span>
+    <span class="wiz-step" data-wiz="2">② 确认企划</span>
+    <span class="wiz-step" data-wiz="3">③ 生成 / 导入</span>
+  </div>
+
+  <div id="loginGate" class="gate hidden">
+    需要登录后才能调用中枢。
+    <a href="/yonder.html?next=/brain.html">去登录</a>
+  </div>
+
+  <section data-step="1">
+    <h1>一句话出作品</h1>
+    <p class="lead">写下你想做的互动小说。中枢先出企划书给你改，再生成画面与配音，最后写入作品编辑器可试玩、可发布。</p>
+    <div class="panel">
+      <label for="reqInput">创作需求</label>
+      <textarea id="reqInput" maxlength="2000" placeholder="例如：竖屏水墨风，女剑客雨夜投寺，两段选择决定是否入寺，结局要干脆。"></textarea>
+      <div class="row">
+        <div>
+          <label for="styleSel">风格（可选）</label>
+          <select id="styleSel"></select>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <p class="hint" style="margin:8px 0 0">规划通常几十秒；完整生图+配音更久。也可先只导入文字。</p>
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="planBtn">生成企划书 →</button>
+        <a class="btn ghost" href="/story-editor.html">直接进编辑器</a>
+      </div>
+    </div>
+  </section>
+
+  <section data-step="2" class="hidden">
+    <h1>确认企划书</h1>
+    <p class="lead">改标题与方向后，再决定生成素材，或只导入文字骨架。</p>
+    <div class="panel">
+      <label for="bpTitle">作品名</label>
+      <input id="bpTitle" maxlength="40">
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label for="bpOrient">画幅</label>
+          <select id="bpOrient">
+            <option value="landscape">16:9 横屏</option>
+            <option value="portrait">9:16 竖屏</option>
+          </select>
+        </div>
+        <div>
+          <label for="bpConcept">概念</label>
+          <input id="bpConcept" maxlength="200">
+        </div>
+      </div>
+      <p class="hint" id="assetHint"></p>
+      <h3 style="font-size:13px;margin:16px 0 0;color:var(--muted)">角色</h3>
+      <ul id="bpCast"></ul>
+      <h3 style="font-size:13px;margin:16px 0 0;color:var(--muted)">章节</h3>
+      <div id="bpChapters"></div>
+      <div class="actions">
+        <button type="button" class="btn ghost" id="back1">← 重写需求</button>
+        <button type="button" class="btn" id="skelBtn">只导入文字骨架</button>
+        <button type="button" class="btn primary" id="runBtn">生成画面+配音并导入</button>
+      </div>
+    </div>
+  </section>
+
+  <section data-step="3" class="hidden">
+    <h1>生成中</h1>
+    <p class="lead" id="runStatus">准备…</p>
+    <div class="panel">
+      <div class="bar"><i id="runBar"></i></div>
+      <div class="actions">
+        <button type="button" class="btn primary hidden" id="openBtn">打开作品编辑器 →</button>
+        <button type="button" class="btn ghost" id="againBtn">再做一个</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="/brain.js"></script>
+</body>
+</html>

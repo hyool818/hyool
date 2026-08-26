@@ -218,9 +218,10 @@ Phase 1 需引入异步任务化（D1 存进度 + 轮询/回调），当前为�
 | `src/hub/` 五个模块 | ✅ 已实现，dry-run 打包通过 |
 | 模型层 / 引擎层冒烟测试 | ✅ 全通过 |
 | R2 素材持久化 | ⚠️ 工具已就绪，未建 R2 binding（`HUB_BUCKET`），当前 ephemeral 降级 |
-| 前端中枢页 / 人审 UI | ⏳ Phase 1 |
-| 异步任务 / 进度持久化 | ⏳ Phase 1 |
-| 分支引擎与游戏逻辑 | ⏳ Phase 2 |
+| 前端中枢页 / 人审 UI | ✅ `public/brain.html`（plan → 人审 → run / 文字骨架 → 编辑器） |
+| 异步任务 / 进度持久化 | ⏳ Phase 1（run 仍为同步长请求） |
+| 分支引擎与游戏逻辑 | ⏳ Phase 2（编辑器 choice 积木已可用；Blueprint logic.state 待接） |
+| 作品素材库（本机 URL 引用） | ✅ `public/story-assets.js` + 编辑器侧栏 |
 
 **接续入口**：新窗口先读本文档 + `src/hub/*.js`，从 `docs/history.md` 惯例记一条本次记录，
 再按 Phase 1 清单推进。
