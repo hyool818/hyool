@@ -1318,12 +1318,16 @@ body{
         id="lifeVideo"
         src="./life.mp4"
         muted
+        defaultmuted
         playsinline
         webkit-playsinline
-        autoplay
-        preload="auto"
+        x5-playsinline="true"
+        x5-video-player-type="h5"
+        x5-video-player-fullscreen="false"
+        preload="metadata"
         disablepictureinpicture
         disableremoteplayback
+        controlslist="nodownload nofullscreen noremoteplayback"
     ></video>
 
 
@@ -1651,12 +1655,24 @@ window.addEventListener(
         }catch(e){}
 
 
-        /* 保证静音 */
+        /*
+         * 国内夸克/UC 等会劫持带音轨的 <video>：全屏原生播放器 + 有声，
+         * 盖住整页。已去掉 mp4 音轨；此处再强制静音/内联，避免二次接管。
+         */
+        try{
+            lifeVideo.defaultMuted = true;
+            lifeVideo.muted = true;
+            lifeVideo.volume = 0;
+            lifeVideo.setAttribute("muted", "");
+            lifeVideo.setAttribute("playsinline", "");
+            lifeVideo.setAttribute("webkit-playsinline", "");
+            lifeVideo.setAttribute("x5-playsinline", "true");
+            lifeVideo.setAttribute("x5-video-player-type", "h5");
+            lifeVideo.playsInline = true;
+        }catch(e){}
 
-        lifeVideo.muted = true;
 
-
-        /* 自动播放 */
+        /* 自动播放（勿依赖 HTML autoplay，减少夸克提前接管） */
 
         const playPromise =
             lifeVideo.play();
