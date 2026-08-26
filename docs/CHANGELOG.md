@@ -4,6 +4,7 @@
 
 ## 2026-08-26
 
+- **表现层 perf 积木**：预设台词；`require` 不满足则跳过；可选「临场一句」`POST /api/hub/live-line`（失败回退预设，不改剧情）。
 - **剧情变量 + 选项条件/效果**：`logic.state`；选项 `require`（隐藏）/`effect`（落账）；播放顶栏显示变量；样品「路边」可演示车站支线。零 LLM。
 - **定案：作品三层模型** — 逻辑程序控 / 剧情作者控 / 表现 AI 可选；AI 不决定剧情。写入 `MASTER_SPEC` / `ARCHITECTURE` / `editor-vision`。
 - **AI 中枢前端**：`brain.html` 一句话 → 企划人审 → 生成画面+配音或只导入文字骨架 → 写入作品编辑器；幻想页入口；`composeStoryJSON` 输出真实 `choice` 积木。

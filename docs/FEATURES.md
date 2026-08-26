@@ -19,7 +19,7 @@
 |---|---|---|---|
 | 制作总览 | `public/fantasy.html` | — | 入口卡片 |
 | 编辑器 UI | `public/story-editor.html` | — | 样式 + 壳 |
-| 编辑器逻辑 | `public/story-editor.js` `public/story-rogue.js` `public/story-idle.js` | `/api/stories*` `/api/tts` `/api/upload` | 积木（choice 跳转 + **require/effect**）、**logic.state 剧情变量**、播放、卡牌、云同步 |
+| 编辑器逻辑 | `public/story-editor.js` `public/story-rogue.js` `public/story-idle.js` | `/api/stories*` `/api/tts` `/api/upload` `/api/hub/live-line` | 积木（choice + **perf 演出** + require/effect）、logic.state、播放、卡牌、云同步 |
 | 作品 CRUD | — | `GET/POST /api/stories` `GET/PUT /api/stories/:id` `POST .../publish` `POST .../delete` | `src/mvp.js` stories 段 |
 | 广场露出 | `public/plaza.html` | `GET /api/plaza` 的 `stories` | 已发布 + `share_id` 非空 |
 | 产品愿景 | `docs/editor-vision.md` | — | 仅改长期类型地图时读 |
@@ -77,7 +77,7 @@
 
 | 功能 | 页面 | API | 后端 |
 |---|---|---|---|
-| 中枢页 | `public/brain.html` `public/brain.js` | `/api/hub/meta` `/api/hub/plan` `/api/hub/run` | `src/hub/*` |
+| 中枢页 | `public/brain.html` `public/brain.js` | `/api/hub/meta` `/api/hub/plan` `/api/hub/run` `/api/hub/live-line` | `src/hub/*` |
 | 幻想入口 | `public/fantasy.html` | — | 卡片链到 brain |
 
 规划/DAG/工具细节：`docs/hyool-brain-architecture.md`。  

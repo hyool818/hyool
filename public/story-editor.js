@@ -179,6 +179,8 @@ function normalizeStories(arr) {
         }
         // 选项积木（互动小说分支）：提示 + 若干跳转选项（含 require/effect）
         if (b.type === 'choice') normalizeChoiceBlock(b);
+        // 表现积木：预设台词 + 条件跳过 + 可选临场一句（不改剧情）
+        if (b.type === 'perf') normalizePerfBlock(b);
       });
     });
   });
@@ -248,6 +250,14 @@ function normalizeChoiceBlock(b) {
   }
 }
 
+function normalizePerfBlock(b) {
+  if (typeof b.content !== 'string') b.content = '';
+  if (typeof b.speaker !== 'string' || !b.speaker.trim()) b.speaker = DEFAULT_SPEAKER;
+  b.live = !!b.live;
+  b.hint = String(b.hint || '').trim().slice(0, 200);
+  b.require = normalizeCondList(b.require, REQUIRE_OPS);
+}
+
 /** 播放时剧情变量（开局从 logic.state 拷贝） */
 let playState = {};
 
@@ -310,6 +320,22 @@ function updatePlayStateHud() {
 function visibleChoices(block) {
   normalizeChoiceBlock(block);
   return (block.choices || []).filter((c) => evalRequire(c.require));
+}
+
+/** 跳过条件不满足的表现积木（不改状态，只前进） */
+function skipUnmetPerfBlocks() {
+  let guard = 0;
+  while (guard++ < 64 && playIdx < playFlat.length) {
+    const cur = playFlat[playIdx];
+    if (cur && cur.type === 'perf') {
+      normalizePerfBlock(cur);
+      if (!evalRequire(cur.require)) {
+        playIdx++;
+        continue;
+      }
+    }
+    break;
+  }
 }
 // 保存：写本地缓存（离线兜底）+ 防抖上传云端（跨设备同步）
 function persist() {
@@ -787,7 +813,7 @@ function renderBlocks() {
   if (!ch.blocks.length) {
     const d = document.createElement('div');
     d.className = 'block-empty';
-    d.textContent = '这一章还是空的。\n点下方「＋ 加对白 / 加场景 / 加选项」，或把图片拖进这里。';
+    d.textContent = '这一章还是空的。\n点下方「＋ 加对白 / 加场景 / 加选项 / 加演出」，或把图片拖进这里。';
     host.appendChild(d);
     return;
   }
@@ -839,9 +865,10 @@ function renderBlocks() {
     tagLabel.className = 'bt-label';
     tagLabel.textContent = b.type === 'scene' ? '场景'
       : (b.type === 'choice' ? '选项'
-        : (b.type === 'battle' ? '战斗' : (b.type === 'rogue' ? '卡牌' : '对白')));
+        : (b.type === 'perf' ? '演出'
+          : (b.type === 'battle' ? '战斗' : (b.type === 'rogue' ? '卡牌' : '对白'))));
     tag.append(idx, tagLabel);
-    if (b.type === 'dialogue') {
+    if (b.type === 'dialogue' || b.type === 'perf') {
       const sp = document.createElement('div');
       sp.className = 'bt-speaker';
       sp.textContent = b.speaker || DEFAULT_SPEAKER;
@@ -860,6 +887,10 @@ function renderBlocks() {
         const labels = (b.choices || []).map(c => c.label).filter(Boolean);
         const extra = (b.choices || []).some(c => (c.require && c.require.length) || (c.effect && c.effect.length));
         text.textContent = (prompt || '（点「编辑选项」写提示）') + (labels.length ? '\n→ ' + labels.join(' / ') : '') + (extra ? '\n⚙ 含条件/效果' : '');
+      } else if (b.type === 'perf') {
+        const displayText = formatDialogue(b);
+        text.textContent = displayText.trim() ? displayText : '（点「编辑演出」写预设台词）';
+        if (!displayText.trim()) text.classList.add('empty');
       } else {
         const displayText = formatDialogue(b);
         if (!displayText.trim()) {
@@ -898,6 +929,15 @@ function renderBlocks() {
           + (nEff ? ' · ' + nEff + ' 效果' : '');
         main.appendChild(sub);
       }
+      if (b.type === 'perf') {
+        const sub = document.createElement('div');
+        sub.className = 'block-sub';
+        const bits = ['✨ 表现层'];
+        if (b.require && b.require.length) bits.push(b.require.length + ' 条件跳过');
+        if (b.live) bits.push('临场一句');
+        sub.textContent = bits.join(' · ');
+        main.appendChild(sub);
+      }
     }
 
     const ops = document.createElement('div');
@@ -919,6 +959,8 @@ function renderBlocks() {
       mkBtn('字号色', '字号/颜色等高级项', () => openSubtitleEditor(b));
     } else if (b.type === 'choice') {
       mkBtn('编辑选项', '编辑提示与跳转', () => openChoiceEditor(b));
+    } else if (b.type === 'perf') {
+      mkBtn('编辑演出', '预设台词 / 条件 / 临场', () => openPerfEditor(b));
     } else if (b.type === 'battle') {
       mkBtn('编辑', '编辑战斗', () => openBattleEditor(b));
       mkBtn('试玩', '试玩本场', () => previewBattle(b));
@@ -1108,6 +1150,13 @@ function addBlock(type) {
       { id: uid(), label: '到此结束', jump: 'end' },
     ];
   }
+  if (type === 'perf') {
+    block.speaker = DEFAULT_SPEAKER;
+    block.content = '……刚才，谢谢你。';
+    block.require = [];
+    block.live = false;
+    block.hint = '';
+  }
   if (type === 'battle') {
     block.content = '';
     block.party = [];
@@ -1125,6 +1174,7 @@ function addBlock(type) {
   renderBlocks();
   if (type === 'battle') openBattleEditor(block);
   else if (type === 'choice') openChoiceEditor(block);
+  else if (type === 'perf') openPerfEditor(block);
   else if (type !== 'rogue') openSubtitleEditor(block);
 }
 
@@ -1152,6 +1202,7 @@ function openAddPicker() {
     mk('scene', '🏙️', '场景', '交代地点与氛围的一段描述');
     mk('dialogue', '💬', '对白', '角色说出的一句话');
     mk('choice', '🔀', '选项', '播放时让读者点选，跳到指定积木或章节');
+    mk('perf', '✨', '演出', '表现层预设台词；条件不满足则跳过；可选临场一句');
     if (story() && story().kind === 'card_rpg') {
       mk('battle', '⚔️', '卡牌战斗', '插一场自动角色战斗（角色卡进入战斗自动攻击敌人）');
     }
@@ -1455,6 +1506,116 @@ function openLogicEditor() {
   });
 }
 
+/** 表现积木：预设台词 + require 跳过 + 可选临场一句（不改状态/跳转） */
+function openPerfEditor(b) {
+  normalizePerfBlock(b);
+  const s = story();
+  if (s) s.logic = normalizeLogic(s.logic);
+  const varNames = Object.keys((s && s.logic && s.logic.state) || {});
+  openModal('编辑演出', (body) => {
+    const spLab = document.createElement('label');
+    spLab.textContent = '角色';
+    const sp = document.createElement('input');
+    sp.className = 'txt';
+    sp.value = b.speaker || DEFAULT_SPEAKER;
+    sp.maxLength = 20;
+    const lineLab = document.createElement('label');
+    lineLab.textContent = '预设台词（必填；AI 失败时用这句）';
+    const line = document.createElement('textarea');
+    line.className = 'txt';
+    line.rows = 3;
+    line.value = b.content || '';
+    line.placeholder = '例如：……刚才，谢谢你。';
+    const hintLab = document.createElement('label');
+    hintLab.textContent = '情境提示（给临场一句，可选）';
+    const hint = document.createElement('input');
+    hint.className = 'txt';
+    hint.value = b.hint || '';
+    hint.placeholder = 'B 刚被 A 救下，场景危险';
+    hint.maxLength = 200;
+    const liveRow = document.createElement('label');
+    liveRow.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;margin-top:4px';
+    const live = document.createElement('input');
+    live.type = 'checkbox';
+    live.checked = !!b.live;
+    liveRow.append(live, document.createTextNode('尝试临场一句（仅改台词；失败则用预设）'));
+    body.append(spLab, sp, lineLab, line, hintLab, hint, liveRow);
+
+    const reqLab = document.createElement('div');
+    reqLab.style.cssText = 'font-size:12px;color:var(--muted);margin-top:12px';
+    reqLab.textContent = '出现条件（不满足则整块跳过，不播）';
+    body.appendChild(reqLab);
+    const reqList = document.createElement('div');
+    reqList.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-top:6px';
+    body.appendChild(reqList);
+    const draftReq = (b.require || []).map((x) => ({ ...x }));
+    const renderReq = () => {
+      reqList.innerHTML = '';
+      draftReq.forEach((item, i) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:grid;grid-template-columns:1fr auto 72px auto;gap:6px';
+        const vIn = document.createElement('input');
+        vIn.className = 'txt';
+        vIn.value = item.var || '';
+        vIn.placeholder = varNames[0] || 'bond';
+        vIn.addEventListener('input', () => { item.var = vIn.value; });
+        const opSel = document.createElement('select');
+        opSel.className = 'txt';
+        REQUIRE_OPS.forEach((op) => {
+          const o = document.createElement('option');
+          o.value = op;
+          o.textContent = op;
+          opSel.appendChild(o);
+        });
+        opSel.value = REQUIRE_OPS.includes(item.op) ? item.op : '>=';
+        opSel.addEventListener('change', () => { item.op = opSel.value; });
+        const valIn = document.createElement('input');
+        valIn.className = 'txt';
+        valIn.type = 'number';
+        valIn.value = item.val != null ? item.val : 0;
+        valIn.addEventListener('input', () => { item.val = Number(valIn.value) || 0; });
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'btn tiny danger';
+        rm.textContent = '×';
+        rm.addEventListener('click', () => { draftReq.splice(i, 1); renderReq(); });
+        row.append(vIn, opSel, valIn, rm);
+        reqList.appendChild(row);
+      });
+    };
+    renderReq();
+    const addReq = document.createElement('button');
+    addReq.type = 'button';
+    addReq.className = 'btn tiny';
+    addReq.textContent = '＋条件';
+    addReq.addEventListener('click', () => {
+      if (draftReq.length >= 3) { toast('最多 3 条', true); return; }
+      draftReq.push({ var: varNames[0] || 'bond', op: '>=', val: 1 });
+      renderReq();
+    });
+    body.appendChild(addReq);
+
+    const tip = document.createElement('div');
+    tip.style.cssText = 'font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6';
+    tip.textContent = '演出不改变剧情变量，也不跳转。适合吐槽、谢一句、战斗后口令。';
+    body.appendChild(tip);
+
+    body._perfSave = () => {
+      b.speaker = (sp.value || '').trim().slice(0, 20) || DEFAULT_SPEAKER;
+      b.content = (line.value || '').trim().slice(0, 200) || '……';
+      b.hint = (hint.value || '').trim().slice(0, 200);
+      b.live = !!live.checked;
+      b.require = normalizeCondList(draftReq, REQUIRE_OPS);
+      normalizePerfBlock(b);
+      persist();
+      renderBlocks();
+    };
+  }, () => {
+    const body = $('#modalBody');
+    if (body && typeof body._perfSave === 'function') body._perfSave();
+  });
+}
+
 /** 选项跳转目标列表：下一块 / 结束 / 各积木 / 各章节开头 */
 function buildChoiceJumpOptions(selfBlockId) {
   const opts = [
@@ -1467,7 +1628,7 @@ function buildChoiceJumpOptions(selfBlockId) {
     opts.push({ value: 'ch:' + ch.id, label: `章节开头 · ${ch.title || ('第' + (ci + 1) + '章')}` });
     (ch.blocks || []).forEach((bl, bi) => {
       if (bl.id === selfBlockId) return;
-      const kind = bl.type === 'scene' ? '场景' : (bl.type === 'choice' ? '选项' : (bl.type === 'battle' ? '战斗' : (bl.type === 'rogue' ? '卡牌' : '对白')));
+      const kind = bl.type === 'scene' ? '场景' : (bl.type === 'choice' ? '选项' : (bl.type === 'perf' ? '演出' : (bl.type === 'battle' ? '战斗' : (bl.type === 'rogue' ? '卡牌' : '对白'))));
       const snippet = String(bl.type === 'dialogue' ? ((bl.speaker || '') + ' ' + (bl.content || '')) : (bl.content || '')).replace(/\s+/g, ' ').trim().slice(0, 18);
       opts.push({
         value: bl.id,
@@ -3223,9 +3384,38 @@ function tlRender(b) {
   renderSfxEdit();
 }
 function formatDialogue(b) {
-  if (b.type !== 'dialogue') return b.content || '';
+  if (b.type !== 'dialogue' && b.type !== 'perf') return b.content || '';
   const c = (b.content || '').trim();
   return /^[“"]/.test(c) ? c : `“${c}”`;
+}
+
+/** 表现层临场一句：只替换台词 DOM；失败/超时静默保留预设 */
+async function requestLiveLine(b, lineEl, badgeEl) {
+  const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = setTimeout(() => { try { ac && ac.abort(); } catch (e) { /* ignore */ } }, 9000);
+  try {
+    const res = await fetch('/api/hub/live-line', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({
+        speaker: b.speaker || '',
+        preset: b.content || '',
+        hint: b.hint || '',
+        state: playState,
+      }),
+      signal: ac ? ac.signal : undefined,
+    });
+    const d = await res.json().catch(() => ({}));
+    if (d.success && d.line && lineEl && lineEl.isConnected) {
+      lineEl.textContent = formatDialogue({ type: 'perf', content: d.line });
+    }
+  } catch (e) {
+    /* 预设已在画面上 */
+  } finally {
+    clearTimeout(timer);
+    if (badgeEl && badgeEl.isConnected) badgeEl.remove();
+  }
 }
 
 // ---------- 播放 ----------
@@ -3953,10 +4143,17 @@ function makeTextDraggable(el, b, opts = {}) {
 function renderPlay() {
   stopPlayAudio(); // 先停掉上一幕的配音，避免两个声音同时播放
   stopPlaySfxAll();   // 音效轨：切幕时停止本幕全部音效（含延迟定时器）
+  skipUnmetPerfBlocks();
+  if (playIdx >= playFlat.length) {
+    stopPlay();
+    toast('到此结束');
+    return;
+  }
   if (!playFlat.length) return;
   $('#playProgress').textContent = `第 ${playIdx + 1} 条 · 共 ${playFlat.length} 条`;
   $('#playChapter').textContent = playFlat[playIdx].chapterTitle;
   $('#playCount').textContent = `${playIdx + 1} / ${playFlat.length}`;
+  updatePlayStateHud();
   const body = $('#playBody');
   const b = playFlat[playIdx];
   const sPlay = story();
@@ -4103,11 +4300,12 @@ function renderPlay() {
     // 场景文字（纯文字无框）单独渲染在 frame 上层，可自由拖拽
     fore.classList.add('scene-sub-mode');
   } else {
-    // 对白框：底部「聊天框」样式（全宽贴底、半透明深色底），点击任意处推进；文字字号全局统一（默认 27px，25~30px 可调）、颜色可自定义
+    // 对白 / 演出：底部「聊天框」；演出可异步换临场一句（失败保留预设）
+    if (b.type === 'perf') normalizePerfBlock(b);
     const sub = b.subtitle || {};
     const sz = getGlobalSubSize();
     const d = document.createElement('div');
-    d.className = 'play-dialogue';
+    d.className = 'play-dialogue' + (b.type === 'perf' ? ' play-perf' : '');
     const sp = document.createElement('div');
     sp.className = 'pd-speaker';
     sp.textContent = b.speaker || DEFAULT_SPEAKER;
@@ -4118,6 +4316,13 @@ function renderPlay() {
     ln.style.fontSize = sz + 'px';
     sp.style.fontSize = Math.round(sz * 1.3) + 'px'; // 角色名联动 1.3x
     if (sub.color) { sp.style.color = sub.color; ln.style.color = sub.color; } // 自定义文字颜色（角色名与对白同色）
+    if (b.type === 'perf' && b.live) {
+      const badge = document.createElement('div');
+      badge.className = 'pd-live';
+      badge.textContent = '临场…';
+      d.appendChild(badge);
+      requestLiveLine(b, ln, badge);
+    }
     fore.classList.add('dlg-fore'); // 对白幕：fore 全屏透明点击层
     fore.appendChild(d);
   }
@@ -4246,7 +4451,7 @@ function init() {
   document.querySelectorAll('#addChipBar [data-add]').forEach(btn => {
     btn.addEventListener('click', () => {
       const t = btn.dataset.add;
-      if (t === 'dialogue' || t === 'scene' || t === 'choice' || t === 'battle' || t === 'rogue') addBlock(t);
+      if (t === 'dialogue' || t === 'scene' || t === 'choice' || t === 'perf' || t === 'battle' || t === 'rogue') addBlock(t);
     });
   });
   $('#playExit').addEventListener('click', stopPlay);
@@ -4536,6 +4741,7 @@ window.StoryEditor = {
   },
   openChoiceEditor,
   openLogicEditor,
+  openPerfEditor,
   openCastEditor,
   openAssetLibrary,
   openBattleEditor,

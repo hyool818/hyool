@@ -45,7 +45,7 @@
 }
 ```
 
-积木常见字段：`id` `type` `content` `speaker` `media` `audio` `subtitle` `sfxList`；`type==="choice"` 另有 `choices:[{id,label,jump,require?,effect?}]`（`jump`=`next`|`end`|积木id|`ch:`+章节id；`require`/`effect`=`{var,op,val}`）；`terminal:true` 表示播完即结束；作品级 `logic.state` 为变量初值（播放拷贝落账）。`type==="battle"` / `rogue` 见卡牌段。
+积木常见字段：`id` `type` `content` `speaker` `media` `audio` `subtitle` `sfxList`；`type==="choice"` 另有 `choices:[{id,label,jump,require?,effect?}]`；`type==="perf"` 为表现层（`require` 不满足则跳过；`live` 可选临场一句，失败回退预设）；`terminal:true` 播完即结束；作品级 `logic.state` 为变量初值。`type==="battle"` / `rogue` 见卡牌段。
 
 前端缓存键：`localStorage.hyool_stories_v1`（离线 + 旧数据迁移，权威在云端）。
 素材库键：`localStorage.hyool_assets_v1`（本机 URL 引用目录，非服务端素材库）。

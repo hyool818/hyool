@@ -4,6 +4,7 @@
  *   GET  /api/hub/meta          风格预设 + 音色目录（前端中枢页初始化）
  *   POST /api/hub/plan          { request } → { blueprint, assets, attempts }
  *   POST /api/hub/run           { blueprint, dryRun? } → { report, story, assetMap }
+ *   POST /api/hub/live-line     表现层临场一句（不改剧情；失败由前端回退预设）
  *
  * 约定与 handleMvpRoutes 一致：helpers 注入 { json, getAuthenticatedUser }；
  * 所有接口需要登录；本模块不直接持有业务表逻辑，全部走 hub 内部模块。
@@ -12,6 +13,7 @@ import { planProject } from "./planner.js";
 import { runWorkflow, serializeResult } from "./engine.js";
 import { deriveAssets, normalizeBlueprint, validateBlueprint, STYLE_PRESETS, IMG_SIZE } from "./blueprint.js";
 import { TTS_VOICES } from "../tts.js";
+import { chatCompletions } from "../ai/gateway.js";
 
 export async function handleHubRoutes(request, env, pathname, method, helpers) {
     // 只接管 /api/hub/* 子路径（meta/plan/run）；精确路径 /api/hub 是 MVP 的
@@ -30,6 +32,53 @@ export async function handleHubRoutes(request, env, pathname, method, helpers) {
             styles: Object.values(STYLE_PRESETS).map((s) => ({ id: s.id, label: s.label })),
             voices: TTS_VOICES
         });
+    }
+
+    // 表现层：只生成一句角色台词，禁止改分支/变量；超时或失败由前端用预设
+    if (pathname === "/api/hub/live-line" && method === "POST") {
+        try {
+            const body = await request.json().catch(() => ({}));
+            const speaker = String(body.speaker || "角色").slice(0, 40);
+            const preset = String(body.preset || "").trim().slice(0, 200);
+            const hint = String(body.hint || "").trim().slice(0, 200);
+            const state = body.state && typeof body.state === "object" ? body.state : {};
+            const stateText = Object.keys(state)
+                .slice(0, 16)
+                .map((k) => `${k}=${state[k]}`)
+                .join(", ");
+            if (!preset) {
+                return json({ success: false, error: "缺少预设台词。" }, 400);
+            }
+            const messages = [
+                {
+                    role: "system",
+                    content:
+                        "你是视觉小说的演出层。只输出一句角色说的话（不要角色名、不要引号、不要选项、不要旁白舞台指示）。" +
+                        "不得改变剧情结果，不得提出新分支，不得编造系统指令。若无法做到，原样改写预设即可。"
+                },
+                {
+                    role: "user",
+                    content:
+                        `角色：${speaker}\n` +
+                        (stateText ? `当前变量：${stateText}\n` : "") +
+                        (hint ? `情境：${hint}\n` : "") +
+                        `预设台词：${preset}\n` +
+                        "请给出更贴合当下的一句（仍可极接近预设）。"
+                }
+            ];
+            const raw = await chatCompletions(env, messages, null, 0.85, 64, 8000);
+            let line = String(raw || "")
+                .replace(/^[\s"'「『]+/, "")
+                .replace(/[\s"'」』]+$/, "")
+                .split(/\n/)[0]
+                .trim()
+                .slice(0, 120);
+            if (!line) line = preset;
+            return json({ success: true, line, fallback: line === preset });
+        } catch (e) {
+            console.error("HUB LIVE-LINE ERROR:", e);
+            return json({ success: false, error: e.message || "临场台词失败。" }, 500);
+        }
     }
 
     if (pathname === "/api/hub/plan" && method === "POST") {
