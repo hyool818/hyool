@@ -4,7 +4,8 @@
 // 数据结构：作品{id,title,chapters} → 章节{id,title,blocks} → 积木{id,type,content[,speaker][,media][,audio]}
 // 类型：scene=场景 / dialogue=对白（额外字段 speaker）
 // media（可选）：{url, type} —— url 为 /api/upload 上传后的 /img/xxx 引用（二进制存服务端）
-//   type: 'image'（图片/GIF/WebP）| 'video'（MP4）
+//   type: 'image'（图片/GIF/WebP）| 'video'（MP4）—— 本幕全屏背景
+// figure（可选）：{url, type:'image', x?, y?, scale?} —— 角色立绘叠加层（舞台可拖；x/y 为画幅百分比，锚点底中）
 // audio（可选）：{url, type:'audio'} —— 配音（MP3/WAV/M4A/OGG），同一套 /api/upload 上传与引用
 // sfxList（可选）：[{id, url, offsetMs, loop, volume, label}] —— 音效轨（可多条叠加；offsetMs=进入本幕多少毫秒后触发，loop=true 持续到切幕）
 //   旧字段 sfx（单对象 {url}）读取时自动迁移为 sfxList 单条
@@ -80,6 +81,7 @@ const rpgUid = () => 'r_' + Date.now().toString(36) + Math.random().toString(36)
 
 let stories = normalizeStories(loadStories());
 let currentId = null;   // 当前打开的作品 id
+let selectedBlockId = null; // 本幕舞台选中的积木 id
 let chapterId = null;   // 当前打开的章节 id
 let playFlat = [];      // 播放列表（跨章节展开后的积木）
 let playIdx = 0;
@@ -183,6 +185,12 @@ function normalizeStories(arr) {
         if (b.type === 'choice') normalizeChoiceBlock(b);
         // 表现积木：预设台词 + 条件跳过 + 可选临场一句（不改剧情）
         if (b.type === 'perf') normalizePerfBlock(b);
+        // 立绘层（舞台可视化）
+        if (b.figure) {
+          const fig = normalizeFigure(b.figure);
+          if (fig) b.figure = fig;
+          else delete b.figure;
+        }
       });
     });
   });
@@ -258,6 +266,21 @@ function normalizePerfBlock(b) {
   b.live = !!b.live;
   b.hint = String(b.hint || '').trim().slice(0, 200);
   b.require = normalizeCondList(b.require, REQUIRE_OPS);
+}
+
+/** 立绘层：叠加在背景之上；x/y 为画幅百分比（锚点底中），scale 相对缩放 */
+function normalizeFigure(fig) {
+  if (!fig || typeof fig !== 'object' || !fig.url) return null;
+  const x = Number(fig.x);
+  const y = Number(fig.y);
+  const scale = Number(fig.scale);
+  return {
+    url: String(fig.url),
+    type: fig.type === 'video' ? 'image' : 'image', // 立绘暂只支持静图
+    x: Number.isFinite(x) ? Math.max(0, Math.min(100, Math.round(x))) : 50,
+    y: Number.isFinite(y) ? Math.max(0, Math.min(100, Math.round(y))) : 92,
+    scale: Number.isFinite(scale) ? Math.max(0.35, Math.min(2.5, Math.round(scale * 100) / 100)) : 1,
+  };
 }
 
 /** 播放时剧情变量（开局从 logic.state 拷贝） */
@@ -924,6 +947,7 @@ function showEditor() {
 }
 function openStory(id) {
   currentId = id;
+  selectedBlockId = null;
   const s = story();
   chapterId = (s.chapters[0] && s.chapters[0].id) || null;
   try { if (s) harvestFromStory(s); } catch (e) { /* ignore */ }
@@ -933,6 +957,7 @@ function openStory(id) {
 function backToLibrary() {
   currentId = null;
   chapterId = null;
+  selectedBlockId = null;
   playFlat = [];
   $('#viewEditor').classList.add('hidden');
   $('#playBtn').classList.add('hidden');
@@ -1406,8 +1431,242 @@ function renderBlocks() {
       sfxWrap.appendChild(add);
     }
     el.append(sfxWrap);
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('.block-ops, .block-media, .block-audio, .block-handle, .block-inline, button, input, textarea, select, a')) return;
+      selectBlock(b.id);
+    });
+    if (b.id === selectedBlockId) el.classList.add('selected');
     host.appendChild(el);
   });
+  // 若当前选中不在本章，自动选第一块
+  if (ch.blocks.length) {
+    if (!selectedBlockId || !ch.blocks.some((x) => x.id === selectedBlockId)) {
+      selectedBlockId = ch.blocks[0].id;
+      const first = host.querySelector('[data-block-id="' + selectedBlockId + '"]');
+      if (first) first.classList.add('selected');
+    }
+  } else {
+    selectedBlockId = null;
+  }
+  renderStagePreview();
+}
+
+function selectBlock(id) {
+  selectedBlockId = id || null;
+  document.querySelectorAll('#blockList .block.selected').forEach((n) => n.classList.remove('selected'));
+  if (selectedBlockId) {
+    const el = document.querySelector('#blockList [data-block-id="' + selectedBlockId + '"]');
+    if (el) el.classList.add('selected');
+  }
+  renderStagePreview();
+}
+
+function selectedBlock() {
+  return selectedBlockId ? findBlock(selectedBlockId) : null;
+}
+
+/** 舞台拖拽：写回 figure 或 subtitle 的 x/y（百分比；立绘锚点=指针位置=底中） */
+function makeStageDraggable(el, frame, onCommit) {
+  let moved = false;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    moved = false;
+    el.classList.add('dragging');
+    el.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      const r = frame.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      moved = true;
+      const px = Math.round(Math.min(100, Math.max(0, (ev.clientX - r.left) / r.width * 100)));
+      const py = Math.round(Math.min(100, Math.max(0, (ev.clientY - r.top) / r.height * 100)));
+      el.style.left = px + '%';
+      el.style.top = py + '%';
+      if (el.classList.contains('sc-figure')) {
+        el.style.transform = 'translate(-50%,-100%) scale(' + (el.dataset.scale || 1) + ')';
+      } else {
+        el.style.transform = 'translate(-50%,-50%)';
+      }
+      el._stagePx = px;
+      el._stagePy = py;
+    };
+    const end = () => {
+      el.classList.remove('dragging');
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', end);
+      el.removeEventListener('pointercancel', end);
+      const px = el._stagePx;
+      const py = el._stagePy;
+      if (px == null || py == null) return;
+      if (typeof onCommit === 'function') onCommit(px, py, moved);
+    };
+    move(e);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  });
+}
+
+/** 右侧本幕舞台：所见即所得预览（背景 / 立绘 / 对白框 / 场景字） */
+function renderStagePreview() {
+  const canvas = $('#stageCanvas');
+  const hint = $('#stageHint');
+  if (!canvas) return;
+  const s = story();
+  const b = selectedBlock();
+  canvas.innerHTML = '';
+  canvas.classList.toggle('portrait', !!(s && s.orientation === 'portrait'));
+  if (!b) {
+    if (hint) hint.textContent = '点左侧积木预览 · 可拖立绘/场景字';
+    const empty = document.createElement('div');
+    empty.className = 'sc-empty';
+    empty.textContent = '还没有选中积木。\n点左侧时间线里的一块，这里会显示本幕画面。';
+    canvas.appendChild(empty);
+    return;
+  }
+  const typeLab = { scene: '场景', dialogue: '对白', choice: '选项', perf: '演出', battle: '战斗', rogue: '卡牌' };
+  if (hint) hint.textContent = (typeLab[b.type] || b.type) + ' · ' + b.id;
+
+  const bg = document.createElement('div');
+  bg.className = 'sc-bg';
+  if (b.media && b.media.url) {
+    if (b.media.type === 'video') {
+      const v = document.createElement('video');
+      v.src = b.media.url;
+      v.muted = true;
+      v.playsInline = true;
+      v.autoplay = true;
+      v.loop = true;
+      v.preload = 'metadata';
+      bg.appendChild(v);
+    } else {
+      const img = document.createElement('img');
+      img.src = b.media.url;
+      img.alt = '';
+      bg.appendChild(img);
+    }
+  }
+  canvas.appendChild(bg);
+
+  const fig = normalizeFigure(b.figure);
+  if (fig) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sc-figure';
+    wrap.style.left = fig.x + '%';
+    wrap.style.top = fig.y + '%';
+    wrap.dataset.scale = String(fig.scale);
+    wrap.style.transform = 'translate(-50%,-100%) scale(' + fig.scale + ')';
+    const img = document.createElement('img');
+    img.src = fig.url;
+    img.alt = '立绘';
+    wrap.appendChild(img);
+    makeStageDraggable(wrap, canvas, (px, py) => {
+      const real = findBlock(b.id);
+      if (!real) return;
+      real.figure = normalizeFigure({ ...(real.figure || {}), url: fig.url, x: px, y: py, scale: fig.scale });
+      persist();
+    });
+    canvas.appendChild(wrap);
+  }
+
+  if (b.type === 'choice') {
+    normalizeChoiceBlock(b);
+    const box = document.createElement('div');
+    box.className = 'sc-choice';
+    const prompt = document.createElement('div');
+    prompt.className = 'pc-prompt';
+    prompt.textContent = (b.content || '').trim() || '请选择：';
+    box.appendChild(prompt);
+    (b.choices || []).slice(0, 4).forEach((c, i) => {
+      const opt = document.createElement('div');
+      opt.className = 'pc-opt';
+      opt.textContent = c.label || ('选项 ' + (i + 1));
+      box.appendChild(opt);
+    });
+    canvas.appendChild(box);
+  } else if (b.type === 'scene') {
+    if ((b.content || '').trim()) {
+      const sub = b.subtitle || {};
+      const st = document.createElement('div');
+      st.className = 'sc-scene-text';
+      st.textContent = b.content;
+      st.style.left = (sub.x != null ? sub.x : 50) + '%';
+      st.style.top = (sub.y != null ? sub.y : 82) + '%';
+      st.style.transform = 'translate(-50%,-50%)';
+      if (sub.color) st.style.color = sub.color;
+      makeStageDraggable(st, canvas, (px, py) => {
+        const real = findBlock(b.id);
+        if (!real) return;
+        real.subtitle = real.subtitle || { on: true };
+        real.subtitle.x = px;
+        real.subtitle.y = py;
+        persist();
+      });
+      canvas.appendChild(st);
+    }
+  } else if (b.type === 'dialogue' || b.type === 'perf') {
+    const sub = b.subtitle || {};
+    const d = document.createElement('div');
+    d.className = 'sc-dlg';
+    const sp = document.createElement('div');
+    sp.className = 'pd-speaker';
+    sp.textContent = b.speaker || DEFAULT_SPEAKER;
+    const ln = document.createElement('div');
+    ln.className = 'pd-line';
+    ln.textContent = formatDialogue(b);
+    if (sub.color) { sp.style.color = sub.color; ln.style.color = sub.color; }
+    d.append(sp, ln);
+    canvas.appendChild(d);
+  } else if (!b.media && !fig) {
+    const empty = document.createElement('div');
+    empty.className = 'sc-empty';
+    empty.textContent = '本幕还没有画面。\n点上方「背景」或「立绘」从素材库选用。';
+    canvas.appendChild(empty);
+  }
+}
+
+function stagePickBackground() {
+  const b = selectedBlock();
+  if (!b) { toast('先点左侧选一块积木', true); return; }
+  openAssetLibrary({
+    type: 'image',
+    onPick: (a) => {
+      b.media = { url: a.url, type: a.type === 'video' ? 'video' : 'image' };
+      persist();
+      renderBlocks();
+      toast('已设置本幕背景');
+    },
+  });
+}
+
+function stagePickFigure() {
+  const b = selectedBlock();
+  if (!b) { toast('先点左侧选一块积木', true); return; }
+  openAssetLibrary({
+    type: 'image',
+    onPick: (a) => {
+      const prev = normalizeFigure(b.figure) || {};
+      b.figure = normalizeFigure({
+        url: a.url,
+        x: prev.x != null ? prev.x : 50,
+        y: prev.y != null ? prev.y : 92,
+        scale: prev.scale != null ? prev.scale : 1,
+      });
+      persist();
+      renderBlocks();
+      toast('已叠加立绘，可在舞台上拖动');
+    },
+  });
+}
+
+function stageClearFigure() {
+  const b = selectedBlock();
+  if (!b || !b.figure) { toast('本幕没有立绘'); return; }
+  delete b.figure;
+  persist();
+  renderBlocks();
+  toast('已清除立绘');
 }
 
 function renameChapter(c) {
@@ -1465,11 +1724,12 @@ function addBlock(type) {
   }
   ch.blocks.push(block);
   persist();
+  selectedBlockId = block.id;
   renderBlocks();
   if (type === 'battle') openBattleEditor(block);
   else if (type === 'choice') openChoiceEditor(block);
   else if (type === 'perf') openPerfEditor(block);
-  else if (type !== 'rogue') openSubtitleEditor(block);
+  // dialogue / scene：右侧舞台所见即所得，不再自动弹字号窗
 }
 
 function openAddPicker() {
@@ -1948,6 +2208,7 @@ function deleteBlock(id) {
   const i = ch.blocks.findIndex(b => b.id === id);
   if (i < 0) return;
   ch.blocks.splice(i, 1);
+  if (selectedBlockId === id) selectedBlockId = null;
   persist();
   renderBlocks();
   toast('已删除该积木');
@@ -4529,6 +4790,20 @@ function renderPlay() {
   } else {
     overlay.classList.remove('has-media');
   }
+  // 立绘层（可选）：叠加在背景上，锚点底中
+  const playFig = normalizeFigure(b.figure);
+  if (playFig) {
+    const wrap = document.createElement('div');
+    wrap.className = 'play-figure';
+    wrap.style.left = playFig.x + '%';
+    wrap.style.top = playFig.y + '%';
+    wrap.style.transform = 'translate(-50%,-100%) scale(' + playFig.scale + ')';
+    const img = document.createElement('img');
+    img.src = playFig.url;
+    img.alt = '';
+    wrap.appendChild(img);
+    frame.appendChild(wrap);
+  }
   // 前景文字/对白/选项（点击 → 下一幕；选项幕须点选跳转）
   const fore = document.createElement('div');
   fore.className = 'play-fore';
@@ -4740,6 +5015,12 @@ function init() {
   if (mapBtn) mapBtn.addEventListener('click', openStoryMap);
   const mapExit = $('#mapExit');
   if (mapExit) mapExit.addEventListener('click', () => { const o = $('#mapOverlay'); if (o) o.classList.add('hidden'); });
+  const stageBgBtn = $('#stageBgBtn');
+  if (stageBgBtn) stageBgBtn.addEventListener('click', stagePickBackground);
+  const stageFigBtn = $('#stageFigBtn');
+  if (stageFigBtn) stageFigBtn.addEventListener('click', stagePickFigure);
+  const stageClearFigBtn = $('#stageClearFigBtn');
+  if (stageClearFigBtn) stageClearFigBtn.addEventListener('click', stageClearFigure);
   const assetsBtn = $('#assetsBtn');
   if (assetsBtn) assetsBtn.addEventListener('click', () => openAssetLibrary(null));
   $('#addBlockBtn').addEventListener('click', openAddPicker);
@@ -5013,6 +5294,8 @@ window.StoryEditor = {
   startPlay,
   stopPlay,
   openStoryMap,
+  selectBlock,
+  renderStagePreview,
   analyzeStoryGraph: () => analyzeStoryGraph(story()),
   visitVarOf,
   listPlaySlots: () => { const s = story(); return s ? listPlaySlots(s.id) : []; },

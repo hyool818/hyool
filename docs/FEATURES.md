@@ -19,7 +19,7 @@
 |---|---|---|---|
 | 制作总览 | `public/fantasy.html` | — | 入口卡片 |
 | 编辑器 UI | `public/story-editor.html` | — | 样式 + 壳 |
-| 编辑器逻辑 | `public/story-editor.js` `public/story-rogue.js` `public/story-idle.js` | `/api/stories*` `/api/tts` `/api/upload` `/api/hub/live-line` | 积木（choice + **perf** + require/effect）、logic.state、**分支图**、**播放存档**、访问标记 `v_*`、卡牌、云同步 |
+| 编辑器逻辑 | `public/story-editor.js` `public/story-rogue.js` `public/story-idle.js` | `/api/stories*` `/api/tts` `/api/upload` `/api/hub/live-line` | 积木 + **本幕舞台**（背景/立绘/对白所见即所得）+ choice/perf/变量/分支图/存档、卡牌、云同步 |
 | 作品 CRUD | — | `GET/POST /api/stories` `GET/PUT /api/stories/:id` `POST .../publish` `POST .../delete` | `src/mvp.js` stories 段 |
 | 广场露出 | `public/plaza.html` | `GET /api/plaza` 的 `stories` | 已发布 + `share_id` 非空 |
 | 产品愿景 | `docs/editor-vision.md` | — | 仅改长期类型地图时读 |

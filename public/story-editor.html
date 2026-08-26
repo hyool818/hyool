@@ -69,9 +69,47 @@ textarea.txt{min-height:120px;resize:vertical}
   border-bottom:1px solid var(--line);background:rgba(5,5,10,.65)}
 .stage-head .ch-title{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stage-head .ch-count{font-size:11px;color:var(--muted)}
+.stage-work{flex:1 1 auto;min-height:0;display:flex}
+.stage-timeline{flex:1 1 46%;min-width:0;display:flex;flex-direction:column;min-height:0;
+  border-right:1px solid var(--line)}
 .stage-scroll{flex:1 1 auto;overflow-y:auto;padding:14px 16px 6px;display:flex;flex-direction:column;gap:10px}
 .add-chip-bar{flex:0 0 auto;display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px 16px;border-top:1px solid var(--line);
   background:rgba(8,8,14,.85)}
+/* 本幕舞台（所见即所得，对标 VN 可视化最小可用） */
+.stage-pane{flex:1 1 54%;min-width:240px;display:flex;flex-direction:column;min-height:0;background:#08080f}
+.stage-pane-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--line);font-size:12px;color:var(--text)}
+.stage-pane-head .sp-title{font-weight:600;letter-spacing:.06em}
+.stage-pane-head .sp-hint{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:42%}
+.stage-canvas-host{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px}
+.stage-canvas{position:relative;background:#000;overflow:hidden;border:1px solid var(--line2);border-radius:12px;
+  width:min(100%,720px);aspect-ratio:16/9;max-height:100%;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.stage-canvas.portrait{width:auto;height:min(100%,560px);aspect-ratio:9/16;max-width:100%}
+.stage-canvas .sc-bg{position:absolute;inset:0;z-index:1;background:#0a0a12}
+.stage-canvas .sc-bg img,.stage-canvas .sc-bg video{width:100%;height:100%;object-fit:cover;display:block}
+.stage-canvas .sc-figure{position:absolute;z-index:3;transform:translate(-50%,-100%);cursor:grab;touch-action:none;
+  user-select:none;max-height:72%}
+.stage-canvas .sc-figure.dragging{cursor:grabbing;z-index:6}
+.stage-canvas .sc-figure img{display:block;height:auto;width:auto;max-height:min(52vh,420px);max-width:min(48vw,280px);
+  pointer-events:none;filter:drop-shadow(0 10px 24px rgba(0,0,0,.55))}
+.stage-canvas .sc-scene-text{position:absolute;z-index:4;max-width:86%;text-align:center;line-height:1.7;color:#fff;
+  white-space:pre-wrap;word-break:break-word;text-shadow:0 2px 10px rgba(0,0,0,.9);cursor:grab;touch-action:none;
+  font-size:clamp(14px,2.2vw,20px);padding:4px 8px}
+.stage-canvas .sc-scene-text.dragging{cursor:grabbing}
+.stage-canvas .sc-dlg{position:absolute;left:0;right:0;bottom:0;z-index:5;text-align:left;pointer-events:none;
+  background:linear-gradient(180deg,rgba(16,16,32,.86),rgba(7,7,16,.94));
+  border-top:1px solid rgba(255,255,255,.14);border-radius:12px 12px 0 0;padding:10px 14px 14px}
+.stage-canvas .sc-dlg .pd-speaker{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:2px;letter-spacing:.06em}
+.stage-canvas .sc-dlg .pd-line{font-size:13px;line-height:1.65;color:#e8e8f0;white-space:pre-wrap;word-break:break-word}
+.stage-canvas .sc-choice{position:absolute;left:0;right:0;bottom:0;z-index:5;pointer-events:none;
+  background:linear-gradient(180deg,rgba(16,16,32,.88),rgba(7,7,16,.96));
+  border-top:1px solid rgba(125,211,168,.28);border-radius:12px 12px 0 0;padding:10px 12px 12px}
+.stage-canvas .sc-choice .pc-prompt{font-size:13px;line-height:1.55;color:#e8e8f0;margin-bottom:8px;white-space:pre-wrap}
+.stage-canvas .sc-choice .pc-opt{display:block;border:1px solid rgba(125,211,168,.35);background:rgba(20,36,28,.75);
+  color:#e8f5ee;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:6px}
+.stage-canvas .sc-empty{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:12.5px;text-align:center;padding:20px;line-height:1.7;pointer-events:none}
+.block.selected{border-color:rgba(95,200,255,.7);box-shadow:0 0 0 1px rgba(95,200,255,.28),0 8px 24px rgba(0,0,0,.25)}
 .add-chip{border:1px solid var(--line2);background:#151522;color:var(--text);border-radius:999px;padding:8px 14px;
   font-size:12.5px;cursor:pointer;font-family:inherit;transition:.15s}
 .add-chip:hover{border-color:var(--accent2);color:var(--accent2);background:rgba(95,200,255,.08)}
@@ -263,6 +301,9 @@ textarea.txt{min-height:120px;resize:vertical}
 .play-scene-text{position:absolute;z-index:4;max-width:640px;text-align:center;line-height:1.9;color:#fff;
   white-space:pre-wrap;word-break:break-word;text-shadow:0 2px 10px rgba(0,0,0,.9);cursor:grab;pointer-events:auto;
   touch-action:none;font-size:27px}
+.play-figure{position:absolute;z-index:3;transform:translate(-50%,-100%);pointer-events:none;max-height:78%}
+.play-figure img{display:block;height:auto;width:auto;max-height:78%;max-width:55vw;
+  filter:drop-shadow(0 12px 28px rgba(0,0,0,.55))}
 .play-scene-text.dragging{cursor:grabbing}
 /* 播放：竖屏（9:16）适配 —— 画幅比例由 renderPlay 按播放区尺寸精确计算（JS 设 style），
    两侧留黑居中，不再全屏拉伸裁剪；前景/字幕收窄贴合手机画幅 */
@@ -522,6 +563,12 @@ textarea.txt{min-height:120px;resize:vertical}
 
 @keyframes blockIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
+@media (max-width:980px){
+  .stage-work{flex-direction:column-reverse}
+  .stage-timeline{border-right:none;flex:1 1 auto;min-height:0}
+  .stage-pane{flex:0 0 auto;max-height:46vh;min-height:220px;border-bottom:1px solid var(--line)}
+  .stage-canvas.portrait{height:min(40vh,420px)}
+}
 @media (max-width:760px){
   .editor-wrap{flex-direction:column}
   .editor-side{flex:0 0 auto;max-width:none;border-right:none;border-bottom:1px solid var(--line)}
@@ -679,15 +726,32 @@ textarea.txt{min-height:120px;resize:vertical}
       <button class="btn small ghost" id="renameChapterBtn">重命名</button>
       <button class="btn small primary" id="playBtnInline" title="与顶栏播放相同">▶ 试玩</button>
     </div>
-    <div class="stage-scroll" id="blockList"></div>
-    <div class="add-chip-bar" id="addChipBar">
-      <button type="button" class="add-chip primary" data-add="dialogue">＋ 加对白</button>
-      <button type="button" class="add-chip" data-add="scene">＋ 加场景</button>
-      <button type="button" class="add-chip" data-add="choice">＋ 加选项</button>
-      <button type="button" class="add-chip" data-add="perf">＋ 加演出</button>
-      <button type="button" class="add-chip hidden" data-add="battle" id="chipBattle">＋ 加战斗</button>
-      <button type="button" class="add-chip hidden" data-add="rogue" id="chipRogue">＋ 加卡牌关</button>
-      <button type="button" class="add-chip" id="addBlockBtn">更多…</button>
+    <div class="stage-work">
+      <div class="stage-timeline">
+        <div class="stage-scroll" id="blockList"></div>
+        <div class="add-chip-bar" id="addChipBar">
+          <button type="button" class="add-chip primary" data-add="dialogue">＋ 加对白</button>
+          <button type="button" class="add-chip" data-add="scene">＋ 加场景</button>
+          <button type="button" class="add-chip" data-add="choice">＋ 加选项</button>
+          <button type="button" class="add-chip" data-add="perf">＋ 加演出</button>
+          <button type="button" class="add-chip hidden" data-add="battle" id="chipBattle">＋ 加战斗</button>
+          <button type="button" class="add-chip hidden" data-add="rogue" id="chipRogue">＋ 加卡牌关</button>
+          <button type="button" class="add-chip" id="addBlockBtn">更多…</button>
+        </div>
+      </div>
+      <div class="stage-pane" id="stagePane">
+        <div class="stage-pane-head">
+          <span class="sp-title">本幕舞台</span>
+          <span class="sp-hint" id="stageHint">点左侧积木预览 · 可拖立绘/场景字</span>
+          <span style="flex:1"></span>
+          <button type="button" class="btn tiny" id="stageBgBtn" title="为本幕设置背景画面">背景</button>
+          <button type="button" class="btn tiny" id="stageFigBtn" title="叠加角色立绘（可拖）">立绘</button>
+          <button type="button" class="btn tiny ghost" id="stageClearFigBtn" title="移除立绘">清立绘</button>
+        </div>
+        <div class="stage-canvas-host" id="stageCanvasHost">
+          <div class="stage-canvas" id="stageCanvas"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
