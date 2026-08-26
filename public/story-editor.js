@@ -1512,17 +1512,21 @@ function selectedBlock() {
 /** 舞台拖拽：写回 figure 或 subtitle 的 x/y（百分比；立绘锚点=指针位置=底中） */
 function makeStageDraggable(el, frame, onCommit) {
   let moved = false;
+  let startX = 0, startY = 0;
   el.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
+    if (el.isContentEditable) return;
     e.stopPropagation();
     e.preventDefault();
     moved = false;
+    startX = e.clientX;
+    startY = e.clientY;
     el.classList.add('dragging');
     el.setPointerCapture(e.pointerId);
     const move = (ev) => {
       const r = frame.getBoundingClientRect();
       if (!r.width || !r.height) return;
-      moved = true;
+      if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 4) moved = true;
       const px = Math.round(Math.min(100, Math.max(0, (ev.clientX - r.left) / r.width * 100)));
       const py = Math.round(Math.min(100, Math.max(0, (ev.clientY - r.top) / r.height * 100)));
       el.style.left = px + '%';
@@ -1675,7 +1679,7 @@ function renderStagePreview() {
     if (sub.color) st.style.color = sub.color;
     st.title = '拖动定位 · 双击编辑';
     makeStageDraggable(st, canvas, (px, py, moved) => {
-      if (moved === false) return;
+      if (!moved) return;
       const real = findBlock(b.id);
       if (!real) return;
       real.subtitle = real.subtitle || { on: true };
