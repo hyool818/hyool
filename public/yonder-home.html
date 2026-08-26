@@ -1322,6 +1322,30 @@ body {
 
 /* 显示/隐藏按钮（主人视图：角色卡 / 世界卡） */
 .char-card, .world-card { position: relative; }
+
+.view-all-tag {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 6;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: .62rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    background: rgba(8,8,16,.85);
+    border: 1px solid rgba(139,139,255,.45);
+    color: #cfc8ff;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+@media (hover: hover) {
+    .view-all-tag:hover {
+        background: rgba(139,139,255,.28);
+        color: #fff;
+    }
+}
 .vis-toggle {
     position: absolute;
     right: 8px;
@@ -2370,8 +2394,37 @@ const state = {
         stories: []
     },
 
-    isOwner: false
+    isOwner: false,
 
+    profileExpand: { chars: false, worlds: false, stories: false }
+
+};
+
+const PROFILE_CARD_MAX = 3;
+
+function profileVisibleItems(items, section) {
+    if (state.profileExpand[section]) return items;
+    return items.slice(0, PROFILE_CARD_MAX);
+}
+
+function profileHasMore(items, section) {
+    return !state.profileExpand[section] && items.length > PROFILE_CARD_MAX;
+}
+
+function viewAllTag(section, ownerHref) {
+    const href = ownerHref ? String(ownerHref).replace(/'/g, "\\'") : "";
+    return `<span class="view-all-tag" role="button" tabindex="0" onclick="event.preventDefault();event.stopPropagation();profileViewAll('${section}','${href}')">查看全部</span>`;
+}
+
+window.profileViewAll = function (section, href) {
+    if (state.isOwner && href) {
+        location.href = href;
+        return;
+    }
+    state.profileExpand[section] = true;
+    if (section === "chars") renderCharacters();
+    else if (section === "worlds") renderWorlds();
+    else if (section === "stories") renderStories();
 };
 
 
@@ -3097,8 +3150,8 @@ function renderCharacters() {
     const grid = document.getElementById("charGrid");
     const chars = state.characters || [];
 
-    const showCount = 3;
-    const visible = state.isOwner ? chars.slice(0, showCount) : chars;
+    const hasMore = profileHasMore(chars, "chars");
+    const visible = profileVisibleItems(chars, "chars");
 
     let html = "";
     if (state.isOwner) {
@@ -3107,14 +3160,16 @@ function renderCharacters() {
             <div class="label">创造角色</div>
         </a>`;
     }
-    html += visible.map(c => {
+    html += visible.map((c, i) => {
         const cVisible = !!(c.share_id && c.share_id !== "");
         const ownerBtns = state.isOwner ? `
             ${cVisible ? '' : `<div class="hidden-tag">已隐藏</div>`}
             <button type="button" class="vis-toggle del" onclick="deleteCharCard('${escapeHtml(c.id)}', event)">删除</button>
             <button type="button" class="vis-toggle ${cVisible ? '' : 'off'}" onclick="toggleCharVisible('${escapeHtml(c.id)}', ${!cVisible}, event)">${cVisible ? '隐藏' : '显示'}</button>` : "";
+        const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("chars", "/hub") : "";
         return `
         <a class="char-card${cVisible ? '' : ' hidden-card'}" href="/buddy/${encodeURIComponent(c.id)}${state.username ? '?from=' + encodeURIComponent('/@' + state.username) : ''}">
+            ${viewAll}
             <img class="thumb" src="${escapeHtml(c.image_url || c.avatar_url || '/placeholder.png')}" alt="${escapeHtml(c.name || '')}" onerror="this.style.opacity=.3">
             ${ownerBtns}
             <div class="info">
@@ -3125,13 +3180,6 @@ function renderCharacters() {
         </a>
     `;
     }).join("");
-
-    if (state.isOwner && chars.length > showCount) {
-        html += `<a href="/hub" class="more-card">
-            <div class="more-num">+${chars.length - showCount}</div>
-            <div class="more-label">查看全部</div>
-        </a>`;
-    }
 
     if (!state.isOwner && !chars.length) {
         grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">还没有公开的角色。</div>`;
@@ -3175,7 +3223,8 @@ function renderWorlds() {
     section.style.display = showWorks ? "" : "none";
 
     const formLabelOf = ({ story: "故事剧本", game: "H5 小游戏", mixed: "故事 + 游戏" });
-    const visible = state.isOwner ? worlds.slice(0, 6) : worlds;
+    const hasMore = profileHasMore(worlds, "worlds");
+    const visible = profileVisibleItems(worlds, "worlds");
 
     let html = "";
     if (state.isOwner) {
@@ -3184,7 +3233,7 @@ function renderWorlds() {
             <div class="label">创造世界</div>
         </a>`;
     }
-    html += visible.map(w => {
+    html += visible.map((w, i) => {
         // 主页显示/隐藏 = share_id 非空；发布/下架 = status
         const wVisible = !!(w.share_id && w.share_id !== "");
         const wPublished = w.status === "published";
@@ -3193,8 +3242,10 @@ function renderWorlds() {
             <button type="button" class="vis-toggle pub ${wPublished ? 'off' : ''}" onclick="toggleWorldPublish('${escapeHtml(w.id)}', ${!wPublished}, event)" title="控制是否进入主站生命世界广场">${wPublished ? '下架' : '发布'}</button>
             <button type="button" class="vis-toggle del" onclick="deleteWorldCard('${escapeHtml(w.id)}', event)">删除</button>
             <button type="button" class="vis-toggle ${wVisible ? '' : 'off'}" onclick="toggleWorldVisible('${escapeHtml(w.id)}', ${!wVisible}, event)" title="控制个人主页上的卡片可见性">${wVisible ? '隐藏' : '显示'}</button>` : "";
+        const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("worlds", "/hub") : "";
         return `
         <a class="world-card${wVisible ? '' : ' hidden-card'}" href="${worldPlayUrl(w)}">
+            ${viewAll}
             <img class="thumb" src="${escapeHtml(w.cover_image || '/placeholder.png')}" alt="${escapeHtml(w.name || '')}" onerror="this.style.opacity=.3">
             ${ownerBtns}
             <div class="info">
@@ -3244,7 +3295,8 @@ function renderStories() {
     }
     section.style.display = showWorks ? "" : "none";
 
-    const visible = state.isOwner ? stories.slice(0, 6) : stories;
+    const hasMore = profileHasMore(stories, "stories");
+    const visible = profileVisibleItems(stories, "stories");
 
     let html = "";
     if (state.isOwner) {
@@ -3257,13 +3309,15 @@ function renderStories() {
             <div class="label">专属库</div>
         </a>`;
     }
-    html += visible.map(s => {
+    html += visible.map((s, i) => {
         const sVisible = !!(s.share_id && s.share_id !== "");
         const sPublished = s.status === "published";
         const ownerBtns = state.isOwner ? `
             <button class="vis-toggle pub ${sPublished ? 'off' : ''}" onclick="toggleStoryPublish('${s.id}', ${!sPublished}, event)" title="发布后进入主站幻灵世界广场">${sPublished ? '下架' : '发布'}</button>` : "";
+        const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("stories", "/story-editor") : "";
         return `
         <a class="world-card${sVisible ? '' : ' hidden-card'}" href="${storyPlayUrl(s)}">
+            ${viewAll}
             <img class="thumb" src="${escapeHtml(s.cover_image || '/placeholder.png')}" alt="${escapeHtml(s.title || '')}" onerror="this.style.opacity=.3">
             ${ownerBtns}
             <div class="info">
