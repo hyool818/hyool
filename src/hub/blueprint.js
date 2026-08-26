@@ -301,7 +301,9 @@ export function composeStoryJSON(bp, assetMap) {
                     choices: opts.map((o, i) => ({
                         id: o.id || `${b.id}_opt_${i}`,
                         label: String(o.label || `选项${i + 1}`).slice(0, 40),
-                        jump: String(o.target || "next").slice(0, 96)
+                        jump: String(o.target || "next").slice(0, 96),
+                        require: Array.isArray(o.require) ? o.require : [],
+                        effect: Array.isArray(o.effect) ? o.effect : []
                     })),
                     _choice: b
                 };
@@ -321,6 +323,10 @@ export function composeStoryJSON(bp, assetMap) {
         title: bp.meta.title,
         orientation: bp.meta.orientation === "portrait" ? "portrait" : "landscape",
         chapters,
-        cast: castMap
+        cast: castMap,
+        logic: {
+            state: bp.logic && bp.logic.state && typeof bp.logic.state === "object" ? { ...bp.logic.state } : {},
+            rules: bp.logic && bp.logic.rules && typeof bp.logic.rules === "object" ? { ...bp.logic.rules } : {}
+        }
     };
 }

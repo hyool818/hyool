@@ -146,6 +146,7 @@ function normalizeStories(arr) {
     if (s.orientation !== 'landscape' && s.orientation !== 'portrait') s.orientation = 'landscape'; // 旧作品默认 16:9 横屏
     if (s.imgQuality !== 'hd') s.imgQuality = 'standard'; // 默认标准画质（1280 档）
     if (!s.cast || typeof s.cast !== 'object') s.cast = {};
+    s.logic = normalizeLogic(s.logic);
     if (!Array.isArray(s.chapters)) s.chapters = []; // 兜底：坏数据/旧数据不崩溃
     (s.chapters || []).forEach(c => {
       (c.blocks || []).forEach(b => {
@@ -176,7 +177,7 @@ function normalizeStories(arr) {
           if (typeof b.winContent !== 'string') b.winContent = '';
           if (typeof b.loseContent !== 'string') b.loseContent = '';
         }
-        // 选项积木（互动小说分支）：提示 + 若干跳转选项
+        // 选项积木（互动小说分支）：提示 + 若干跳转选项（含 require/effect）
         if (b.type === 'choice') normalizeChoiceBlock(b);
       });
     });
@@ -184,20 +185,131 @@ function normalizeStories(arr) {
   return arr;
 }
 
+/** 剧情变量：logic.state 为初始值表；播放时拷贝到 playState，由选项 effect 落账 */
+function normalizeLogic(logic) {
+  const src = logic && typeof logic === 'object' && !Array.isArray(logic) ? logic : {};
+  const stateIn = src.state && typeof src.state === 'object' && !Array.isArray(src.state) ? src.state : {};
+  const state = {};
+  Object.keys(stateIn).forEach((k) => {
+    const key = normalizeVarName(k);
+    if (!key) return;
+    const n = Number(stateIn[k]);
+    state[key] = Number.isFinite(n) ? Math.max(-9999, Math.min(9999, Math.round(n))) : 0;
+  });
+  return { state, rules: src.rules && typeof src.rules === 'object' ? src.rules : {} };
+}
+
+function normalizeVarName(name) {
+  const s = String(name || '').trim().toLowerCase();
+  if (!/^[a-z][a-z0-9_]{0,23}$/.test(s)) return '';
+  return s;
+}
+
+const REQUIRE_OPS = ['>=', '<=', '==', '>', '<', '!='];
+const EFFECT_OPS = ['+', '-', '='];
+
+function normalizeCondList(list, ops) {
+  if (!Array.isArray(list)) return [];
+  return list.map((x) => {
+    if (!x || typeof x !== 'object') return null;
+    const v = normalizeVarName(x.var);
+    const op = ops.includes(x.op) ? x.op : '';
+    const val = Number(x.val);
+    if (!v || !op || !Number.isFinite(val)) return null;
+    return { var: v, op, val: Math.max(-9999, Math.min(9999, Math.round(val))) };
+  }).filter(Boolean).slice(0, 3);
+}
+
 function normalizeChoiceBlock(b) {
   if (typeof b.content !== 'string') b.content = '';
+  // 兼容中枢 Blueprint 旧字段 options → choices
+  if ((!Array.isArray(b.choices) || !b.choices.length) && Array.isArray(b.options)) {
+    b.choices = b.options.map((o, i) => ({
+      id: o.id || uid(),
+      label: o.label,
+      jump: o.target || o.jump || 'next',
+      require: o.require,
+      effect: o.effect,
+    }));
+  }
   if (!Array.isArray(b.choices)) b.choices = [];
   b.choices = b.choices.filter(c => c && (c.label != null || c.jump != null)).map(c => ({
     id: c.id || uid(),
     label: String(c.label == null ? '' : c.label).trim().slice(0, 40) || '选项',
     jump: String(c.jump || 'next').slice(0, 96),
+    require: normalizeCondList(c.require, REQUIRE_OPS),
+    effect: normalizeCondList(c.effect, EFFECT_OPS),
   }));
   if (!b.choices.length) {
     b.choices = [
-      { id: uid(), label: '继续', jump: 'next' },
-      { id: uid(), label: '结束', jump: 'end' },
+      { id: uid(), label: '继续', jump: 'next', require: [], effect: [] },
+      { id: uid(), label: '结束', jump: 'end', require: [], effect: [] },
     ];
   }
+}
+
+/** 播放时剧情变量（开局从 logic.state 拷贝） */
+let playState = {};
+
+function resetPlayState() {
+  const s = story();
+  const base = (s && s.logic && s.logic.state) ? s.logic.state : {};
+  playState = {};
+  Object.keys(base).forEach((k) => { playState[k] = Number(base[k]) || 0; });
+}
+
+function readVar(name) {
+  const k = normalizeVarName(name);
+  if (!k) return 0;
+  const n = Number(playState[k]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function evalRequire(list) {
+  const reqs = normalizeCondList(list, REQUIRE_OPS);
+  if (!reqs.length) return true;
+  return reqs.every((r) => {
+    const cur = readVar(r.var);
+    if (r.op === '>=') return cur >= r.val;
+    if (r.op === '<=') return cur <= r.val;
+    if (r.op === '==') return cur === r.val;
+    if (r.op === '>') return cur > r.val;
+    if (r.op === '<') return cur < r.val;
+    if (r.op === '!=') return cur !== r.val;
+    return true;
+  });
+}
+
+function applyEffects(list) {
+  const effects = normalizeCondList(list, EFFECT_OPS);
+  effects.forEach((e) => {
+    const cur = readVar(e.var);
+    let next = cur;
+    if (e.op === '+') next = cur + e.val;
+    else if (e.op === '-') next = cur - e.val;
+    else if (e.op === '=') next = e.val;
+    playState[e.var] = Math.max(-9999, Math.min(9999, Math.round(next)));
+  });
+  updatePlayStateHud();
+}
+
+function formatPlayStateHud() {
+  const keys = Object.keys(playState);
+  if (!keys.length) return '';
+  return keys.map((k) => k + ':' + playState[k]).join(' · ');
+}
+
+function updatePlayStateHud() {
+  const el = $('#playVars');
+  if (!el) return;
+  const text = formatPlayStateHud();
+  el.textContent = text;
+  el.classList.toggle('hidden', !text);
+}
+
+function visibleChoices(block) {
+  normalizeChoiceBlock(block);
+  return (block.choices || []).filter((c) => evalRequire(c.require));
 }
 // 保存：写本地缓存（离线兜底）+ 防抖上传云端（跨设备同步）
 function persist() {
@@ -746,7 +858,8 @@ function renderBlocks() {
       if (b.type === 'choice') {
         const prompt = (b.content || '').trim();
         const labels = (b.choices || []).map(c => c.label).filter(Boolean);
-        text.textContent = (prompt || '（点「编辑选项」写提示）') + (labels.length ? '\n→ ' + labels.join(' / ') : '');
+        const extra = (b.choices || []).some(c => (c.require && c.require.length) || (c.effect && c.effect.length));
+        text.textContent = (prompt || '（点「编辑选项」写提示）') + (labels.length ? '\n→ ' + labels.join(' / ') : '') + (extra ? '\n⚙ 含条件/效果' : '');
       } else {
         const displayText = formatDialogue(b);
         if (!displayText.trim()) {
@@ -778,7 +891,11 @@ function renderBlocks() {
       if (b.type === 'choice') {
         const sub = document.createElement('div');
         sub.className = 'block-sub';
-        sub.textContent = '🔀 播放时点选跳转 · ' + ((b.choices || []).length || 0) + ' 个选项';
+        const nReq = (b.choices || []).reduce((n, c) => n + ((c.require && c.require.length) || 0), 0);
+        const nEff = (b.choices || []).reduce((n, c) => n + ((c.effect && c.effect.length) || 0), 0);
+        sub.textContent = '🔀 ' + ((b.choices || []).length || 0) + ' 选项'
+          + (nReq ? ' · ' + nReq + ' 条件' : '')
+          + (nEff ? ' · ' + nEff + ' 效果' : '');
         main.appendChild(sub);
       }
     }
@@ -1045,41 +1162,108 @@ function openAddPicker() {
   }, null);
 }
 
-/** 选项积木编辑：提示文案 + 若干「文案 → 跳转目标」 */
+/** 选项积木编辑：提示 + 跳转 + 条件(require) + 效果(effect) */
 function openChoiceEditor(b) {
   normalizeChoiceBlock(b);
+  const s = story();
+  if (s) s.logic = normalizeLogic(s.logic);
+  const varNames = Object.keys((s && s.logic && s.logic.state) || {});
   openModal('编辑选项', (body) => {
+    const card = $('#modal') && $('#modal').querySelector('.modal-card');
+    if (card) card.classList.add('modal-wide');
+
     const promptLab = document.createElement('label');
     promptLab.textContent = '提示（显示在选项上方）';
     const prompt = document.createElement('textarea');
     prompt.className = 'txt';
     prompt.rows = 2;
     prompt.value = b.content || '';
-    prompt.placeholder = '例如：你要怎么做？';
+    prompt.placeholder = '例如：夜晚，废弃车站。你要？';
     body.append(promptLab, prompt);
 
     const listLab = document.createElement('label');
-    listLab.textContent = '选项（最多 6 个）';
+    listLab.textContent = '选项（最多 6 个）· 条件不满足则隐藏 · 点选后先落账再跳转';
     body.appendChild(listLab);
     const list = document.createElement('div');
-    list.style.display = 'flex';
-    list.style.flexDirection = 'column';
-    list.style.gap = '10px';
+    list.style.cssText = 'display:flex;flex-direction:column;gap:12px';
     body.appendChild(list);
 
-    const draft = (b.choices || []).map(c => ({ id: c.id || uid(), label: c.label, jump: c.jump || 'next' }));
-    if (!draft.length) draft.push({ id: uid(), label: '继续', jump: 'next' });
+    const draft = (b.choices || []).map(c => ({
+      id: c.id || uid(),
+      label: c.label,
+      jump: c.jump || 'next',
+      require: (c.require || []).map(x => ({ ...x })),
+      effect: (c.effect || []).map(x => ({ ...x })),
+    }));
+    if (!draft.length) draft.push({ id: uid(), label: '继续', jump: 'next', require: [], effect: [] });
 
     const jumpOptions = buildChoiceJumpOptions(b.id);
 
+    const mkOpSelect = (ops, value, onChange) => {
+      const sel = document.createElement('select');
+      sel.className = 'txt';
+      ops.forEach((op) => {
+        const o = document.createElement('option');
+        o.value = op;
+        o.textContent = op;
+        sel.appendChild(o);
+      });
+      sel.value = ops.includes(value) ? value : ops[0];
+      sel.addEventListener('change', () => onChange(sel.value));
+      return sel;
+    };
+
+    const mkVarInput = (value, onChange) => {
+      const inp = document.createElement('input');
+      inp.className = 'txt';
+      inp.placeholder = varNames[0] || 'trust';
+      inp.value = value || '';
+      inp.maxLength = 24;
+      if (varNames.length) {
+        inp.setAttribute('list', 'logicVarList');
+      }
+      inp.addEventListener('input', () => onChange(inp.value));
+      return inp;
+    };
+
+    const mkCondRow = (arr, ops, i, render) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:grid;grid-template-columns:1fr auto 72px auto;gap:6px;align-items:center';
+      const item = arr[i] || { var: '', op: ops[0], val: 0 };
+      const vIn = mkVarInput(item.var, (v) => { item.var = v; arr[i] = item; });
+      const opSel = mkOpSelect(ops, item.op, (op) => { item.op = op; arr[i] = item; });
+      const valIn = document.createElement('input');
+      valIn.className = 'txt';
+      valIn.type = 'number';
+      valIn.value = item.val != null ? item.val : 0;
+      valIn.addEventListener('input', () => { item.val = Number(valIn.value) || 0; arr[i] = item; });
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'btn tiny danger';
+      rm.textContent = '×';
+      rm.addEventListener('click', () => { arr.splice(i, 1); render(); });
+      arr[i] = item;
+      row.append(vIn, opSel, valIn, rm);
+      return row;
+    };
+
     const renderRows = () => {
       list.innerHTML = '';
+      if (varNames.length && !document.getElementById('logicVarList')) {
+        const dl = document.createElement('datalist');
+        dl.id = 'logicVarList';
+        varNames.forEach((n) => {
+          const o = document.createElement('option');
+          o.value = n;
+          dl.appendChild(o);
+        });
+        body.appendChild(dl);
+      }
       draft.forEach((c, i) => {
-        const row = document.createElement('div');
-        row.style.display = 'grid';
-        row.style.gridTemplateColumns = '1fr 1fr auto';
-        row.style.gap = '8px';
-        row.style.alignItems = 'center';
+        const cardEl = document.createElement('div');
+        cardEl.style.cssText = 'border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px';
+        const top = document.createElement('div');
+        top.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center';
         const lab = document.createElement('input');
         lab.className = 'txt';
         lab.placeholder = '选项文案';
@@ -1094,7 +1278,6 @@ function openChoiceEditor(b) {
           opt.textContent = o.label;
           sel.appendChild(opt);
         });
-        // 若目标已失效，仍保留原值便于用户看见并改
         if (c.jump && ![...sel.options].some(o => o.value === c.jump)) {
           const opt = document.createElement('option');
           opt.value = c.jump;
@@ -1113,8 +1296,48 @@ function openChoiceEditor(b) {
           draft.splice(i, 1);
           renderRows();
         });
-        row.append(lab, sel, rm);
-        list.appendChild(row);
+        top.append(lab, sel, rm);
+        cardEl.appendChild(top);
+
+        const reqWrap = document.createElement('div');
+        const reqLab = document.createElement('div');
+        reqLab.style.cssText = 'font-size:11px;color:var(--muted)';
+        reqLab.textContent = '出现条件 require（全满足才显示；可空）';
+        reqWrap.appendChild(reqLab);
+        if (!Array.isArray(c.require)) c.require = [];
+        c.require.forEach((_, ri) => reqWrap.appendChild(mkCondRow(c.require, REQUIRE_OPS, ri, renderRows)));
+        const addReq = document.createElement('button');
+        addReq.type = 'button';
+        addReq.className = 'btn tiny';
+        addReq.textContent = '＋条件';
+        addReq.addEventListener('click', () => {
+          if (c.require.length >= 3) { toast('每选项最多 3 条条件', true); return; }
+          c.require.push({ var: varNames[0] || 'trust', op: '>=', val: 1 });
+          renderRows();
+        });
+        reqWrap.appendChild(addReq);
+        cardEl.appendChild(reqWrap);
+
+        const effWrap = document.createElement('div');
+        const effLab = document.createElement('div');
+        effLab.style.cssText = 'font-size:11px;color:var(--muted)';
+        effLab.textContent = '选择效果 effect（点选后改变量；可空）';
+        effWrap.appendChild(effLab);
+        if (!Array.isArray(c.effect)) c.effect = [];
+        c.effect.forEach((_, ei) => effWrap.appendChild(mkCondRow(c.effect, EFFECT_OPS, ei, renderRows)));
+        const addEff = document.createElement('button');
+        addEff.type = 'button';
+        addEff.className = 'btn tiny';
+        addEff.textContent = '＋效果';
+        addEff.addEventListener('click', () => {
+          if (c.effect.length >= 3) { toast('每选项最多 3 条效果', true); return; }
+          c.effect.push({ var: varNames[0] || 'trust', op: '+', val: 1 });
+          renderRows();
+        });
+        effWrap.appendChild(addEff);
+        cardEl.appendChild(effWrap);
+
+        list.appendChild(cardEl);
       });
     };
     renderRows();
@@ -1125,34 +1348,110 @@ function openChoiceEditor(b) {
     addBtn.textContent = '＋ 加一个选项';
     addBtn.addEventListener('click', () => {
       if (draft.length >= 6) { toast('最多 6 个选项', true); return; }
-      draft.push({ id: uid(), label: '新选项', jump: 'next' });
+      draft.push({ id: uid(), label: '新选项', jump: 'next', require: [], effect: [] });
       renderRows();
     });
     body.appendChild(addBtn);
 
     const tip = document.createElement('div');
     tip.className = 'hint';
-    tip.style.fontSize = '12px';
-    tip.style.color = 'var(--muted)';
-    tip.textContent = '跳转到某积木：读者点选后从那一块继续播。目标积木可在选项块后面再加。';
+    tip.style.cssText = 'font-size:12px;color:var(--muted);line-height:1.6';
+    tip.innerHTML = '先在侧栏「剧情变量」声明变量（如 trust）。条件/效果用小写英文名。<br>程序落账，AI 不参与选分支。';
     body.appendChild(tip);
 
-    // 把保存逻辑挂到 modalOk：由外层 openModal 的 ok 回调执行
-    body.dataset.choiceSave = '1';
     body._choiceSave = () => {
       b.content = prompt.value.trim().slice(0, 200);
       b.choices = draft.map(c => ({
         id: c.id || uid(),
         label: String(c.label || '').trim().slice(0, 40) || '选项',
         jump: String(c.jump || 'next').slice(0, 96),
+        require: normalizeCondList(c.require, REQUIRE_OPS),
+        effect: normalizeCondList(c.effect, EFFECT_OPS),
       }));
       normalizeChoiceBlock(b);
       persist();
       renderBlocks();
+      const card2 = $('#modal') && $('#modal').querySelector('.modal-card');
+      if (card2) card2.classList.remove('modal-wide');
     };
   }, () => {
     const body = $('#modalBody');
     if (body && typeof body._choiceSave === 'function') body._choiceSave();
+  });
+}
+
+/** 剧情变量初始值表（logic.state） */
+function openLogicEditor() {
+  const s = story();
+  if (!s) return;
+  s.logic = normalizeLogic(s.logic);
+  openModal('剧情变量', (body) => {
+    const tip = document.createElement('div');
+    tip.style.cssText = 'font-size:12px;color:var(--muted);line-height:1.6';
+    tip.textContent = '声明作品变量与初始值。播放开始时拷贝；选项的条件/效果改的是播放中的副本，不写回作品。纯程序，无 AI。';
+    body.appendChild(tip);
+    const list = document.createElement('div');
+    list.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:12px';
+    body.appendChild(list);
+    const draft = Object.keys(s.logic.state).map((k) => ({ name: k, val: s.logic.state[k] }));
+    const render = () => {
+      list.innerHTML = '';
+      if (!draft.length) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'font-size:13px;color:var(--muted)';
+        empty.textContent = '还没有变量。例如 trust / fear / bond。';
+        list.appendChild(empty);
+      }
+      draft.forEach((row, i) => {
+        const el = document.createElement('div');
+        el.style.cssText = 'display:grid;grid-template-columns:1fr 88px auto;gap:8px';
+        const nIn = document.createElement('input');
+        nIn.className = 'txt';
+        nIn.placeholder = 'trust';
+        nIn.value = row.name;
+        nIn.maxLength = 24;
+        nIn.addEventListener('input', () => { row.name = nIn.value; });
+        const vIn = document.createElement('input');
+        vIn.className = 'txt';
+        vIn.type = 'number';
+        vIn.value = row.val;
+        vIn.addEventListener('input', () => { row.val = Number(vIn.value) || 0; });
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'btn tiny danger';
+        rm.textContent = '删';
+        rm.addEventListener('click', () => { draft.splice(i, 1); render(); });
+        el.append(nIn, vIn, rm);
+        list.appendChild(el);
+      });
+    };
+    render();
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'btn small';
+    add.style.marginTop = '10px';
+    add.textContent = '＋ 加变量';
+    add.addEventListener('click', () => {
+      if (draft.length >= 24) { toast('最多 24 个变量', true); return; }
+      draft.push({ name: 'var' + (draft.length + 1), val: 0 });
+      render();
+    });
+    body.appendChild(add);
+    body._logicSave = () => {
+      const state = {};
+      draft.forEach((row) => {
+        const key = normalizeVarName(row.name);
+        if (!key) return;
+        const n = Number(row.val);
+        state[key] = Number.isFinite(n) ? Math.max(-9999, Math.min(9999, Math.round(n))) : 0;
+      });
+      s.logic = { state, rules: s.logic.rules || {} };
+      persist();
+      toast('变量已保存 · ' + Object.keys(state).length + ' 个');
+    };
+  }, () => {
+    const body = $('#modalBody');
+    if (body && typeof body._logicSave === 'function') body._logicSave();
   });
 }
 
@@ -3402,8 +3701,10 @@ function startPlay() {
   playFlat = buildPlayFlat();
   if (!playFlat.length) { toast('这个作品还没有积木，先去添加内容吧', true); return; }
   playIdx = 0;
+  resetPlayState();
   $('#playBody').innerHTML = ''; // 进入播放先清空画幅残留（重复 startPlay 直接换画面不叠加，避免旧画幅撑出滚动条压缩新画幅）
   $('#playOverlay').classList.remove('hidden'); // 先显示再渲染，确保竖屏画幅能按实际播放区尺寸计算
+  updatePlayStateHud();
   renderPlay();
   prewarmTts(story()); // 后台预合成 AI 音色对白（异步不阻塞播放）
 }
@@ -3742,7 +4043,7 @@ function renderPlay() {
   if (b.type === 'choice') {
     normalizeChoiceBlock(b);
     fore.classList.add('dlg-fore');
-    // 选项幕：不点空白推进，必须点选项
+    // 选项幕：不点空白推进，必须点选项；按 require 过滤
     const box = document.createElement('div');
     box.className = 'play-choice';
     const prompt = document.createElement('div');
@@ -3750,21 +4051,46 @@ function renderPlay() {
     prompt.textContent = (b.content || '').trim() || '请选择：';
     const opts = document.createElement('div');
     opts.className = 'pc-opts';
-    (b.choices || []).forEach((c, ci) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'pc-opt';
-      btn.textContent = c.label || ('选项 ' + (ci + 1));
-      btn.addEventListener('click', (e) => {
+    const shown = visibleChoices(b);
+    if (!shown.length) {
+      const none = document.createElement('div');
+      none.style.cssText = 'font-size:13px;color:var(--muted);padding:8px 0';
+      none.textContent = '没有满足条件的选项。可返回上一条或退出。';
+      opts.appendChild(none);
+      const fall = document.createElement('button');
+      fall.type = 'button';
+      fall.className = 'pc-opt';
+      fall.textContent = '继续（无可用选项）';
+      fall.addEventListener('click', (e) => {
         e.stopPropagation();
-        jumpPlayTo(c.jump || 'next');
+        jumpPlayTo('next');
       });
-      opts.appendChild(btn);
-    });
+      opts.appendChild(fall);
+    } else {
+      shown.forEach((c, ci) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pc-opt';
+        let label = c.label || ('选项 ' + (ci + 1));
+        if (c.effect && c.effect.length) {
+          const hint = c.effect.map(e => e.var + e.op + e.val).join(',');
+          // 不把数值提示硬塞文案；调试信息仅 title
+          btn.title = hint;
+        }
+        btn.textContent = label;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          applyEffects(c.effect);
+          jumpPlayTo(c.jump || 'next');
+        });
+        opts.appendChild(btn);
+      });
+    }
     box.append(prompt, opts);
     fore.appendChild(box);
     frame.appendChild(fore);
     body.appendChild(frame);
+    updatePlayStateHud();
     $('#playPrev').disabled = playIdx === 0;
     $('#playNext').disabled = true; // 选项幕禁止「下一条」直线跳过
     $('#playNext').textContent = '下一条 →';
@@ -3908,6 +4234,8 @@ function init() {
   });
   $('#bgmBtn').addEventListener('click', openBgmEditor);
   $('#castBtn').addEventListener('click', openCastEditor);
+  const logicBtn = $('#logicBtn');
+  if (logicBtn) logicBtn.addEventListener('click', openLogicEditor);
   const assetsBtn = $('#assetsBtn');
   if (assetsBtn) assetsBtn.addEventListener('click', () => openAssetLibrary(null));
   $('#addBlockBtn').addEventListener('click', openAddPicker);
@@ -4180,9 +4508,12 @@ window.StoryEditor = {
     idx: playIdx, total: playFlat.length,
     orientation: (story() || {}).orientation || 'landscape',
     imgQuality: (story() || {}).imgQuality || 'standard',
+    state: { ...playState },
     current: playFlat[playIdx] ? {
       type: playFlat[playIdx].type, speaker: playFlat[playIdx].speaker || '', content: playFlat[playIdx].content,
-      choices: playFlat[playIdx].type === 'choice' ? (playFlat[playIdx].choices || []).map(c => ({ id: c.id, label: c.label, jump: c.jump })) : undefined,
+      choices: playFlat[playIdx].type === 'choice'
+        ? visibleChoices(playFlat[playIdx]).map(c => ({ id: c.id, label: c.label, jump: c.jump, require: c.require, effect: c.effect }))
+        : undefined,
       media: playFlat[playIdx].media || null, audio: playFlat[playIdx].audio || null,
       sfxList: (playFlat[playIdx].sfxList || []).map(x => ({ ...x })),
       bgmOverride: playFlat[playIdx].bgmOverride || null,
@@ -4196,12 +4527,15 @@ window.StoryEditor = {
   playPick: (i) => {
     const cur = playFlat[playIdx];
     if (!cur || cur.type !== 'choice') return false;
-    const c = (cur.choices || [])[i];
+    const shown = visibleChoices(cur);
+    const c = shown[i];
     if (!c) return false;
+    applyEffects(c.effect);
     jumpPlayTo(c.jump || 'next');
     return true;
   },
   openChoiceEditor,
+  openLogicEditor,
   openCastEditor,
   openAssetLibrary,
   openBattleEditor,

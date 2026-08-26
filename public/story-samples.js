@@ -41,18 +41,22 @@ export function buildSampleWork(id) {
 
 function sampleRoad() {
   const goHome = 'b_home';
-  const stay = 'b_stay';
+  const mid = 'b_mid';
+  const leave = 'b_leave';
+  const station = 'b_station';
+  const choice2 = 'b_choice2';
   return {
     kind: 'story',
     orientation: 'portrait',
     imgQuality: 'standard',
     title: '样品·路边（无图）',
     cast: {},
+    logic: { state: { courage: 0, bond: 0 }, rules: {} },
     chapters: [{
       id: 'ch_road',
       title: '路灯',
       blocks: [
-        { id: uid(), type: 'scene', content: '【样品】还没有立绘。点积木「添加画面」就能变成视觉小说。先听两句台词。' },
+        { id: uid(), type: 'scene', content: '【样品】剧情变量 courage/bond。选项可带条件与效果——程序落账，AI 不选分支。' },
         { id: uid(), type: 'dialogue', speaker: '过路人', content: '这么晚还在改稿？' },
         { id: uid(), type: 'dialogue', speaker: '你', content: '先把字写完。图以后再贴。' },
         {
@@ -60,12 +64,24 @@ function sampleRoad() {
           type: 'choice',
           content: '路灯下，你要？',
           choices: [
-            { id: uid(), label: '先回家', jump: goHome },
-            { id: uid(), label: '再写一会儿', jump: stay },
+            { id: uid(), label: '先回家', jump: goHome, require: [], effect: [] },
+            { id: uid(), label: '再写一会儿（勇气+1）', jump: mid, require: [], effect: [{ var: 'courage', op: '+', val: 1 }] },
           ],
         },
-        { id: goHome, type: 'scene', content: '你收起稿纸。路灯嗡了一声。给上面几格配图、给角色配音即可。', terminal: true },
-        { id: stay, type: 'scene', content: '你又坐下。夜风有点凉，字倒是多了两行。', terminal: true },
+        { id: mid, type: 'scene', content: '你又坐下。夜风有点凉，字多了两行。顶栏应显示 courage:1。' },
+        {
+          id: choice2,
+          type: 'choice',
+          content: '要不要去废弃车站？',
+          choices: [
+            { id: uid(), label: '算了，离开', jump: leave, require: [], effect: [] },
+            { id: uid(), label: '调查车站', jump: station, require: [{ var: 'courage', op: '>=', val: 1 }], effect: [{ var: 'bond', op: '+', val: 1 }] },
+            { id: uid(), label: '强闯（需勇气≥5，应隐藏）', jump: station, require: [{ var: 'courage', op: '>=', val: 5 }], effect: [] },
+          ],
+        },
+        { id: goHome, type: 'scene', content: '你收起稿纸。路灯嗡了一声。', terminal: true },
+        { id: leave, type: 'scene', content: '你转身离开。车站的灯在背后闪了一下。', terminal: true },
+        { id: station, type: 'scene', content: '废弃车站。林月：「这里……有人来过。」沈烬：「怕了？」', terminal: true },
       ],
     }],
   };
