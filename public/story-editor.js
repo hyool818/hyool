@@ -121,7 +121,7 @@ const rpgUid = () => 'r_' + Date.now().toString(36) + Math.random().toString(36)
 
 let stories = normalizeStories(loadStories());
 let currentId = null;   // 当前打开的作品 id
-let selectedBlockId = null; // 本幕舞台选中的积木 id
+let selectedBlockId = null; // 当前选中积木（舞台预览 + 属性栏 + 底栏时间轴）
 let selectedFigureIdx = 0;  // 舞台当前操作的立绘下标（缩放/清除）
 let chapterId = null;   // 当前打开的章节 id
 let playFlat = [];      // 播放列表（跨章节展开后的积木）
@@ -137,7 +137,6 @@ let ttsCache = new Map();  // TTS 预合成缓存：key(story|block|voice|conten
 let ttsVoices = [];        // /api/tts/voices 列表缓存
 let selectedSfxId = null;  // 时间轴弹窗中当前选中的音效条目 id
 let studioRes = 'plot';    // 左侧资源树：plot | characters | world | assets | music | sfx | ai
-let selectedBlockId = null; // 当前选中积木（属性栏 + 底栏时间轴）
 let comicPageId = null;
 let selectedComicPanelId = null;
 let assetCatFilter = 'all'; // all | image | frame | music | sfx
@@ -1485,7 +1484,7 @@ function registerAsset(url, kind, category, name) {
   return item;
 }
 
-function removeAsset(id) {
+function removeStoryAsset(id) {
   const s = story();
   if (!s) return;
   s.assets = ensureAssets(s).filter(a => a.id !== id);
@@ -1878,7 +1877,7 @@ function renderAssetsPanel(host, categoryFilter) {
     del.className = 'btn tiny danger';
     del.style.cssText = 'position:absolute;top:4px;right:4px;padding:2px 5px;font-size:10px';
     del.textContent = '×';
-    del.addEventListener('click', (e) => { e.stopPropagation(); if (confirm('从作品素材库移除？（已引用的积木不会自动删）')) removeAsset(a.id); });
+    del.addEventListener('click', (e) => { e.stopPropagation(); if (confirm('从作品素材库移除？（已引用的积木不会自动删）')) removeStoryAsset(a.id); });
     card.style.position = 'relative';
     card.appendChild(del);
     grid.appendChild(card);
