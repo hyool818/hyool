@@ -1972,6 +1972,13 @@ body {
 </main>
 
 <nav class="bottom-nav" id="bottomNav" style="display:none;">
+    <a href="/my-vault" id="navVaultBtn" class="nav-vault-btn" style="display:none" title="我的云端素材">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 7h16v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"/>
+            <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+        </svg>
+        专属库
+    </a>
     <button id="navEditBtn" class="nav-edit-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 20h9"/>
@@ -2644,6 +2651,8 @@ function render() {
 
     if (state.isOwner) {
         document.getElementById("navEditBtn").addEventListener("click", openEditor);
+        const vaultBtn = document.getElementById("navVaultBtn");
+        if (vaultBtn) vaultBtn.style.display = "flex";
     }
 
     // 作品（角色 + 世界 + 故事作品）主人与访客都渲染：主人=全部，访客=公开作品
@@ -3242,6 +3251,10 @@ function renderStories() {
         html += `<a href="/story-editor" class="create-card">
             <div class="plus">+</div>
             <div class="label">创造作品</div>
+        </a>`;
+        html += `<a href="/my-vault" class="create-card">
+            <div class="plus">🗄</div>
+            <div class="label">专属库</div>
         </a>`;
     }
     html += visible.map(s => {

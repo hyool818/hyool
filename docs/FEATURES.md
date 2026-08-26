@@ -8,6 +8,7 @@
 |---|---|---|---|
 | 注册/登录/会话 | `public/yonder.html` | `/api/register` `/api/login` `/api/logout` `/api/me` | `src/index.js` |
 | 个人主页 | `public/yonder-home.html`（`/@username`） | `/api/profile/:username` `/api/yonder/*` | `src/index.js` |
+| 个人主页 · 专属库 | 同上（主人可见） | — | 作品库区「专属库」卡片 + 底栏入口 → `my-vault.html` |
 | 主页作品流 | 同上 | 主页组装含 `works.stories` | `src/index.js`（stories 查询） |
 | 我的彼岸 | `public/hub.html` `/hub` | `GET /api/hub`（角色列表，**不是** `/api/hub/`） | `src/mvp.js` |
 | 邀请码 | yonder / hub 管理 UI | `/api/invite-codes*` | `src/index.js`（仅用户 `333123`） |
