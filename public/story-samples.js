@@ -56,7 +56,7 @@ function sampleRoad() {
       id: 'ch_road',
       title: '路灯',
       blocks: [
-        { id: uid(), type: 'scene', content: '【样品】剧情变量 courage/bond。选项可带条件与效果——程序落账，AI 不选分支。' },
+        { id: uid(), type: 'scene', content: '【样品】剧情变量 courage/bond；去过的积木自动有 v_<id>=1。选项条件/效果程序落账，AI 不选分支。点「分支图」可看跳转。' },
         { id: uid(), type: 'dialogue', speaker: '过路人', content: '这么晚还在改稿？' },
         { id: uid(), type: 'dialogue', speaker: '你', content: '先把字写完。图以后再贴。' },
         {

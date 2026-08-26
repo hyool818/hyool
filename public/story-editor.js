@@ -27,6 +27,8 @@ import { EDITOR_SAMPLES, buildSampleWork } from '/story-samples.js';
 import { listAssets, addAsset, removeAsset, harvestFromStory } from '/story-assets.js';
 
 const SAVE_KEY = 'hyool_stories_v1'; // 本地缓存键（旧数据迁移源）
+const PLAY_SAVE_KEY = 'hyool_play_saves_v1'; // 播放中途存档（本机 3 槽）
+const PLAY_SAVE_SLOTS = 3;
 const TOKEN_KEY = 'hyool_token';
 const DEFAULT_SPEAKER = '角色名';
 const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 与后端 /api/upload 一致
@@ -304,7 +306,7 @@ function applyEffects(list) {
 }
 
 function formatPlayStateHud() {
-  const keys = Object.keys(playState);
+  const keys = Object.keys(playState).filter((k) => !k.startsWith('v_'));
   if (!keys.length) return '';
   return keys.map((k) => k + ':' + playState[k]).join(' · ');
 }
@@ -315,6 +317,20 @@ function updatePlayStateHud() {
   const text = formatPlayStateHud();
   el.textContent = text;
   el.classList.toggle('hidden', !text);
+}
+
+/** 访问标记：进入积木 → playState.v_<id>=1（不写回作品；可供 require） */
+function visitVarOf(blockId) {
+  const raw = String(blockId || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (!raw) return '';
+  return normalizeVarName(('v_' + raw).slice(0, 24));
+}
+
+function markVisited(block) {
+  if (!block || !block.id) return;
+  const key = visitVarOf(block.id);
+  if (!key) return;
+  playState[key] = 1;
 }
 
 function visibleChoices(block) {
@@ -336,6 +352,284 @@ function skipUnmetPerfBlocks() {
     }
     break;
   }
+}
+
+// ---------- 播放存档（本机 3 槽，对标 WebGAL/Kinexus） ----------
+function readAllPlaySaves() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PLAY_SAVE_KEY) || '{}');
+    return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  } catch (e) { return {}; }
+}
+
+function listPlaySlots(storyId) {
+  const sid = String(storyId || '');
+  const bag = (readAllPlaySaves()[sid] || []);
+  const list = Array.isArray(bag) ? bag : [];
+  return Array.from({ length: PLAY_SAVE_SLOTS }, (_, i) => {
+    const hit = list.find((x) => x && x.slot === i);
+    return hit || null;
+  });
+}
+
+function writePlaySlot(storyId, slot, payload) {
+  const sid = String(storyId || '');
+  if (!sid || slot < 0 || slot >= PLAY_SAVE_SLOTS) return false;
+  const all = readAllPlaySaves();
+  const next = listPlaySlots(sid).map((x, i) => (i === slot ? payload : x)).filter(Boolean);
+  all[sid] = next;
+  try {
+    localStorage.setItem(PLAY_SAVE_KEY, JSON.stringify(all));
+    return true;
+  } catch (e) {
+    toast('存档失败（本机存储已满？）', true);
+    return false;
+  }
+}
+
+function clearPlaySlot(storyId, slot) {
+  const sid = String(storyId || '');
+  const all = readAllPlaySaves();
+  all[sid] = listPlaySlots(sid).map((x, i) => (i === slot ? null : x)).filter(Boolean);
+  try { localStorage.setItem(PLAY_SAVE_KEY, JSON.stringify(all)); } catch (e) { /* ignore */ }
+}
+
+function playSaveLabel() {
+  const b = playFlat[playIdx];
+  if (!b) return '空';
+  const t = (b.type === 'choice' ? '选项' : b.type === 'dialogue' ? '对白' : b.type === 'perf' ? '演出' : b.type === 'scene' ? '场景' : b.type);
+  const bit = String(b.content || b.speaker || '').replace(/\s+/g, ' ').trim().slice(0, 28);
+  return t + (bit ? ' · ' + bit : '');
+}
+
+function openPlaySaveModal(mode) {
+  const s = story();
+  if (!s) return;
+  if (battle) { toast('战斗中请先结算再存读档', true); return; }
+  const isSave = mode === 'save';
+  openModal(isSave ? '存档（本机）' : '读档（本机）', (body) => {
+    const tip = document.createElement('div');
+    tip.style.cssText = 'font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px';
+    tip.textContent = isSave
+      ? '保存当前进度与变量到本机（不含云同步）。共 3 槽。'
+      : '读取后覆盖当前播放进度。战斗/卡牌关进行中不可用。';
+    body.appendChild(tip);
+    const slots = listPlaySlots(s.id);
+    slots.forEach((slot, i) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'btn wide';
+      row.style.cssText = 'display:block;text-align:left;margin-bottom:8px';
+      if (slot) {
+        const when = new Date(slot.at || 0).toLocaleString();
+        row.textContent = `槽 ${i + 1} · ${slot.label || '存档'} · ${when}`;
+      } else {
+        row.textContent = `槽 ${i + 1} · 空`;
+        if (!isSave) row.disabled = true;
+      }
+      row.addEventListener('click', () => {
+        if (isSave) {
+          const ok = writePlaySlot(s.id, i, {
+            slot: i,
+            at: Date.now(),
+            idx: playIdx,
+            state: { ...playState },
+            label: playSaveLabel(),
+          });
+          closeModal();
+          if (ok) toast('已存到槽 ' + (i + 1));
+        } else if (slot) {
+          closeModal();
+          applyPlaySave(slot);
+        }
+      });
+      body.appendChild(row);
+    });
+  }, null);
+}
+
+function applyPlaySave(slot) {
+  if (!slot || typeof slot !== 'object') return false;
+  playFlat = buildPlayFlat();
+  if (!playFlat.length) { toast('作品没有积木', true); return false; }
+  const idx = Math.max(0, Math.min(playFlat.length - 1, Number(slot.idx) || 0));
+  playIdx = idx;
+  playState = {};
+  const st = slot.state && typeof slot.state === 'object' ? slot.state : {};
+  Object.keys(st).forEach((k) => {
+    const key = normalizeVarName(k);
+    if (!key) return;
+    const n = Number(st[k]);
+    playState[key] = Number.isFinite(n) ? Math.max(-9999, Math.min(9999, Math.round(n))) : 0;
+  });
+  $('#playBody').innerHTML = '';
+  $('#playOverlay').classList.remove('hidden');
+  updatePlayStateHud();
+  renderPlay();
+  toast('已读档');
+  return true;
+}
+
+// ---------- 分支图（列表视图，对标 Tuesday/Kinexus） ----------
+function analyzeStoryGraph(s) {
+  const storyObj = s || story();
+  if (!storyObj) return { start: null, nodes: [], dead: 0, orphan: 0, choice: 0 };
+  const flat = [];
+  storyObj.chapters.forEach((ch) => {
+    (ch.blocks || []).forEach((b, i) => {
+      flat.push({
+        b,
+        ch,
+        nextId: (ch.blocks[i + 1] && ch.blocks[i + 1].id) || null,
+      });
+    });
+  });
+  const byId = new Map(flat.map((x) => [x.b.id, x]));
+  const outs = new Map();
+  flat.forEach(({ b, nextId, ch }) => {
+    const edges = [];
+    if (b.type === 'choice') {
+      normalizeChoiceBlock(b);
+      (b.choices || []).forEach((c) => {
+        const j = String(c.jump || 'next');
+        let to = null;
+        let end = false;
+        if (j === 'end') end = true;
+        else if (j === 'next') to = nextId;
+        else if (j.startsWith('ch:')) {
+          const cid = j.slice(3);
+          const tch = storyObj.chapters.find((x) => x.id === cid);
+          to = tch && tch.blocks && tch.blocks[0] ? tch.blocks[0].id : null;
+        } else to = j;
+        edges.push({ to, end, label: (c.label || '选项').slice(0, 24), broken: !!(to && !byId.has(to)) });
+      });
+    } else if (!b.terminal && nextId) {
+      edges.push({ to: nextId, end: false, label: '↓', broken: false });
+    } else if (b.terminal) {
+      edges.push({ to: null, end: true, label: '终', broken: false });
+    }
+    outs.set(b.id, edges);
+  });
+  const start = flat[0] ? flat[0].b.id : null;
+  const reach = new Set();
+  if (start) {
+    const q = [start];
+    reach.add(start);
+    while (q.length) {
+      const id = q.shift();
+      (outs.get(id) || []).forEach((e) => {
+        if (e.to && byId.has(e.to) && !reach.has(e.to)) {
+          reach.add(e.to);
+          q.push(e.to);
+        }
+      });
+    }
+  }
+  let dead = 0, orphan = 0, choice = 0;
+  const nodes = flat.map(({ b, ch }) => {
+    const edges = outs.get(b.id) || [];
+    const hasContinue = edges.some((e) => e.to && byId.has(e.to));
+    const isDead = !hasContinue;
+    const isOrphan = !!(start && b.id !== start && !reach.has(b.id));
+    if (isDead) dead++;
+    if (isOrphan) orphan++;
+    if (b.type === 'choice') choice++;
+    const preview = String(b.content || b.speaker || '').replace(/\s+/g, ' ').trim().slice(0, 48);
+    return {
+      id: b.id,
+      type: b.type,
+      chapterId: ch.id,
+      chapterTitle: ch.title,
+      preview,
+      visit: visitVarOf(b.id),
+      terminal: !!b.terminal,
+      dead: isDead,
+      orphan: isOrphan,
+      start: b.id === start,
+      edges,
+    };
+  });
+  return { start, nodes, dead, orphan, choice };
+}
+
+function openStoryMap() {
+  const s = story();
+  if (!s) return;
+  const g = analyzeStoryGraph(s);
+  const overlay = $('#mapOverlay');
+  const body = $('#mapBody');
+  const stats = $('#mapStats');
+  if (!overlay || !body) return;
+  stats.textContent = `${g.nodes.length} 积木 · ${g.choice} 选项 · ${g.dead} 死端 · ${g.orphan} 孤儿`;
+  body.innerHTML = '';
+  if (!g.nodes.length) {
+    body.textContent = '还没有积木。';
+    overlay.classList.remove('hidden');
+    return;
+  }
+  let lastCh = null;
+  g.nodes.forEach((n) => {
+    if (n.chapterTitle !== lastCh) {
+      lastCh = n.chapterTitle;
+      const h = document.createElement('div');
+      h.className = 'map-ch';
+      h.textContent = n.chapterTitle || '章节';
+      body.appendChild(h);
+    }
+    const row = document.createElement('div');
+    row.className = 'map-node' + (n.orphan ? ' orphan' : '') + (n.dead ? ' dead' : '');
+    const badges = document.createElement('div');
+    badges.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+    const typeLab = { scene: '场景', dialogue: '对白', choice: '选项', perf: '演出', battle: '战斗', rogue: '卡牌' };
+    const mkBadge = (text, cls) => {
+      const sp = document.createElement('span');
+      sp.className = 'mn-badge' + (cls ? ' ' + cls : '');
+      sp.textContent = text;
+      return sp;
+    };
+    badges.appendChild(mkBadge(typeLab[n.type] || n.type, n.type === 'choice' ? 'choice' : ''));
+    if (n.start) badges.appendChild(mkBadge('起点', 'start'));
+    if (n.dead) badges.appendChild(mkBadge(n.terminal ? '结局' : '死端', 'dead'));
+    if (n.orphan) badges.appendChild(mkBadge('孤儿', 'orphan'));
+    const mid = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'mn-title';
+    title.textContent = n.preview || ('（空）' + n.id);
+    const sub = document.createElement('div');
+    sub.className = 'mn-sub';
+    sub.textContent = n.id;
+    mid.append(title, sub);
+    if (n.edges.length) {
+      const ed = document.createElement('div');
+      ed.className = 'mn-edges';
+      ed.textContent = n.edges.map((e) => {
+        if (e.end) return '「' + e.label + '」→ 结束';
+        if (e.broken) return '「' + e.label + '」→ ⚠丢失';
+        if (e.to) return '「' + e.label + '」→ ' + e.to;
+        return '「' + e.label + '」';
+      }).join(' · ');
+      mid.appendChild(ed);
+    }
+    const right = document.createElement('div');
+    right.className = 'mn-visit';
+    right.textContent = n.visit || '';
+    right.title = '播放进入后可用作 require：' + (n.visit || '') + ' >= 1';
+    row.append(badges, mid, right);
+    row.addEventListener('click', () => {
+      chapterId = n.chapterId;
+      overlay.classList.add('hidden');
+      renderEditor();
+      const el = document.querySelector('[data-block-id="' + n.id + '"]');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('flash');
+        setTimeout(() => el.classList.remove('flash'), 1200);
+      }
+      toast('已定位到积木');
+    });
+    body.appendChild(row);
+  });
+  overlay.classList.remove('hidden');
 }
 // 保存：写本地缓存（离线兜底）+ 防抖上传云端（跨设备同步）
 function persist() {
@@ -1233,7 +1527,7 @@ function openChoiceEditor(b) {
     body.append(promptLab, prompt);
 
     const listLab = document.createElement('label');
-    listLab.textContent = '选项（最多 6 个）· 条件不满足则隐藏 · 点选后先落账再跳转';
+    listLab.textContent = '选项（最多 6 个）· 条件不满足则隐藏 · 点选后先落账再跳转 · 可用 v_<积木id>≥1 表示「去过」';
     body.appendChild(listLab);
     const list = document.createElement('div');
     list.style.cssText = 'display:flex;flex-direction:column;gap:12px';
@@ -1439,7 +1733,7 @@ function openLogicEditor() {
   openModal('剧情变量', (body) => {
     const tip = document.createElement('div');
     tip.style.cssText = 'font-size:12px;color:var(--muted);line-height:1.6';
-    tip.textContent = '声明作品变量与初始值。播放开始时拷贝；选项的条件/效果改的是播放中的副本，不写回作品。纯程序，无 AI。';
+    tip.textContent = '声明作品变量与初始值。播放开始时拷贝；选项的条件/效果改的是播放中的副本，不写回作品。纯程序，无 AI。进入过的积木会自动有 v_<积木id>=1（不必在此声明）。';
     body.appendChild(tip);
     const list = document.createElement('div');
     list.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:12px';
@@ -4156,6 +4450,7 @@ function renderPlay() {
   updatePlayStateHud();
   const body = $('#playBody');
   const b = playFlat[playIdx];
+  markVisited(b);
   const sPlay = story();
   // 卡牌RPG 分支：battle 幕 → 战斗视图（战前剧情并入战斗日志 → 自动战斗 → 胜败结算），不套用叙事画幅
   if (b.type === 'battle' && sPlay && sPlay.kind === 'card_rpg') {
@@ -4441,6 +4736,10 @@ function init() {
   $('#castBtn').addEventListener('click', openCastEditor);
   const logicBtn = $('#logicBtn');
   if (logicBtn) logicBtn.addEventListener('click', openLogicEditor);
+  const mapBtn = $('#mapBtn');
+  if (mapBtn) mapBtn.addEventListener('click', openStoryMap);
+  const mapExit = $('#mapExit');
+  if (mapExit) mapExit.addEventListener('click', () => { const o = $('#mapOverlay'); if (o) o.classList.add('hidden'); });
   const assetsBtn = $('#assetsBtn');
   if (assetsBtn) assetsBtn.addEventListener('click', () => openAssetLibrary(null));
   $('#addBlockBtn').addEventListener('click', openAddPicker);
@@ -4455,6 +4754,10 @@ function init() {
     });
   });
   $('#playExit').addEventListener('click', stopPlay);
+  const playSaveBtn = $('#playSaveBtn');
+  if (playSaveBtn) playSaveBtn.addEventListener('click', () => openPlaySaveModal('save'));
+  const playLoadBtn = $('#playLoadBtn');
+  if (playLoadBtn) playLoadBtn.addEventListener('click', () => openPlaySaveModal('load'));
   $('#playNext').addEventListener('click', playNext);
   $('#playPrev').addEventListener('click', playPrev);
   $('#modalCancel').addEventListener('click', closeModal);
@@ -4709,6 +5012,28 @@ window.StoryEditor = {
   },
   startPlay,
   stopPlay,
+  openStoryMap,
+  analyzeStoryGraph: () => analyzeStoryGraph(story()),
+  visitVarOf,
+  listPlaySlots: () => { const s = story(); return s ? listPlaySlots(s.id) : []; },
+  savePlaySlot: (slot) => {
+    const s = story();
+    if (!s || battle) return false;
+    return writePlaySlot(s.id, Number(slot) || 0, {
+      slot: Number(slot) || 0,
+      at: Date.now(),
+      idx: playIdx,
+      state: { ...playState },
+      label: playSaveLabel(),
+    });
+  },
+  loadPlaySlot: (slot) => {
+    const s = story();
+    if (!s) return false;
+    const hit = listPlaySlots(s.id)[Number(slot) || 0];
+    if (!hit) return false;
+    return applyPlaySave(hit);
+  },
   play: () => ({
     idx: playIdx, total: playFlat.length,
     orientation: (story() || {}).orientation || 'landscape',
@@ -4716,6 +5041,7 @@ window.StoryEditor = {
     state: { ...playState },
     current: playFlat[playIdx] ? {
       type: playFlat[playIdx].type, speaker: playFlat[playIdx].speaker || '', content: playFlat[playIdx].content,
+      visit: visitVarOf(playFlat[playIdx].id),
       choices: playFlat[playIdx].type === 'choice'
         ? visibleChoices(playFlat[playIdx]).map(c => ({ id: c.id, label: c.label, jump: c.jump, require: c.require, effect: c.effect }))
         : undefined,

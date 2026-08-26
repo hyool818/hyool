@@ -172,8 +172,34 @@ textarea.txt{min-height:120px;resize:vertical}
   border-bottom:1px solid var(--line);background:rgba(5,5,10,.7)}
 .play-head .ph-progress{font-size:12px;color:var(--accent2);font-variant-numeric:tabular-nums}
 .play-head .ph-chapter{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.play-head .ph-vars{font-size:11px;color:#9decc0;font-variant-numeric:tabular-nums;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.play-head .ph-vars{font-size:11px;color:#9decc0;font-variant-numeric:tabular-nums;max-width:36%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .play-head .spacer{flex:1 1 auto}
+.play-head .ph-save-btns{display:flex;gap:6px;flex-wrap:wrap}
+/* 分支图（对标 Tuesday/Kinexus 故事地图，列表非节点画布） */
+.map-overlay{position:fixed;inset:0;z-index:88;display:flex;flex-direction:column;
+  background:radial-gradient(900px 500px at 20% 0%,rgba(125,211,168,.08),transparent 55%),var(--bg)}
+.map-head{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:12px 22px;
+  border-bottom:1px solid var(--line);background:rgba(5,5,10,.75)}
+.map-head .mh-title{font-size:14px;font-weight:600}
+.map-head .mh-stats{font-size:11px;color:var(--muted)}
+.map-head .spacer{flex:1}
+.map-body{flex:1;overflow:auto;padding:16px 18px 28px;display:flex;flex-direction:column;gap:10px}
+.map-ch{font-size:11px;letter-spacing:.08em;color:var(--accent2);margin:8px 0 4px;text-transform:uppercase}
+.map-node{display:grid;grid-template-columns:auto 1fr auto;gap:10px 12px;align-items:start;
+  padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(16,16,28,.7);cursor:pointer}
+.map-node:hover{border-color:rgba(139,123,255,.45)}
+.map-node.orphan{border-color:rgba(232,120,120,.45);background:rgba(40,16,16,.45)}
+.map-node.dead{border-style:dashed}
+.map-node .mn-badge{font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.map-node .mn-badge.start{color:#9decc0;border-color:rgba(125,211,168,.4)}
+.map-node .mn-badge.dead{color:#e8c56a;border-color:rgba(232,197,106,.4)}
+.map-node .mn-badge.orphan{color:#f0a0a0;border-color:rgba(232,120,120,.4)}
+.map-node .mn-badge.choice{color:#a8c8ff;border-color:rgba(139,123,255,.4)}
+.map-node .mn-title{font-size:13px;font-weight:600;line-height:1.4}
+.map-node .mn-sub{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5;word-break:break-word}
+.map-node .mn-edges{font-size:11px;color:#9decc0;margin-top:6px;line-height:1.6}
+.map-node .mn-visit{font-size:10px;color:var(--muted);font-family:ui-monospace,monospace}
+.block.flash{outline:2px solid var(--accent2);box-shadow:0 0 0 4px rgba(139,123,255,.25)}
 .play-body{position:relative;z-index:2;flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:24px;overflow-y:auto}
 /* 播放对白框 = 底部「聊天框」：全宽贴底、半透明深色底、文字左对齐；字号/文字颜色可自定义 */
@@ -648,6 +674,7 @@ textarea.txt{min-height:120px;resize:vertical}
       <span class="ch-title" id="chapterTitle"></span>
       <span class="ch-count" id="chapterCount"></span>
       <span style="flex:1"></span>
+      <button class="btn small ghost" id="mapBtn" title="查看跳转、死端与孤儿积木">🗺 分支图</button>
       <button class="btn small ghost" id="bgmBtn">🎵 BGM</button>
       <button class="btn small ghost" id="renameChapterBtn">重命名</button>
       <button class="btn small primary" id="playBtnInline" title="与顶栏播放相同">▶ 试玩</button>
@@ -670,8 +697,12 @@ textarea.txt{min-height:120px;resize:vertical}
   <div class="play-head">
     <span class="ph-progress" id="playProgress"></span>
     <span class="ph-chapter" id="playChapter"></span>
-    <span class="ph-vars hidden" id="playVars" title="剧情变量（播放中）"></span>
+    <span class="ph-vars hidden" id="playVars" title="剧情变量（播放中；访问标记 v_* 不在此显示）"></span>
     <span class="spacer"></span>
+    <span class="ph-save-btns">
+      <button class="btn small ghost" id="playSaveBtn" title="本机 3 槽存档">💾 存档</button>
+      <button class="btn small ghost" id="playLoadBtn" title="读取本机存档">📂 读档</button>
+    </span>
     <button class="btn small ghost" id="playExit">✕ 退出</button>
   </div>
   <div class="play-body" id="playBody"></div>
@@ -680,6 +711,17 @@ textarea.txt{min-height:120px;resize:vertical}
     <span class="pn-count" id="playCount"></span>
     <button class="btn primary" id="playNext">下一条 →</button>
   </div>
+</div>
+
+<!-- ============ 分支图 ============ -->
+<div class="map-overlay hidden" id="mapOverlay">
+  <div class="map-head">
+    <span class="mh-title">分支图</span>
+    <span class="mh-stats" id="mapStats"></span>
+    <span class="spacer"></span>
+    <button class="btn small ghost" id="mapExit">✕ 关闭</button>
+  </div>
+  <div class="map-body" id="mapBody"></div>
 </div>
 
 <!-- ============ 通用弹窗 ============ -->

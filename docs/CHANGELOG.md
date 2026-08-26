@@ -4,6 +4,7 @@
 
 ## 2026-08-26
 
+- **分支图 + 播放存档 + 访问标记**：编辑器「分支图」标死端/孤儿/跳转；播放 3 槽本机存读档；进入积木自动 `v_<id>=1` 供 require。对标 Tuesday/Kinexus/WebGAL 强项（不迁引擎）。
 - **表现层 perf 积木**：预设台词；`require` 不满足则跳过；可选「临场一句」`POST /api/hub/live-line`（失败回退预设，不改剧情）。
 - **剧情变量 + 选项条件/效果**：`logic.state`；选项 `require`（隐藏）/`effect`（落账）；播放顶栏显示变量；样品「路边」可演示车站支线。零 LLM。
 - **定案：作品三层模型** — 逻辑程序控 / 剧情作者控 / 表现 AI 可选；AI 不决定剧情。写入 `MASTER_SPEC` / `ARCHITECTURE` / `editor-vision`。

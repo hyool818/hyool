@@ -78,6 +78,28 @@ const win = () => $('se').contentWindow;
     ok('D3 退出播放 overlay 隐藏', seWin3.document.getElementById('playOverlay').classList.contains('hidden'));
     ok('D4 owner 退出播放回编辑器', !seWin3.document.getElementById('viewEditor').classList.contains('hidden'));
 
+    // D5. 分支图 + 访问标记 + 本机存档
+    seWin3.StoryEditor.open(newStory.id);
+    await wait(400);
+    const g = seWin3.StoryEditor.analyzeStoryGraph();
+    ok('D5a 分支图有节点', !!(g && g.nodes && g.nodes.length >= 1), 'nodes=' + (g && g.nodes && g.nodes.length));
+    seWin3.StoryEditor.startPlay();
+    await wait(500);
+    const snap = seWin3.StoryEditor.play();
+    ok('D5b 访问标记 v_*', !!(snap && snap.state && snap.current && snap.state[snap.current.visit] === 1), snap && snap.current && snap.current.visit);
+    ok('D5c 存档槽0', !!seWin3.StoryEditor.savePlaySlot(0));
+    seWin3.StoryEditor.playNext();
+    await wait(200);
+    const idxAfter = seWin3.StoryEditor.play().idx;
+    ok('D5d 读档回槽0', !!seWin3.StoryEditor.loadPlaySlot(0));
+    await wait(300);
+    ok('D5e 读档后 idx 恢复', seWin3.StoryEditor.play().idx === snap.idx, 'was ' + idxAfter + ' now ' + seWin3.StoryEditor.play().idx);
+    seWin3.StoryEditor.stopPlay();
+    seWin3.StoryEditor.openStoryMap();
+    await wait(200);
+    ok('D5f 分支图 overlay', !seWin3.document.getElementById('mapOverlay').classList.contains('hidden'));
+    seWin3.document.getElementById('mapExit').click();
+
     // E. 清理：删除刚创建的作品（走 DELETE API）
     const del = await fetch('/api/stories/' + encodeURIComponent(newStory.id) + '/delete', { method: 'POST', headers: { Authorization: 'Bearer ' + ld.token } });
     const dd = await del.json();

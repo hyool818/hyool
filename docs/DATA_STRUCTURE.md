@@ -45,10 +45,11 @@
 }
 ```
 
-积木常见字段：`id` `type` `content` `speaker` `media` `audio` `subtitle` `sfxList`；`type==="choice"` 另有 `choices:[{id,label,jump,require?,effect?}]`；`type==="perf"` 为表现层（`require` 不满足则跳过；`live` 可选临场一句，失败回退预设）；`terminal:true` 播完即结束；作品级 `logic.state` 为变量初值。`type==="battle"` / `rogue` 见卡牌段。
+积木常见字段：`id` `type` `content` `speaker` `media` `audio` `subtitle` `sfxList`；`type==="choice"` 另有 `choices:[{id,label,jump,require?,effect?}]`；`type==="perf"` 为表现层（`require` 不满足则跳过；`live` 可选临场一句，失败回退预设）；`terminal:true` 播完即结束；作品级 `logic.state` 为变量初值。播放进入积木时自动写 `playState["v_"+积木id规范化]=1`（不写回作品；可用作选项 require）。`type==="battle"` / `rogue` 见卡牌段。
 
 前端缓存键：`localStorage.hyool_stories_v1`（离线 + 旧数据迁移，权威在云端）。
 素材库键：`localStorage.hyool_assets_v1`（本机 URL 引用目录，非服务端素材库）。
+播放存档键：`localStorage.hyool_play_saves_v1`（按作品 id · 3 槽 · 仅本机：`idx` + `playState`）。
 
 ## Companion / 世界状态
 
