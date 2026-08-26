@@ -3426,6 +3426,8 @@ function stopPlay() {
   battle = null; // 退出播放：清掉卡牌战斗状态
   const nav = $('#playNav');
   if (nav) nav.classList.remove('hidden');
+  const nextBtn = $('#playNext');
+  if (nextBtn) nextBtn.textContent = '下一条 →';
   $('#playBody').innerHTML = ''; // 清空画幅残留，避免下次播放叠加旧帧
   $('#playOverlay').classList.add('hidden');
   // 只读直达播放（个人主页 / 广场游客浏览已发布作品）：退出播放后回到作品库
