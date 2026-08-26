@@ -4,6 +4,7 @@
 
 ## 2026-08-26
 
+- **定案：作品三层模型** — 逻辑程序控 / 剧情作者控 / 表现 AI 可选；AI 不决定剧情。写入 `MASTER_SPEC` / `ARCHITECTURE` / `editor-vision`。
 - **AI 中枢前端**：`brain.html` 一句话 → 企划人审 → 生成画面+配音或只导入文字骨架 → 写入作品编辑器；幻想页入口；`composeStoryJSON` 输出真实 `choice` 积木。
 - **作品素材库**：本机 `hyool_assets_v1` 只存 URL 引用；侧栏管理 + 积木从库选用；上传自动入库。
 
