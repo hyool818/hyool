@@ -9,7 +9,7 @@ export const EDITOR_SAMPLES = [
     id: 'road',
     kind: 'story',
     title: '样品·路边（无图）',
-    blurb: '互动小说：场景 + 对白。结构像 Twine 过场。立绘空着，加上画面就能当视觉小说。',
+    blurb: '互动小说：场景 + 对白 + 选项分支。结构像 Twine 过场。立绘空着，加上画面就能当视觉小说。',
   },
   {
     id: 'dungeon',
@@ -40,6 +40,8 @@ export function buildSampleWork(id) {
 }
 
 function sampleRoad() {
+  const goHome = 'b_home';
+  const stay = 'b_stay';
   return {
     kind: 'story',
     orientation: 'portrait',
@@ -53,7 +55,17 @@ function sampleRoad() {
         { id: uid(), type: 'scene', content: '【样品】还没有立绘。点积木「添加画面」就能变成视觉小说。先听两句台词。' },
         { id: uid(), type: 'dialogue', speaker: '过路人', content: '这么晚还在改稿？' },
         { id: uid(), type: 'dialogue', speaker: '你', content: '先把字写完。图以后再贴。' },
-        { id: uid(), type: 'scene', content: '路灯嗡了一声。到此为止。给上面几格配图、给角色配音即可。' },
+        {
+          id: uid(),
+          type: 'choice',
+          content: '路灯下，你要？',
+          choices: [
+            { id: uid(), label: '先回家', jump: goHome },
+            { id: uid(), label: '再写一会儿', jump: stay },
+          ],
+        },
+        { id: goHome, type: 'scene', content: '你收起稿纸。路灯嗡了一声。给上面几格配图、给角色配音即可。', terminal: true },
+        { id: stay, type: 'scene', content: '你又坐下。夜风有点凉，字倒是多了两行。', terminal: true },
       ],
     }],
   };

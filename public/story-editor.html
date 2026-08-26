@@ -86,6 +86,7 @@ textarea.txt{min-height:120px;resize:vertical}
 .block.dragging{opacity:.45}
 .block.scene{border-left:3px solid var(--accent2)}
 .block.dialogue{border-left:3px solid var(--accent)}
+.block.choice{border-left:3px solid #7dd3a8}
 .block.battle,.block.rogue{border-left:3px solid #e8a45c}
 .block-handle{grid-row:1 / span 3;align-self:stretch;display:flex;align-items:center;justify-content:center;
   cursor:grab;color:#6a6a7c;font-size:14px;user-select:none;border-radius:8px}
@@ -182,6 +183,19 @@ textarea.txt{min-height:120px;resize:vertical}
 .play-dialogue .pd-speaker{font-size:clamp(18px,3vw,26px);font-weight:700;color:var(--accent);
   margin-bottom:4px;letter-spacing:.08em}
 .play-dialogue .pd-line{font-size:clamp(15px,2.4vw,19px);line-height:1.8;color:#e8e8f0;white-space:pre-wrap;word-break:break-word}
+/* 播放：选项幕（互动分支）—— 底部提示 + 可点选项，点选后跳转 */
+.play-choice{position:absolute;left:0;right:0;bottom:0;text-align:left;pointer-events:auto;
+  background:linear-gradient(180deg,rgba(16,16,32,.88),rgba(7,7,16,.96));
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-top:1px solid rgba(125,211,168,.28);border-radius:14px 14px 0 0;
+  padding:14px 18px 18px;box-shadow:0 -14px 42px rgba(0,0,0,.5)}
+.play-choice .pc-prompt{font-size:clamp(15px,2.4vw,18px);line-height:1.7;color:#e8e8f0;margin-bottom:10px;white-space:pre-wrap}
+.play-choice .pc-opts{display:flex;flex-direction:column;gap:8px}
+.play-choice .pc-opt{display:block;width:100%;text-align:left;border:1px solid rgba(125,211,168,.4);
+  background:rgba(20,36,28,.85);color:#e8f5ee;border-radius:10px;padding:12px 14px;
+  font-size:clamp(14px,2.2vw,16px);line-height:1.5;cursor:pointer;transition:.15s}
+.play-choice .pc-opt:hover,.play-choice .pc-opt:focus{border-color:#7dd3a8;background:rgba(36,64,48,.95);outline:none}
+.play-choice .pc-opt:active{transform:scale(.99)}
 
 /* 播放：画幅容器 + 视觉素材背景 + 前景文字 */
 /* 画幅容器：横屏铺满播放区；竖屏（9:16）时按比例居中收窄，两侧留黑，不再全屏拉伸裁剪 */
@@ -636,6 +650,7 @@ textarea.txt{min-height:120px;resize:vertical}
     <div class="add-chip-bar" id="addChipBar">
       <button type="button" class="add-chip primary" data-add="dialogue">＋ 加对白</button>
       <button type="button" class="add-chip" data-add="scene">＋ 加场景</button>
+      <button type="button" class="add-chip" data-add="choice">＋ 加选项</button>
       <button type="button" class="add-chip hidden" data-add="battle" id="chipBattle">＋ 加战斗</button>
       <button type="button" class="add-chip hidden" data-add="rogue" id="chipRogue">＋ 加卡牌关</button>
       <button type="button" class="add-chip" id="addBlockBtn">更多…</button>

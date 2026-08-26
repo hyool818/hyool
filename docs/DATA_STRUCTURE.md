@@ -45,7 +45,7 @@
 }
 ```
 
-积木常见字段：`id` `type` `content` `speaker` `media` `audio` `subtitle` `sfxList`；`type==="battle"` 另有 `enemies` `party` `winContent` `loseContent`；`type==="rogue"` 为肉鸽入口。
+积木常见字段：`id` `type` `content` `speaker` `media` `audio` `subtitle` `sfxList`；`type==="choice"` 另有 `choices:[{id,label,jump}]`（`jump`=`next`|`end`|积木id|`ch:`+章节id）；`terminal:true` 表示播完即结束（分支结局用）；`type==="battle"` 另有 `enemies` `party` `winContent` `loseContent`；`type==="rogue"` 为肉鸽入口。
 
 前端缓存键：`localStorage.hyool_stories_v1`（离线 + 旧数据迁移，权威在云端）。
 

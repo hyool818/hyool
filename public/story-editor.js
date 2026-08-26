@@ -175,10 +175,28 @@ function normalizeStories(arr) {
           if (typeof b.winContent !== 'string') b.winContent = '';
           if (typeof b.loseContent !== 'string') b.loseContent = '';
         }
+        // 选项积木（互动小说分支）：提示 + 若干跳转选项
+        if (b.type === 'choice') normalizeChoiceBlock(b);
       });
     });
   });
   return arr;
+}
+
+function normalizeChoiceBlock(b) {
+  if (typeof b.content !== 'string') b.content = '';
+  if (!Array.isArray(b.choices)) b.choices = [];
+  b.choices = b.choices.filter(c => c && (c.label != null || c.jump != null)).map(c => ({
+    id: c.id || uid(),
+    label: String(c.label == null ? '' : c.label).trim().slice(0, 40) || '选项',
+    jump: String(c.jump || 'next').slice(0, 96),
+  }));
+  if (!b.choices.length) {
+    b.choices = [
+      { id: uid(), label: '继续', jump: 'next' },
+      { id: uid(), label: '结束', jump: 'end' },
+    ];
+  }
 }
 // 保存：写本地缓存（离线兜底）+ 防抖上传云端（跨设备同步）
 function persist() {
@@ -655,7 +673,7 @@ function renderBlocks() {
   if (!ch.blocks.length) {
     const d = document.createElement('div');
     d.className = 'block-empty';
-    d.textContent = '这一章还是空的。\n点下方「＋ 加对白 / 加场景」，或把图片拖进这里。';
+    d.textContent = '这一章还是空的。\n点下方「＋ 加对白 / 加场景 / 加选项」，或把图片拖进这里。';
     host.appendChild(d);
     return;
   }
@@ -705,7 +723,9 @@ function renderBlocks() {
     idx.textContent = String(i + 1);
     const tagLabel = document.createElement('div');
     tagLabel.className = 'bt-label';
-    tagLabel.textContent = b.type === 'scene' ? '场景' : (b.type === 'battle' ? '战斗' : (b.type === 'rogue' ? '卡牌' : '对白'));
+    tagLabel.textContent = b.type === 'scene' ? '场景'
+      : (b.type === 'choice' ? '选项'
+        : (b.type === 'battle' ? '战斗' : (b.type === 'rogue' ? '卡牌' : '对白')));
     tag.append(idx, tagLabel);
     if (b.type === 'dialogue') {
       const sp = document.createElement('div');
@@ -721,12 +741,18 @@ function renderBlocks() {
     } else {
       const text = document.createElement('div');
       text.className = 'block-text';
-      const displayText = formatDialogue(b);
-      if (!displayText.trim()) {
-        text.classList.add('empty');
-        text.textContent = b.type === 'scene' ? '（点这里写场景文字）' : (b.type === 'battle' ? '（点「编辑战斗」设本场）' : (b.type === 'rogue' ? '（卡牌关：工作室配好后试玩）' : '（点这里写对白）'));
+      if (b.type === 'choice') {
+        const prompt = (b.content || '').trim();
+        const labels = (b.choices || []).map(c => c.label).filter(Boolean);
+        text.textContent = (prompt || '（点「编辑选项」写提示）') + (labels.length ? '\n→ ' + labels.join(' / ') : '');
       } else {
-        text.textContent = displayText;
+        const displayText = formatDialogue(b);
+        if (!displayText.trim()) {
+          text.classList.add('empty');
+          text.textContent = b.type === 'scene' ? '（点这里写场景文字）' : (b.type === 'battle' ? '（点「编辑战斗」设本场）' : (b.type === 'rogue' ? '（卡牌关：工作室配好后试玩）' : '（点这里写对白）'));
+        } else {
+          text.textContent = displayText;
+        }
       }
       if (b.type === 'dialogue' || b.type === 'scene') {
         text.title = '点击直接改字';
@@ -745,6 +771,12 @@ function renderBlocks() {
         const sub = document.createElement('div');
         sub.className = 'block-sub';
         sub.textContent = cardGuideText(story() || {}).line;
+        main.appendChild(sub);
+      }
+      if (b.type === 'choice') {
+        const sub = document.createElement('div');
+        sub.className = 'block-sub';
+        sub.textContent = '🔀 播放时点选跳转 · ' + ((b.choices || []).length || 0) + ' 个选项';
         main.appendChild(sub);
       }
     }
@@ -766,6 +798,8 @@ function renderBlocks() {
       mkBtn('字号色', '字号/颜色等高级项', () => openSubtitleEditor(b));
     } else if (b.type === 'scene') {
       mkBtn('字号色', '字号/颜色等高级项', () => openSubtitleEditor(b));
+    } else if (b.type === 'choice') {
+      mkBtn('编辑选项', '编辑提示与跳转', () => openChoiceEditor(b));
     } else if (b.type === 'battle') {
       mkBtn('编辑', '编辑战斗', () => openBattleEditor(b));
       mkBtn('试玩', '试玩本场', () => previewBattle(b));
@@ -900,6 +934,13 @@ function addBlock(type) {
   if (!ch) return;
   const block = { id: uid(), type, content: type === 'scene' ? '' : '在这里写下对白……' };
   if (type === 'dialogue') block.speaker = DEFAULT_SPEAKER;
+  if (type === 'choice') {
+    block.content = '你要怎么做？';
+    block.choices = [
+      { id: uid(), label: '继续往前', jump: 'next' },
+      { id: uid(), label: '到此结束', jump: 'end' },
+    ];
+  }
   if (type === 'battle') {
     block.content = '';
     block.party = [];
@@ -916,6 +957,7 @@ function addBlock(type) {
   persist();
   renderBlocks();
   if (type === 'battle') openBattleEditor(block);
+  else if (type === 'choice') openChoiceEditor(block);
   else if (type !== 'rogue') openSubtitleEditor(block);
 }
 
@@ -942,6 +984,7 @@ function openAddPicker() {
     };
     mk('scene', '🏙️', '场景', '交代地点与氛围的一段描述');
     mk('dialogue', '💬', '对白', '角色说出的一句话');
+    mk('choice', '🔀', '选项', '播放时让读者点选，跳到指定积木或章节');
     if (story() && story().kind === 'card_rpg') {
       mk('battle', '⚔️', '卡牌战斗', '插一场自动角色战斗（角色卡进入战斗自动攻击敌人）');
     }
@@ -950,6 +993,140 @@ function openAddPicker() {
     }
     body.appendChild(row);
   }, null);
+}
+
+/** 选项积木编辑：提示文案 + 若干「文案 → 跳转目标」 */
+function openChoiceEditor(b) {
+  normalizeChoiceBlock(b);
+  openModal('编辑选项', (body) => {
+    const promptLab = document.createElement('label');
+    promptLab.textContent = '提示（显示在选项上方）';
+    const prompt = document.createElement('textarea');
+    prompt.className = 'txt';
+    prompt.rows = 2;
+    prompt.value = b.content || '';
+    prompt.placeholder = '例如：你要怎么做？';
+    body.append(promptLab, prompt);
+
+    const listLab = document.createElement('label');
+    listLab.textContent = '选项（最多 6 个）';
+    body.appendChild(listLab);
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '10px';
+    body.appendChild(list);
+
+    const draft = (b.choices || []).map(c => ({ id: c.id || uid(), label: c.label, jump: c.jump || 'next' }));
+    if (!draft.length) draft.push({ id: uid(), label: '继续', jump: 'next' });
+
+    const jumpOptions = buildChoiceJumpOptions(b.id);
+
+    const renderRows = () => {
+      list.innerHTML = '';
+      draft.forEach((c, i) => {
+        const row = document.createElement('div');
+        row.style.display = 'grid';
+        row.style.gridTemplateColumns = '1fr 1fr auto';
+        row.style.gap = '8px';
+        row.style.alignItems = 'center';
+        const lab = document.createElement('input');
+        lab.className = 'txt';
+        lab.placeholder = '选项文案';
+        lab.value = c.label || '';
+        lab.maxLength = 40;
+        lab.addEventListener('input', () => { c.label = lab.value; });
+        const sel = document.createElement('select');
+        sel.className = 'txt';
+        jumpOptions.forEach(o => {
+          const opt = document.createElement('option');
+          opt.value = o.value;
+          opt.textContent = o.label;
+          sel.appendChild(opt);
+        });
+        // 若目标已失效，仍保留原值便于用户看见并改
+        if (c.jump && ![...sel.options].some(o => o.value === c.jump)) {
+          const opt = document.createElement('option');
+          opt.value = c.jump;
+          opt.textContent = '（已失效）' + c.jump;
+          sel.appendChild(opt);
+        }
+        sel.value = c.jump || 'next';
+        sel.addEventListener('change', () => { c.jump = sel.value; });
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'btn tiny danger';
+        rm.textContent = '删';
+        rm.disabled = draft.length <= 1;
+        rm.addEventListener('click', () => {
+          if (draft.length <= 1) return;
+          draft.splice(i, 1);
+          renderRows();
+        });
+        row.append(lab, sel, rm);
+        list.appendChild(row);
+      });
+    };
+    renderRows();
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'btn small';
+    addBtn.textContent = '＋ 加一个选项';
+    addBtn.addEventListener('click', () => {
+      if (draft.length >= 6) { toast('最多 6 个选项', true); return; }
+      draft.push({ id: uid(), label: '新选项', jump: 'next' });
+      renderRows();
+    });
+    body.appendChild(addBtn);
+
+    const tip = document.createElement('div');
+    tip.className = 'hint';
+    tip.style.fontSize = '12px';
+    tip.style.color = 'var(--muted)';
+    tip.textContent = '跳转到某积木：读者点选后从那一块继续播。目标积木可在选项块后面再加。';
+    body.appendChild(tip);
+
+    // 把保存逻辑挂到 modalOk：由外层 openModal 的 ok 回调执行
+    body.dataset.choiceSave = '1';
+    body._choiceSave = () => {
+      b.content = prompt.value.trim().slice(0, 200);
+      b.choices = draft.map(c => ({
+        id: c.id || uid(),
+        label: String(c.label || '').trim().slice(0, 40) || '选项',
+        jump: String(c.jump || 'next').slice(0, 96),
+      }));
+      normalizeChoiceBlock(b);
+      persist();
+      renderBlocks();
+    };
+  }, () => {
+    const body = $('#modalBody');
+    if (body && typeof body._choiceSave === 'function') body._choiceSave();
+  });
+}
+
+/** 选项跳转目标列表：下一块 / 结束 / 各积木 / 各章节开头 */
+function buildChoiceJumpOptions(selfBlockId) {
+  const opts = [
+    { value: 'next', label: '下一块（时间线继续）' },
+    { value: 'end', label: '结束试玩' },
+  ];
+  const s = story();
+  if (!s) return opts;
+  (s.chapters || []).forEach((ch, ci) => {
+    opts.push({ value: 'ch:' + ch.id, label: `章节开头 · ${ch.title || ('第' + (ci + 1) + '章')}` });
+    (ch.blocks || []).forEach((bl, bi) => {
+      if (bl.id === selfBlockId) return;
+      const kind = bl.type === 'scene' ? '场景' : (bl.type === 'choice' ? '选项' : (bl.type === 'battle' ? '战斗' : (bl.type === 'rogue' ? '卡牌' : '对白')));
+      const snippet = String(bl.type === 'dialogue' ? ((bl.speaker || '') + ' ' + (bl.content || '')) : (bl.content || '')).replace(/\s+/g, ' ').trim().slice(0, 18);
+      opts.push({
+        value: bl.id,
+        label: `积木 · ${ch.title || ''} #${bi + 1} ${kind}${snippet ? ' · ' + snippet : ''}`,
+      });
+    });
+  });
+  return opts;
 }
 
 function moveBlock(i, dir) {
@@ -3395,9 +3572,41 @@ function renderPlay() {
   } else {
     overlay.classList.remove('has-media');
   }
-  // 前景文字/对白（点击 → 下一幕）
+  // 前景文字/对白/选项（点击 → 下一幕；选项幕须点选跳转）
   const fore = document.createElement('div');
   fore.className = 'play-fore';
+  if (b.type === 'choice') {
+    normalizeChoiceBlock(b);
+    fore.classList.add('dlg-fore');
+    // 选项幕：不点空白推进，必须点选项
+    const box = document.createElement('div');
+    box.className = 'play-choice';
+    const prompt = document.createElement('div');
+    prompt.className = 'pc-prompt';
+    prompt.textContent = (b.content || '').trim() || '请选择：';
+    const opts = document.createElement('div');
+    opts.className = 'pc-opts';
+    (b.choices || []).forEach((c, ci) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pc-opt';
+      btn.textContent = c.label || ('选项 ' + (ci + 1));
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        jumpPlayTo(c.jump || 'next');
+      });
+      opts.appendChild(btn);
+    });
+    box.append(prompt, opts);
+    fore.appendChild(box);
+    frame.appendChild(fore);
+    body.appendChild(frame);
+    $('#playPrev').disabled = playIdx === 0;
+    $('#playNext').disabled = true; // 选项幕禁止「下一条」直线跳过
+    $('#playNext').textContent = '下一条 →';
+    playSfxListForBlock(b);
+    return;
+  }
   fore.addEventListener('click', playNext);
   if (b.type === 'scene') {
     // 场景幕：fore 退化为全屏透明点击区（整幅画面点击推进下一幕），无「点击文字进入下一条」提示、无玻璃卡片背景；
@@ -3440,7 +3649,13 @@ function renderPlay() {
   }
   body.appendChild(frame);
   $('#playPrev').disabled = playIdx === 0;
-  $('#playNext').disabled = playIdx >= playFlat.length - 1;
+  if (b && b.terminal) {
+    $('#playNext').disabled = false;
+    $('#playNext').textContent = '结束 ✓';
+  } else {
+    $('#playNext').disabled = playIdx >= playFlat.length - 1;
+    $('#playNext').textContent = '下一条 →';
+  }
   // 配音：积木配音 > 角色声音表（AI 音色 / 手动音频），都无则静音；播放失败不影响点击推进
   playVoiceForBlock(b);
   // 音效轨：按 sfxList 调度（offsetMs 延迟触发、loop 持续到切幕、多轨叠加）
@@ -3458,8 +3673,51 @@ function renderPlay() {
     }
   }
 }
-function playNext() { if (playIdx < playFlat.length - 1) { playIdx++; renderPlay(); } }
+function playNext() {
+  const cur = playFlat[playIdx];
+  if (cur && cur.terminal) {
+    stopPlay();
+    toast('到此结束');
+    return;
+  }
+  if (playIdx < playFlat.length - 1) { playIdx++; renderPlay(); }
+}
 function playPrev() { if (playIdx > 0) { playIdx--; renderPlay(); } }
+
+/** 选项跳转：next=下一块；end=结束；ch:章节id=该章第一块；否则按积木 id 定位 */
+function jumpPlayTo(jump) {
+  const j = String(jump || 'next');
+  if (j === 'end') {
+    stopPlay();
+    toast('到此结束');
+    return;
+  }
+  if (j === 'next') {
+    if (playIdx < playFlat.length - 1) {
+      playIdx++;
+      renderPlay();
+    } else {
+      stopPlay();
+      toast('到此结束');
+    }
+    return;
+  }
+  let i = -1;
+  if (j.startsWith('ch:')) {
+    const cid = j.slice(3);
+    i = playFlat.findIndex(x => x.chapterId === cid);
+  } else {
+    i = playFlat.findIndex(x => x.id === j);
+  }
+  if (i < 0) {
+    toast('跳转目标已不存在，改为下一块', true);
+    if (playIdx < playFlat.length - 1) { playIdx++; renderPlay(); }
+    else { stopPlay(); }
+    return;
+  }
+  playIdx = i;
+  renderPlay();
+}
 
 // ---------- 初始化 / 事件 ----------
 function init() {
@@ -3490,11 +3748,11 @@ function init() {
   $('#playBtn').addEventListener('click', startPlay);
   const playInline = $('#playBtnInline');
   if (playInline) playInline.addEventListener('click', startPlay);
-  // 底部芯片：一键加对白/场景/战斗/卡牌关
+  // 底部芯片：一键加对白/场景/选项/战斗/卡牌关
   document.querySelectorAll('#addChipBar [data-add]').forEach(btn => {
     btn.addEventListener('click', () => {
       const t = btn.dataset.add;
-      if (t === 'dialogue' || t === 'scene' || t === 'battle' || t === 'rogue') addBlock(t);
+      if (t === 'dialogue' || t === 'scene' || t === 'choice' || t === 'battle' || t === 'rogue') addBlock(t);
     });
   });
   $('#playExit').addEventListener('click', stopPlay);
@@ -3758,6 +4016,7 @@ window.StoryEditor = {
     imgQuality: (story() || {}).imgQuality || 'standard',
     current: playFlat[playIdx] ? {
       type: playFlat[playIdx].type, speaker: playFlat[playIdx].speaker || '', content: playFlat[playIdx].content,
+      choices: playFlat[playIdx].type === 'choice' ? (playFlat[playIdx].choices || []).map(c => ({ id: c.id, label: c.label, jump: c.jump })) : undefined,
       media: playFlat[playIdx].media || null, audio: playFlat[playIdx].audio || null,
       sfxList: (playFlat[playIdx].sfxList || []).map(x => ({ ...x })),
       bgmOverride: playFlat[playIdx].bgmOverride || null,
@@ -3767,6 +4026,16 @@ window.StoryEditor = {
   }),
   playNext,
   playPrev,
+  jumpPlayTo,
+  playPick: (i) => {
+    const cur = playFlat[playIdx];
+    if (!cur || cur.type !== 'choice') return false;
+    const c = (cur.choices || [])[i];
+    if (!c) return false;
+    jumpPlayTo(c.jump || 'next');
+    return true;
+  },
+  openChoiceEditor,
   openCastEditor,
   openBattleEditor,
   openRpgCardsEditor,
