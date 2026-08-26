@@ -45,7 +45,7 @@
 }
 ```
 
-积木常见字段：`id` `type` `content` `speaker` `media` `figure` `audio` `subtitle` `sfxList`；`media`=全屏背景；`figure`=`{url,x,y,scale}` 立绘叠加（舞台可拖，播放同步）；`type==="choice"` 另有 `choices:[{id,label,jump,require?,effect?}]`；`type==="perf"` 为表现层（`require` 不满足则跳过；`live` 可选临场一句，失败回退预设）；`terminal:true` 播完即结束；作品级 `logic.state` 为变量初值。播放进入积木时自动写 `playState["v_"+积木id规范化]=1`（不写回作品；可用作选项 require）。`type==="battle"` / `rogue` 见卡牌段。
+积木常见字段：`id` `type` `content` `speaker` `media` `figure`/`figures` `transition` `audio` `subtitle` `sfxList`；`media`=全屏背景；`figures`=最多 3 个立绘 `{url,x,y,scale}`（旧 `figure` 自动迁入）；`transition`=`fade`|`fadeblack`|`none`；`type==="choice"` 另有 `choices:[{id,label,jump,require?,effect?}]`；`type==="perf"` 为表现层；`terminal:true` 播完即结束；作品级 `logic.state` 为变量初值。播放进入积木时自动写 `playState["v_"+积木id规范化]=1`。`type==="battle"` / `rogue` 见卡牌段。
 
 前端缓存键：`localStorage.hyool_stories_v1`（离线 + 旧数据迁移，权威在云端）。
 素材库键：`localStorage.hyool_assets_v1`（本机 URL 引用目录，非服务端素材库）。

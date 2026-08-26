@@ -5,7 +5,9 @@
 // 类型：scene=场景 / dialogue=对白（额外字段 speaker）
 // media（可选）：{url, type} —— url 为 /api/upload 上传后的 /img/xxx 引用（二进制存服务端）
 //   type: 'image'（图片/GIF/WebP）| 'video'（MP4）—— 本幕全屏背景
-// figure（可选）：{url, type:'image', x?, y?, scale?} —— 角色立绘叠加层（舞台可拖；x/y 为画幅百分比，锚点底中）
+// figure / figures（可选）：立绘叠加层。`figures` 最多 3 个；旧字段 `figure` 读取时迁入 figures[0]
+//   单项 {url, type:'image', x?, y?, scale?} —— x/y 画幅百分比，锚点底中
+// transition（可选）：进入本幕转场 'fade' | 'fadeblack' | 'none'（默认 fade）
 // audio（可选）：{url, type:'audio'} —— 配音（MP3/WAV/M4A/OGG），同一套 /api/upload 上传与引用
 // sfxList（可选）：[{id, url, offsetMs, loop, volume, label}] —— 音效轨（可多条叠加；offsetMs=进入本幕多少毫秒后触发，loop=true 持续到切幕）
 //   旧字段 sfx（单对象 {url}）读取时自动迁移为 sfxList 单条
@@ -82,6 +84,7 @@ const rpgUid = () => 'r_' + Date.now().toString(36) + Math.random().toString(36)
 let stories = normalizeStories(loadStories());
 let currentId = null;   // 当前打开的作品 id
 let selectedBlockId = null; // 本幕舞台选中的积木 id
+let selectedFigureIdx = 0;  // 舞台当前操作的立绘下标（缩放/清除）
 let chapterId = null;   // 当前打开的章节 id
 let playFlat = [];      // 播放列表（跨章节展开后的积木）
 let playIdx = 0;
@@ -185,12 +188,9 @@ function normalizeStories(arr) {
         if (b.type === 'choice') normalizeChoiceBlock(b);
         // 表现积木：预设台词 + 条件跳过 + 可选临场一句（不改剧情）
         if (b.type === 'perf') normalizePerfBlock(b);
-        // 立绘层（舞台可视化）
-        if (b.figure) {
-          const fig = normalizeFigure(b.figure);
-          if (fig) b.figure = fig;
-          else delete b.figure;
-        }
+        // 立绘层（舞台可视化）：figures[]；兼容旧 figure
+        normalizeBlockFigures(b);
+        b.transition = normalizeTransition(b.transition);
       });
     });
   });
@@ -276,11 +276,55 @@ function normalizeFigure(fig) {
   const scale = Number(fig.scale);
   return {
     url: String(fig.url),
-    type: fig.type === 'video' ? 'image' : 'image', // 立绘暂只支持静图
+    type: 'image',
     x: Number.isFinite(x) ? Math.max(0, Math.min(100, Math.round(x))) : 50,
     y: Number.isFinite(y) ? Math.max(0, Math.min(100, Math.round(y))) : 92,
     scale: Number.isFinite(scale) ? Math.max(0.35, Math.min(2.5, Math.round(scale * 100) / 100)) : 1,
   };
+}
+
+const MAX_FIGURES = 3;
+const FIG_SLOT_X = [28, 50, 72]; // 左 / 中 / 右 默认站位
+
+function normalizeBlockFigures(b) {
+  if (!b || typeof b !== 'object') return [];
+  let list = [];
+  if (Array.isArray(b.figures)) {
+    list = b.figures.map(normalizeFigure).filter(Boolean);
+  }
+  if (!list.length && b.figure) {
+    const one = normalizeFigure(b.figure);
+    if (one) list = [one];
+  }
+  list = list.slice(0, MAX_FIGURES);
+  if (list.length) {
+    b.figures = list;
+    b.figure = list[0]; // 兼容旧读取
+  } else {
+    delete b.figures;
+    delete b.figure;
+  }
+  return list;
+}
+
+function setBlockFigures(b, list) {
+  const next = (list || []).map(normalizeFigure).filter(Boolean).slice(0, MAX_FIGURES);
+  if (next.length) {
+    b.figures = next;
+    b.figure = next[0];
+  } else {
+    delete b.figures;
+    delete b.figure;
+  }
+  return next;
+}
+
+const TRANSITIONS = ['fade', 'fadeblack', 'none'];
+const TRANSITION_LABEL = { fade: '淡入', fadeblack: '黑场', none: '无' };
+
+function normalizeTransition(t) {
+  const s = String(t || 'fade');
+  return TRANSITIONS.includes(s) ? s : 'fade';
 }
 
 /** 播放时剧情变量（开局从 logic.state 拷贝） */
@@ -1508,25 +1552,41 @@ function makeStageDraggable(el, frame, onCommit) {
   });
 }
 
-/** 右侧本幕舞台：所见即所得预览（背景 / 立绘 / 对白框 / 场景字） */
+/** 右侧本幕舞台：所见即所得预览（背景 / 多立绘 / 对白框 / 场景字 / 转场） */
 function renderStagePreview() {
   const canvas = $('#stageCanvas');
   const hint = $('#stageHint');
+  const transSel = $('#stageTransSel');
   if (!canvas) return;
   const s = story();
   const b = selectedBlock();
   canvas.innerHTML = '';
   canvas.classList.toggle('portrait', !!(s && s.orientation === 'portrait'));
+  if (transSel) {
+    if (b) {
+      transSel.disabled = false;
+      transSel.value = normalizeTransition(b.transition);
+    } else {
+      transSel.disabled = true;
+      transSel.value = 'fade';
+    }
+  }
   if (!b) {
-    if (hint) hint.textContent = '点左侧积木预览 · 可拖立绘/场景字';
+    if (hint) hint.textContent = '点左侧积木 · 拖立绘 · 双击改字';
     const empty = document.createElement('div');
     empty.className = 'sc-empty';
     empty.textContent = '还没有选中积木。\n点左侧时间线里的一块，这里会显示本幕画面。';
     canvas.appendChild(empty);
     return;
   }
+  const figs = normalizeBlockFigures(b);
+  if (selectedFigureIdx >= figs.length) selectedFigureIdx = Math.max(0, figs.length - 1);
   const typeLab = { scene: '场景', dialogue: '对白', choice: '选项', perf: '演出', battle: '战斗', rogue: '卡牌' };
-  if (hint) hint.textContent = (typeLab[b.type] || b.type) + ' · ' + b.id;
+  if (hint) {
+    hint.textContent = (typeLab[b.type] || b.type)
+      + (figs.length ? ' · 立绘' + figs.length : '')
+      + ' · ' + TRANSITION_LABEL[normalizeTransition(b.transition)];
+  }
 
   const bg = document.createElement('div');
   bg.className = 'sc-bg';
@@ -1549,26 +1609,37 @@ function renderStagePreview() {
   }
   canvas.appendChild(bg);
 
-  const fig = normalizeFigure(b.figure);
-  if (fig) {
+  figs.forEach((fig, fi) => {
     const wrap = document.createElement('div');
-    wrap.className = 'sc-figure';
+    wrap.className = 'sc-figure' + (fi === selectedFigureIdx ? ' sel' : '');
     wrap.style.left = fig.x + '%';
     wrap.style.top = fig.y + '%';
     wrap.dataset.scale = String(fig.scale);
+    wrap.dataset.figIdx = String(fi);
     wrap.style.transform = 'translate(-50%,-100%) scale(' + fig.scale + ')';
+    wrap.title = '拖动定位 · 滚轮缩放 · 点选后可「缩放± / 清立绘」';
     const img = document.createElement('img');
     img.src = fig.url;
-    img.alt = '立绘';
+    img.alt = '立绘' + (fi + 1);
     wrap.appendChild(img);
+    wrap.addEventListener('pointerdown', () => { selectedFigureIdx = fi; canvas.querySelectorAll('.sc-figure').forEach((n, i) => n.classList.toggle('sel', i === fi)); });
+    wrap.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      selectedFigureIdx = fi;
+      const delta = e.deltaY > 0 ? -0.08 : 0.08;
+      stageScaleFigure(delta);
+    }, { passive: false });
     makeStageDraggable(wrap, canvas, (px, py) => {
       const real = findBlock(b.id);
       if (!real) return;
-      real.figure = normalizeFigure({ ...(real.figure || {}), url: fig.url, x: px, y: py, scale: fig.scale });
+      const list = normalizeBlockFigures(real).slice();
+      if (!list[fi]) return;
+      list[fi] = normalizeFigure({ ...list[fi], x: px, y: py });
+      setBlockFigures(real, list);
       persist();
     });
     canvas.appendChild(wrap);
-  }
+  });
 
   if (b.type === 'choice') {
     normalizeChoiceBlock(b);
@@ -1577,6 +1648,14 @@ function renderStagePreview() {
     const prompt = document.createElement('div');
     prompt.className = 'pc-prompt';
     prompt.textContent = (b.content || '').trim() || '请选择：';
+    prompt.title = '双击编辑选项提示';
+    enableStageTextEdit(prompt, () => (findBlock(b.id) || {}).content || '', (v) => {
+      const real = findBlock(b.id);
+      if (!real) return;
+      real.content = v.slice(0, 200);
+      persist();
+      renderBlocks();
+    });
     box.appendChild(prompt);
     (b.choices || []).slice(0, 4).forEach((c, i) => {
       const opt = document.createElement('div');
@@ -1586,25 +1665,32 @@ function renderStagePreview() {
     });
     canvas.appendChild(box);
   } else if (b.type === 'scene') {
-    if ((b.content || '').trim()) {
-      const sub = b.subtitle || {};
-      const st = document.createElement('div');
-      st.className = 'sc-scene-text';
-      st.textContent = b.content;
-      st.style.left = (sub.x != null ? sub.x : 50) + '%';
-      st.style.top = (sub.y != null ? sub.y : 82) + '%';
-      st.style.transform = 'translate(-50%,-50%)';
-      if (sub.color) st.style.color = sub.color;
-      makeStageDraggable(st, canvas, (px, py) => {
-        const real = findBlock(b.id);
-        if (!real) return;
-        real.subtitle = real.subtitle || { on: true };
-        real.subtitle.x = px;
-        real.subtitle.y = py;
-        persist();
-      });
-      canvas.appendChild(st);
-    }
+    const sub = b.subtitle || {};
+    const st = document.createElement('div');
+    st.className = 'sc-scene-text' + (!(b.content || '').trim() ? ' placeholder' : '');
+    st.textContent = (b.content || '').trim() || '双击写场景文字';
+    st.style.left = (sub.x != null ? sub.x : 50) + '%';
+    st.style.top = (sub.y != null ? sub.y : 82) + '%';
+    st.style.transform = 'translate(-50%,-50%)';
+    if (sub.color) st.style.color = sub.color;
+    st.title = '拖动定位 · 双击编辑';
+    makeStageDraggable(st, canvas, (px, py, moved) => {
+      if (moved === false) return;
+      const real = findBlock(b.id);
+      if (!real) return;
+      real.subtitle = real.subtitle || { on: true };
+      real.subtitle.x = px;
+      real.subtitle.y = py;
+      persist();
+    });
+    enableStageTextEdit(st, () => (findBlock(b.id) || {}).content || '', (v) => {
+      const real = findBlock(b.id);
+      if (!real) return;
+      real.content = v.slice(0, 500);
+      persist();
+      renderBlocks();
+    });
+    canvas.appendChild(st);
   } else if (b.type === 'dialogue' || b.type === 'perf') {
     const sub = b.subtitle || {};
     const d = document.createElement('div');
@@ -1612,18 +1698,72 @@ function renderStagePreview() {
     const sp = document.createElement('div');
     sp.className = 'pd-speaker';
     sp.textContent = b.speaker || DEFAULT_SPEAKER;
+    sp.title = '双击改角色名';
     const ln = document.createElement('div');
     ln.className = 'pd-line';
     ln.textContent = formatDialogue(b);
+    ln.title = '双击改台词';
     if (sub.color) { sp.style.color = sub.color; ln.style.color = sub.color; }
+    enableStageTextEdit(sp, () => (findBlock(b.id) || {}).speaker || DEFAULT_SPEAKER, (v) => {
+      const real = findBlock(b.id);
+      if (!real) return;
+      real.speaker = (v.trim() || DEFAULT_SPEAKER).slice(0, 20);
+      persist();
+      renderBlocks();
+    }, { plain: true });
+    enableStageTextEdit(ln, () => (findBlock(b.id) || {}).content || '', (v) => {
+      const real = findBlock(b.id);
+      if (!real) return;
+      real.content = v.slice(0, 500);
+      persist();
+      renderBlocks();
+    });
     d.append(sp, ln);
     canvas.appendChild(d);
-  } else if (!b.media && !fig) {
+  } else if (!b.media && !figs.length) {
     const empty = document.createElement('div');
     empty.className = 'sc-empty';
     empty.textContent = '本幕还没有画面。\n点上方「背景」或「立绘」从素材库选用。';
     canvas.appendChild(empty);
   }
+}
+
+/** 双击舞台文字进入编辑；拖拽后不触发 */
+function enableStageTextEdit(el, getValue, onSave, opts) {
+  el.style.pointerEvents = 'auto';
+  el.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (el.isContentEditable) return;
+    const prev = getValue();
+    el.contentEditable = 'true';
+    el.classList.add('editing');
+    // 编辑时显示裸文本（去掉引号外壳）
+    el.textContent = prev;
+    el.focus();
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (err) { /* ignore */ }
+    const finish = () => {
+      if (!el.isContentEditable) return;
+      el.contentEditable = 'false';
+      el.classList.remove('editing');
+      el.removeEventListener('blur', finish);
+      el.removeEventListener('keydown', onKey);
+      const next = (el.textContent || '').trim();
+      onSave(opts && opts.plain ? next : next);
+    };
+    const onKey = (ev) => {
+      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); el.blur(); }
+      if (ev.key === 'Escape') { el.textContent = prev; el.blur(); }
+    };
+    el.addEventListener('blur', finish);
+    el.addEventListener('keydown', onKey);
+  });
 }
 
 function stagePickBackground() {
@@ -1643,30 +1783,68 @@ function stagePickBackground() {
 function stagePickFigure() {
   const b = selectedBlock();
   if (!b) { toast('先点左侧选一块积木', true); return; }
+  const cur = normalizeBlockFigures(b);
+  if (cur.length >= MAX_FIGURES) { toast('每幕最多 ' + MAX_FIGURES + ' 个立绘', true); return; }
   openAssetLibrary({
     type: 'image',
     onPick: (a) => {
-      const prev = normalizeFigure(b.figure) || {};
-      b.figure = normalizeFigure({
+      const list = normalizeBlockFigures(b).slice();
+      const slot = list.length;
+      list.push(normalizeFigure({
         url: a.url,
-        x: prev.x != null ? prev.x : 50,
-        y: prev.y != null ? prev.y : 92,
-        scale: prev.scale != null ? prev.scale : 1,
-      });
+        x: FIG_SLOT_X[slot] != null ? FIG_SLOT_X[slot] : 50,
+        y: 92,
+        scale: 1,
+      }));
+      setBlockFigures(b, list);
+      selectedFigureIdx = list.length - 1;
       persist();
       renderBlocks();
-      toast('已叠加立绘，可在舞台上拖动');
+      toast('已加立绘（可拖 / 滚轮缩放），最多 ' + MAX_FIGURES + ' 个');
     },
   });
 }
 
 function stageClearFigure() {
   const b = selectedBlock();
-  if (!b || !b.figure) { toast('本幕没有立绘'); return; }
-  delete b.figure;
+  if (!b) { toast('先点左侧选一块积木', true); return; }
+  const list = normalizeBlockFigures(b);
+  if (!list.length) { toast('本幕没有立绘'); return; }
+  if (list.length === 1) {
+    setBlockFigures(b, []);
+    selectedFigureIdx = 0;
+  } else {
+    const idx = Math.min(selectedFigureIdx, list.length - 1);
+    list.splice(idx, 1);
+    setBlockFigures(b, list);
+    selectedFigureIdx = Math.max(0, idx - 1);
+  }
   persist();
   renderBlocks();
-  toast('已清除立绘');
+  toast('已移除立绘');
+}
+
+function stageScaleFigure(delta) {
+  const b = selectedBlock();
+  if (!b) return;
+  const list = normalizeBlockFigures(b);
+  if (!list.length) { toast('先加立绘', true); return; }
+  const idx = Math.min(selectedFigureIdx, list.length - 1);
+  const cur = list[idx].scale || 1;
+  const next = Math.max(0.35, Math.min(2.5, Math.round((cur + delta) * 100) / 100));
+  list[idx] = normalizeFigure({ ...list[idx], scale: next });
+  setBlockFigures(b, list);
+  persist();
+  renderStagePreview();
+}
+
+function stageSetTransition(val) {
+  const b = selectedBlock();
+  if (!b) return;
+  b.transition = normalizeTransition(val);
+  persist();
+  renderStagePreview();
+  toast('转场：' + TRANSITION_LABEL[b.transition]);
 }
 
 function renameChapter(c) {
@@ -4790,9 +4968,9 @@ function renderPlay() {
   } else {
     overlay.classList.remove('has-media');
   }
-  // 立绘层（可选）：叠加在背景上，锚点底中
-  const playFig = normalizeFigure(b.figure);
-  if (playFig) {
+  // 立绘层（最多 3）：叠加在背景上，锚点底中
+  const playFigs = normalizeBlockFigures(b);
+  playFigs.forEach((playFig) => {
     const wrap = document.createElement('div');
     wrap.className = 'play-figure';
     wrap.style.left = playFig.x + '%';
@@ -4803,7 +4981,12 @@ function renderPlay() {
     img.alt = '';
     wrap.appendChild(img);
     frame.appendChild(wrap);
-  }
+  });
+  // 进入本幕转场
+  const tr = normalizeTransition(b.transition);
+  frame.classList.remove('tl-fadeblack', 'tl-none');
+  if (tr === 'none') frame.classList.add('tl-none');
+  else if (tr === 'fadeblack') frame.classList.add('tl-fadeblack');
   // 前景文字/对白/选项（点击 → 下一幕；选项幕须点选跳转）
   const fore = document.createElement('div');
   fore.className = 'play-fore';
@@ -5021,6 +5204,12 @@ function init() {
   if (stageFigBtn) stageFigBtn.addEventListener('click', stagePickFigure);
   const stageClearFigBtn = $('#stageClearFigBtn');
   if (stageClearFigBtn) stageClearFigBtn.addEventListener('click', stageClearFigure);
+  const stageScaleDown = $('#stageScaleDown');
+  if (stageScaleDown) stageScaleDown.addEventListener('click', () => stageScaleFigure(-0.1));
+  const stageScaleUp = $('#stageScaleUp');
+  if (stageScaleUp) stageScaleUp.addEventListener('click', () => stageScaleFigure(0.1));
+  const stageTransSel = $('#stageTransSel');
+  if (stageTransSel) stageTransSel.addEventListener('change', () => stageSetTransition(stageTransSel.value));
   const assetsBtn = $('#assetsBtn');
   if (assetsBtn) assetsBtn.addEventListener('click', () => openAssetLibrary(null));
   $('#addBlockBtn').addEventListener('click', openAddPicker);

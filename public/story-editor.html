@@ -88,19 +88,25 @@ textarea.txt{min-height:120px;resize:vertical}
 .stage-canvas .sc-bg{position:absolute;inset:0;z-index:1;background:#0a0a12}
 .stage-canvas .sc-bg img,.stage-canvas .sc-bg video{width:100%;height:100%;object-fit:cover;display:block}
 .stage-canvas .sc-figure{position:absolute;z-index:3;transform:translate(-50%,-100%);cursor:grab;touch-action:none;
-  user-select:none;max-height:72%}
+  user-select:none;max-height:72%;outline:2px solid transparent;border-radius:4px}
+.stage-canvas .sc-figure.sel{outline-color:rgba(95,200,255,.65)}
 .stage-canvas .sc-figure.dragging{cursor:grabbing;z-index:6}
 .stage-canvas .sc-figure img{display:block;height:auto;width:auto;max-height:min(52vh,420px);max-width:min(48vw,280px);
   pointer-events:none;filter:drop-shadow(0 10px 24px rgba(0,0,0,.55))}
 .stage-canvas .sc-scene-text{position:absolute;z-index:4;max-width:86%;text-align:center;line-height:1.7;color:#fff;
   white-space:pre-wrap;word-break:break-word;text-shadow:0 2px 10px rgba(0,0,0,.9);cursor:grab;touch-action:none;
   font-size:clamp(14px,2.2vw,20px);padding:4px 8px}
+.stage-canvas .sc-scene-text.placeholder{opacity:.45;font-style:italic}
 .stage-canvas .sc-scene-text.dragging{cursor:grabbing}
-.stage-canvas .sc-dlg{position:absolute;left:0;right:0;bottom:0;z-index:5;text-align:left;pointer-events:none;
+.stage-canvas .sc-scene-text.editing,.stage-canvas .sc-dlg .editing,.stage-canvas .sc-choice .editing{
+  cursor:text;outline:1px solid rgba(95,200,255,.7);background:rgba(0,0,0,.35);border-radius:6px}
+.stage-canvas .sc-dlg{position:absolute;left:0;right:0;bottom:0;z-index:5;text-align:left;
   background:linear-gradient(180deg,rgba(16,16,32,.86),rgba(7,7,16,.94));
   border-top:1px solid rgba(255,255,255,.14);border-radius:12px 12px 0 0;padding:10px 14px 14px}
-.stage-canvas .sc-dlg .pd-speaker{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:2px;letter-spacing:.06em}
-.stage-canvas .sc-dlg .pd-line{font-size:13px;line-height:1.65;color:#e8e8f0;white-space:pre-wrap;word-break:break-word}
+.stage-canvas .sc-dlg .pd-speaker{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:2px;letter-spacing:.06em;cursor:text}
+.stage-canvas .sc-dlg .pd-line{font-size:13px;line-height:1.65;color:#e8e8f0;white-space:pre-wrap;word-break:break-word;cursor:text}
+.stage-trans{font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px}
+.stage-trans select{font-size:11px;background:#151522;color:var(--text);border:1px solid var(--line2);border-radius:6px;padding:3px 6px}
 .stage-canvas .sc-choice{position:absolute;left:0;right:0;bottom:0;z-index:5;pointer-events:none;
   background:linear-gradient(180deg,rgba(16,16,32,.88),rgba(7,7,16,.96));
   border-top:1px solid rgba(125,211,168,.28);border-radius:12px 12px 0 0;padding:10px 12px 12px}
@@ -268,11 +274,14 @@ textarea.txt{min-height:120px;resize:vertical}
 /* 播放：画幅容器 + 视觉素材背景 + 前景文字 */
 /* 画幅容器：横屏铺满播放区；竖屏（9:16）时按比例居中收窄，两侧留黑，不再全屏拉伸裁剪 */
 .play-frame{position:absolute;inset:0;margin:auto;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;pointer-events:none;animation:playFadeIn .32s ease both}
+.play-frame.tl-none{animation:none}
+.play-frame.tl-fadeblack{animation:playFadeBlack .55s ease both}
 .play-frame .play-fore{pointer-events:auto}
 /* 转场：切幕交叉淡化 —— 新画幅每次重建渐入；旧画幅标记 tl-leave 淡出后由 JS 延迟移除。
    两层叠加（新画幅在后即在顶层）交叉淡化，避免清空重建瞬间露出黑色画底 */
 @keyframes playFadeIn{from{opacity:0}to{opacity:1}}
 @keyframes playFadeOut{from{opacity:1}to{opacity:0}}
+@keyframes playFadeBlack{0%{opacity:0;filter:brightness(0)}45%{opacity:1;filter:brightness(0)}100%{opacity:1;filter:brightness(1)}}
 .play-frame.tl-leave{animation:playFadeOut .18s ease both;pointer-events:none}
 .play-frame.tl-leave .play-fore{pointer-events:none}
 .play-media-bg{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden;background:#000}
@@ -742,11 +751,20 @@ textarea.txt{min-height:120px;resize:vertical}
       <div class="stage-pane" id="stagePane">
         <div class="stage-pane-head">
           <span class="sp-title">本幕舞台</span>
-          <span class="sp-hint" id="stageHint">点左侧积木预览 · 可拖立绘/场景字</span>
+          <span class="sp-hint" id="stageHint">点左侧积木 · 拖立绘 · 双击改字</span>
           <span style="flex:1"></span>
+          <label class="stage-trans">转场
+            <select id="stageTransSel" title="进入本幕时的转场">
+              <option value="fade">淡入</option>
+              <option value="fadeblack">黑场</option>
+              <option value="none">无</option>
+            </select>
+          </label>
           <button type="button" class="btn tiny" id="stageBgBtn" title="为本幕设置背景画面">背景</button>
-          <button type="button" class="btn tiny" id="stageFigBtn" title="叠加角色立绘（可拖）">立绘</button>
-          <button type="button" class="btn tiny ghost" id="stageClearFigBtn" title="移除立绘">清立绘</button>
+          <button type="button" class="btn tiny" id="stageFigBtn" title="叠加角色立绘（最多3，可拖/滚轮缩放）">立绘</button>
+          <button type="button" class="btn tiny" id="stageScaleDown" title="缩小选中立绘">－</button>
+          <button type="button" class="btn tiny" id="stageScaleUp" title="放大选中立绘">＋</button>
+          <button type="button" class="btn tiny ghost" id="stageClearFigBtn" title="移除选中立绘">清立绘</button>
         </div>
         <div class="stage-canvas-host" id="stageCanvasHost">
           <div class="stage-canvas" id="stageCanvas"></div>
