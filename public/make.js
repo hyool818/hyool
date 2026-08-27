@@ -1,5 +1,6 @@
 // make.js — HYOOL 主创作应用（互动小说 / 视觉小说）
 import { $, $$, toast } from '/workspace/js/ui.js';
+import { purgeLocalStory } from '/story-local-cache.js';
 
 const TOKEN_KEY = 'hyool_token';
 const DEFAULT_SPEAKER = '角色名';
@@ -397,8 +398,15 @@ async function deleteWorkById(id, title) {
     });
     const d = await res.json();
     if (!d.success) throw new Error(d.error || '删除失败');
+    purgeLocalStory(id);
+    works = works.filter((w) => w.id !== id);
+    const wasEditingDeleted = work && work.id === id;
+    if (wasEditingDeleted) {
+      work = null;
+      selectedId = null;
+    }
     toast('已删除');
-    if (work && work.id === id) showHome();
+    if (wasEditingDeleted) showHome();
     else renderHome();
   } catch (e) {
     toast(e.message || '删除失败', true);

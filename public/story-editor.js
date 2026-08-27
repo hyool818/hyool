@@ -29,6 +29,7 @@ import {
 import { EDITOR_SAMPLES, buildSampleWork } from '/story-samples.js';
 import { listAssets, addAsset, removeAsset, harvestFromStory } from '/story-assets.js';
 import { vaultLoggedIn, fetchMyVault, deleteVaultItem, formatBytes } from '/my-vault-api.js';
+import { purgeLocalStory, isStoryDeleted } from '/story-local-cache.js';
 
 const SAVE_KEY = 'hyool_stories_v1'; // 本地缓存键（旧数据迁移源）
 const PLAY_SAVE_KEY = 'hyool_play_saves_v1'; // 播放中途存档（本机 3 槽）
@@ -885,12 +886,14 @@ async function syncWithServer() {
     loggedIn = true;
     setLoginHint(false);
 
+    stories = stories.filter((x) => !isStoryDeleted(x.id));
+
     const server = (d.stories || [])
       .filter(x => x.kind !== 'h5_game')
       .map(x => normalizeStories([x])[0]);
     const serverIds = new Set(server.map(x => x.id));
     // 本地缓存有而云端没有的旧作品 → 自动上传迁移（先建条目再补存完整内容）
-    const localOnly = stories.filter(x => !serverIds.has(x.id));
+    const localOnly = stories.filter(x => !serverIds.has(x.id) && !isStoryDeleted(x.id));
     const migrated = [];
     for (const local of localOnly) {
       try {
@@ -1090,6 +1093,7 @@ function renderLibrary() {
         return;
       }
       stories = stories.filter(x => x.id !== s.id);
+      purgeLocalStory(s.id);
       persist();
       renderLibrary();
       toast('已删除作品');
