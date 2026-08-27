@@ -1,7 +1,7 @@
 /**
  * 卡牌游戏 · 小白可视化编辑器（对齐 make.html 三栏：列表 / 预览 / 属性）
  */
-import { toast } from '/workspace/js/ui.js?v=202608301';
+import { toast } from '/workspace/js/ui.js?v=202608302';
 import {
   normalizeRogue,
   applyStarterPack,
@@ -15,7 +15,7 @@ import {
   stageEnemyTotal,
   STAGE_WAVE_SIZE,
   STAGE_ENEMY_MAX,
-} from '/story-rogue.js?v=202608301';
+} from '/story-rogue.js?v=202608302';
 import {
   portraitHtml,
   portraitThumbHtml,
@@ -30,7 +30,7 @@ import {
   cardFrameClass,
   frameTierLabelFromFrame,
   starOf,
-} from '/story-idle.js?v=202608301';
+} from '/story-idle.js?v=202608302';
 
 const ELEM_OPTS = [['fire', '火'], ['water', '水'], ['wood', '木'], ['light', '光'], ['dark', '暗']];
 import { fetchMyVault, vaultLoggedIn } from '/my-vault-api.js';
@@ -48,6 +48,7 @@ let works = [];
 let work = null;
 let createOrient = 'portrait';
 let createMode = 'idle';
+let playReturnTo = null;
 let select = { type: 'settings', id: null };
 let uploadTimer = null;
 
@@ -286,10 +287,32 @@ function renderHome() {
   });
 }
 
+function safeReturnPath(raw) {
+  if (!raw) return null;
+  const s = String(raw);
+  if (!s.startsWith('/') || s.startsWith('//') || s.includes('://')) return null;
+  return s;
+}
+
 async function openWork(id, play) {
   try {
     work = await loadWork(id);
     select = { type: 'settings', id: null };
+    const returnTo = safeReturnPath(new URLSearchParams(location.search).get('from'));
+    if (play && returnTo) {
+      playReturnTo = returnTo;
+      $('#viewHome').classList.add('hidden');
+      $('#viewEdit').classList.remove('show');
+      const top = $('#mcTopbar');
+      if (top) top.style.display = 'none';
+      history.replaceState(
+        null,
+        '',
+        PAGE + '?story=' + encodeURIComponent(id) + '&play=1&from=' + encodeURIComponent(returnTo)
+      );
+      startPlay({ consumer: true });
+      return;
+    }
     showEdit();
     if (play) startPlay();
   } catch (e) {
@@ -1138,12 +1161,15 @@ function syncTrialProgressStars() {
   });
 }
 
-function startPlay() {
+function startPlay(opts) {
   if (!work) return;
+  const consumer = !!(opts && opts.consumer);
   const g = cardGuideText(work);
-  if (!g.ready && !confirm(g.line + '\n仍要试玩？')) return;
+  if (!consumer && !g.ready && !confirm(g.line + '\n仍要试玩？')) return;
   closePortraitLightbox();
   syncTrialProgressStars();
+  const closeBtn = $('#playClose');
+  if (closeBtn) closeBtn.textContent = consumer ? '✕ 返回主页' : '✕ 退出试玩';
   $('#playOverlay').classList.add('show');
   $('#playTitle').textContent = work.title || '';
   startRogueRun({ type: 'rogue', content: '' }, {
@@ -1151,17 +1177,27 @@ function startPlay() {
     playBody: $('#playBody'),
     playNav: null,
     orientation: work.orientation,
-    onWin: stopPlay,
-    onExit: stopPlay,
+    onWin: endPlaySession,
+    onExit: endPlaySession,
     onPersist: () => scheduleSave(),
   });
 }
 
-function stopPlay() {
+function endPlaySession() {
   stopRogueRun();
   closePortraitLightbox();
   $('#playOverlay').classList.remove('show');
   $('#playBody').innerHTML = '';
+  const to = playReturnTo;
+  playReturnTo = null;
+  if (to) {
+    location.assign(to);
+    return;
+  }
+}
+
+function stopPlay() {
+  endPlaySession();
 }
 
 // ---------- 新建 ----------

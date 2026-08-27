@@ -66,6 +66,7 @@ const VIDEO_MODES = {
 let loggedIn = false;
 let works = [];
 let work = null;
+let playReturnTo = null;
 let selectedId = null;
 /** 正在编辑选项下的子镜头 { choiceBlockId, choiceId, blockId } */
 let editBranch = null;
@@ -840,6 +841,13 @@ function homeCard(w) {
   return card;
 }
 
+function safeReturnPath(raw) {
+  if (!raw) return null;
+  const s = String(raw);
+  if (!s.startsWith('/') || s.startsWith('//') || s.includes('://')) return null;
+  return s;
+}
+
 async function openWork(id, play) {
   try {
     const w = await loadWork(id);
@@ -847,6 +855,21 @@ async function openWork(id, play) {
     work = w;
     selectedId = blocks()[0]?.id || null;
     editBranch = null;
+    const returnTo = safeReturnPath(new URLSearchParams(location.search).get('from'));
+    if (play && returnTo) {
+      playReturnTo = returnTo;
+      $('#viewHome')?.classList.add('hidden');
+      $('#viewEdit')?.classList.remove('show');
+      const top = document.querySelector('.topbar');
+      if (top) top.style.display = 'none';
+      history.replaceState(
+        null,
+        '',
+        PAGE + '?story=' + encodeURIComponent(id) + '&play=1&from=' + encodeURIComponent(returnTo)
+      );
+      startPlay();
+      return;
+    }
     showEdit();
     if (work._needsKindMigrate) {
       delete work._needsKindMigrate;
@@ -2067,6 +2090,9 @@ function stopPlay() {
   $('#playOverlay').classList.remove('show');
   $('#playBody').innerHTML = '';
   updateSteps();
+  const to = playReturnTo;
+  playReturnTo = null;
+  if (to) location.assign(to);
 }
 
 function finishBranchPlay() {
