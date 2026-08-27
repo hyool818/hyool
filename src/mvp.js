@@ -118,6 +118,10 @@ export async function handleMvpRoutes(
         return serveHtml("create.html");
     }
 
+    if (pathname === "/create/life-world" || pathname === "/create/life-world/" || pathname === "/create-life-world" || pathname === "/create-life-world.html") {
+        return serveHtml("create-life-world.html");
+    }
+
     if (pathname === "/create/character" || pathname === "/create/character/") {
         return serveHtml("create-character.html");
     }
@@ -127,9 +131,9 @@ export async function handleMvpRoutes(
         const search = new URL(request.url).search;
         if (search.includes("create=world") || search.includes("create=life")) {
             if (user?.username) {
-                return Response.redirect(new URL("/studio-world.html?create=life", request.url).toString(), 302);
+                return Response.redirect(new URL("/create-life-world.html", request.url).toString(), 302);
             }
-            const next = encodeURIComponent("/studio-world.html?create=life");
+            const next = encodeURIComponent("/create-life-world.html");
             return Response.redirect(new URL("/yonder.html?next=" + next, request.url).toString(), 302);
         }
         if (user?.username) {

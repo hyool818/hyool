@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>创建生命世界 · HYOOL</title>
+<link rel="stylesheet" href="/profile-hub.css">
+<style>
+:root{--bg:#0a0612;--gold:#c9a84c;--muted:rgba(255,255,255,.55)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body.life-wizard-page{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;color:#fff;background:var(--bg);min-height:100dvh;line-height:1.6}
+body.life-wizard-page::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(circle at 20% 10%,rgba(139,92,246,.08),transparent 42%),radial-gradient(circle at 80% 80%,rgba(201,168,76,.05),transparent 40%)}
+.lw-header{position:fixed;top:0;left:0;right:0;z-index:20;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:linear-gradient(to bottom,rgba(10,6,18,.92),transparent)}
+.lw-back{font-size:14px;color:var(--muted)}
+.lw-back:hover{color:#fff}
+.lw-brand{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--gold)}
+.lw-main{position:relative;z-index:1;padding:68px 16px 40px;max-width:680px;margin:0 auto}
+#wizardModal.lw-shell{position:static;opacity:1;visibility:visible;background:transparent;backdrop-filter:none;display:block}
+#wizardModal.lw-shell .modal{width:100%;max-width:100%;max-height:none;transform:none;opacity:1;padding:0;background:transparent;border:0;border-radius:0}
+#wizardModal.lw-shell .wizard-head{margin-bottom:1.4rem}
+.lw-loading{text-align:center;padding:48px 0;color:var(--muted);font-size:14px}
+.lw-error{text-align:center;padding:48px 16px;color:#ff9a9a;font-size:14px}
+.lw-error a{color:#8b8bff}
+body.life-wizard-page #formGrid{display:none}
+body.life-wizard-page #wDescGroup{display:none}
+</style>
+<script>
+if (!localStorage.getItem("hyool_token")) {
+  location.replace("/yonder.html?next=" + encodeURIComponent("/create-life-world.html"));
+}
+</script>
+</head>
+<body class="life-wizard-page">
+<header class="lw-header">
+  <a class="lw-back" href="/studio-world.html">← 创造世界</a>
+  <span class="lw-brand">创建生命世界</span>
+</header>
+<main class="lw-main" id="lwMain">
+  <div class="lw-loading" id="lwLoading">正在打开向导…</div>
+</main>
+
+<!-- 向导主体（全页，非弹窗） -->
+<div class="modal-overlay lw-shell" id="wizardModal" style="display:none">
+  <div class="modal">
+    <div class="wizard-head">
+      <h2 style="margin:0;">创建<span style="color:#c9a84c;">生命世界</span></h2>
+      <div class="wizard-steps" id="wizardSteps"></div>
+    </div>
+
+    <div class="wstep active" data-wstep="1">
+      <div class="wstep-title">选择<span style="color:#c9a84c;">世界题材</span></div>
+      <div class="wstep-desc">你的世界将基于哪种想象展开？</div>
+      <div class="option-grid" id="genreGrid"></div>
+    </div>
+
+    <div class="wstep" data-wstep="2">
+      <div class="wstep-title">为世界<span style="color:#c9a84c;">命名</span></div>
+      <div class="wstep-desc">起个名字即可；时代、氛围与规则进入世界后再设置。</div>
+      <div class="field-group"><label>世界名称</label><input type="text" id="wName" maxlength="40" placeholder="例如：星陨之地"></div>
+      <div class="field-group" id="wDescGroup"><label>一句话设定</label><textarea id="wDesc" maxlength="300"></textarea></div>
+      <div class="form-grid" id="formGrid"></div>
+    </div>
+
+    <div class="wstep" data-wstep="3">
+      <div class="wstep-title">选择<span style="color:#c9a84c;">角色</span></div>
+      <div class="wstep-desc">从角色库挑选演员（可多选，也可跳过稍后补充）。</div>
+      <button class="btn btn-save" id="wCastPick" style="width:100%;margin-bottom:.5rem;">＋ 从角色库选择角色</button>
+      <div class="cast-pick-hint" id="wCastHint">尚未选择角色。</div>
+      <div class="cast-picked" id="wCastPicked"></div>
+      <div id="lifePanel">
+        <div class="wstep-title" style="font-size:.95rem;margin:.8rem 0 .6rem;">世界如何<span style="color:#c9a84c;">运转</span>？</div>
+        <div class="wstep-desc">三种运转方式，创建后在世界后台随时可切换。</div>
+        <div class="option-grid" id="lifeModeGrid"></div>
+        <div class="wstep-title" style="font-size:.95rem;margin:1rem 0 .6rem;">对话<span style="color:#c9a84c;">模型</span></div>
+        <div class="wstep-desc">为这个世界里的角色们选择对话大脑。</div>
+        <div class="form-grid" id="lifeModelGrid"></div>
+        <div class="hint-line" id="lifeModelAdvice" style="margin-top:.4rem;"></div>
+      </div>
+    </div>
+
+    <div class="wstep" data-wstep="4">
+      <div class="wstep-title">生成<span style="color:#c9a84c;">封面</span></div>
+      <div class="wstep-desc">AI 按题材绘制封面，或上传你自己的图片。</div>
+      <div id="imgGenSettings" style="margin-bottom:.8rem;"></div>
+      <img class="cover-preview" id="coverPreview" alt="世界封面" onerror="this.style.opacity=.2">
+      <div style="display:flex;gap:.6rem;">
+        <button class="btn btn-cancel" style="flex:1;" onclick="wizardRegenCover()">🔄 换一张</button>
+        <button class="btn btn-cancel" style="flex:1;" id="wizardUploadCover">📤 上传封面</button>
+        <input type="file" id="wizardCoverFile" accept="image/*" style="display:none">
+      </div>
+    </div>
+
+    <div class="wstep" data-wstep="5">
+      <div class="wstep-title">确认<span style="color:#c9a84c;">创建</span></div>
+      <div class="wstep-desc">核对信息后创建世界，之后可随时编辑与补充。</div>
+      <img class="cover-preview" id="coverPreview2" alt="世界封面" style="max-height:180px;object-fit:cover;">
+      <div class="hint-line" id="wSummary" style="margin-bottom:.6rem;"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="wizardPrev">上一步</button>
+      <button class="btn btn-save" id="wizardNext">下一步</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="castPickModal">
+  <div class="modal">
+    <h2>从角色库选择角色</h2>
+    <div class="hint-line">勾选要加入世界的角色，可多选。</div>
+    <div class="char-select-grid" id="wCastGrid"></div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="castPickCancel">取消</button>
+      <button class="btn btn-save" id="castPickConfirm">确认选择</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script type="module" src="/create-life-world.js?v=20260828c"></script>
+</body>
+</html>

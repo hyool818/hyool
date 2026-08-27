@@ -2423,7 +2423,7 @@ body {
 (function () {
   const c = new URLSearchParams(location.search).get("create");
   if (c === "world" || c === "life") {
-    location.replace("/studio-world.html?create=life");
+    location.replace("/create-life-world.html");
   }
 })();
 
@@ -3333,7 +3333,7 @@ function renderWorlds() {
 
     let html = "";
     if (state.isOwner) {
-        html += `<a href="/studio-world.html?create=life" class="create-card">
+        html += `<a href="/create-life-world.html" class="create-card">
             <div class="plus">+</div>
             <div class="label">创造世界</div>
         </a>`;

@@ -9,7 +9,7 @@
 | 首页双核心 | `public/index.html` | 创作作品 / 创造世界；底部 HYOOL 标语 |
 | **主创作应用 · 视觉小说** | `public/make.html` `public/make.js` | 镜头 + 预览 + 试玩 + 发布；图片镜 / **视频镜**（`media.videoMode`: `background` 静音循环 | `clip` 原声播完下一镜）；BGM / 配音 |
 | 旧互动视频入口 | `public/make-video.html` | 重定向 → `make.html`（`?hint=video`） |
-| 世界/IP | `public/studio-world.html` | 创造世界入口 |
+| 世界/IP | `public/studio-world.html` `public/create-life-world.html` | 创造世界入口；生命世界 5 步全页向导 |
 | 旧入口重定向 | `public/studio.html` `public/my-works.html` `public/fantasy.html` | → `/make.html` |
 | 漫画 / 卡牌 · 专业 | `public/story-editor.html` `?pro=1` | 分格、卡牌战斗；make 底栏链入 |
 | H5 · 专工 | `public/h5-game.html` `h5-play.html` | 嵌入外部游戏 URL |
@@ -22,7 +22,7 @@
 | 个人主页 | `public/yonder-home.html`（`/@username`） | `/api/profile/:username` `/api/yonder/*` | `src/index.js` |
 | 个人主页 · 专属库 | 同上（主人可见） | — | 底栏入口 → `my-vault.html` |
 | 主页作品流 | 同上 | 主页组装含 `works.stories` | `src/index.js`（stories 查询） |
-| 个人主页 · 角色库 / 世界库 | `public/yonder-home.html` `public/profile-hub-ui.js` `public/profile-hub-modals.html` `public/profile-nav.js` | 主人：角色编辑、世界详情；「创造世界」→ `studio-world.html?create=life`；`?world=id` | 分享页；`?create=world` 旧书签 302 → 创造世界页 |
+| 个人主页 · 角色库 / 世界库 | `public/yonder-home.html` `public/profile-hub-ui.js` `public/profile-hub-modals.html` `public/profile-nav.js` | 主人：角色编辑、世界详情；「创造世界」→ `create-life-world.html`；`?world=id` | 分享页；`?create=world` 旧书签 → 全页向导 |
 | `/hub` 旧书签 | `src/mvp.js` 302 | 登录 → `/@username`；游客 → `/plaza`（**不变**）；`?create=world` → 登录后进向导 | 无 `hub.html` 页面 |
 | 角色列表 API | — | `GET /api/hub`（**不是** `/api/hub/` Brain 接口） | `src/mvp.js` |
 | 邀请码 | yonder / hub 管理 UI | `/api/invite-codes*` | `src/index.js`（仅用户 `333123`） |

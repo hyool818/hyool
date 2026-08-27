@@ -10,7 +10,7 @@
 <script>
 /* 个人主页优化冒烟：
    - @smokews 登录态：角色库/世界库、创造角色/创造世界
-   - studio-world.html?create=life → 创造世界页打开向导（不在个人主页） */
+   - create-life-world.html → 全页 5 步生命世界向导 */
 const results = [];
 function line(s){ results.push(s); document.getElementById('results').textContent = results.join('\n'); }
 function ok(cond, name, extra=''){ line((cond?'PASS':'FAIL')+'  '+name+(extra?'  '+extra:'')); }
@@ -124,19 +124,18 @@ async function partA(){
   g('closeEditor').click();
 }
 
-/* ================= Part B: studio-world 创建生命世界向导 ================= */
+/* ================= Part B: create-life-world 全页向导 ================= */
 async function partB(){
-  await loadIframe('/studio-world.html?create=life&v=' + Date.now());
+  await loadIframe('/create-life-world.html?v=' + Date.now());
   const f = document.getElementById('fa');
   const doc = await waitFor(() => {
     const d = f.contentDocument;
     const m = d.getElementById('wizardModal');
-    return (m && m.classList.contains('show') && d.location.pathname.startsWith('/@')) ? d : null;
-  }, 30000, 'profile wizard modal shown');
+    return (m && m.classList.contains('show') && d.querySelector('.wstep.active[data-wstep="1"]')) ? d : null;
+  }, 30000, 'life-world wizard page');
   const dots = doc.querySelectorAll('#wizardSteps .wizard-step-dot');
   const step1 = doc.querySelector('.wstep.active[data-wstep="1"]');
-  ok(f.contentDocument.location.pathname === '/studio-world.html', 'B: 在创造世界页打开向导', f.contentDocument.location.pathname);
-  ok(true, 'B: 直达自定义世界向导弹窗', '?create=world');
+  ok(f.contentDocument.location.pathname === '/create-life-world.html', 'B: 全页向导 URL', f.contentDocument.location.pathname);
   ok(dots.length === 5, 'B: 向导 5 步圆点', dots.length + ' 步');
   ok(!!step1, 'B: 第 1 步激活（题材）', step1 ? (step1.querySelector('.wstep-title') || {}).textContent : '(无)');
 }
