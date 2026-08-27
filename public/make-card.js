@@ -720,8 +720,8 @@ function renderPanel() {
     if (!e) return;
     panel.appendChild(field('敌人名', 'text', e.name, (v) => { e.name = v; scheduleSave(); syncEnemyViews(e); }, { maxLen: 16 }));
     panel.appendChild(field('生命', 'number', String(e.hp), (v) => { e.hp = Math.max(1, Math.min(99999, Number(v) || 50)); scheduleSave(); renderPreview(); }));
-    panel.appendChild(field('攻击', 'number', String(e.atk), (v) => { e.atk = Math.max(1, Math.min(99, Number(e.atk) || 8)); scheduleSave(); renderPreview(); }));
-    panel.appendChild(field('速度', 'number', String(e.spd), (v) => { e.spd = Math.max(1, Math.min(40, Number(e.spd) || 12)); scheduleSave(); renderPreview(); }));
+    panel.appendChild(field('攻击', 'number', String(e.atk), (v) => { e.atk = Math.max(1, Math.min(99, Number(v) || 8)); scheduleSave(); renderPreview(); }));
+    panel.appendChild(field('速度', 'number', String(e.spd), (v) => { e.spd = Math.max(1, Math.min(40, Number(v) || 12)); scheduleSave(); renderPreview(); }));
     const bossWrap = document.createElement('label');
     bossWrap.className = 'mc-enemy-pick';
     const bossCk = document.createElement('input');
