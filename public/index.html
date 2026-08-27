@@ -1490,6 +1490,7 @@ body{
         </div>
 
         <div class="home-util" style="margin-top:14px;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 18px;font-size:11px;letter-spacing:.08em">
+            <a href="/make.html" style="color:rgba(255,255,255,.55);text-decoration:none">创作</a>
             <a href="/plaza" style="color:rgba(255,255,255,.55);text-decoration:none">去玩</a>
             <a href="/yonder.html" style="color:rgba(255,255,255,.55);text-decoration:none">我的</a>
             <a href="/brain.html" style="color:rgba(255,255,255,.55);text-decoration:none">AI 中枢</a>
@@ -1797,7 +1798,7 @@ document.addEventListener(
 
 function goWorld(worldName){
     let href = null;
-    if (worldName === "create" || worldName === "fantasy") href = "studio.html";
+    if (worldName === "create" || worldName === "fantasy") href = "make.html";
     else if (worldName === "world" || worldName === "life") href = "studio-world.html";
     else if (worldName === "yonder") href = "yonder.html";
     else if (worldName === "infinite") href = "workspace.html";

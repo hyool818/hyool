@@ -2,108 +2,11 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>开始创作 · HYOOL</title>
-<link rel="stylesheet" href="/workspace/css/workspace.css">
-<style>
-.st-main{max-width:720px;margin:0 auto;padding:0 16px 56px}
-.st-q{font-size:clamp(22px,4.5vw,32px);font-weight:700;margin:20px 0 8px;line-height:1.35}
-.st-sub{color:var(--muted);font-size:14px;line-height:1.75;margin-bottom:24px}
-.st-big{display:grid;gap:12px;margin-bottom:28px}
-.st-big-btn{display:block;width:100%;text-align:left;padding:20px 22px;border-radius:16px;border:1px solid var(--line2);
-  background:linear-gradient(145deg,#161622,#0e0e16);color:inherit;cursor:pointer;font-family:inherit;transition:.15s;text-decoration:none}
-.st-big-btn:hover{border-color:rgba(139,123,255,.55);transform:translateY(-1px)}
-.st-big-btn .t{font-size:17px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:10px}
-.st-big-btn .d{font-size:12px;color:var(--muted);line-height:1.65}
-.st-big-btn.ai{border-color:rgba(139,123,255,.45);background:linear-gradient(145deg,rgba(139,123,255,.14),#101018)}
-.st-panel{display:none;margin-top:8px;padding:16px;border:1px solid var(--line2);border-radius:14px;background:#12121c}
-.st-panel.show{display:block}
-.st-panel h3{font-size:14px;margin:0 0 12px;color:#cfc8ff}
-.st-links{display:grid;gap:8px}
-.st-links a{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;
-  border:1px solid var(--line2);background:#0d0d16;color:var(--text);text-decoration:none;font-size:13px}
-.st-links a:hover{border-color:var(--accent2);color:var(--accent2)}
-.st-links a span{color:var(--muted);font-size:11px}
-.st-foot{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:12px;font-size:12px}
-.st-foot a{color:var(--muted);text-decoration:none}
-.st-foot a:hover{color:var(--text)}
-</style>
+<meta http-equiv="refresh" content="0;url=/make.html">
+<title>跳转中…</title>
+<script>location.replace('/make.html');</script>
 </head>
 <body>
-<div class="hub">
-  <header class="hub-topbar">
-    <a class="back" href="/">← 首页</a>
-    <div class="hub-brand">
-      <span class="hub-brand-name">创作作品</span>
-      <span class="hub-brand-en">CREATE</span>
-    </div>
-    <a href="/my-works.html" style="margin-left:auto;font-size:12px;color:var(--muted);text-decoration:none">我的作品</a>
-  </header>
-  <main class="st-main">
-    <p class="st-sub" style="margin-top:16px">没想法也没关系。选一种最接近的，<strong>改完就能点试玩</strong>。</p>
-
-    <a class="st-big-btn ai" href="/brain.html">
-      <div class="t">◎ 完全没头绪？AI 帮你想</div>
-      <div class="d">用一句话描述你想要的 → 确认大纲 → 自动进编辑器，你只管改字加图。</div>
-    </a>
-
-    <h2 class="st-q">或者，你 roughly 知道要做哪种？</h2>
-
-    <div class="st-big">
-      <button type="button" class="st-big-btn" data-panel="story">
-        <div class="t">📖 写故事、视觉小说</div>
-        <div class="d">像读小说，但读者能点选项改结局。加背景图就是视觉小说。</div>
-      </button>
-      <button type="button" class="st-big-btn" data-panel="game">
-        <div class="t">🎮 做游戏</div>
-        <div class="d">卡牌挂机 / 自动战斗，或粘贴 H5 游戏链接。</div>
-      </button>
-      <button type="button" class="st-big-btn" data-panel="visual">
-        <div class="t">📚 画漫画</div>
-        <div class="d">一格一格填图 + 气泡对白，像做条漫。</div>
-      </button>
-    </div>
-
-    <div class="st-panel" id="panel-story">
-      <h3>写故事 / 视觉小说</h3>
-      <div class="st-links">
-        <a href="/story-editor.html?new=story">互动小说 <span>对白 + 选项 →</span></a>
-        <a href="/story-editor.html?new=story">视觉小说 <span>同上，多加背景图 →</span></a>
-      </div>
-    </div>
-    <div class="st-panel" id="panel-game">
-      <h3>做游戏</h3>
-      <div class="st-links">
-        <a href="/story-editor.html?new=card">卡牌游戏 <span>填表就能打 →</span></a>
-        <a href="/h5-game.html">H5 网页游戏 <span>粘贴游戏地址 →</span></a>
-      </div>
-    </div>
-    <div class="st-panel" id="panel-visual">
-      <h3>画漫画</h3>
-      <div class="st-links">
-        <a href="/story-editor.html?new=comic">漫画分格 <span>画布 + 气泡 →</span></a>
-      </div>
-    </div>
-
-    <div class="st-foot">
-      <a href="/studio-world.html">→ 创造世界（角色 / IP）</a>
-      <a href="/plaza">去玩别人的作品</a>
-      <a href="/my-vault.html">我的素材库</a>
-    </div>
-  </main>
-</div>
-<script>
-document.querySelectorAll('.st-big-btn[data-panel]').forEach(function (btn) {
-  btn.addEventListener('click', function () {
-    var id = btn.getAttribute('data-panel');
-    document.querySelectorAll('.st-panel').forEach(function (p) { p.classList.remove('show'); });
-    var panel = document.getElementById('panel-' + id);
-    if (panel) {
-      panel.classList.add('show');
-      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  });
-});
-</script>
+<p style="font-family:sans-serif;padding:24px;color:#ccc;background:#111">创作入口已升级 → <a href="/make.html" style="color:#8b7bff">make.html</a></p>
 </body>
 </html>

@@ -1162,7 +1162,7 @@ function openStory(id) {
   showEditor();
 }
 function backToLibrary() {
-  window.location.href = '/my-works.html';
+  window.location.href = '/make.html';
 }
 
 // ---------- HYOOL Studio 壳：资源树 / 素材库 / 属性栏 ----------
@@ -6950,10 +6950,30 @@ function applyLibraryCreateMode() {
   if (createOnly && meaning) meaning.textContent = '起名 → 创建 → 立刻进编辑器试玩。';
 }
 
+function shouldUseMakeApp(q) {
+  if (q.get('pro') === '1') return false;
+  const raw = q.get('new') || q.get('create');
+  if (raw === 'h5') return false;
+  if (raw && ['comic', 'card', 'game', 'rpg', 'gacha_rogue', 'card_rpg'].includes(raw)) return false;
+  return true;
+}
+
 function init() {
   const q = new URLSearchParams(location.search);
+  if (q.get('new') === 'h5' || q.get('create') === 'h5') {
+    location.replace('/h5-game.html');
+    return;
+  }
+  if (shouldUseMakeApp(q)) {
+    const dest = new URLSearchParams();
+    if (q.get('story')) dest.set('story', q.get('story'));
+    if (q.get('play') === '1') dest.set('play', '1');
+    if (q.get('new') || q.get('create')) dest.set('new', '1');
+    location.replace('/make.html' + (dest.toString() ? '?' + dest : ''));
+    return;
+  }
   if (!q.get('story') && !q.get('new') && !q.get('create')) {
-    location.replace('/my-works.html');
+    location.replace('/make.html');
     return;
   }
   applyLibraryCreateMode();
@@ -6964,7 +6984,7 @@ function init() {
   });
   bindInit($('#createBtn'), 'click', createStory);
   const createBack = $('#createBackBtn');
-  if (createBack) createBack.addEventListener('click', () => { location.href = '/studio.html'; });
+  if (createBack) createBack.addEventListener('click', () => { location.href = '/make.html'; });
   bindInit($('#newTitle'), 'keydown', (e) => { if (e.key === 'Enter') createStory(); });
   const guideAdv = $('#storyGuideAdvanced');
   if (guideAdv) guideAdv.addEventListener('click', () => { setStorySimpleUi(false); toast('已显示分支图、选项、时间轴等全部功能'); });

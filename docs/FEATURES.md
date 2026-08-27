@@ -6,10 +6,11 @@
 
 | 功能 | 页面 | 说明 |
 |---|---|---|
-| 首页双核心 | `public/index.html` | 创作作品 / 创造世界；底栏：去玩 / 我的 / AI / 工具 |
-| 统一创作入口 | `public/studio.html` `public/studio-world.html` | 向导式选题；世界/IP 独立页 |
-| 我的作品 | `public/my-works.html` `public/my-works.js` | 全部 kind 列表；试玩 / 编辑 / 发布；`story-editor` 无参数时跳转至此 |
-| 旧幻想总览 | `public/fantasy.html` | → `/studio.html` |
+| 首页双核心 | `public/index.html` | 创作作品 / 创造世界；底栏：创作 / 去玩 / 我的 / AI |
+| **主创作应用** | `public/make.html` `public/make.js` | 互动小说 / 视觉小说：镜头列表 + 实时预览 + 试玩 + 发布 |
+| 世界/IP | `public/studio-world.html` | 创造世界入口 |
+| 旧入口重定向 | `public/studio.html` `public/my-works.html` `public/fantasy.html` | → `/make.html` |
+| 专业编辑器 | `public/story-editor.html` `public/story-editor.js` | `?pro=1` 或漫画/卡牌；普通 story 自动跳转 make |
 
 ## 彼岸
 

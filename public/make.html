@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>创作 · HYOOL</title>
+<link rel="stylesheet" href="/workspace/css/workspace.css">
+<style>
+html,body{height:100%;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100%}
+.app-main{flex:1;min-height:0;overflow:auto}
+
+/* ---------- 首页 ---------- */
+.mk-home{max-width:920px;margin:0 auto;padding:12px 16px 56px}
+.mk-hero{margin:8px 0 20px}
+.mk-hero h1{font-size:clamp(22px,4vw,28px);font-weight:700;line-height:1.35;margin-bottom:8px}
+.mk-hero p{color:var(--muted);font-size:13px;line-height:1.75}
+.mk-actions{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px}
+.mk-actions .btn{padding:10px 18px;font-size:13px}
+.mk-actions .btn.primary{font-size:14px}
+.mk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.mk-card{border:1px solid var(--line2);border-radius:12px;background:var(--bg3);padding:14px;display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:.15s}
+.mk-card:hover{border-color:rgba(139,123,255,.45);transform:translateY(-1px)}
+.mk-card .row{display:flex;gap:10px;align-items:flex-start}
+.mk-card .thumb{width:72px;height:48px;border-radius:8px;background:#0a0a12;overflow:hidden;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:20px}
+.mk-card .thumb img{width:100%;height:100%;object-fit:cover}
+.mk-card .info{flex:1;min-width:0}
+.mk-card .title{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mk-card .meta{font-size:10px;color:var(--muted);margin-top:4px}
+.mk-card .ops{display:flex;flex-wrap:wrap;gap:6px}
+.mk-card .ops .btn{padding:5px 10px;font-size:11px}
+.mk-more{margin-top:28px;padding-top:16px;border-top:1px solid var(--line)}
+.mk-more h3{font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:600;letter-spacing:.06em}
+.mk-more-links{display:flex;flex-wrap:wrap;gap:8px}
+.mk-more-links a{font-size:12px;color:var(--muted);text-decoration:none;padding:8px 12px;border:1px solid var(--line2);border-radius:8px}
+.mk-more-links a:hover{color:var(--accent2);border-color:rgba(95,200,255,.4)}
+.mk-login{text-align:center;padding:48px 16px;color:var(--muted);line-height:1.85}
+.mk-login a{color:var(--accent2)}
+
+/* ---------- 编辑器 ---------- */
+.mk-edit{display:none;flex-direction:column;height:100%}
+.mk-edit.show{display:flex}
+.mk-steps{display:flex;gap:6px;padding:8px 16px;border-bottom:1px solid var(--line);background:var(--bg2);flex:0 0 auto}
+.mk-step{font-size:11px;padding:5px 12px;border-radius:99px;border:1px solid var(--line2);color:var(--muted)}
+.mk-step.on{border-color:rgba(139,123,255,.5);color:#cfc8ff;background:rgba(139,123,255,.1)}
+.mk-workspace{flex:1;min-height:0;display:grid;grid-template-columns:240px 1fr 280px;gap:0}
+@media(max-width:900px){.mk-workspace{grid-template-columns:1fr;grid-template-rows:auto auto auto}}
+.mk-shots{border-right:1px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;min-height:0}
+.mk-shots-head{padding:10px 12px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.mk-shots-list{flex:1;overflow:auto;padding:8px}
+.mk-shot{display:flex;gap:8px;padding:10px;border-radius:10px;border:1px solid transparent;cursor:pointer;margin-bottom:4px;align-items:flex-start}
+.mk-shot:hover{background:rgba(255,255,255,.03)}
+.mk-shot.on{border-color:rgba(139,123,255,.45);background:rgba(139,123,255,.08)}
+.mk-shot .num{font-size:10px;color:var(--muted);width:18px;flex:0 0 auto;padding-top:2px}
+.mk-shot .body{flex:1;min-width:0}
+.mk-shot .type{font-size:10px;color:var(--accent2);margin-bottom:2px}
+.mk-shot .txt{font-size:12px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:var(--text)}
+.mk-shots-add{margin:8px;padding:8px;width:calc(100% - 16px)}
+.mk-preview{background:#080810;display:flex;flex-direction:column;min-height:0;position:relative}
+.mk-stage-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:16px;min-height:0}
+.mk-stage{position:relative;width:100%;max-width:720px;aspect-ratio:16/9;background:linear-gradient(160deg,#1a1a28,#0d0d14);border-radius:12px;overflow:hidden;border:1px solid var(--line2);box-shadow:0 12px 40px rgba(0,0,0,.45)}
+.mk-stage.portrait{aspect-ratio:9/16;max-width:320px}
+.mk-stage .bg{position:absolute;inset:0;object-fit:cover;width:100%;height:100%}
+.mk-stage .bg-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.mk-stage .dlg{position:absolute;left:0;right:0;bottom:0;padding:14px 16px 16px;background:linear-gradient(transparent,rgba(0,0,0,.75) 30%,rgba(0,0,0,.92));pointer-events:none}
+.mk-stage .dlg .sp{font-size:13px;font-weight:600;color:var(--accent2);margin-bottom:4px}
+.mk-stage .dlg .ln{font-size:15px;line-height:1.55;color:#fff}
+.mk-stage .scene-txt{position:absolute;left:50%;top:78%;transform:translate(-50%,-50%);font-size:15px;color:#fff;text-align:center;max-width:88%;line-height:1.5;text-shadow:0 2px 8px rgba(0,0,0,.8)}
+.mk-stage .empty-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:20px;line-height:1.6}
+.mk-panel{border-left:1px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;min-height:0;overflow:auto}
+.mk-panel-inner{padding:14px;display:flex;flex-direction:column;gap:12px}
+.mk-panel label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px}
+.mk-panel input[type=text],.mk-panel textarea,.mk-panel select{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font-family:inherit;font-size:13px}
+.mk-panel textarea{min-height:72px;resize:vertical;line-height:1.5}
+.mk-panel .field{margin-bottom:4px}
+.mk-bg-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border:2px dashed var(--line2);border-radius:10px;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;transition:.15s}
+.mk-bg-btn:hover{border-color:var(--accent);color:var(--accent)}
+.mk-bg-preview{position:relative;border-radius:8px;overflow:hidden;margin-top:8px}
+.mk-bg-preview img{width:100%;display:block;border-radius:8px}
+.mk-bg-preview button{position:absolute;top:6px;right:6px;font-size:10px;padding:4px 8px}
+.mk-choice-row{display:flex;gap:6px;margin-bottom:6px}
+.mk-choice-row input{flex:1}
+.mk-choice-row button{flex:0 0 auto;padding:6px 8px;font-size:11px}
+.mk-panel-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
+
+/* ---------- 播放层 ---------- */
+#playOverlay{position:fixed;inset:0;z-index:100;background:#000;display:none;flex-direction:column}
+#playOverlay.show{display:flex}
+#playTop{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,.85);border-bottom:1px solid var(--line)}
+#playBody{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+#playNav{flex:0 0 auto;display:flex;gap:8px;padding:12px 14px;background:rgba(0,0,0,.85);border-top:1px solid var(--line)}
+.play-frame{position:relative;width:100%;max-width:min(100vw,1280px);aspect-ratio:16/9;background:#111;overflow:hidden;border-radius:8px}
+#playOverlay.orient-portrait .play-frame{aspect-ratio:9/16;max-width:min(100vw,420px);max-height:calc(100vh - 120px)}
+.play-media-bg{position:absolute;inset:0}
+.play-media-bg img,.play-media-bg video{width:100%;height:100%;object-fit:cover}
+.play-fore{position:absolute;inset:0;cursor:pointer}
+.play-fore.dlg-fore{cursor:pointer}
+.play-dialogue{position:absolute;left:0;right:0;bottom:0;padding:16px 18px 20px;background:linear-gradient(transparent,rgba(0,0,0,.7) 25%,rgba(0,0,0,.92));pointer-events:none}
+.pd-speaker{font-size:14px;font-weight:600;color:var(--accent2);margin-bottom:6px}
+.pd-line{font-size:17px;line-height:1.55;color:#fff}
+.play-scene-text{position:absolute;color:#fff;font-size:17px;text-align:center;max-width:90%;line-height:1.5;text-shadow:0 2px 10px rgba(0,0,0,.9);pointer-events:none}
+.play-choice{position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:min(92%,420px);background:rgba(0,0,0,.82);border:1px solid var(--line2);border-radius:12px;padding:14px;pointer-events:auto}
+.pc-prompt{font-size:14px;margin-bottom:10px;color:#ddd}
+.pc-opts{display:flex;flex-direction:column;gap:8px}
+.pc-opt{padding:12px 14px;border-radius:8px;border:1px solid var(--line2);background:rgba(255,255,255,.06);color:#fff;font-size:14px;cursor:pointer;text-align:left;font-family:inherit}
+.pc-opt:hover{border-color:var(--accent);background:rgba(139,123,255,.15)}
+
+/* ---------- 弹窗 ---------- */
+.mk-modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:16px}
+.mk-modal.show{display:flex}
+.mk-modal-box{width:100%;max-width:400px;background:var(--bg3);border:1px solid var(--line2);border-radius:14px;padding:20px}
+.mk-modal-box h2{font-size:16px;margin-bottom:12px}
+.mk-modal-box .row{display:flex;gap:8px;margin-top:12px}
+.mk-orient{display:flex;gap:8px;margin-top:8px}
+.mk-orient button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--muted);cursor:pointer;font-family:inherit;font-size:12px}
+.mk-orient button.on{border-color:var(--accent);color:#cfc8ff;background:rgba(139,123,255,.12)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar" id="mkTopbar">
+    <a class="back" href="/" id="mkBack">← 首页</a>
+    <div class="brand">
+      <span class="brand-name" id="mkBrand">创作作品</span>
+      <span class="brand-sub" id="mkBrandSub">MAKE</span>
+    </div>
+    <div class="topbar-right">
+      <span id="mkSave" style="font-size:11px;color:var(--muted)"></span>
+      <button type="button" class="btn" id="mkPlayBtn" style="display:none">▶ 试玩</button>
+      <button type="button" class="btn primary" id="mkPubBtn" style="display:none">发布</button>
+    </div>
+  </header>
+
+  <main class="app-main" id="viewHome">
+    <div class="mk-home">
+      <section class="mk-hero">
+        <h1>写故事，加图片，点试玩</h1>
+        <p>像做 PPT 一样做视觉小说：左边是镜头顺序，中间实时预览，右边改字加图。改完立刻试玩，满意再发布。</p>
+      </section>
+      <div id="mkLogin" class="mk-login hidden">请先 <a href="/yonder.html?next=/make.html">登录</a>，才能创建和保存作品。</div>
+      <div id="mkApp" class="hidden">
+        <div class="mk-actions">
+          <button type="button" class="btn primary" id="mkNewBtn">＋ 新建故事</button>
+          <a class="btn" href="/brain.html" style="text-decoration:none">◎ AI 帮我想</a>
+          <a class="btn" href="/plaza.html" style="text-decoration:none">去玩</a>
+        </div>
+        <div id="mkGrid" class="mk-grid"></div>
+        <p id="mkEmpty" class="mk-login hidden" style="padding:24px">还没有作品。点上方「新建故事」开始，或让 AI 帮你想大纲。</p>
+        <div class="mk-more">
+          <h3>要做别的类型？</h3>
+          <div class="mk-more-links">
+            <a href="/h5-game.html">🎮 H5 网页游戏</a>
+            <a href="/story-editor.html?pro=1&new=comic">📚 漫画分格</a>
+            <a href="/story-editor.html?pro=1&new=card">🂠 卡牌游戏</a>
+            <a href="/story-editor.html?pro=1">⚙️ 专业编辑器</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="mk-edit" id="viewEdit">
+    <div class="mk-steps" id="mkSteps">
+      <span class="mk-step on" data-step="write">① 写</span>
+      <span class="mk-step" data-step="pic">② 图</span>
+      <span class="mk-step" data-step="play">③ 试玩</span>
+    </div>
+    <div class="mk-workspace">
+      <aside class="mk-shots">
+        <div class="mk-shots-head"><span>镜头顺序</span><span id="mkShotCount"></span></div>
+        <div class="mk-shots-list" id="mkShotsList"></div>
+        <button type="button" class="btn mk-shots-add" id="mkAddBtn">＋ 加镜头</button>
+      </aside>
+      <section class="mk-preview">
+        <div class="mk-stage-wrap">
+          <div class="mk-stage" id="mkStage">
+            <div class="empty-hint">选左边一个镜头<br>中间会实时显示效果</div>
+          </div>
+        </div>
+      </section>
+      <aside class="mk-panel">
+        <div class="mk-panel-inner" id="mkPanel">
+          <p style="color:var(--muted);font-size:13px;text-align:center;padding:24px 0">← 选一个镜头</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div id="playOverlay">
+  <div id="playTop">
+    <button type="button" class="btn" id="playClose">✕ 退出</button>
+    <span id="playTitle" style="font-size:13px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+  </div>
+  <div id="playBody"></div>
+  <div id="playNav">
+    <button type="button" class="btn" id="playPrev">← 上一条</button>
+    <button type="button" class="btn primary" id="playNext">下一条 →</button>
+  </div>
+</div>
+
+<div class="mk-modal" id="mkModal">
+  <div class="mk-modal-box">
+    <h2>新建故事</h2>
+    <label class="field"><span>作品名称</span>
+      <input type="text" id="mkNewTitle" placeholder="例如：雨夜教室" maxlength="40">
+    </label>
+    <label class="field" style="margin-top:12px"><span>画面方向</span></label>
+    <div class="mk-orient">
+      <button type="button" data-o="landscape" class="on">🖥 横屏 16:9</button>
+      <button type="button" data-o="portrait">📱 竖屏 9:16</button>
+    </div>
+    <div class="row">
+      <button type="button" class="btn" id="mkModalCancel" style="flex:1">取消</button>
+      <button type="button" class="btn primary" id="mkModalOk" style="flex:1">创建并开始</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script type="module" src="/make.js?v=20260827make"></script>
+</body>
+</html>
