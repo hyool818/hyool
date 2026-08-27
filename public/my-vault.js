@@ -13,6 +13,7 @@ let catFilter = 'all';
 let imgLoading = 0;
 const imgWait = [];
 let vaultObserver = null;
+let lbItem = null;
 
 function resolveBackHref() {
   const from = new URLSearchParams(location.search).get('from');
@@ -78,6 +79,92 @@ function observeThumb(img, url) {
   vaultObserver.observe(img);
 }
 
+function typeLabel(type) {
+  if (type === 'audio') return '音频';
+  if (type === 'video') return '视频';
+  return '图片';
+}
+
+function closeVaultLightbox() {
+  const lb = $('#vaultLightbox');
+  const media = $('#vaultLbMedia');
+  if (!lb) return;
+  lb.classList.remove('show');
+  lb.setAttribute('aria-hidden', 'true');
+  if (media) {
+    media.querySelectorAll('video, audio').forEach((el) => {
+      try { el.pause(); } catch { /* ignore */ }
+    });
+    media.innerHTML = '';
+  }
+  lbItem = null;
+}
+
+function openVaultLightbox(item) {
+  if (!item || !item.url) return;
+  const lb = $('#vaultLightbox');
+  const media = $('#vaultLbMedia');
+  const info = $('#vaultLbInfo');
+  const openA = $('#vaultLbOpen');
+  if (!lb || !media) return;
+  lbItem = item;
+  media.innerHTML = '';
+  if (item.type === 'video') {
+    const v = document.createElement('video');
+    v.src = item.url;
+    v.controls = true;
+    v.playsInline = true;
+    v.preload = 'metadata';
+    media.appendChild(v);
+    v.play().catch(() => {});
+  } else if (item.type === 'audio') {
+    const a = document.createElement('audio');
+    a.src = item.url;
+    a.controls = true;
+    a.preload = 'metadata';
+    media.appendChild(a);
+    a.play().catch(() => {});
+  } else {
+    const img = document.createElement('img');
+    img.src = item.url;
+    img.alt = '原图';
+    media.appendChild(img);
+  }
+  if (info) {
+    info.textContent = typeLabel(item.type) + ' · ' + formatBytes(item.byteSize)
+      + (item.createdAt ? ' · ' + String(item.createdAt).slice(0, 16) : '');
+  }
+  if (openA) {
+    openA.href = item.url;
+    openA.style.display = item.type === 'audio' ? 'none' : '';
+  }
+  lb.classList.add('show');
+  lb.setAttribute('aria-hidden', 'false');
+}
+
+function bindLightbox() {
+  const lb = $('#vaultLightbox');
+  if (!lb || lb.dataset.bound) return;
+  lb.dataset.bound = '1';
+  const close = () => closeVaultLightbox();
+  $('#vaultLbClose')?.addEventListener('click', (e) => { e.stopPropagation(); close(); });
+  $('#vaultLbClose2')?.addEventListener('click', (e) => { e.stopPropagation(); close(); });
+  lb.addEventListener('click', (e) => {
+    if (e.target === lb) close();
+  });
+  $('#vaultLbInner')?.addEventListener('click', (e) => e.stopPropagation());
+  $('#vaultLbCopy')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!lbItem?.url) return;
+    navigator.clipboard?.writeText(lbItem.url)
+      .then(() => toast('已复制地址'))
+      .catch(() => toast(lbItem.url));
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lb.classList.contains('show')) close();
+  });
+}
+
 async function uploadFile(file) {
   if (!file || !file.size) return null;
   if (file.size > 5 * 1024 * 1024) { toast('文件过大（限 5MB）', true); return null; }
@@ -128,6 +215,7 @@ async function loadVault() {
     items.forEach((a) => {
       const card = document.createElement('div');
       card.className = 'vault-card';
+      card.title = '点击查看原' + (a.type === 'video' ? '视频' : a.type === 'audio' ? '音频' : '图');
       const del = document.createElement('button');
       del.type = 'button';
       del.className = 'del';
@@ -150,11 +238,14 @@ async function loadVault() {
         observeThumb(img, a.url);
         thumb.appendChild(img);
       } else if (a.type === 'video') {
-        const ic = document.createElement('div');
-        ic.className = 'ic';
-        ic.textContent = '▶';
-        ic.title = '视频 · 点击复制地址';
-        thumb.appendChild(ic);
+        const v = document.createElement('video');
+        v.className = 'vault-thumb-vid';
+        v.src = a.url;
+        v.muted = true;
+        v.playsInline = true;
+        v.preload = 'metadata';
+        v.setAttribute('aria-hidden', 'true');
+        thumb.appendChild(v);
       } else {
         const ic = document.createElement('div');
         ic.className = 'ic';
@@ -163,12 +254,10 @@ async function loadVault() {
       }
       const meta = document.createElement('div');
       meta.className = 'meta';
-      meta.innerHTML = '<b>' + (a.type === 'audio' ? '音频' : a.type === 'video' ? '视频' : '图片') + '</b>'
+      meta.innerHTML = '<b>' + typeLabel(a.type) + '</b>'
         + formatBytes(a.byteSize) + '<br>' + (a.createdAt || '').slice(0, 16);
       card.append(del, thumb, meta);
-      card.addEventListener('click', () => {
-        navigator.clipboard && navigator.clipboard.writeText(a.url).then(() => toast('已复制地址 ' + a.url)).catch(() => toast(a.url));
-      });
+      card.addEventListener('click', () => openVaultLightbox(a));
       grid.appendChild(card);
     });
   } catch (e) {
@@ -182,6 +271,7 @@ async function loadVault() {
 
 function init() {
   setupBackNav();
+  bindLightbox();
   const login = $('#vaultLogin');
   const app = $('#vaultApp');
   if (!vaultLoggedIn()) {

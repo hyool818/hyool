@@ -26,6 +26,39 @@
 .vault-empty{text-align:center;padding:48px 16px;color:var(--muted);line-height:1.8;font-size:13px}
 .vault-login{padding:32px 16px;text-align:center;color:var(--muted);line-height:1.8}
 .vault-login a{color:var(--accent2)}
+.vault-card{cursor:zoom-in}
+.vault-card .thumb video.vault-thumb-vid{pointer-events:none;background:#000}
+.vault-lightbox{
+  position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;
+  padding:max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background:rgba(4,4,10,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  cursor:zoom-out;
+}
+.vault-lightbox.show{display:flex}
+.vault-lightbox-inner{
+  position:relative;z-index:1;max-width:min(960px,96vw);max-height:92vh;
+  display:flex;flex-direction:column;align-items:center;gap:12px;cursor:default;
+}
+.vault-lightbox-media{
+  max-width:100%;max-height:min(78vh,820px);border-radius:12px;overflow:hidden;
+  background:#0a0a12;border:1px solid rgba(255,255,255,.1);line-height:0;
+}
+.vault-lightbox-media img,.vault-lightbox-media video{
+  display:block;max-width:100%;max-height:min(78vh,820px);width:auto;height:auto;margin:0 auto;
+  object-fit:contain;background:#000;
+}
+.vault-lightbox-media audio{display:block;width:min(420px,86vw);margin:24px auto}
+.vault-lightbox-bar{
+  display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;
+  width:100%;max-width:560px;
+}
+.vault-lightbox-bar .info{font-size:12px;color:rgba(255,255,255,.55);line-height:1.5;text-align:center;width:100%}
+.vault-lightbox-close{
+  position:absolute;top:max(12px, env(safe-area-inset-top));right:max(12px, env(safe-area-inset-right));
+  z-index:2;border:1px solid rgba(255,255,255,.16);background:rgba(20,20,28,.85);
+  color:#fff;border-radius:999px;padding:8px 14px;font:inherit;font-size:13px;cursor:pointer;
+}
+.vault-lightbox-close:hover{background:rgba(40,40,52,.95)}
 </style>
 </head>
 <body>
@@ -40,7 +73,7 @@
   <main class="vault-main">
     <section class="vault-hero">
       <h1 class="hub-hero-name" style="font-size:22px;margin:12px 0 0">云端素材库</h1>
-      <p>登录后上传的图片、音频、视频都存在这里，<strong>只有你能看、能删</strong>。作品里引用过的地址，删库后那些镜头会缺图（需重新上传）。</p>
+      <p>登录后上传的图片、音频、视频都存在这里，<strong>只有你能看、能删</strong>。点卡片可看原图 / 播原视频。作品里引用过的地址，删库后那些镜头会缺图（需重新上传）。</p>
     </section>
     <div id="vaultLogin" class="vault-login hidden">
       请先 <a href="/yonder.html?next=/my-vault">登录彼岸</a> 后再使用专属库。
@@ -57,6 +90,20 @@
     </div>
   </main>
 </div>
-<script type="module" src="/my-vault.js?v=20260827v2"></script>
+
+<div class="vault-lightbox" id="vaultLightbox" aria-hidden="true">
+  <button type="button" class="vault-lightbox-close" id="vaultLbClose">关闭</button>
+  <div class="vault-lightbox-inner" id="vaultLbInner">
+    <div class="vault-lightbox-media" id="vaultLbMedia"></div>
+    <div class="vault-lightbox-bar">
+      <div class="info" id="vaultLbInfo"></div>
+      <button type="button" class="btn" id="vaultLbCopy">复制地址</button>
+      <a class="btn" id="vaultLbOpen" href="#" target="_blank" rel="noopener">新标签打开</a>
+      <button type="button" class="btn" id="vaultLbClose2">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/my-vault.js?v=20260828vault1"></script>
 </body>
 </html>
