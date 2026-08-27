@@ -121,6 +121,22 @@ html,body{height:100%;overflow:hidden}
 .mk-choice-row select{flex:0 1 160px;min-width:120px;font-size:11px;padding:8px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font-family:inherit}
 .mk-choice-row button{flex:0 0 auto;padding:6px 8px;font-size:11px}
 .mk-branch-hint{font-size:11px;color:var(--muted);line-height:1.65;margin:4px 0 8px}
+.mk-opt-card{border:1px solid var(--line2);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:rgba(0,0,0,.15)}
+.mk-opt-card .mk-choice-row{margin-bottom:8px}
+.mk-branch-label{font-size:11px;color:var(--muted);margin-bottom:6px}
+.mk-branch-shots{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.mk-branch-shot{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;border:1px solid transparent;background:rgba(255,255,255,.03);cursor:pointer;font-size:12px;text-align:left;color:inherit;font-family:inherit;width:100%}
+.mk-branch-shot:hover{border-color:rgba(139,123,255,.35)}
+.mk-branch-shot.on{border-color:rgba(139,123,255,.55);background:rgba(139,123,255,.1)}
+.mk-branch-shot .n{font-size:10px;color:var(--muted);width:18px;flex:0 0 auto}
+.mk-branch-shot .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mk-branch-add{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.mk-branch-add .btn{padding:5px 10px;font-size:11px}
+.mk-branch-end label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px}
+.mk-branch-end select{width:100%;font-size:12px;padding:8px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font-family:inherit}
+.mk-panel-crumb{font-size:11px;color:var(--accent2);margin-bottom:10px;cursor:pointer}
+.mk-panel-crumb:hover{text-decoration:underline}
+.mk-shot.has-branch .type::after{content:' · 有分支';color:var(--gold,#c9a84c);font-size:9px;margin-left:4px}
 .mk-after-jump{margin-top:8px}
 .mk-after-jump select{width:100%;font-size:12px;padding:8px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font-family:inherit}
 .mk-panel-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
@@ -328,6 +344,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260828h"></script>
+<script type="module" src="/make.js?v=20260828i"></script>
 </body>
 </html>

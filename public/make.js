@@ -67,6 +67,8 @@ let loggedIn = false;
 let works = [];
 let work = null;
 let selectedId = null;
+/** 正在编辑选项下的子镜头 { choiceBlockId, choiceId, blockId } */
+let editBranch = null;
 let createOrient = 'landscape';
 let createKind = 'story';
 let createStep = 1;
@@ -74,8 +76,13 @@ let uploadTimer = null;
 let saveLabel = '';
 
 let playing = false;
-let playFlat = [];
-let playIdx = 0;
+let playMainFlat = [];
+let playMainIdx = 0;
+/** 选项子镜头播放栈；null 表示在主线 */
+let playBranchFlat = null;
+let playBranchIdx = 0;
+let playBranchEnd = 'main';
+let playResumeMainIdx = 0;
 /** 当前选项未走到的支线入口（block id），顺序播放时自动跳过 */
 let playSiblingJumps = null;
 let playAudio = null;
@@ -105,7 +112,17 @@ function blocks() {
 }
 
 function selectedBlock() {
+  if (editBranch) {
+    const ch = blocks().find((b) => b.id === editBranch.choiceBlockId);
+    const opt = (ch?.choices || []).find((c) => c.id === editBranch.choiceId);
+    return (opt?.branch || []).find((b) => b.id === editBranch.blockId) || null;
+  }
   return blocks().find((b) => b.id === selectedId) || null;
+}
+
+function parentChoiceBlock() {
+  if (!editBranch) return null;
+  return blocks().find((b) => b.id === editBranch.choiceBlockId) || null;
 }
 
 function setSave(st) {
@@ -158,18 +175,39 @@ function normalizeWork(s) {
   return s;
 }
 
+function normalizeBranchBlock(bl) {
+  if (!bl || typeof bl !== 'object') return { id: uid(), type: 'dialogue', speaker: DEFAULT_SPEAKER, content: '' };
+  if (!bl.id) bl.id = uid();
+  if (bl.type !== 'scene' && bl.type !== 'dialogue') bl.type = 'dialogue';
+  if (bl.type === 'dialogue' && !bl.speaker) bl.speaker = DEFAULT_SPEAKER;
+  return bl;
+}
+
 function normalizeChoice(b) {
   if (!Array.isArray(b.choices) || !b.choices.length) {
     b.choices = [
-      { id: uid(), label: '继续', jump: 'next' },
-      { id: uid(), label: '结束', jump: 'end' },
+      { id: uid(), label: '继续', jump: 'next', branch: [], branchEnd: 'main' },
+      { id: uid(), label: '结束', jump: 'end', branch: [], branchEnd: 'end' },
     ];
   }
-  b.choices = b.choices.map((c) => ({
-    id: c.id || uid(),
-    label: String(c.label || '选项').slice(0, 40),
-    jump: c.jump || 'next',
-  }));
+  b.choices = b.choices.map((c) => {
+    const branch = Array.isArray(c.branch) ? c.branch.map(normalizeBranchBlock) : [];
+    let branchEnd = c.branchEnd;
+    if (branchEnd !== 'end' && branchEnd !== 'main') {
+      branchEnd = branch.length ? 'main' : undefined;
+    }
+    return {
+      id: c.id || uid(),
+      label: String(c.label || '选项').slice(0, 40),
+      jump: c.jump || 'next',
+      branch,
+      branchEnd,
+    };
+  });
+}
+
+function optionUsesBranch(c) {
+  return Array.isArray(c.branch) && c.branch.length > 0;
 }
 
 function shotPreview(b) {
@@ -213,8 +251,28 @@ function chapter() {
 function chapterForBlock(b) {
   for (const ch of work?.chapters || []) {
     if ((ch.blocks || []).some((x) => x.id === b.id)) return ch;
+    for (const blk of ch.blocks || []) {
+      if (blk.type !== 'choice') continue;
+      for (const c of blk.choices || []) {
+        if ((c.branch || []).some((x) => x.id === b.id)) return ch;
+      }
+    }
   }
   return chapter();
+}
+
+function playCurrentFlat() {
+  return playBranchFlat || playMainFlat;
+}
+
+function playCurrentIdx() {
+  return playBranchFlat ? playBranchIdx : playMainIdx;
+}
+
+function currentPlayBlock() {
+  const flat = playCurrentFlat();
+  const idx = playCurrentIdx();
+  return flat[idx];
 }
 
 function redirectOtherKind(w) {
@@ -367,21 +425,34 @@ function applyTextFont(el) {
 function starterBlocks() {
   const b1 = { id: uid(), type: 'scene', content: '某个寻常的下课铃后，走廊里只剩下你的脚步声。' };
   const b2 = { id: uid(), type: 'dialogue', speaker: '你', content: '……今天，好像有什么不一样。' };
-  const b4 = { id: uid(), type: 'dialogue', speaker: '你', content: '推开门，教室里空无一人，只有窗外雨声。' };
-  const b5 = { id: uid(), type: 'dialogue', speaker: '你', content: '……还是回去吧。' };
   const b6 = { id: uid(), type: 'scene', content: '雨夜，你独自走在回家的路上。' };
   const b3 = {
     id: uid(),
     type: 'choice',
     content: '你要怎么做？',
     choices: [
-      { id: uid(), label: '推开教室的门', jump: b4.id },
-      { id: uid(), label: '先回家再说', jump: b5.id },
+      {
+        id: uid(),
+        label: '推开教室的门',
+        jump: 'next',
+        branchEnd: 'main',
+        branch: [
+          { id: uid(), type: 'dialogue', speaker: '你', content: '推开门，教室里空无一人，只有窗外雨声。' },
+        ],
+      },
+      {
+        id: uid(),
+        label: '先回家再说',
+        jump: 'end',
+        branchEnd: 'main',
+        branch: [
+          { id: uid(), type: 'dialogue', speaker: '你', content: '……还是回去吧。' },
+        ],
+      },
     ],
   };
-  b4.afterJump = b6.id;
-  b5.afterJump = b6.id;
-  return [b1, b2, b3, b4, b5, b6];
+  normalizeChoice(b3);
+  return [b1, b2, b3, b6];
 }
 
 // ---------- API ----------
@@ -624,6 +695,7 @@ function playVoiceForBlock(b) {
 async function showHome() {
   work = null;
   selectedId = null;
+  editBranch = null;
   history.replaceState(null, '', PAGE);
   $('#viewHome').classList.remove('hidden');
   $('#viewEdit').classList.remove('show');
@@ -722,6 +794,7 @@ async function openWork(id, play) {
     if (redirectOtherKind(w)) return;
     work = w;
     selectedId = blocks()[0]?.id || null;
+    editBranch = null;
     showEdit();
     if (work._needsKindMigrate) {
       delete work._needsKindMigrate;
@@ -822,7 +895,9 @@ function renderShots() {
   $('#mkShotCount').textContent = bs.length ? bs.length + ' 镜' : '';
   bs.forEach((b, i) => {
     const row = document.createElement('div');
-    row.className = 'mk-shot' + (b.id === selectedId ? ' on' : '');
+    const onMain = b.id === selectedId && (!editBranch || editBranch.choiceBlockId === b.id);
+    row.className = 'mk-shot' + (onMain ? ' on' : '');
+    if (b.type === 'choice' && (b.choices || []).some(optionUsesBranch)) row.classList.add('has-branch');
     const preview = b.type === 'dialogue'
       ? (b.speaker + '：' + (b.content || '')).slice(0, 40)
       : (b.content || TYPE_LABEL[b.type] || '').slice(0, 40);
@@ -832,7 +907,7 @@ function renderShots() {
         '<div class="type">' + (TYPE_LABEL[b.type] || b.type) + mediaShotTag(b) + '</div>' +
         '<div class="txt">' + escapeHtml(preview || '（空）') + '</div>' +
       '</div>';
-    row.addEventListener('click', () => { selectedId = b.id; renderEdit(); });
+    row.addEventListener('click', () => { editBranch = null; selectedId = b.id; renderEdit(); });
     list.appendChild(row);
   });
 }
@@ -900,17 +975,30 @@ function renderPanel() {
   }
   panel.innerHTML = '';
 
+  if (editBranch) {
+    const parent = parentChoiceBlock();
+    const opt = (parent?.choices || []).find((c) => c.id === editBranch.choiceId);
+    const crumb = document.createElement('div');
+    crumb.className = 'mk-panel-crumb';
+    crumb.textContent = '← 返回「' + (opt?.label || '选项') + '」';
+    crumb.addEventListener('click', () => { editBranch = null; renderEdit(); });
+    panel.appendChild(crumb);
+  }
+
   const typeRow = document.createElement('div');
   typeRow.className = 'field';
   typeRow.innerHTML = '<label>镜头类型</label>';
   const sel = document.createElement('select');
-  ['scene', 'dialogue', 'choice'].forEach((t) => {
+  const branchTypes = ['scene', 'dialogue'];
+  const typeChoices = editBranch ? branchTypes : ['scene', 'dialogue', 'choice'];
+  typeChoices.forEach((t) => {
     const o = document.createElement('option');
     o.value = t;
     o.textContent = TYPE_LABEL[t];
     if (b.type === t) o.selected = true;
     sel.appendChild(o);
   });
+  if (editBranch) sel.disabled = true;
   sel.addEventListener('change', () => {
     b.type = sel.value;
     if (b.type === 'dialogue' && !b.speaker) b.speaker = DEFAULT_SPEAKER;
@@ -935,12 +1023,14 @@ function renderPanel() {
     updateSteps();
   }));
 
-  if (b.type === 'scene' || b.type === 'dialogue') {
+  if ((b.type === 'scene' || b.type === 'dialogue') && !editBranch) {
     panel.appendChild(textStylePanel(b));
     panel.appendChild(afterJumpPanel(b));
+  } else if (b.type === 'scene' || b.type === 'dialogue') {
+    panel.appendChild(textStylePanel(b));
   }
 
-  if (b.type === 'choice') {
+  if (b.type === 'choice' && !editBranch) {
     panel.appendChild(choiceEditor(b));
   }
 
@@ -1045,10 +1135,24 @@ function renderPanel() {
 
   const foot = document.createElement('div');
   foot.className = 'mk-panel-foot';
-  const up = btn('↑ 上移', () => moveBlock(b.id, -1));
-  const down = btn('↓ 下移', () => moveBlock(b.id, 1));
-  const del = btn('删除镜头', () => removeBlock(b.id), true);
-  foot.append(up, down, del);
+  if (editBranch) {
+    const parent = parentChoiceBlock();
+    const opt = parent?.choices?.find((c) => c.id === editBranch.choiceId);
+    const branch = opt?.branch || [];
+    const bi = branch.findIndex((x) => x.id === b.id);
+    const up = btn('↑ 上移', () => moveBranchBlock(editBranch.choiceBlockId, editBranch.choiceId, b.id, -1));
+    const down = btn('↓ 下移', () => moveBranchBlock(editBranch.choiceBlockId, editBranch.choiceId, b.id, 1));
+    const del = btn('删除子镜头', () => removeBranchBlock(editBranch.choiceBlockId, editBranch.choiceId, b.id), true);
+    if (bi <= 0) up.disabled = true;
+    if (bi < 0 || bi >= branch.length - 1) down.disabled = true;
+    foot.append(up, down, del);
+  } else {
+    foot.append(
+      btn('↑ 上移', () => moveBlock(b.id, -1)),
+      btn('↓ 下移', () => moveBlock(b.id, 1)),
+      btn('删除镜头', () => removeBlock(b.id), true),
+    );
+  }
   panel.appendChild(foot);
 }
 
@@ -1314,6 +1418,47 @@ function btn(text, fn, danger) {
   return b;
 }
 
+function addBranchBlock(choiceBlock, choiceId, type) {
+  normalizeChoice(choiceBlock);
+  const c = choiceBlock.choices.find((x) => x.id === choiceId);
+  if (!c) return;
+  if (!Array.isArray(c.branch)) c.branch = [];
+  const bl = { id: uid(), type, content: type === 'scene' ? '新场景……' : '在这里写下对白……' };
+  if (type === 'dialogue') bl.speaker = DEFAULT_SPEAKER;
+  c.branch.push(bl);
+  if (!c.branchEnd) c.branchEnd = 'main';
+  selectedId = choiceBlock.id;
+  editBranch = { choiceBlockId: choiceBlock.id, choiceId: c.id, blockId: bl.id };
+  scheduleSave();
+  renderEdit();
+}
+
+function removeBranchBlock(choiceBlockId, choiceId, blockId) {
+  if (!confirm('删除这个子镜头？')) return;
+  const ch = blocks().find((b) => b.id === choiceBlockId);
+  const c = ch?.choices?.find((x) => x.id === choiceId);
+  if (!c?.branch) return;
+  c.branch = c.branch.filter((b) => b.id !== blockId);
+  if (editBranch?.blockId === blockId) editBranch = null;
+  scheduleSave();
+  renderEdit();
+}
+
+function moveBranchBlock(choiceBlockId, choiceId, blockId, dir) {
+  const ch = blocks().find((b) => b.id === choiceBlockId);
+  const c = ch?.choices?.find((x) => x.id === choiceId);
+  const branch = c?.branch;
+  if (!branch) return;
+  const i = branch.findIndex((b) => b.id === blockId);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= branch.length) return;
+  const tmp = branch[i];
+  branch[i] = branch[j];
+  branch[j] = tmp;
+  scheduleSave();
+  renderEdit();
+}
+
 function afterJumpPanel(b) {
   const wrap = document.createElement('div');
   wrap.className = 'field mk-after-jump';
@@ -1333,9 +1478,11 @@ function choiceEditor(b) {
   wrap.innerHTML = '<label>选项（读者点选）</label>';
   const hint = document.createElement('p');
   hint.className = 'mk-branch-hint';
-  hint.textContent = '每条选项可跳到不同镜头。先在左侧加好分支镜头，再在这里指定「跳到第几镜」。';
+  hint.textContent = '每条选项下方可建子镜头，与主线互不干扰；播完后「结束」或「回归主线」。未建子镜头时仍可用「跳到」指定主线镜头。';
   wrap.appendChild(hint);
   b.choices.forEach((c, i) => {
+    const card = document.createElement('div');
+    card.className = 'mk-opt-card';
     const row = document.createElement('div');
     row.className = 'mk-choice-row';
     const inp = document.createElement('input');
@@ -1343,22 +1490,86 @@ function choiceEditor(b) {
     inp.value = c.label;
     inp.placeholder = '选项 ' + (i + 1);
     inp.addEventListener('input', () => { c.label = inp.value; scheduleSave(); renderPreview(); renderShots(); });
-    const jmp = makeJumpSelect(c.jump, b.id, (v) => {
-      c.jump = v;
-      scheduleSave();
-    });
     const rm = document.createElement('button');
     rm.type = 'button';
     rm.className = 'btn danger';
     rm.textContent = '×';
     rm.addEventListener('click', () => {
       if (b.choices.length <= 1) return;
+      if (editBranch?.choiceBlockId === b.id && editBranch?.choiceId === c.id) editBranch = null;
       b.choices.splice(i, 1);
       scheduleSave();
       renderEdit();
     });
-    row.append(inp, jmp, rm);
-    wrap.appendChild(row);
+    row.append(inp, rm);
+    card.appendChild(row);
+
+    const branchSec = document.createElement('div');
+    branchSec.className = 'mk-branch';
+    const bl = document.createElement('div');
+    bl.className = 'mk-branch-label';
+    bl.textContent = '子镜头';
+    branchSec.appendChild(bl);
+    if (!Array.isArray(c.branch)) c.branch = [];
+    const shots = document.createElement('div');
+    shots.className = 'mk-branch-shots';
+    c.branch.forEach((sub, si) => {
+      const shot = document.createElement('button');
+      shot.type = 'button';
+      const on = editBranch?.choiceBlockId === b.id && editBranch?.choiceId === c.id && editBranch?.blockId === sub.id;
+      shot.className = 'mk-branch-shot' + (on ? ' on' : '');
+      const preview = sub.type === 'dialogue'
+        ? (sub.speaker + '：' + (sub.content || '')).slice(0, 36)
+        : (sub.content || TYPE_LABEL[sub.type] || '').slice(0, 36);
+      shot.innerHTML = '<span class="n">' + (si + 1) + '</span><span class="t">' + escapeHtml(preview || '（空）') + '</span>';
+      shot.addEventListener('click', () => {
+        selectedId = b.id;
+        editBranch = { choiceBlockId: b.id, choiceId: c.id, blockId: sub.id };
+        renderEdit();
+      });
+      shots.appendChild(shot);
+    });
+    branchSec.appendChild(shots);
+    const addRow = document.createElement('div');
+    addRow.className = 'mk-branch-add';
+    addRow.append(
+      btn('+ 对白', () => addBranchBlock(b, c.id, 'dialogue')),
+      btn('+ 场景', () => addBranchBlock(b, c.id, 'scene')),
+    );
+    branchSec.appendChild(addRow);
+    const endWrap = document.createElement('div');
+    endWrap.className = 'mk-branch-end';
+    endWrap.innerHTML = '<label>子镜头播完后</label>';
+    const endSel = document.createElement('select');
+    [['main', '回归主线（选项下一镜）'], ['end', '结束试玩']].forEach(([v, lab]) => {
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = lab;
+      if ((c.branchEnd || 'main') === v) o.selected = true;
+      endSel.appendChild(o);
+    });
+    endSel.addEventListener('change', () => {
+      c.branchEnd = endSel.value;
+      scheduleSave();
+    });
+    endWrap.appendChild(endSel);
+    branchSec.appendChild(endWrap);
+    if (!optionUsesBranch(c)) {
+      const jmpRow = document.createElement('div');
+      jmpRow.className = 'field';
+      jmpRow.style.marginTop = '8px';
+      const jmpLab = document.createElement('label');
+      jmpLab.style.cssText = 'font-size:11px;color:var(--muted)';
+      jmpLab.textContent = '无子镜头时跳到';
+      jmpRow.appendChild(jmpLab);
+      jmpRow.appendChild(makeJumpSelect(c.jump, b.id, (v) => {
+        c.jump = v;
+        scheduleSave();
+      }));
+      branchSec.appendChild(jmpRow);
+    }
+    card.appendChild(branchSec);
+    wrap.appendChild(card);
   });
   const add = document.createElement('button');
   add.type = 'button';
@@ -1366,7 +1577,7 @@ function choiceEditor(b) {
   add.style.marginTop = '6px';
   add.textContent = '＋ 加选项';
   add.addEventListener('click', () => {
-    b.choices.push({ id: uid(), label: '新选项', jump: 'next' });
+    b.choices.push({ id: uid(), label: '新选项', jump: 'next', branch: [], branchEnd: 'main' });
     scheduleSave();
     renderEdit();
   });
@@ -1670,9 +1881,14 @@ function buildPlayFlat() {
 }
 
 function startPlay() {
-  playFlat = buildPlayFlat();
-  if (!playFlat.length) { toast('还没有可播放的镜头，先加对白或场景', true); return; }
-  playIdx = 0;
+  playMainFlat = buildPlayFlat();
+  if (!playMainFlat.length) { toast('还没有可播放的镜头，先加对白或场景', true); return; }
+  playMainIdx = 0;
+  playBranchFlat = null;
+  playBranchIdx = 0;
+  playBranchEnd = 'main';
+  playResumeMainIdx = 0;
+  playSiblingJumps = null;
   playing = true;
   $('#playOverlay').classList.add('show');
   $('#playTitle').textContent = work.title || '';
@@ -1685,6 +1901,9 @@ function startPlay() {
 
 function stopPlay() {
   playing = false;
+  playBranchFlat = null;
+  playBranchIdx = 0;
+  playSiblingJumps = null;
   stopPlayAudio();
   stopPlayBgm();
   playBgmUrl = null;
@@ -1694,11 +1913,31 @@ function stopPlay() {
   updateSteps();
 }
 
+function finishBranchPlay() {
+  const end = playBranchEnd;
+  playBranchFlat = null;
+  playBranchIdx = 0;
+  playSiblingJumps = null;
+  if (end === 'end') {
+    stopPlay();
+    toast('试玩结束');
+    return;
+  }
+  playMainIdx = playResumeMainIdx;
+  if (playMainIdx >= playMainFlat.length) {
+    stopPlay();
+    toast('试玩结束');
+    return;
+  }
+  renderPlay();
+}
+
 function renderPlay() {
   const body = $('#playBody');
   body.innerHTML = '';
-  const b = playFlat[playIdx];
+  const b = currentPlayBlock();
   if (!b) { stopPlay(); return; }
+  const idx = playCurrentIdx();
 
   const ch = chapterForBlock(b);
   const targetBgm = b.bgmOverride || ch?.bgm || null;
@@ -1727,7 +1966,7 @@ function renderPlay() {
       v.preload = 'auto';
       if (mode === 'clip') {
         v.onended = () => {
-          if (!playing || playFlat[playIdx] !== b) return;
+          if (!playing || currentPlayBlock() !== b) return;
           playNext();
         };
       }
@@ -1753,21 +1992,31 @@ function renderPlay() {
     const opts = document.createElement('div');
     opts.className = 'pc-opts';
     b.choices.forEach((c) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'pc-opt';
-      btn.textContent = c.label || '选项';
-      btn.addEventListener('click', (e) => {
+      const btnEl = document.createElement('button');
+      btnEl.type = 'button';
+      btnEl.className = 'pc-opt';
+      btnEl.textContent = c.label || '选项';
+      btnEl.addEventListener('click', (e) => {
         e.stopPropagation();
-        jumpPlay(c.jump || 'next');
+        if (optionUsesBranch(c)) {
+          setPlayChoiceContext(b, c);
+          playResumeMainIdx = resolvePlayNextIndex(playMainIdx);
+          playBranchFlat = c.branch;
+          playBranchIdx = 0;
+          playBranchEnd = c.branchEnd || 'main';
+          renderPlay();
+        } else {
+          setPlayChoiceContext(b, c);
+          jumpPlay(c.jump || 'next');
+        }
       });
-      opts.appendChild(btn);
+      opts.appendChild(btnEl);
     });
     box.appendChild(opts);
     fore.appendChild(box);
     frame.appendChild(fore);
     body.appendChild(frame);
-    $('#playPrev').disabled = playIdx === 0;
+    $('#playPrev').disabled = playMainIdx === 0 && !playBranchFlat;
     $('#playNext').disabled = true;
     return;
   }
@@ -1785,30 +2034,109 @@ function renderPlay() {
   }
   frame.appendChild(fore);
   body.appendChild(frame);
-  $('#playPrev').disabled = playIdx === 0;
-  $('#playNext').disabled = playIdx >= playFlat.length - 1;
+  $('#playPrev').disabled = idx === 0 && !playBranchFlat;
+  $('#playNext').disabled = !hasPlayNext();
+}
+
+function setPlayChoiceContext(choiceBlock, takenOption) {
+  const jumps = new Set();
+  (choiceBlock.choices || []).forEach((o) => {
+    if (o === takenOption) return;
+    const j = o.jump || 'next';
+    if (j !== 'next' && j !== 'end') jumps.add(j);
+  });
+  playSiblingJumps = jumps.size ? jumps : null;
+}
+
+function playBlockIndex(id) {
+  return playMainFlat.findIndex((b) => b.id === id);
+}
+
+/** 从 sibling 支线入口起，跳到该线 afterJump 汇合点或列表末尾 */
+function skipSiblingBranchFrom(startIdx) {
+  let i = startIdx;
+  while (i < playMainFlat.length) {
+    const blk = playMainFlat[i];
+    if (blk.afterJump && blk.afterJump !== 'next') {
+      const mergeIdx = playBlockIndex(blk.afterJump);
+      return mergeIdx >= 0 ? mergeIdx : playMainFlat.length;
+    }
+    if (i > startIdx && blk.type === 'choice') return i;
+    i++;
+  }
+  return playMainFlat.length;
+}
+
+function resolvePlayNextIndex(fromIdx) {
+  const cur = playMainFlat[fromIdx];
+  if (cur?.afterJump && cur.afterJump !== 'next') {
+    const mergeIdx = playBlockIndex(cur.afterJump);
+    if (mergeIdx >= 0) return mergeIdx;
+  }
+  let nextIdx = fromIdx + 1;
+  while (nextIdx < playMainFlat.length && playSiblingJumps?.has(playMainFlat[nextIdx].id)) {
+    nextIdx = skipSiblingBranchFrom(nextIdx);
+  }
+  return nextIdx;
+}
+
+function hasPlayNext() {
+  const b = currentPlayBlock();
+  if (!b || b.type === 'choice') return false;
+  if (playBranchFlat) {
+    if (playBranchIdx < playBranchFlat.length - 1) return true;
+    if (playBranchEnd === 'end') return false;
+    return playResumeMainIdx < playMainFlat.length;
+  }
+  return resolvePlayNextIndex(playMainIdx) < playMainFlat.length;
 }
 
 function playNext() {
-  const b = playFlat[playIdx];
-  if (b?.afterJump && b.afterJump !== 'next') {
-    jumpPlay(b.afterJump);
+  if (playBranchFlat) {
+    if (playBranchIdx < playBranchFlat.length - 1) {
+      playBranchIdx++;
+      renderPlay();
+      return;
+    }
+    finishBranchPlay();
     return;
   }
-  if (playIdx < playFlat.length - 1) { playIdx++; renderPlay(); }
-  else { stopPlay(); toast('试玩结束'); }
+  const nextIdx = resolvePlayNextIndex(playMainIdx);
+  if (nextIdx >= playMainFlat.length) {
+    stopPlay();
+    toast('试玩结束');
+    return;
+  }
+  playMainIdx = nextIdx;
+  renderPlay();
 }
 
 function playPrev() {
-  if (playIdx > 0) { playIdx--; renderPlay(); }
+  if (playBranchFlat) {
+    if (playBranchIdx > 0) {
+      playBranchIdx--;
+      renderPlay();
+      return;
+    }
+    playBranchFlat = null;
+    playBranchIdx = 0;
+    renderPlay();
+    return;
+  }
+  if (playMainIdx > 0) {
+    playMainIdx--;
+    renderPlay();
+  }
 }
 
 function jumpPlay(jump) {
+  playBranchFlat = null;
+  playBranchIdx = 0;
   const j = String(jump || 'next');
   if (j === 'end') { stopPlay(); toast('到此结束'); return; }
   if (j === 'next') { playNext(); return; }
-  const idx = playFlat.findIndex((b) => b.id === j);
-  if (idx >= 0) { playIdx = idx; renderPlay(); }
+  const idx = playMainFlat.findIndex((b) => b.id === j);
+  if (idx >= 0) { playMainIdx = idx; renderPlay(); }
   else playNext();
 }
 
