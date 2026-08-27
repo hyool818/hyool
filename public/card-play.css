@@ -21,6 +21,15 @@
 #playOverlay .idle-stage-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#14121c;font-size:13px}
 #playOverlay .idle-stage-row.cur{border-color:rgba(180,140,255,.55);background:rgba(139,123,255,.12)}
 #playOverlay .idle-empty{color:var(--muted);font-size:12px;text-align:center;padding:24px 12px;line-height:1.7}
+#playOverlay .gacha-pool{display:flex;flex-direction:row;flex-wrap:wrap;gap:8px;justify-content:center;align-content:flex-start;overflow:auto;flex:1;min-height:0;margin:8px 0;padding:4px 2px 10px}
+#playOverlay .gacha-pool .goddess-card.pool{width:86px;flex:0 0 auto}
+#playOverlay .gacha-ops{display:flex;flex-direction:row;gap:8px}
+#playOverlay .gacha-ops .btn{flex:1}
+#playOverlay .gacha-result{display:flex;flex-direction:row;flex-wrap:wrap;gap:6px;justify-content:center;min-height:36px;margin:8px 0}
+#playOverlay .gacha-chip{font-size:11px;border:1px solid var(--line2);border-radius:999px;padding:4px 10px;background:#161422;color:var(--text)}
+#playOverlay .gacha-chip.star3{border-color:rgba(120,200,255,.45)}
+#playOverlay .gacha-chip.star4,#playOverlay .gacha-chip.star5{border-color:rgba(255,215,106,.55);color:#ffd76a}
+#playOverlay .gacha-chip span{margin-left:4px;color:var(--muted)}
 #playOverlay .goddess-card{width:78px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161422;overflow:hidden;position:relative;text-align:center;padding:0 0 8px;color:var(--text)}
 #playOverlay .goddess-card.slot{width:86px;cursor:pointer}
 #playOverlay .goddess-card.slot.empty{cursor:pointer}
