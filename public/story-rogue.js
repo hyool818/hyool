@@ -358,6 +358,7 @@ let autoTimer = null;
 export function stopRogueRun() {
   if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
   if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+  closePortraitLightbox();
   run = null;
 }
 function later(fn, ms) {
@@ -526,6 +527,10 @@ function goIdleHome() {
 
 function paint() {
   if (!run) return;
+  if (run._paintedPhase !== run.phase) {
+    closePortraitLightbox();
+    run._paintedPhase = run.phase;
+  }
   if (run.ctx.playNav) run.ctx.playNav.classList.add('hidden');
   const body = run.ctx.playBody;
   body.innerHTML = '';

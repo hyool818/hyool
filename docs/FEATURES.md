@@ -12,7 +12,7 @@
 | 世界/IP | `public/studio-world.html` `public/create-life-world.html` | 创造世界入口；生命世界 5 步全页向导 |
 | 旧入口重定向 | `public/studio.html` `public/my-works.html` `public/fantasy.html` | → `/make.html` |
 | 漫画 · 专业 | `public/story-editor.html?pro=1` | 分格；make 底栏链入 |
-| **卡牌 · 主** | `public/make-card.html` | 可视化三栏编辑器；`story-rogue.js` / `story-idle.js` 试玩 |
+| **卡牌 · 主** | `public/make-card.html` | 可视化三栏；试玩样式**只改** `card-play.css`；逻辑 `story-rogue.js` / `story-idle.js` |
 | H5 · 专工 | `public/h5-game.html` `h5-play.html` | 嵌入外部游戏 URL |
 
 ## 彼岸
@@ -37,7 +37,7 @@
 |---|---|---|---|
 | 制作总览 | `public/fantasy.html` | — | 入口卡片 |
 | 编辑器 UI | `public/story-editor.html` | — | HYOOL Studio 五区壳 + **本幕舞台**预览 |
-| 编辑器逻辑 | `public/story-editor.js` `public/story-rogue.js` `public/story-idle.js` | `/api/stories*` `/api/tts` `/api/upload` `/api/hub/live-line` | 积木 + 舞台（多立绘/双击改字/缩放/转场）+ choice/perf/变量/分支图/存档、漫画分格、素材库、卡牌、云同步 |
+| 编辑器逻辑 | `public/story-editor.js` `public/story-rogue.js` `public/story-idle.js` | `/api/stories*` `/api/tts` `/api/upload` `/api/hub/live-line` | 积木 + 舞台；卡牌试玩样式走 `card-play.css`（勿在本页再补洞） |
 | 作品 CRUD | — | `GET/POST /api/stories` `GET/PUT /api/stories/:id` `POST .../publish` `POST .../delete` | `src/mvp.js` stories 段 |
 | 广场露出 | `public/plaza.html` | `GET /api/plaza` 的 `stories` | 已发布 + `share_id` 非空 |
 | 产品愿景 | `docs/editor-vision.md` | — | 仅改长期类型地图时读 |
