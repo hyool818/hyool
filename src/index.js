@@ -576,6 +576,61 @@ export default {
 
 
         /* =====================================================
+           YONDER PROFILE MEDIA (large data URLs served separately)
+           GET /api/yonder/:username/avatar|background
+        ===================================================== */
+
+        const yonderMediaMatch = pathname.match(
+            /^\/api\/yonder\/([^/]+)\/(avatar|background)$/
+        );
+        if (yonderMediaMatch && request.method === "GET") {
+            const username = yonderMediaMatch[1].trim().toLowerCase();
+            const field =
+                yonderMediaMatch[2] === "avatar"
+                    ? "avatar_url"
+                    : "background_url";
+
+            try {
+                const profile = await env.DB
+                    .prepare(
+                        "SELECT id, username, avatar_url, background_url FROM profiles WHERE username = ? LIMIT 1"
+                    )
+                    .bind(username)
+                    .first();
+
+                if (!profile) {
+                    return json({ success: false, error: "彼岸不存在。" }, 404);
+                }
+
+                const settings = await getYonderSettings(env, profile.id);
+                const hasPassword =
+                    settings.access_password &&
+                    settings.access_password.length > 0;
+                const visitor = await getAuthenticatedUser(request, env);
+                const isOwner =
+                    visitor &&
+                    visitor.username &&
+                    visitor.username.toLowerCase() === username;
+
+                if (hasPassword && !isOwner) {
+                    return json({ success: false, error: "需要密码。" }, 401);
+                }
+
+                const raw = profile[field] || "";
+                const media = dataUrlToResponse(raw);
+                if (media) return media;
+                if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("/")) {
+                    return Response.redirect(raw.startsWith("/") ? new URL(raw, request.url).toString() : raw, 302);
+                }
+                return new Response("", { status: 404 });
+            } catch (error) {
+                console.error("YONDER MEDIA ERROR:", error);
+                return json({ success: false, error: "媒体加载失败。" }, 500);
+            }
+        }
+
+
+        /* =====================================================
            YONDER ALL DATA
            /api/yonder/:username
         ===================================================== */
@@ -584,7 +639,9 @@ export default {
             pathname.startsWith("/api/yonder/") &&
             !pathname.endsWith("/posts") &&
             !pathname.endsWith("/settings") &&
-            !pathname.endsWith("/verify")
+            !pathname.endsWith("/verify") &&
+            !pathname.endsWith("/avatar") &&
+            !pathname.endsWith("/background")
         ) {
             const username =
                 pathname
@@ -1877,6 +1934,55 @@ async function getYonderSettings(
 
 
 /* =========================================================
+   YONDER PROFILE MEDIA HELPERS
+========================================================= */
+
+const INLINE_PROFILE_MEDIA_MAX = 8192;
+
+function profileMediaUrlForApi(url, username, kind) {
+    if (!url || typeof url !== "string") return url || "";
+    if (url.startsWith("data:") && url.length > INLINE_PROFILE_MEDIA_MAX) {
+        return `/api/yonder/${encodeURIComponent(username)}/${kind}`;
+    }
+    return url;
+}
+
+function profileForApi(profile) {
+    const username = profile.username || "";
+    return {
+        ...profile,
+        avatar_url: profileMediaUrlForApi(profile.avatar_url, username, "avatar"),
+        background_url: profileMediaUrlForApi(profile.background_url, username, "background")
+    };
+}
+
+function dataUrlToResponse(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
+        return null;
+    }
+    const comma = dataUrl.indexOf(",");
+    if (comma < 0) return null;
+    const header = dataUrl.slice(0, comma);
+    const payload = dataUrl.slice(comma + 1);
+    const mimeMatch = header.match(/^data:([^;]+)/);
+    const mime = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+    try {
+        const binary = atob(payload);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return new Response(bytes, {
+            headers: {
+                "Content-Type": mime,
+                "Cache-Control": "public, max-age=86400"
+            }
+        });
+    } catch {
+        return null;
+    }
+}
+
+
+/* =========================================================
    BUILD YONDER PAYLOAD（资料 + 设置 + 作品）
    isOwner=true 返回全部作品；访客只返回公开作品
    （角色：share_id 非空；世界：status='published'）
@@ -1956,8 +2062,8 @@ async function buildYonderPayload(
     // 额外取 data 以解析作品类型 kind（互动小说 / 卡牌RPG），供主页类型徽章展示
     const storySql =
         isOwner
-            ? "SELECT id, title, cover_image, status, share_id, created_at, data FROM stories WHERE owner_id = ? ORDER BY created_at DESC"
-            : "SELECT id, title, cover_image, status, share_id, created_at, data FROM stories WHERE owner_id = ? AND share_id IS NOT NULL AND share_id != '' ORDER BY created_at DESC";
+            ? "SELECT id, title, cover_image, status, share_id, created_at, json_extract(data, '$.kind') AS story_kind FROM stories WHERE owner_id = ? ORDER BY created_at DESC"
+            : "SELECT id, title, cover_image, status, share_id, created_at, json_extract(data, '$.kind') AS story_kind FROM stories WHERE owner_id = ? AND share_id IS NOT NULL AND share_id != '' ORDER BY created_at DESC";
 
     const storyResult = await env.DB
         .prepare(storySql)
@@ -1965,11 +2071,10 @@ async function buildYonderPayload(
         .all();
 
     works.stories = (storyResult.results || []).map(s => {
-        let kind = "story";
-        try {
-            const d = JSON.parse(s.data || "{}");
-            if (d && (d.kind === "card_rpg" || d.kind === "gacha_rogue" || d.kind === "comic" || d.kind === "h5_game")) kind = d.kind;
-        } catch (e) { /* 旧数据/坏数据默认互动小说 */ }
+        let kind = s.story_kind || "story";
+        if (kind !== "card_rpg" && kind !== "gacha_rogue" && kind !== "comic" && kind !== "h5_game") {
+            kind = "story";
+        }
         return {
             id: s.id,
             title: s.title,
@@ -1982,7 +2087,7 @@ async function buildYonderPayload(
     });
 
     return {
-        profile: profile,
+        profile: profileForApi(profile),
         settings: safeSettings,
         posts: posts,
         works: works

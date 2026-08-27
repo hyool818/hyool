@@ -2577,7 +2577,7 @@ async function loadYonder() {
                 );
                 const verifyData = await verifyRes.json();
                 if (verifyData.success) {
-                    await applyYonderData(verifyData.yonder);
+                    await applyYonderData(verifyData.yonder, { skipCheckOwner: true });
                     return;
                 }
             }
@@ -2605,11 +2605,11 @@ async function loadYonder() {
 
 }
 
-async function applyYonderData(yonder) {
+async function applyYonderData(yonder, opts = {}) {
     state.profile = yonder.profile;
     state.settings = yonder.settings || {};
     state.works = yonder.works || { characters: [], worlds: [], stories: [] };
-    await checkOwner();
+    if (!opts.skipCheckOwner) await checkOwner();
     render();
 }
 
@@ -2757,11 +2757,7 @@ function render() {
     loadStories();
 
     if (state.isOwner) {
-        try {
-            await mountProfileHubUI();
-        } catch (e) {
-            console.error("ProfileHubUI:", e);
-        }
+        mountProfileHubUI().catch((e) => console.error("ProfileHubUI:", e));
     }
 
     document
