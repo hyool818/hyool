@@ -53,8 +53,11 @@ function escapeHtml(s) {
 function rogue() {
   if (!work) return null;
   if (!work.rogue) work.rogue = normalizeRogue(null);
-  work.rogue = normalizeRogue(work.rogue);
   return work.rogue;
+}
+
+function liveChar(id) {
+  return rogue()?.roster?.find((x) => x.id === id) || null;
 }
 
 function setSave(st) {
@@ -390,23 +393,18 @@ function syncStageViews(s) {
   if (select.type === 'stage' && select.id === s.id) renderPreview();
 }
 
-function refreshPortraitPanel(c) {
+function refreshPortraitPanel(charId) {
+  const c = liveChar(charId);
   const sec = $('#mcPortraitField');
-  if (!sec || select.type !== 'char' || select.id !== c.id) return;
+  if (!sec || !c || select.type !== 'char' || select.id !== charId) return;
   sec.innerHTML = '<label>立绘</label>';
   if (c.portrait) {
     sec.innerHTML += '<div class="mc-bg-preview"><img src="' + escapeHtml(c.portrait) + '" alt=""></div>';
     const ops = document.createElement('div');
     ops.className = 'mc-bg-ops';
     ops.append(
-      btn('更换', () => pickPortrait(c)),
-      btn('移除', () => {
-        delete c.portrait;
-        delete c.portraitKind;
-        scheduleSave();
-        syncCharViews(c, { portrait: true });
-        refreshPortraitPanel(c);
-      }, true),
+      btn('更换', () => pickPortrait(charId)),
+      btn('移除', () => clearPortrait(charId), true),
     );
     sec.appendChild(ops);
   } else {
@@ -414,9 +412,20 @@ function refreshPortraitPanel(c) {
     up.type = 'button';
     up.className = 'mc-bg-btn';
     up.textContent = '🖼 上传立绘';
-    up.addEventListener('click', () => pickPortrait(c));
+    up.addEventListener('click', () => pickPortrait(charId));
     sec.appendChild(up);
   }
+}
+
+function clearPortrait(charId) {
+  const c = liveChar(charId);
+  if (!c) return;
+  delete c.portrait;
+  delete c.portraitKind;
+  scheduleSave();
+  renderList();
+  renderPreview();
+  refreshPortraitPanel(charId);
 }
 
 function renderGuide() {
@@ -658,14 +667,8 @@ function renderPanel() {
       const ops = document.createElement('div');
       ops.className = 'mc-bg-ops';
       ops.append(
-        btn('更换', () => pickPortrait(c)),
-        btn('移除', () => {
-          delete c.portrait;
-          delete c.portraitKind;
-          scheduleSave();
-          syncCharViews(c, { portrait: true });
-          refreshPortraitPanel(c);
-        }, true),
+        btn('更换', () => pickPortrait(c.id)),
+        btn('移除', () => clearPortrait(c.id), true),
       );
       bgSec.appendChild(ops);
     } else {
@@ -673,7 +676,7 @@ function renderPanel() {
       up.type = 'button';
       up.className = 'mc-bg-btn';
       up.textContent = '🖼 上传立绘';
-      up.addEventListener('click', () => pickPortrait(c));
+      up.addEventListener('click', () => pickPortrait(c.id));
       bgSec.appendChild(up);
     }
     panel.appendChild(bgSec);
@@ -739,7 +742,7 @@ function renderPanel() {
   }
 }
 
-function pickPortrait(c) {
+function pickPortrait(charId) {
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = 'image/*';
@@ -749,11 +752,14 @@ function pickPortrait(c) {
     toast('上传中…');
     const media = await uploadFile(f);
     if (!media) return;
+    const c = liveChar(charId);
+    if (!c) { toast('角色不存在', true); return; }
     c.portrait = media.url;
     c.portraitKind = 'image';
     scheduleSave();
-    syncCharViews(c, { portrait: true });
-    refreshPortraitPanel(c);
+    renderList();
+    renderPreview();
+    refreshPortraitPanel(charId);
     toast('立绘已更新');
   });
   inp.click();
