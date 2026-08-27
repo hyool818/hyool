@@ -909,12 +909,24 @@ function advanceNode() {
   paint();
 }
 
+function battleReadyIds(b) {
+  const ids = new Set();
+  const list = [];
+  run.team.filter((m) => m.hp > 0).forEach((m) => list.push({ id: m.id, gauge: m.gauge || 0 }));
+  (b.enemies || []).filter((e) => e.hp > 0).forEach((e) => list.push({ id: e.id, gauge: e.gauge || 0 }));
+  if (!list.length) return ids;
+  const max = Math.max(...list.map((x) => x.gauge));
+  list.filter((x) => x.gauge >= max - 0.01).forEach((x) => ids.add(x.id));
+  return ids;
+}
+
 function paintBattle(frame) {
   const b = run.battle;
+  const ready = b.phase === 'running' ? battleReadyIds(b) : new Set();
   const winHint = run.rogue.mode === 'rogue' ? '选一张技能带进后面。' : '下一关自动开始。';
   const loseHint = run.rogue.mode === 'rogue' ? '再开一局会换一套技能和事件。' : '改改角色或敌人数值再试。';
   const waveTxt = b.waves && b.waves.length > 1 ? ` · 第${(b.waveIdx || 0) + 1}/${b.waves.length}轮` : '';
-  const top = `<div class="bt-top"><div class="bt-round">自动中 · ${run.speed}x${waveTxt}</div>
+  const top = `<div class="bt-top"><div class="bt-round">速度条满 · 依次出手 · ${run.speed}x${waveTxt}</div>
     <div class="rg-speeds">
       <button class="btn tiny ${run.speed === 1 ? 'primary' : ''}" data-sp="1">1x</button>
       <button class="btn tiny ${run.speed === 2 ? 'primary' : ''}" data-sp="2">2x</button>
@@ -925,27 +937,29 @@ function paintBattle(frame) {
     const assets = (run.story && run.story.assets) || [];
     const fcls = cardFrameClass(e, assets);
     const overlay = frameOverlayHtml(e, assets);
+    const readyCls = ready.has(e.id) ? ' ready' : '';
     return `
-    <div class="bt-enemy${e.hp <= 0 ? ' dead' : ''}" data-enemy-id="${esc(e.id)}">
+    <div class="bt-enemy${e.hp <= 0 ? ' dead' : ''}${readyCls}" data-enemy-id="${esc(e.id)}">
       ${e.portrait ? `<div class="bt-portrait ${fcls}"><div class="card-art">${portraitMediaInner(e)}</div>${overlay}</div>` : ''}
       <div class="bt-enemy-name">${esc(e.name)} · ${elemLabel(e.elem)}</div>
       <div class="bt-hp-row"><div class="bt-bar"><div class="bt-bar-fill enemy" style="width:${pct(e.hp, e.maxHp)}%"></div></div><span class="bt-hp-num">${e.hp}/${e.maxHp}</span></div>
-      <div class="bt-bar rg-spd"><div class="bt-bar-fill spd" style="width:${Math.min(100, e.gauge || 0)}%"></div></div>
+      <div class="bt-bar rg-spd" title="速度"><div class="bt-bar-fill spd" style="width:${Math.min(100, e.gauge || 0)}%"></div></div>
     </div>`;
   }).join('');
   const party = run.team.map(m => {
     const assets = (run.story && run.story.assets) || [];
     const fcls = cardFrameClass(m, assets);
     const overlay = frameOverlayHtml(m, assets);
+    const readyCls = ready.has(m.id) ? ' ready' : '';
     return `
-    <div class="bt-member${m.hp <= 0 ? ' dead' : ''}${m.front ? ' hero' : ''}" data-char-id="${esc(m.id)}">
+    <div class="bt-member${m.hp <= 0 ? ' dead' : ''}${m.front ? ' hero' : ''}${readyCls}" data-char-id="${esc(m.id)}">
       ${m.portrait ? `<div class="bt-portrait ${fcls}"><div class="card-art">${portraitMediaInner(m)}</div>${overlay}</div>` : ''}
       <div class="bt-member-name">${m.front ? '前' : '后'} ${esc(m.name)} · ${elemLabel(m.elem)}</div>
       <div class="bt-hp-row"><div class="bt-bar"><div class="bt-bar-fill hp" style="width:${pct(m.hp, m.maxHp)}%"></div></div><span class="bt-hp-num">${m.hp}/${m.maxHp}</span></div>
-      <div class="bt-bar rg-spd"><div class="bt-bar-fill spd" style="width:${Math.min(100, m.gauge || 0)}%"></div></div>
+      <div class="bt-bar rg-spd" title="速度"><div class="bt-bar-fill spd" style="width:${Math.min(100, m.gauge || 0)}%"></div></div>
     </div>`;
   }).join('');
-  const log = (b.log || []).slice(-10).map(l => `<div class="bt-log-line">${esc(l)}</div>`).join('');
+  const log = (b.log || []).slice(-8).map(l => `<div class="bt-log-line">${esc(l)}</div>`).join('');
   let result = '';
   if (b.phase === 'won') {
     result = `<div class="bt-result"><div class="bt-result-title">${b.majorFight ? '首领战胜利' : '赢了'}</div>
@@ -957,7 +971,18 @@ function paintBattle(frame) {
       <div class="bt-result-ops"><button class="btn primary" id="rgRetry">${run.rogue.mode === 'idle' ? '回主城' : '再来一次'}</button>
       <button class="btn ghost" id="rgExit2">退出</button></div></div>`;
   }
-  frame.innerHTML = `${top}<div class="bt-enemies">${foes}</div><div class="bt-party">${party}</div>
+  frame.innerHTML = `${top}
+    <div class="bt-board">
+      <div class="bt-camp bt-camp-enemy">
+        <div class="bt-camp-label">敌方</div>
+        <div class="bt-enemies">${foes || '<div class="bt-camp-empty">—</div>'}</div>
+      </div>
+      <div class="bt-river"><span>楚河</span><span class="bt-river-hint">速度条先满先出手</span><span>汉界</span></div>
+      <div class="bt-camp bt-camp-party">
+        <div class="bt-camp-label">我方</div>
+        <div class="bt-party">${party || '<div class="bt-camp-empty">—</div>'}</div>
+      </div>
+    </div>
     <div class="bt-log">${log}</div>${result}`;
   frame.querySelectorAll('[data-sp]').forEach(btn => {
     btn.addEventListener('click', () => { run.speed = Number(btn.dataset.sp) || 1; });

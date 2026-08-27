@@ -1,6 +1,7 @@
 /* 卡牌试玩样式（自 story-editor 精简） */
 @import url('/card-frames.css');
-#playOverlay .battle-view{position:relative;height:100%;width:100%;display:flex;flex-direction:column;gap:10px;padding:16px 18px 12px;box-sizing:border-box;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,rgba(139,123,255,.14),transparent 70%),linear-gradient(180deg,#15132a,#0c0b18)}
+#playBody{flex:1;min-height:0;overflow:hidden;position:relative;display:flex;justify-content:center;background:#080810}
+#playOverlay .battle-view{position:relative;height:100%;width:100%;max-width:420px;display:flex;flex-direction:column;gap:8px;padding:12px 10px 10px;box-sizing:border-box;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,rgba(139,123,255,.14),transparent 70%),linear-gradient(180deg,#15132a,#0c0b18)}
 #playOverlay .battle-view.portrait{padding:12px 10px 8px}
 #playOverlay .rogue-view.portrait .idle-shell{max-width:420px;margin:0 auto}
 #playOverlay .idle-shell{display:flex;flex-direction:column;height:100%;min-height:0;background:linear-gradient(180deg,#14121f 0%,#0c0b14 55%,#12101c 100%);padding:12px 12px 8px;box-sizing:border-box}
@@ -50,20 +51,33 @@
 #playOverlay .rg-ops{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:8px 0}
 #playOverlay .bt-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
 #playOverlay .bt-round{font-size:14px;font-weight:800;color:#ffd76a;text-shadow:0 0 12px rgba(255,200,80,.35)}
-#playOverlay .rg-speeds{display:flex;gap:6px;align-items:center;margin-left:auto}
-#playOverlay .bt-enemies{display:flex;justify-content:center;align-items:flex-start;gap:12px;flex-wrap:wrap;min-height:96px;flex-shrink:0}
-#playOverlay .bt-enemy{width:150px;max-width:42vw;border:1px solid rgba(255,255,255,.16);background:rgba(8,8,18,.72);border-radius:12px;padding:8px 10px;text-align:left;box-sizing:border-box}
+#playOverlay .rg-speeds{display:flex;gap:6px;align-items:center;margin-left:auto;flex-shrink:0}
+#playOverlay .bt-board{flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid rgba(180,140,255,.22);border-radius:14px;overflow:hidden;background:linear-gradient(180deg,rgba(90,36,36,.22) 0%,rgba(90,36,36,.22) 46%,rgba(28,44,90,.18) 54%,rgba(28,44,90,.18) 100%)}
+#playOverlay .bt-camp{flex:1;min-height:0;display:flex;flex-direction:column;padding:8px 8px 6px;box-sizing:border-box}
+#playOverlay .bt-camp-enemy{justify-content:flex-end}
+#playOverlay .bt-camp-party{justify-content:flex-start}
+#playOverlay .bt-camp-label{font-size:11px;font-weight:700;letter-spacing:.12em;text-align:center;margin-bottom:6px;flex-shrink:0}
+#playOverlay .bt-camp-enemy .bt-camp-label{color:#ffb4a8}
+#playOverlay .bt-camp-party .bt-camp-label{color:#a8c8ff}
+#playOverlay .bt-river{flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 10px;border-top:1px dashed rgba(255,220,160,.35);border-bottom:1px dashed rgba(255,220,160,.35);background:rgba(0,0,0,.28);font-size:11px;color:rgba(255,220,160,.85)}
+#playOverlay .bt-river-hint{font-size:10px;color:var(--muted);letter-spacing:.04em}
+#playOverlay .bt-camp-empty{color:var(--muted);font-size:12px;text-align:center;padding:16px 0;width:100%}
+#playOverlay .bt-enemies,#playOverlay .bt-party{display:flex;justify-content:center;align-items:flex-end;align-content:flex-end;gap:8px;flex-wrap:wrap;flex:1;min-height:0;overflow:auto;padding:2px 0}
+#playOverlay .bt-camp-party .bt-party{align-items:flex-start;align-content:flex-start}
+#playOverlay .bt-enemy{width:92px;max-width:28vw;border:1px solid rgba(255,140,120,.28);background:rgba(8,8,18,.78);border-radius:10px;padding:6px 6px 8px;text-align:center;box-sizing:border-box;transition:box-shadow .15s,border-color .15s}
+#playOverlay .bt-enemy.ready{border-color:rgba(255,200,120,.85);box-shadow:0 0 0 1px rgba(255,200,120,.45),0 0 14px rgba(255,160,80,.25)}
 #playOverlay .bt-enemy.dead{opacity:.45;filter:grayscale(1)}
-#playOverlay .bt-enemy .bt-portrait{width:100%;aspect-ratio:9/16;height:auto;max-height:120px;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#1a1a28;position:relative;box-sizing:border-box}
-#playOverlay .bt-party{display:flex;justify-content:center;align-items:flex-start;gap:10px;flex-wrap:wrap;min-height:96px;flex-shrink:0}
-#playOverlay .bt-member{width:150px;max-width:42vw;border:1px solid rgba(255,255,255,.16);background:rgba(8,8,18,.72);border-radius:12px;padding:8px 10px;text-align:left;box-sizing:border-box}
-#playOverlay .bt-member.hero{border-color:rgba(255,215,106,.6);box-shadow:0 0 0 1px rgba(255,215,106,.35),0 6px 18px rgba(255,180,60,.12)}
+#playOverlay .bt-enemy .bt-portrait{width:100%;aspect-ratio:9/16;height:auto;max-height:72px;border-radius:6px;overflow:hidden;margin:0 auto 4px;background:#1a1a28;position:relative;box-sizing:border-box}
+#playOverlay .bt-party{display:flex;justify-content:center;align-items:flex-start;gap:8px;flex-wrap:wrap;min-height:0;flex-shrink:0}
+#playOverlay .bt-member{width:92px;max-width:28vw;border:1px solid rgba(140,180,255,.28);background:rgba(8,8,18,.78);border-radius:10px;padding:6px 6px 8px;text-align:center;box-sizing:border-box;transition:box-shadow .15s,border-color .15s}
+#playOverlay .bt-member.ready{border-color:rgba(255,215,106,.85);box-shadow:0 0 0 1px rgba(255,215,106,.45),0 0 14px rgba(255,215,106,.22)}
+#playOverlay .bt-member.hero{border-color:rgba(255,215,106,.45)}
 #playOverlay .bt-member.dead{opacity:.45;filter:grayscale(1)}
-#playOverlay .bt-member .bt-portrait{width:100%;aspect-ratio:9/16;height:auto;max-height:88px;border-radius:8px;overflow:hidden;margin-bottom:6px;background:#1a1a28;position:relative;box-sizing:border-box}
+#playOverlay .bt-member .bt-portrait{width:100%;aspect-ratio:9/16;height:auto;max-height:72px;border-radius:6px;overflow:hidden;margin:0 auto 4px;background:#1a1a28;position:relative;box-sizing:border-box}
 #playOverlay .bt-portrait.card-frame{position:relative;box-sizing:border-box}
 #playOverlay .bt-portrait .card-art,#playOverlay .bt-portrait .card-art img,#playOverlay .bt-portrait .card-art video{width:100%;height:100%;object-fit:cover;object-position:center top;display:block}
-#playOverlay .bt-enemy-name{font-size:13px;font-weight:700;color:#ffd9a8;margin-bottom:6px}
-#playOverlay .bt-member-name{font-size:13px;font-weight:700;color:#cfc8ff;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#playOverlay .bt-enemy-name{font-size:11px;font-weight:700;color:#ffd9a8;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#playOverlay .bt-member-name{font-size:11px;font-weight:700;color:#cfc8ff;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #playOverlay .bt-member.hero .bt-member-name{color:#ffd76a}
 #playOverlay .bt-hp-row{display:flex;align-items:center;gap:8px}
 #playOverlay .bt-hp-num{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;flex-shrink:0}
@@ -73,10 +87,10 @@
 #playOverlay .bt-bar-fill.enemy{background:linear-gradient(90deg,#ff5f4d,#ff9a5a)}
 #playOverlay .bt-bar-fill.spd{background:linear-gradient(90deg,#5ad0ff,#8b7bff);transition:width .08s linear}
 #playOverlay .rg-spd{height:5px;margin-top:4px}
-#playOverlay .bt-log{flex:1;min-height:70px;max-height:160px;overflow-y:auto;border:1px solid rgba(255,255,255,.1);background:rgba(6,6,14,.55);border-radius:10px;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+#playOverlay .bt-log{flex:0 0 auto;min-height:56px;max-height:100px;overflow-y:auto;border:1px solid rgba(255,255,255,.1);background:rgba(6,6,14,.55);border-radius:10px;padding:6px 10px;display:flex;flex-direction:column;gap:2px}
 #playOverlay .bt-log-line{font-size:12px;color:var(--text);line-height:1.7;word-break:break-all}
 #playOverlay .bt-portrait img,#playOverlay .bt-portrait video{cursor:zoom-in}
-#playOverlay .bt-result{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:24px}
+#playOverlay .bt-result{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(6,6,14,.88);backdrop-filter:blur(6px)}
 #playOverlay .bt-result-title{font-size:18px;font-weight:700;margin-bottom:8px}
 #playOverlay .bt-result-text{font-size:13px;color:var(--muted);line-height:1.7;max-width:320px;margin-bottom:16px}
 #playOverlay .bt-result-ops{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
