@@ -181,7 +181,7 @@ function captionLabel(b) {
   if (!sceneText(b)) return '';
   const sub = ensureSub(b);
   if (sub.showLabel === false) return '';
-  return String(sub.label || '旁白').trim();
+  return String(sub.label || '').trim();
 }
 
 function formatLine(t) {
@@ -848,8 +848,10 @@ function sceneTextModePanel(b, sub) {
   });
   wrap.appendChild(hint);
 
-  wrap.appendChild(field('标题（可选）', 'text', sub.label || '旁白', (v) => {
-    sub.label = v.trim() || '旁白';
+  wrap.appendChild(field('标题（可选）', 'text', sub.label || '', (v) => {
+    const t = v.trim();
+    if (t) sub.label = t;
+    else delete sub.label;
     scheduleSave();
     renderPreview();
     if (playing) renderPlay();
