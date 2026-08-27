@@ -37,6 +37,15 @@ const CROP_PROFILE = {
   landscape: { viewW: 480, viewH: 270, outW: 1280, outH: 720, label: '16:9 横屏' },
   portrait: { viewW: 270, viewH: 480, outW: 1080, outH: 1920, label: '9:16 竖屏' },
 };
+const TEXT_MODES = {
+  caption: { label: '底部字幕', hint: '与对白相同，贴底显示' },
+  float: { label: '漂浮字幕', hint: '同一样式，可拖动位置' },
+  fullscreen: { label: '全屏强调', hint: '大字居中，适合紧迫感（动效预留）' },
+};
+const TEXT_EFFECTS = {
+  none: { label: '无' },
+  pulse: { label: '脉冲' },
+};
 
 let loggedIn = false;
 let works = [];
@@ -146,7 +155,95 @@ function ensureSub(b) {
 
 function subPos(b) {
   const sub = ensureSub(b);
-  return { x: sub.x != null ? sub.x : 50, y: sub.y != null ? sub.y : 78 };
+  return { x: sub.x != null ? sub.x : 50, y: sub.y != null ? sub.y : 72 };
+}
+
+function textMode(b) {
+  const sub = ensureSub(b);
+  if (b.type === 'dialogue') return 'caption';
+  if (sub.mode === 'caption' || sub.mode === 'float' || sub.mode === 'fullscreen') return sub.mode;
+  if (sub.x != null || sub.y != null) return 'float';
+  return 'caption';
+}
+
+function textEffect(b) {
+  const e = ensureSub(b).effect;
+  return e && TEXT_EFFECTS[e] ? e : 'none';
+}
+
+function captionLabel(b) {
+  if (b.type === 'dialogue') return b.speaker || DEFAULT_SPEAKER;
+  const sub = ensureSub(b);
+  if (sub.showLabel === false) return '';
+  return String(sub.label || '旁白').trim();
+}
+
+function formatLine(t) {
+  t = String(t || '').trim();
+  if (!t) return '……';
+  if (/^[「『"“]/.test(t)) return t;
+  return '「' + t + '」';
+}
+
+function captionContent(b) {
+  const t = String(b.content || '').trim();
+  if (b.type === 'dialogue') return formatLine(t);
+  return t;
+}
+
+function hasCaption(b) {
+  return (b.type === 'dialogue' || b.type === 'scene') && !!captionContent(b);
+}
+
+function buildCaption(b, opts) {
+  const editing = !!(opts && opts.editing);
+  const mode = textMode(b);
+  const sz = getGlobalSubSize();
+  const wrap = document.createElement('div');
+  wrap.className = 'hy-caption mode-' + mode;
+  if (editing && mode === 'float') wrap.classList.add('editing');
+  const fx = textEffect(b);
+  if (fx !== 'none') wrap.classList.add('effect-' + fx);
+
+  const label = captionLabel(b);
+  if (label) {
+    const sp = document.createElement('div');
+    sp.className = 'hy-caption-label';
+    sp.textContent = label;
+    sp.style.fontSize = Math.round(sz * 1.15) + 'px';
+    applySubColor(sp, b);
+    applyTextFont(sp);
+    wrap.appendChild(sp);
+  }
+
+  const ln = document.createElement('div');
+  ln.className = 'hy-caption-line';
+  ln.textContent = captionContent(b);
+  ln.style.fontSize = (mode === 'fullscreen' ? Math.round(sz * 1.35) : sz) + 'px';
+  applySubColor(ln, b);
+  applyTextFont(ln);
+  wrap.appendChild(ln);
+
+  if (mode === 'float') {
+    const pos = subPos(b);
+    wrap.style.left = pos.x + '%';
+    wrap.style.top = pos.y + '%';
+    wrap.style.transform = 'translate(-50%,-50%)';
+  }
+  return wrap;
+}
+
+function mountCaption(stage, b, editing) {
+  if (!hasCaption(b)) return;
+  const cap = buildCaption(b, { editing });
+  if (editing && textMode(b) === 'float') {
+    bindCaptionDrag(cap, b, stage);
+    const hint = document.createElement('div');
+    hint.className = 'scene-drag-hint';
+    hint.textContent = '拖动字幕调整位置';
+    stage.appendChild(hint);
+  }
+  stage.appendChild(cap);
 }
 
 function applySubColor(el, b) {
@@ -469,55 +566,22 @@ function renderPreview() {
       stage.appendChild(img);
     }
   }
-  if (b.type === 'dialogue') {
-    const dlg = document.createElement('div');
-    dlg.className = 'dlg';
-    const sz = getGlobalSubSize();
-    dlg.innerHTML = '<div class="sp">' + escapeHtml(b.speaker || DEFAULT_SPEAKER) + '</div><div class="ln">' + escapeHtml(formatLine(b.content)) + '</div>';
-    const sp = dlg.querySelector('.sp');
-    const ln = dlg.querySelector('.ln');
-    sp.style.fontSize = Math.round(sz * 1.15) + 'px';
-    ln.style.fontSize = sz + 'px';
-    applySubColor(sp, b);
-    applySubColor(ln, b);
-    applyTextFont(sp);
-    applyTextFont(ln);
-    stage.appendChild(dlg);
-  } else if (b.type === 'scene' && (b.content || '').trim()) {
-    const pos = subPos(b);
-    const t = document.createElement('div');
-    t.className = 'scene-txt';
-    t.textContent = b.content;
-    t.style.left = pos.x + '%';
-    t.style.top = pos.y + '%';
-    t.style.transform = 'translate(-50%,-50%)';
-    t.style.fontSize = getGlobalSubSize() + 'px';
-    applySubColor(t, b);
-    applyTextFont(t);
-    bindSceneTextDrag(t, b, stage);
-    const hint = document.createElement('div');
-    hint.className = 'scene-drag-hint';
-    hint.textContent = '拖动文字调整位置';
-    stage.appendChild(hint);
-    stage.appendChild(t);
+  if (hasCaption(b)) {
+    mountCaption(stage, b, true);
   } else if (b.type === 'choice') {
-    const dlg = document.createElement('div');
-    dlg.className = 'dlg';
-    dlg.innerHTML = '<div class="sp">选项</div><div class="ln">' + escapeHtml(b.content || '请选择') + '</div>';
-    stage.appendChild(dlg);
+    const cap = buildCaption({ ...b, type: 'dialogue', speaker: '选项', content: b.content || '请选择' }, { editing: true });
+    cap.classList.remove('mode-caption');
+    cap.classList.add('mode-float');
+    cap.style.left = '50%';
+    cap.style.top = '78%';
+    cap.style.transform = 'translate(-50%,-50%)';
+    stage.appendChild(cap);
   } else if (!b.media?.url) {
     const hint = document.createElement('div');
     hint.className = 'empty-hint';
-    hint.textContent = b.type === 'scene' ? '场景文字会显示在这里\n右侧可加背景图' : '对白会显示在底部';
+    hint.textContent = b.type === 'scene' ? '写场景文字后，字幕会出现在这里' : '对白会显示在底部';
     stage.appendChild(hint);
   }
-}
-
-function formatLine(t) {
-  t = String(t || '').trim();
-  if (!t) return '……';
-  if (/^[「『"“]/.test(t)) return t;
-  return '「' + t + '」';
 }
 
 function renderPanel() {
@@ -555,7 +619,7 @@ function renderPanel() {
     panel.appendChild(sp);
   }
 
-  const contentLabel = b.type === 'scene' ? '场景描述' : b.type === 'choice' ? '选项提示' : '对白内容';
+  const contentLabel = b.type === 'scene' ? '字幕内容' : b.type === 'choice' ? '选项提示' : '对白内容';
   panel.appendChild(field(contentLabel, 'textarea', b.content || '', (v) => {
     b.content = v;
     scheduleSave();
@@ -644,8 +708,12 @@ function textStylePanel(b) {
   const wrap = document.createElement('div');
   wrap.className = 'field mk-text-style';
   const title = document.createElement('label');
-  title.textContent = b.type === 'scene' ? '文字样式（中间预览可拖动位置）' : '文字样式';
+  title.textContent = '文字样式';
   wrap.appendChild(title);
+
+  if (b.type === 'scene') {
+    wrap.appendChild(sceneTextModePanel(b, sub));
+  }
 
   const sizeRow = document.createElement('div');
   sizeRow.className = 'mk-size-row';
@@ -728,25 +796,83 @@ function textStylePanel(b) {
   });
   wrap.appendChild(colorInp);
 
-  if (b.type === 'scene') {
+  if (b.type === 'scene' && textMode(b) === 'float') {
     const reset = document.createElement('button');
     reset.type = 'button';
     reset.className = 'btn';
     reset.style.marginTop = '8px';
-    reset.textContent = '重置文字位置';
+    reset.textContent = '重置漂浮位置';
     reset.addEventListener('click', () => {
       delete sub.x;
       delete sub.y;
       scheduleSave();
       renderPreview();
-      toast('已重置到默认位置');
+      toast('已重置位置');
     });
     wrap.appendChild(reset);
   }
   return wrap;
 }
 
-function bindSceneTextDrag(el, b, stage) {
+function sceneTextModePanel(b, sub) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  wrap.innerHTML = '<label>呈现方式</label>';
+  const modeSel = document.createElement('select');
+  Object.entries(TEXT_MODES).forEach(([id, m]) => {
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = m.label;
+    if (textMode(b) === id) o.selected = true;
+    modeSel.appendChild(o);
+  });
+  wrap.appendChild(modeSel);
+  const hint = document.createElement('p');
+  hint.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.55;margin-top:6px';
+  hint.textContent = TEXT_MODES[textMode(b)]?.hint || '';
+  modeSel.addEventListener('change', () => {
+    sub.mode = modeSel.value;
+    hint.textContent = TEXT_MODES[modeSel.value]?.hint || '';
+    scheduleSave();
+    renderEdit();
+  });
+  wrap.appendChild(hint);
+
+  wrap.appendChild(field('标题（可选）', 'text', sub.label || '旁白', (v) => {
+    sub.label = v.trim() || '旁白';
+    scheduleSave();
+    renderPreview();
+    if (playing) renderPlay();
+  }));
+
+  const fxWrap = document.createElement('div');
+  fxWrap.className = 'field';
+  fxWrap.innerHTML = '<label>动效</label>';
+  const fxSel = document.createElement('select');
+  Object.entries(TEXT_EFFECTS).forEach(([id, m]) => {
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = m.label;
+    if (textEffect(b) === id) o.selected = true;
+    fxSel.appendChild(o);
+  });
+  fxSel.addEventListener('change', () => {
+    if (fxSel.value === 'none') delete sub.effect;
+    else sub.effect = fxSel.value;
+    scheduleSave();
+    renderPreview();
+    if (playing) renderPlay();
+  });
+  fxWrap.appendChild(fxSel);
+  const fxHint = document.createElement('p');
+  fxHint.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.55;margin-top:6px';
+  fxHint.textContent = '更多动态文字（打字机、震屏等）后续加入';
+  fxWrap.appendChild(fxHint);
+  wrap.appendChild(fxWrap);
+  return wrap;
+}
+
+function bindCaptionDrag(el, b, stage) {
   let dragging = false;
   const move = (clientX, clientY) => {
     const rect = stage.getBoundingClientRect();
@@ -1208,33 +1334,13 @@ function renderPlay() {
   }
 
   fore.addEventListener('click', playNext);
-  if (b.type === 'dialogue') {
-    fore.classList.add('dlg-fore');
-    const sz = getGlobalSubSize();
-    const d = document.createElement('div');
-    d.className = 'play-dialogue';
-    d.innerHTML = '<div class="pd-speaker">' + escapeHtml(b.speaker || DEFAULT_SPEAKER) + '</div><div class="pd-line">' + escapeHtml(formatLine(b.content)) + '</div>';
-    const sp = d.querySelector('.pd-speaker');
-    const ln = d.querySelector('.pd-line');
-    sp.style.fontSize = Math.round(sz * 1.15) + 'px';
-    ln.style.fontSize = sz + 'px';
-    applySubColor(sp, b);
-    applySubColor(ln, b);
-    applyTextFont(sp);
-    applyTextFont(ln);
-    fore.appendChild(d);
-  } else if (b.type === 'scene' && (b.content || '').trim()) {
-    const pos = subPos(b);
-    const st = document.createElement('div');
-    st.className = 'play-scene-text';
-    st.style.left = pos.x + '%';
-    st.style.top = pos.y + '%';
-    st.style.transform = 'translate(-50%,-50%)';
-    st.style.fontSize = getGlobalSubSize() + 'px';
-    st.textContent = b.content;
-    applySubColor(st, b);
-    applyTextFont(st);
-    frame.appendChild(st);
+  if (hasCaption(b)) {
+    const cap = buildCaption(b, { editing: false });
+    if (textMode(b) === 'float' || textMode(b) === 'fullscreen') {
+      frame.appendChild(cap);
+    } else {
+      fore.appendChild(cap);
+    }
   }
   frame.appendChild(fore);
   body.appendChild(frame);

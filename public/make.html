@@ -65,11 +65,19 @@ html,body{height:100%;overflow:hidden}
 .mk-stage.portrait{aspect-ratio:9/16;max-width:320px}
 .mk-stage .bg{position:absolute;inset:0;object-fit:cover;width:100%;height:100%}
 .mk-stage .bg-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.mk-stage .dlg{position:absolute;left:0;right:0;bottom:0;padding:14px 16px 16px;background:linear-gradient(transparent,rgba(0,0,0,.75) 30%,rgba(0,0,0,.92));pointer-events:none}
-.mk-stage .dlg .sp{font-size:13px;font-weight:600;color:var(--accent2);margin-bottom:4px}
-.mk-stage .dlg .ln{font-size:15px;line-height:1.55;color:#fff}
-.mk-stage .scene-txt{position:absolute;text-align:center;max-width:88%;line-height:1.5;text-shadow:0 2px 8px rgba(0,0,0,.8);cursor:grab;touch-action:none;user-select:none;padding:6px 10px;border-radius:6px;border:1px dashed rgba(139,123,255,.45);z-index:2}
-.mk-stage .scene-txt.dragging{cursor:grabbing;opacity:.92;border-color:rgba(95,200,255,.7)}
+/* 统一字幕：场景 / 对白 / 未来动态文字 */
+.hy-caption{pointer-events:none;z-index:2;box-sizing:border-box}
+.hy-caption-label{font-weight:600;color:var(--accent2);margin-bottom:6px;line-height:1.35}
+.hy-caption-line{color:#fff;line-height:1.55;word-break:break-word}
+.hy-caption.mode-caption{position:absolute;left:0;right:0;bottom:0;padding:14px 16px 16px;background:linear-gradient(transparent,rgba(0,0,0,.72) 28%,rgba(0,0,0,.92));border-top:1px solid rgba(255,255,255,.06)}
+.hy-caption.mode-float{position:absolute;max-width:min(88%,520px);padding:12px 14px;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);text-align:left}
+.hy-caption.mode-float.editing{pointer-events:auto;cursor:grab;touch-action:none;border:1px dashed rgba(139,123,255,.55)}
+.hy-caption.mode-float.editing.dragging{cursor:grabbing;opacity:.95;border-color:rgba(95,200,255,.65)}
+.hy-caption.mode-fullscreen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 20px;text-align:center;background:rgba(0,0,0,.52);backdrop-filter:blur(2px)}
+.hy-caption.mode-fullscreen .hy-caption-label{font-size:1.05em;margin-bottom:10px}
+.hy-caption.mode-fullscreen .hy-caption-line{max-width:92%;font-weight:600;letter-spacing:.03em;text-shadow:0 2px 16px rgba(0,0,0,.85)}
+.hy-caption.effect-pulse .hy-caption-line{animation:hyPulse 1.6s ease-in-out infinite}
+@keyframes hyPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.88;transform:scale(1.03)}}
 .mk-stage .scene-drag-hint{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:10px;color:rgba(255,255,255,.55);background:rgba(0,0,0,.45);padding:4px 10px;border-radius:99px;pointer-events:none;z-index:3}
 .mk-text-style{margin-top:4px}
 .mk-text-style .swatches{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -108,12 +116,11 @@ html,body{height:100%;overflow:hidden}
 #playOverlay.orient-portrait .play-frame{aspect-ratio:9/16;max-width:min(100vw,420px);max-height:calc(100vh - 120px)}
 .play-media-bg{position:absolute;inset:0}
 .play-media-bg img,.play-media-bg video{width:100%;height:100%;object-fit:cover}
-.play-fore{position:absolute;inset:0;cursor:pointer}
+.play-fore{position:absolute;inset:0;cursor:pointer;z-index:3}
 .play-fore.dlg-fore{cursor:pointer}
-.play-dialogue{position:absolute;left:0;right:0;bottom:0;padding:16px 18px 20px;background:linear-gradient(transparent,rgba(0,0,0,.7) 25%,rgba(0,0,0,.92));pointer-events:none}
-.pd-speaker{font-size:14px;font-weight:600;color:var(--accent2);margin-bottom:6px}
-.pd-line{font-size:17px;line-height:1.55;color:#fff}
-.play-scene-text{position:absolute;color:#fff;font-size:17px;text-align:center;max-width:90%;line-height:1.5;text-shadow:0 2px 10px rgba(0,0,0,.9);pointer-events:none}
+/* 试玩层复用 .hy-caption 样式 */
+.play-frame .hy-caption{z-index:2}
+.play-frame .hy-caption.mode-fullscreen{z-index:2;pointer-events:none}
 .play-choice{position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:min(92%,420px);background:rgba(0,0,0,.82);border:1px solid var(--line2);border-radius:12px;padding:14px;pointer-events:auto}
 .pc-prompt{font-size:14px;margin-bottom:10px;color:#ddd}
 .pc-opts{display:flex;flex-direction:column;gap:8px}
@@ -268,6 +275,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260827fonts"></script>
+<script type="module" src="/make.js?v=20260827caption"></script>
 </body>
 </html>
