@@ -37,6 +37,12 @@ html,body{height:100%;overflow:hidden}
 .mk-more-links{display:flex;flex-wrap:wrap;gap:8px}
 .mk-more-links a{font-size:12px;color:var(--muted);text-decoration:none;padding:8px 12px;border:1px solid var(--line2);border-radius:8px}
 .mk-more-links a:hover{color:var(--accent2);border-color:rgba(95,200,255,.4)}
+.mk-more-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px}
+.mk-more-card{display:block;padding:14px 16px;border:1px solid var(--line2);border-radius:12px;background:#12121c;text-decoration:none;color:inherit;transition:.15s}
+.mk-more-card:hover{border-color:rgba(139,123,255,.45);transform:translateY(-1px)}
+.mk-more-card strong{display:block;font-size:13px;margin-bottom:4px}
+.mk-more-card span{font-size:11px;color:var(--muted);line-height:1.5}
+.mk-more-card.soon{opacity:.72;cursor:default;pointer-events:none}
 .mk-login{text-align:center;padding:48px 16px;color:var(--muted);line-height:1.85}
 .mk-login a{color:var(--accent2)}
 
@@ -185,13 +191,27 @@ html,body{height:100%;overflow:hidden}
         <div id="mkGrid" class="mk-grid"></div>
         <p id="mkEmpty" class="mk-login hidden" style="padding:24px">还没有作品。点上方「新建故事」开始，或让 AI 帮你想大纲。</p>
         <div class="mk-more">
-          <h3>要做别的类型？</h3>
-          <div class="mk-more-links">
-            <a href="/h5-game.html">🎮 H5 网页游戏</a>
-            <a href="/story-editor.html?pro=1&new=comic">📚 漫画分格</a>
-            <a href="/story-editor.html?pro=1&new=card">🂠 卡牌游戏</a>
-            <a href="/story-editor.html?pro=1">⚙️ 专业编辑器</a>
+          <h3>其他类型</h3>
+          <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:4px">视觉小说在上面创建；下面这些走专用工具，一样能试玩发布。</p>
+          <div class="mk-more-grid">
+            <div class="mk-more-card soon">
+              <strong>🎬 互动视频</strong>
+              <span>筹备中 · 将与视觉小说同款镜头流程</span>
+            </div>
+            <a class="mk-more-card" href="/h5-game.html">
+              <strong>🎮 H5 网页游戏</strong>
+              <span>粘贴游戏链接，站内 iframe 试玩</span>
+            </a>
+            <a class="mk-more-card" href="/story-editor.html?pro=1&new=comic">
+              <strong>📚 漫画分格</strong>
+              <span>一格一格填图 + 对白气泡</span>
+            </a>
+            <a class="mk-more-card" href="/story-editor.html?pro=1&new=card">
+              <strong>🂠 卡牌游戏</strong>
+              <span>角色表 + 自动战斗 / 挂机</span>
+            </a>
           </div>
+          <p style="font-size:11px;color:var(--muted);margin-top:12px">🔊 镜头配音 / BGM 后续加入视觉小说编辑器</p>
         </div>
       </div>
     </div>

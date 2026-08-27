@@ -7,10 +7,13 @@
 | 功能 | 页面 | 说明 |
 |---|---|---|
 | 首页双核心 | `public/index.html` | 创作作品 / 创造世界；底栏：创作 / 去玩 / 我的 / AI |
-| **主创作应用** | `public/make.html` `public/make.js` | 互动小说 / 视觉小说：镜头列表 + 实时预览 + 试玩 + 发布 |
+| **主创作应用 · 视觉小说** | `public/make.html` `public/make.js` | 镜头 + 预览 + 试玩 + 发布；`story-local-cache.js` 删作防复活 |
+| **筹备 · 互动视频** | `public/make-video.html`（待建） | 与 make 同壳：镜头序 + 视频预览 + 试玩 |
+| **筹备 · 音频** | make 内面板（待建） | BGM / 配音 / 音效，复用 story 积木字段 |
 | 世界/IP | `public/studio-world.html` | 创造世界入口 |
 | 旧入口重定向 | `public/studio.html` `public/my-works.html` `public/fantasy.html` | → `/make.html` |
-| 专业编辑器 | `public/story-editor.html` `public/story-editor.js` | `?pro=1` 或漫画/卡牌；普通 story 自动跳转 make |
+| 漫画 / 卡牌 · 专业 | `public/story-editor.html` `?pro=1` | 分格、卡牌战斗；make 底栏链入 |
+| H5 · 专工 | `public/h5-game.html` `h5-play.html` | 嵌入外部游戏 URL |
 
 ## 彼岸
 
