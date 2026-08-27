@@ -1,0 +1,149 @@
+<!-- 自定义世界向导 -->
+<div class="modal-overlay" id="wizardModal">
+  <div class="modal">
+    <div class="wizard-head">
+      <h2 style="margin:0;">自定义世界</h2>
+      <div class="wizard-steps" id="wizardSteps"></div>
+    </div>
+
+    <div class="wstep active" data-wstep="1">
+      <div class="wstep-title">选择<span style="color:#c9a84c;">世界题材</span></div>
+      <div class="wstep-desc">你的世界将基于哪种想象展开？</div>
+      <div class="option-grid" id="genreGrid"></div>
+    </div>
+
+    <div class="wstep" data-wstep="2">
+      <div class="wstep-title">命名与<span style="color:#c9a84c;">设定</span></div>
+      <div class="wstep-desc">为世界起名并选择载体。生命世界的一步设定将在世界里设置并锁定。</div>
+      <div class="field-group"><label>世界名称</label><input type="text" id="wName" maxlength="40" placeholder="例如：星陨之地"></div>
+      <div class="field-group" id="wDescGroup"><label>一句话设定 <span style="font-weight:400;color:var(--muted);font-size:.72rem">（封面参考）</span></label><textarea id="wDesc" maxlength="300" placeholder="例如：被流星撕裂的大陆上，最后一个守夜人苏醒了。"></textarea></div>
+      <div class="wstep-title" style="font-size:.95rem;margin-bottom:.6rem;">世界载体</div>
+      <div class="form-grid" id="formGrid"></div>
+    </div>
+
+    <div class="wstep" data-wstep="3">
+      <div class="wstep-title">选择<span style="color:#c9a84c;">角色</span></div>
+      <div class="wstep-desc">从你的彼岸里挑选世界的演员（可多选，也可跳过稍后补充）。</div>
+      <button class="btn btn-save" id="wCastPick" style="width:100%;margin-bottom:.5rem;">＋ 从角色库选择角色</button>
+      <div class="cast-pick-hint" id="wCastHint">尚未选择角色。</div>
+      <div class="cast-picked" id="wCastPicked"></div>
+      <div id="lifePanel" style="display:none;">
+        <div class="wstep-title" style="font-size:.95rem;margin:.4rem 0 .6rem;">世界如何<span style="color:#c9a84c;">运转</span>？</div>
+        <div class="wstep-desc">三种运转方式，创建后在世界后台随时可切换。</div>
+        <div class="option-grid" id="lifeModeGrid"></div>
+        <div class="wstep-title" style="font-size:.95rem;margin:1rem 0 .6rem;">对话<span style="color:#c9a84c;">模型</span></div>
+        <div class="wstep-desc">为这个世界里的角色们选择对话大脑。</div>
+        <div class="form-grid" id="lifeModelGrid"></div>
+        <div class="hint-line" id="lifeModelAdvice" style="margin-top:.4rem;"></div>
+      </div>
+    </div>
+
+    <div class="wstep" data-wstep="4">
+      <div class="wstep-title">生成<span style="color:#c9a84c;">封面</span></div>
+      <div class="wstep-desc">AI 按题材绘制封面，或上传你自己的图片。</div>
+      <div id="imgGenSettings" style="margin-bottom:.8rem;"></div>
+      <img class="cover-preview" id="coverPreview" alt="世界封面" onerror="this.style.opacity=.2">
+      <div style="display:flex;gap:.6rem;">
+        <button class="btn btn-cancel" style="flex:1;" onclick="wizardRegenCover()">🔄 换一张</button>
+        <button class="btn btn-cancel" style="flex:1;" id="wizardUploadCover">📤 上传封面</button>
+        <input type="file" id="wizardCoverFile" accept="image/*" style="display:none">
+      </div>
+    </div>
+
+    <div class="wstep" data-wstep="5">
+      <div class="wstep-title">确认<span style="color:#c9a84c;">创建</span></div>
+      <div class="wstep-desc">核对信息后创建世界，之后可随时编辑与补充。</div>
+      <img class="cover-preview" id="coverPreview2" alt="世界封面" style="max-height:180px;object-fit:cover;">
+      <div class="hint-line" id="wSummary" style="margin-bottom:.6rem;"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="wizardPrev">上一步</button>
+      <button class="btn btn-save" id="wizardNext">下一步</button>
+    </div>
+  </div>
+</div>
+
+<!-- 角色选择弹窗（向导第 3 步：从角色库勾选） -->
+<div class="modal-overlay" id="castPickModal">
+  <div class="modal">
+    <h2>从角色库选择角色</h2>
+    <div class="hint-line">勾选要加入世界的角色，可多选。</div>
+    <div class="char-select-grid" id="wCastGrid"></div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="castPickCancel">取消</button>
+      <button class="btn btn-save" id="castPickConfirm">确认选择</button>
+    </div>
+  </div>
+</div>
+
+<!-- 世界详情 -->
+<div class="modal-overlay" id="worldDetailModal">
+  <div class="modal">
+    <h2>世界详情</h2>
+    <img class="detail-cover" id="detailCover" alt="">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.2rem;" id="detailBadges"></div>
+    <h2 style="font-size:1.4rem;margin:.4rem 0 .2rem;" id="detailName">—</h2>
+    <p class="detail-desc" id="detailDesc"></p>
+    <div class="field-group"><label>世界角色</label><div class="detail-cast" id="detailCast"></div></div>
+    <div class="field-group"><label>剧本</label><div id="detailScript"></div></div>
+    <div class="field-group"><label>作品类型</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="detailPricing" style="flex:1;">
+          <option value="free">免费</option>
+          <option value="paid">收费</option>
+        </select>
+        <input type="number" id="detailPrice" min="0" max="100000" step="1" value="0" placeholder="价格（元）" style="flex:1;display:none;">
+      </div>
+      <div class="hint-line">支付暂未开通，收费作品暂时也可直接体验。</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="detailPricingSave" style="flex:1;">保存作品设置</button>
+      <button class="btn btn-delete" id="detailDelete">删除世界</button>
+      <button class="btn btn-save" id="detailPlay">进入工坊</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h2>编辑角色</h2>
+    <div class="field-group"><label>名字</label><input type="text" id="editName" maxlength="40"></div>
+    <div class="field-group"><label>外貌</label><textarea id="editAppearance" maxlength="800"></textarea></div>
+    <div class="field-group"><label>性格</label><textarea id="editPersonality" maxlength="800"></textarea></div>
+    <div class="field-group"><label>背景</label><textarea id="editBackground" maxlength="2000"></textarea></div>
+    <div class="field-group"><label>说话风格</label><textarea id="editSpeech" maxlength="400"></textarea></div>
+    <div class="field-group"><label>世界名称</label><input type="text" id="editWorldName" maxlength="80"></div>
+    <div class="field-group"><label>世界描述</label><textarea id="editWorldDesc" maxlength="1200"></textarea></div>
+    <div class="field-group"><label>故事钩子</label><textarea id="editHook" maxlength="400"></textarea></div>
+    <div class="field-group"><label>作品类型</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="editPricing" style="flex:1;">
+          <option value="free">免费</option>
+          <option value="paid">收费</option>
+        </select>
+        <input type="number" id="editPrice" min="0" max="100000" step="1" value="0" placeholder="价格（元）" style="flex:1;display:none;">
+      </div>
+      <div class="hint-line">支付暂未开通，收费作品暂时也可直接体验。</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="editCancel">取消</button>
+      <button class="btn btn-save" id="editSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h2 id="deleteTitle">删除角色</h2>
+    <p class="confirm-text">确定删除 <span class="confirm-name" id="deleteName"></span> 吗？<br><span id="deleteExtra"></span></p>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="deleteCancel">取消</button>
+      <button class="btn btn-delete" id="deleteConfirm">删除</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>

@@ -8,10 +8,9 @@
 <pre id="results">RUNNING…</pre>
 <iframe id="fa" src="about:blank" style="width:1280px;height:800px;border:1px solid #333"></iframe>
 <script>
-/* 个人主页优化冒烟（b097992 之后）：
-   - @smokews 登录态（0 世界 0 角色）：角色库/世界库标题、创造角色/创造世界卡片、
-     世界库登录态始终显示、无「记录」区块/统计容器/数字生命文案
-   - /hub?create=world 直达自定义世界向导（5 步，第 1 步激活） */
+/* 个人主页优化冒烟：
+   - @smokews 登录态：角色库/世界库、创造角色/创造世界
+   - /hub?create=world → 个人主页并打开自定义世界向导 */
 const results = [];
 function line(s){ results.push(s); document.getElementById('results').textContent = results.join('\n'); }
 function ok(cond, name, extra=''){ line((cond?'PASS':'FAIL')+'  '+name+(extra?'  '+extra:'')); }
@@ -87,11 +86,11 @@ async function partA(){
   ok(g('worldsSection') && doc.defaultView.getComputedStyle(g('worldsSection')).display !== 'none', 'A: 登录态 0 世界也显示世界库区块');
 
   const charCreate = q('#charGrid a.create-card');
-  const worldCreate = q('#worldGrid a.create-card');
+  const worldCreate = q('#worldGrid button.create-card');
   ok(!!charCreate && charCreate.getAttribute('href') === '/create/character/' && charCreate.textContent.includes('创造角色'),
      'A: 角色库「创造角色」卡片', charCreate ? (charCreate.getAttribute('href') + ' | ' + charCreate.textContent.trim()) : '(无)');
-  ok(!!worldCreate && worldCreate.getAttribute('href') === '/hub?create=world' && worldCreate.textContent.includes('创造世界'),
-     'A: 世界库「创造世界」卡片', worldCreate ? (worldCreate.getAttribute('href') + ' | ' + worldCreate.textContent.trim()) : '(无)');
+  ok(!!worldCreate && worldCreate.textContent.includes('创造世界'),
+     'A: 世界库「创造世界」按钮', worldCreate ? worldCreate.textContent.trim() : '(无)');
   ok(g('worldGrid').querySelectorAll('.world-card').length === 0, 'A: 无世界卡片（smokews 名下 0 世界）', g('worldGrid').querySelectorAll('.world-card').length + ' 张');
 
   ok(!g('postsSection') && !g('posts'), 'A: 「记录」区块已移除');
@@ -125,22 +124,21 @@ async function partA(){
   g('closeEditor').click();
 }
 
-/* ================= Part B: /hub?create=world 直达自定义世界向导 ================= */
+/* ================= Part B: /hub?create=world → 个人主页打开向导 ================= */
 async function partB(){
   await loadIframe('/hub?create=world&v=' + Date.now());
   const f = document.getElementById('fa');
   const doc = await waitFor(() => {
     const d = f.contentDocument;
     const m = d.getElementById('wizardModal');
-    return (m && m.classList.contains('show')) ? d : null;
-  }, 30000, 'hub wizard modal shown');
+    return (m && m.classList.contains('show') && d.location.pathname.startsWith('/@')) ? d : null;
+  }, 30000, 'profile wizard modal shown');
   const dots = doc.querySelectorAll('#wizardSteps .wizard-step-dot');
   const step1 = doc.querySelector('.wstep.active[data-wstep="1"]');
+  ok(f.contentDocument.location.pathname.startsWith('/@'), 'B: /hub?create=world 重定向到个人主页', f.contentDocument.location.pathname);
   ok(true, 'B: 直达自定义世界向导弹窗', '?create=world');
   ok(dots.length === 5, 'B: 向导 5 步圆点', dots.length + ' 步');
   ok(!!step1, 'B: 第 1 步激活（题材）', step1 ? (step1.querySelector('.wstep-title') || {}).textContent : '(无)');
-  const h1 = doc.querySelector('h1');
-  ok(h1 && h1.textContent.trim() === '我的彼岸', 'B: 角色工坊已改名「我的彼岸」', h1 ? h1.textContent.trim() : '(无)');
 }
 
 (async function main(){

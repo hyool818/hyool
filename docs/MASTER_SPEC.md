@@ -56,7 +56,7 @@ HYOOL
 | AI 一句话 | `public/brain.html` |
 | 账号 / 主页 | `public/yonder.html` → `yonder-home.html` |
 | 去玩 | `public/plaza.html` |
-| 世界 / 角色 | `public/hub.html` `create.html` `world.html` |
+| 世界 / 角色 | `public/yonder-home.html`（`/@username` 角色库/世界库）`create.html` `world.html`；`/hub` → 重定向个人主页 |
 | 图片工具 | `public/workspace.html` |
 
 ## 4. 核心设计原则

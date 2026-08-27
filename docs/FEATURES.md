@@ -22,7 +22,9 @@
 | 个人主页 | `public/yonder-home.html`（`/@username`） | `/api/profile/:username` `/api/yonder/*` | `src/index.js` |
 | 个人主页 · 专属库 | 同上（主人可见） | — | 底栏入口 → `my-vault.html` |
 | 主页作品流 | 同上 | 主页组装含 `works.stories` | `src/index.js`（stories 查询） |
-| 我的彼岸 | `public/hub.html` `/hub` | `GET /api/hub`（角色列表，**不是** `/api/hub/`） | `src/mvp.js` |
+| 个人主页 · 角色库 / 世界库 | `public/yonder-home.html` `public/profile-hub-ui.js` `public/profile-hub-modals.html` | 主人：创造世界向导、角色编辑、世界详情；`?create=world` `?world=id` | 从原 `hub.html` 迁入 |
+| `/hub` 旧入口 | `public/hub.html` | — | 登录 → `/@username`；游客 → `/plaza`（保留 query） |
+| 角色列表 API | — | `GET /api/hub`（**不是** `/api/hub/`） | `src/mvp.js` |
 | 邀请码 | yonder / hub 管理 UI | `/api/invite-codes*` | `src/index.js`（仅用户 `333123`） |
 | 上传素材 | 各页 | `POST /api/upload` | `src/assets-storage.js` → R2 + `file_objects`（失败回退 D1 chunks） |
 | 我的专属库 | `public/my-vault.html` | `GET /api/my-vault` `DELETE /api/my-vault/:id` | 登录用户云端素材列表与删除（R2 + `file_objects`） |
@@ -79,7 +81,7 @@
 | HTTPS 桥 | `scripts/start-comfy-bridge.ps1` `scripts/comfy-bridge.mjs` | mkcert 免费证书；`https://127.0.0.1:8443` → Comfy `:8000` |
 | 工作流副本 | `public/comfy-workflows/zit-guofeng.json` `krae2.json` | 来自本机旧/新环境；默认 prompt 已中性化 |
 | 创角 / 重绘 | `public/create.html` `public/create-character.html` | comfy 时 `skip_image` → 本地出图 → `/api/upload` → regen `image_url` |
-| 封面 | `public/hub.html` `public/world.html` | 封面生成走 image-provider |
+| 封面 | `public/yonder-home.html` `public/world.html` | 封面生成走 image-provider |
 | 作品立绘 | `public/story-rogue.js` | 卡牌工作室「本地生图」 |
 | API | `POST /api/create` `skip_image`；`POST /api/create/regen-image` 可传 `image_url`；`GET /api/ai/status` 含 `local_comfy` | Workers **不**代理本机 Comfy |
 

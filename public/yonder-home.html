@@ -1800,6 +1800,53 @@ body {
 
 }
 
+/* Profile hub modals (world wizard, char edit) */
+.modal-overlay{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);opacity:0;visibility:hidden;transition:opacity .3s,visibility 0s linear .3s}
+.modal-overlay.show{opacity:1;visibility:visible;transition:opacity .3s,visibility 0s}
+.modal{width:min(540px,92vw);max-height:86vh;overflow-y:auto;background:linear-gradient(135deg,#161722,#0c0d14);border:1px solid rgba(255,255,255,.11);border-radius:20px;padding:26px 24px;transform:translateY(16px) scale(.97);opacity:0;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .3s;color:#fff}
+.modal-overlay.show .modal{transform:translateY(0) scale(1);opacity:1}
+.modal h2{font-size:1.25rem;font-weight:800;margin-bottom:1rem}
+.modal .field-group{margin-bottom:1rem}
+.modal .field-group label{display:block;font-size:.74rem;color:rgba(255,255,255,.55);margin-bottom:.35rem}
+.modal .field-group input,.modal .field-group textarea,.modal select{width:100%;border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:10px 14px;background:rgba(255,255,255,.05);color:#fff;outline:none;font:inherit;font-size:.88rem}
+.modal .field-group textarea{min-height:70px;resize:vertical;line-height:1.6}
+.modal-actions{display:flex;gap:.8rem;margin-top:1.4rem;flex-wrap:wrap}
+.modal-actions .btn{flex:1;border:0;border-radius:12px;padding:12px;font-size:14px;cursor:pointer;font-weight:600;min-width:100px}
+.modal-actions .btn-save{background:#8b8bff;color:#0a0a12}
+.modal-actions .btn-cancel{background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.1)}
+.modal-actions .btn-delete{background:rgba(255,80,80,.5);color:#fff}
+.confirm-text{font-size:.92rem;color:rgba(255,255,255,.8);line-height:1.6;text-align:center}
+.confirm-name{color:#8b8bff;font-weight:700}
+.wizard-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.1rem;gap:10px;flex-wrap:wrap}
+.wizard-steps{display:flex;gap:5px}
+.wizard-step-dot{width:20px;height:4px;border-radius:2px;background:rgba(255,255,255,.10)}
+.wizard-step-dot.done{background:#8b8bff}
+.wizard-step-dot.active{background:#c9a84c}
+.wstep{display:none}
+.wstep.active{display:block}
+.wstep-title{font-size:1.15rem;font-weight:700;margin-bottom:.25rem}
+.wstep-desc{font-size:.82rem;color:rgba(255,255,255,.55);margin-bottom:1.2rem}
+.option-grid{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+.option-card{position:relative;cursor:pointer;border:1px solid rgba(255,255,255,.11);border-radius:12px;padding:14px 12px;background:rgba(255,255,255,.04);display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;user-select:none}
+.option-card.selected{border-color:rgba(201,168,76,.6);background:rgba(201,168,76,.08)}
+.option-card.selected .check{position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:50%;background:#c9a84c;display:flex;align-items:center;justify-content:center;font-size:10px;color:#0a0a12}
+.option-card .check{display:none}
+.form-grid{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.char-select-grid{display:grid;gap:.6rem;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));max-height:42vh;overflow-y:auto}
+.char-select{position:relative;display:flex;gap:10px;align-items:center;cursor:pointer;border:1px solid rgba(255,255,255,.11);border-radius:12px;padding:8px;background:rgba(255,255,255,.04)}
+.char-select.selected{border-color:rgba(201,168,76,.6);background:rgba(201,168,76,.07)}
+.char-select img{width:44px;height:44px;object-fit:cover;border-radius:10px}
+.cover-preview,.detail-cover{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;background:#0c0d14;border:1px solid rgba(255,255,255,.11);display:block;margin-bottom:.8rem}
+.detail-desc{font-size:.85rem;color:rgba(255,255,255,.72);line-height:1.7;margin:.6rem 0 .9rem}
+.detail-cast{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.4rem}
+.detail-cast .dc{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.11);cursor:pointer;font-size:.78rem}
+.detail-cast img{width:26px;height:26px;border-radius:50%;object-fit:cover}
+.hint-line{font-size:.78rem;color:rgba(255,255,255,.55);margin-top:.4rem}
+.cast-picked{display:flex;flex-wrap:wrap;gap:6px;margin-top:.5rem}
+.cast-picked .chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;background:rgba(201,168,76,.14);color:#e8d9a8;font-size:.74rem}
+#toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%) translateY(20px);background:rgba(20,22,32,.94);border:1px solid rgba(139,139,255,.4);color:#fff;padding:11px 22px;border-radius:999px;font-size:13px;z-index:500;opacity:0;visibility:hidden;transition:all .3s;pointer-events:none;max-width:90vw}
+#toast.show{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0)}
+
 </style>
 
 </head>
@@ -2417,10 +2464,6 @@ function viewAllTag(section, ownerHref) {
 }
 
 window.profileViewAll = function (section, href) {
-    if (state.isOwner && href) {
-        location.href = href;
-        return;
-    }
     state.profileExpand[section] = true;
     if (section === "chars") renderCharacters();
     else if (section === "worlds") renderWorlds();
@@ -2712,6 +2755,14 @@ function render() {
     loadCharacters();
     loadWorlds();
     loadStories();
+
+    if (state.isOwner) {
+        try {
+            await mountProfileHubUI();
+        } catch (e) {
+            console.error("ProfileHubUI:", e);
+        }
+    }
 
     document
         .getElementById(
@@ -3130,6 +3181,48 @@ function applySettings(
 }
 
 
+async function mountProfileHubUI() {
+    if (!state.isOwner) return;
+    if (!document.getElementById("wizardModal")) {
+        const html = await fetch("/profile-hub-modals.html?v=20260827").then((r) => r.text());
+        document.body.insertAdjacentHTML("beforeend", html);
+    }
+    if (!window.ProfileHubUI) {
+        await new Promise((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = "/profile-hub-ui.js?v=20260827";
+            s.onload = resolve;
+            s.onerror = reject;
+            document.body.appendChild(s);
+        });
+    }
+    window.ProfileHubUI.init({
+        getChars: () => state.characters || [],
+        getWorlds: () => state.worlds || [],
+        onCharsChanged: () => renderCharacters(),
+        onWorldsChanged: () => renderWorlds(),
+        onWorldCreated: (w) => {
+            state.worlds = [w, ...(state.worlds || [])];
+            if (state.works && Array.isArray(state.works.worlds)) state.works.worlds.unshift(w);
+            renderWorlds();
+        },
+        onWorldDeleted: (id) => {
+            state.worlds = (state.worlds || []).filter((x) => x.id !== id);
+            if (state.works && Array.isArray(state.works.worlds)) {
+                state.works.worlds = state.works.worlds.filter((x) => x.id !== id);
+            }
+            renderWorlds();
+        },
+        onCharDeleted: (id) => {
+            state.characters = (state.characters || []).filter((x) => x.id !== id);
+            if (state.works && Array.isArray(state.works.characters)) {
+                state.works.characters = state.works.characters.filter((x) => x.id !== id);
+            }
+            renderCharacters();
+        },
+    });
+}
+
 /* =====================================================
    CHARACTERS
 ===================================================== */
@@ -3164,9 +3257,10 @@ function renderCharacters() {
         const cVisible = !!(c.share_id && c.share_id !== "");
         const ownerBtns = state.isOwner ? `
             ${cVisible ? '' : `<div class="hidden-tag">已隐藏</div>`}
+            <button type="button" class="vis-toggle" onclick="event.preventDefault();event.stopPropagation();ProfileHubUI.openCharEdit('${escapeHtml(c.id)}')">编辑</button>
             <button type="button" class="vis-toggle del" onclick="deleteCharCard('${escapeHtml(c.id)}', event)">删除</button>
             <button type="button" class="vis-toggle ${cVisible ? '' : 'off'}" onclick="toggleCharVisible('${escapeHtml(c.id)}', ${!cVisible}, event)">${cVisible ? '隐藏' : '显示'}</button>` : "";
-        const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("chars", "/hub") : "";
+        const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("chars", "") : "";
         return `
         <a class="char-card${cVisible ? '' : ' hidden-card'}" href="/buddy/${encodeURIComponent(c.id)}${state.username ? '?from=' + encodeURIComponent('/@' + state.username) : ''}">
             ${viewAll}
@@ -3197,8 +3291,7 @@ async function loadWorlds() {
     renderWorlds();
 }
 
-// 世界点击后直接进入（不再弹卡片二次选择）：
-// 生命世界 → 世界直播间；故事/游戏 → 对应工坊；无入口回退 hub 详情
+// 生命世界 → 世界直播间；故事 → 详情弹窗；游戏 → 工坊
 function worldPlayUrl(w) {
     if (w.type === "game" || w.type === "mixed") {
         return "/game-workshop?world=" + encodeURIComponent(w.id);
@@ -3207,7 +3300,12 @@ function worldPlayUrl(w) {
         const from = state.username ? "/@" + encodeURIComponent(state.username) : "";
         return "/world?world=" + encodeURIComponent(w.id) + "&from=" + encodeURIComponent(from);
     }
-    return "/hub?world=" + encodeURIComponent(w.id);
+    return "#";
+}
+
+function worldCardClick(id, ev) {
+    ev.preventDefault();
+    if (window.ProfileHubUI) ProfileHubUI.openWorldDetail(id);
 }
 
 function renderWorlds() {
@@ -3228,10 +3326,10 @@ function renderWorlds() {
 
     let html = "";
     if (state.isOwner) {
-        html += `<a href="/hub?create=world" class="create-card">
+        html += `<button type="button" class="create-card" onclick="ProfileHubUI.openWizard()">
             <div class="plus">+</div>
             <div class="label">创造世界</div>
-        </a>`;
+        </button>`;
     }
     html += visible.map((w, i) => {
         // 主页显示/隐藏 = share_id 非空；发布/下架 = status
@@ -3242,9 +3340,11 @@ function renderWorlds() {
             <button type="button" class="vis-toggle pub ${wPublished ? 'off' : ''}" onclick="toggleWorldPublish('${escapeHtml(w.id)}', ${!wPublished}, event)" title="控制是否进入主站生命世界广场">${wPublished ? '下架' : '发布'}</button>
             <button type="button" class="vis-toggle del" onclick="deleteWorldCard('${escapeHtml(w.id)}', event)">删除</button>
             <button type="button" class="vis-toggle ${wVisible ? '' : 'off'}" onclick="toggleWorldVisible('${escapeHtml(w.id)}', ${!wVisible}, event)" title="控制个人主页上的卡片可见性">${wVisible ? '隐藏' : '显示'}</button>` : "";
-        const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("worlds", "/hub") : "";
+        const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("worlds", "") : "";
+        const cardHref = worldPlayUrl(w);
+        const storyOwner = state.isOwner && w.type === "story";
         return `
-        <a class="world-card${wVisible ? '' : ' hidden-card'}" href="${worldPlayUrl(w)}">
+        <a class="world-card${wVisible ? '' : ' hidden-card'}" href="${escapeHtml(cardHref)}"${storyOwner ? ` onclick="worldCardClick('${escapeHtml(w.id)}', event)"` : ''}>
             ${viewAll}
             <img class="thumb" src="${escapeHtml(w.cover_image || '/placeholder.png')}" alt="${escapeHtml(w.name || '')}" onerror="this.style.opacity=.3">
             ${ownerBtns}
