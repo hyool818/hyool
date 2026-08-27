@@ -1,0 +1,79 @@
+/* 卡牌品阶边框：凡→珍→绝→传→神→墟→曜（墟/曜为动态特效） */
+.goddess-card.card-frame,.bt-portrait.card-frame{position:relative;box-sizing:border-box}
+.goddess-card .star,.bt-portrait .star{
+  position:absolute;top:6px;right:6px;z-index:3;font-size:11px;font-weight:700;
+  border-radius:999px;padding:2px 8px;letter-spacing:.12em;line-height:1.35;
+}
+
+.goddess-card.frame-fan,.bt-portrait.frame-fan{box-shadow:0 0 0 2px #e8eaef,0 0 12px rgba(232,234,239,.28)}
+.star.tier-fan{background:linear-gradient(135deg,#f8f9fc,#d4dae4);color:#2c3444;border:1px solid rgba(255,255,255,.5)}
+
+.goddess-card.frame-zhen,.bt-portrait.frame-zhen{box-shadow:0 0 0 2px #5eb8ff,0 0 14px rgba(94,184,255,.42)}
+.star.tier-zhen{background:linear-gradient(135deg,#1a5a9e,#2d8fd4);color:#d8f0ff;border:1px solid rgba(140,210,255,.45)}
+
+.goddess-card.frame-jue,.bt-portrait.frame-jue{box-shadow:0 0 0 2px #b06cff,0 0 16px rgba(176,108,255,.45)}
+.star.tier-jue{background:linear-gradient(135deg,#5a2890,#9338d8);color:#f0dcff;border:1px solid rgba(210,160,255,.4)}
+
+.goddess-card.frame-chuan,.bt-portrait.frame-chuan{box-shadow:0 0 0 2px #ff9a3c,0 0 16px rgba(255,154,60,.45)}
+.star.tier-chuan{background:linear-gradient(135deg,#b85a10,#f08030);color:#fff2e0;border:1px solid rgba(255,200,120,.45)}
+
+.goddess-card.frame-shen,.bt-portrait.frame-shen{box-shadow:0 0 0 2px #ff3d4d,0 0 18px rgba(255,61,77,.5)}
+.star.tier-shen{background:linear-gradient(135deg,#8a1020,#e82838);color:#ffe8ea;border:1px solid rgba(255,140,150,.45)}
+
+.goddess-card.frame-xu,.bt-portrait.frame-xu{
+  box-shadow:0 0 0 2px #9a7028,0 0 20px rgba(200,70,45,.55),inset 0 0 24px rgba(40,20,5,.35);
+  background:linear-gradient(160deg,#2a1e0a 0%,#120c04 100%);
+}
+.star.tier-xu{
+  background:linear-gradient(135deg,#4a3010 0%,#8a2818 50%,#c06020 100%);
+  color:#ffe0c0;border:1px solid rgba(255,180,100,.35);
+  animation:tier-xu-badge 2.8s ease-in-out infinite;
+}
+.goddess-card.fx-xu::before,.bt-portrait.fx-xu::before{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;
+  background:
+    radial-gradient(ellipse at 25% 18%,rgba(220,45,35,.42),transparent 52%),
+    radial-gradient(ellipse at 78% 82%,rgba(200,150,45,.38),transparent 48%),
+    linear-gradient(125deg,transparent 38%,rgba(255,70,50,.22) 50%,transparent 62%);
+  background-size:100% 100%,100% 100%,220% 220%;
+  animation:card-xu-shift 3.4s ease-in-out infinite;
+}
+@keyframes card-xu-shift{
+  0%,100%{background-position:0 0,0 0,0% 40%;opacity:.88}
+  50%{background-position:0 0,0 0,100% 60%;opacity:1}
+}
+@keyframes tier-xu-badge{
+  0%,100%{filter:brightness(1)}
+  50%{filter:brightness(1.18)}
+}
+
+.goddess-card.frame-yao,.bt-portrait.frame-yao{
+  box-shadow:0 0 0 2px rgba(255,255,255,.75),0 0 22px rgba(160,120,255,.55),0 0 32px rgba(255,120,200,.35);
+}
+.star.tier-yao{
+  color:#1a1030;border:1px solid rgba(255,255,255,.55);
+  background:linear-gradient(90deg,#ff6ec7,#6ecbff,#9fff8c,#ffd56a,#c77dff);
+  background-size:220% auto;
+  animation:tier-yao-badge 2.6s linear infinite;
+}
+.goddess-card.fx-yao::after,.bt-portrait.fx-yao::after{
+  content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;z-index:2;
+  background:linear-gradient(120deg,rgba(255,110,200,.55),rgba(110,200,255,.55),rgba(160,255,140,.5),rgba(255,215,110,.55),rgba(200,125,255,.55));
+  background-size:320% 320%;
+  animation:card-yao-holo 3.8s linear infinite;
+  mix-blend-mode:screen;
+  opacity:.72;
+}
+.goddess-card.fx-yao,.bt-portrait.fx-yao{animation:card-yao-pulse 2.6s ease-in-out infinite}
+@keyframes card-yao-holo{0%{background-position:0% 50%}100%{background-position:100% 50%}}
+@keyframes card-yao-pulse{0%,100%{filter:brightness(1) saturate(1.15)}50%{filter:brightness(1.14) saturate(1.4)}}
+@keyframes tier-yao-badge{0%{background-position:0% center}100%{background-position:220% center}}
+
+/* 旧存档边框别名 → 新配色 */
+.goddess-card.frame-white,.bt-portrait.frame-white{box-shadow:0 0 0 2px #e8eaef,0 0 12px rgba(232,234,239,.28)}
+.goddess-card.frame-green,.bt-portrait.frame-green{box-shadow:0 0 0 2px #5eb8ff,0 0 14px rgba(94,184,255,.42)}
+.goddess-card.frame-blue,.bt-portrait.frame-blue{box-shadow:0 0 0 2px #5eb8ff,0 0 14px rgba(94,184,255,.42)}
+.goddess-card.frame-purple,.bt-portrait.frame-purple{box-shadow:0 0 0 2px #b06cff,0 0 16px rgba(176,108,255,.45)}
+.goddess-card.frame-red,.bt-portrait.frame-red{box-shadow:0 0 0 2px #ff9a3c,0 0 16px rgba(255,154,60,.45)}
+.goddess-card.frame-gold,.bt-portrait.frame-gold{box-shadow:0 0 0 2px #ff3d4d,0 0 18px rgba(255,61,77,.5)}
+.goddess-card.frame-rainbow,.bt-portrait.frame-rainbow{box-shadow:0 0 0 2px rgba(255,255,255,.75),0 0 22px rgba(160,120,255,.55)}

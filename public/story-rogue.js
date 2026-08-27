@@ -23,6 +23,10 @@ import {
   frameLabelFor,
   frameOverlayHtml,
   cardFrameClass,
+  starTierLabel,
+  starTierFullLabel,
+  STAR_TIERS,
+  STAR_MAX,
   portraitKindOf,
   portraitThumbHtml,
   portraitMediaInner,
@@ -33,7 +37,7 @@ export const CARD_MODES = {
   idle: {
     id: 'idle',
     label: '女神挂机',
-    hint: '竖屏挂机：主城立绘 · 召唤卡池 · 升级升星 · 挂机推关。',
+    hint: '竖屏挂机：主城立绘 · 召唤卡池 · 5 张同阶升阶 · 挂机推关。',
     need: '至少 1 个角色（可上传立绘）、1 关。',
   },
   queue: {
@@ -109,7 +113,7 @@ export function normalizeRogue(raw) {
     name: String(c.name).trim().slice(0, 16) || '未名',
     elem: ELEMS.includes(c.elem) ? c.elem : 'fire',
     faction: String(c.faction || '').slice(0, 12),
-    star: clamp(c.star, 1, 5, 1),
+    star: clamp(c.star, 1, STAR_MAX, 1),
     hp: clamp(c.hp, 40, 99999, 120),
     atk: clamp(c.atk, 4, 99, 18),
     spd: clamp(c.spd, 6, 40, 16),
@@ -447,10 +451,10 @@ function bindIdleCtx(ctx) {
   ctx.onIdleStarUp = (id) => {
     if (!run || run.rogue.mode !== 'idle') return;
     const res = starUpChar(run.rogue, id);
-    if (!res.ok) { toast(res.error || '升星失败', true); return; }
+    if (!res.ok) { toast(res.error || '升阶失败', true); return; }
     if (run.story) run.story.rogue = run.rogue;
     if (run.ctx.onPersist) run.ctx.onPersist();
-    toast('升到 ' + res.star + '★');
+    toast('升到 ' + starTierFullLabel(res.star));
     run.idleCharId = id;
     run.phase = 'book';
     run.idleTab = 'book';
@@ -513,7 +517,7 @@ function paintPick(frame) {
     el.type = 'button';
     el.className = 'rg-unit';
     el.innerHTML = `<div class="nm">${esc(c.name)}</div>
-      <div class="meta">${factionLabel(r.mode, c.faction)} · ${c.star || 1}星 · 生命${c.hp} 攻${c.atk}</div>`;
+      <div class="meta">${factionLabel(r.mode, c.faction)} · ${starTierFullLabel(c.star || 1)} · 生命${c.hp} 攻${c.atk}</div>`;
     el.addEventListener('click', () => {
       const i = selected.indexOf(c.id);
       if (i >= 0) selected.splice(i, 1);
@@ -1324,7 +1328,7 @@ function renderStudio(body, story, api) {
       <td>${esc(c.name)}</td>
       <td>${esc(frameLabelFor(c, story.assets))}</td>
       <td>${factionLabel(r.mode, c.faction)}</td>
-      <td>${c.star || 1}</td>
+      <td>${starTierFullLabel(c.star || 1)}</td>
       <td>${mine.map(s => s.name).join('、') || '普攻'}</td>
       <td></td>`;
     const ops = tr.lastElementChild;
@@ -1355,7 +1359,7 @@ function renderStudio(body, story, api) {
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'btn tiny'; edit.textContent = '改';
-    edit.title = '修改名字 / 阵营 / 星级等';
+    edit.title = '修改名字 / 阵营 / 品阶等';
     edit.addEventListener('click', () => {
       body.dataset.editId = c.id;
       renderStudio(body, story, api);
@@ -1404,13 +1408,13 @@ function renderStudio(body, story, api) {
   );
   const star = sel(
     String(editing ? (editing.star || 3) : 3),
-    [['1', '1星'], ['2', '2星'], ['3', '3星'], ['4', '4星'], ['5', '5星']]
+    STAR_TIERS.map((t) => [String(t.star), `${t.label}｜${t.hint}`])
   );
   const assets = (story && story.assets) || [];
   const frameAssets = assets.filter((a) => a && a.category === 'frame' && a.url);
   const frame = sel(
-    editing ? normalizeCardFrame(editing.frame, editing.star) : 'white',
-    [['auto', '自动（跟星级）'], ...Object.keys(CARD_FRAMES).map((id) => [id, CARD_FRAMES[id].label + '（CSS）'])]
+    editing ? normalizeCardFrame(editing.frame, editing.star) : 'fan',
+    [['auto', '自动（跟品阶）'], ...Object.keys(CARD_FRAMES).map((id) => [id, CARD_FRAMES[id].label + '（CSS）'])]
   );
   const frameAsset = sel(
     editing ? (editing.frameAssetId || '') : '',
@@ -1428,7 +1432,7 @@ function renderStudio(body, story, api) {
   formWrap.append(
     field('名字', name),
     field(r.mode === 'queue' ? '门派' : (r.mode === 'idle' ? '阵营' : '属性'), fac),
-    field('星级', star),
+    field('品阶', star),
     field('卡牌装饰框', frame),
     field('素材边框（优先）', frameAsset),
     field('生命', hp),
@@ -1478,7 +1482,7 @@ function renderStudio(body, story, api) {
   addC.addEventListener('click', () => {
     const n = name.value.trim();
     if (!n) { toast('先写名字，例如：月华', true); return; }
-    const starN = Math.max(1, Math.min(5, Number(star.value) || 3));
+    const starN = Math.max(1, Math.min(STAR_MAX, Number(star.value) || 3));
     const hpN = Math.max(40, Math.min(99999, Number(hp.value) || 120));
     const atkN = Math.max(4, Math.min(99, Number(atk.value) || 18));
     const spdN = Math.max(6, Math.min(40, Number(spd.value) || 16));

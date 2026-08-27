@@ -11,7 +11,15 @@ import {
   CARD_MODES,
   buildRogueDemoData,
 } from '/story-rogue.js';
-import { portraitHtml, portraitThumbHtml } from '/story-idle.js';
+import {
+  portraitHtml,
+  portraitThumbHtml,
+  STAR_TIERS,
+  STAR_MAX,
+  starTierLabel,
+  starTierFullLabel,
+  normalizeCardFrame,
+} from '/story-idle.js';
 
 const PAGE = '/make-card.html';
 const WORK_KIND = 'gacha_rogue';
@@ -264,9 +272,31 @@ function renderEdit() {
 }
 
 function charPreviewMeta(c) {
-  let meta = (c.star || 1) + '★ · 生命 ' + c.hp + ' · 攻击 ' + c.atk + '<br>速度 ' + c.spd;
+  let meta = starTierFullLabel(c.star || 1) + ' · 生命 ' + c.hp + ' · 攻击 ' + c.atk + '<br>速度 ' + c.spd;
   if (c.desc) meta += '<br>' + escapeHtml(c.desc);
   return meta;
+}
+
+function tierField(label, value, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  const lab = document.createElement('label');
+  lab.textContent = label;
+  const sel = document.createElement('select');
+  STAR_TIERS.forEach((t) => {
+    const o = document.createElement('option');
+    o.value = String(t.star);
+    o.textContent = `${t.label}｜${t.hint}`;
+    if (t.star === starOf(value)) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', () => onChange(Number(sel.value) || 1));
+  wrap.append(lab, sel);
+  return wrap;
+}
+
+function starOf(n) {
+  return Math.max(1, Math.min(STAR_MAX, Math.round(Number(n) || 1)));
 }
 
 function patchListLabel(type, id, text) {
@@ -333,7 +363,11 @@ function syncCharViews(c, opts = {}) {
     const nm = cardEl?.querySelector('.nm');
     if (nm) nm.textContent = c.name || '';
     const star = cardEl?.querySelector('.star');
-    if (star) star.textContent = (c.star || 1) + '★';
+    if (star) {
+      const fid = normalizeCardFrame(c.frame, c.star);
+      star.textContent = starTierLabel(c.star || 1);
+      star.className = 'star tier-' + fid;
+    }
   }
 }
 
@@ -576,7 +610,12 @@ function renderPanel() {
     panel.appendChild(field('生命', 'number', String(c.hp), (v) => { c.hp = Math.max(40, Math.min(99999, Number(v) || 120)); scheduleSave(); syncCharViews(c); }));
     panel.appendChild(field('攻击', 'number', String(c.atk), (v) => { c.atk = Math.max(4, Math.min(99, Number(v) || 18)); scheduleSave(); syncCharViews(c); }));
     panel.appendChild(field('速度', 'number', String(c.spd), (v) => { c.spd = Math.max(6, Math.min(40, Number(v) || 16)); scheduleSave(); syncCharViews(c); }));
-    panel.appendChild(field('星级', 'number', String(c.star || 1), (v) => { c.star = Math.max(1, Math.min(5, Number(v) || 1)); scheduleSave(); syncCharViews(c); }));
+    panel.appendChild(tierField('品阶', c.star, (v) => {
+      c.star = starOf(v);
+      c.frame = '';
+      scheduleSave();
+      syncCharViews(c, { portrait: true });
+    }));
     const bgSec = document.createElement('div');
     bgSec.className = 'field mc-portrait-field';
     bgSec.id = 'mcPortraitField';

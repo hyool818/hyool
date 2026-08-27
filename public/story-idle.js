@@ -1,29 +1,65 @@
 // 女神挂机壳：主城 / 女神册（养成）/ 召唤卡池 / 关卡。
 // 由 story-rogue.js 在 mode===idle 时调用。
 
-/** 卡牌装饰框库：白→绿→蓝→紫→红→金→七彩，带 CSS 动态光效 */
+/** 品阶：凡→珍→绝→传→神→墟→曜；5 张同阶碎片合成升一阶 */
+export const STAR_MAX = 7;
+export const STAR_MERGE_NEED = 5;
+
+export const STAR_TIERS = [
+  { star: 1, frameId: 'fan', label: '凡', hint: '白色' },
+  { star: 2, frameId: 'zhen', label: '珍', hint: '蓝色' },
+  { star: 3, frameId: 'jue', label: '绝', hint: '紫色' },
+  { star: 4, frameId: 'chuan', label: '传', hint: '橙色' },
+  { star: 5, frameId: 'shen', label: '神', hint: '赤红' },
+  { star: 6, frameId: 'xu', label: '墟', hint: '暗金红' },
+  { star: 7, frameId: 'yao', label: '曜', hint: '幻彩镭射' },
+];
+
 export const CARD_FRAMES = {
-  white: { id: 'white', label: '白框 · 普通', fx: '' },
-  green: { id: 'green', label: '绿框 · 优良', fx: 'fx-glow' },
-  blue: { id: 'blue', label: '蓝框 · 精良', fx: 'fx-glow' },
-  purple: { id: 'purple', label: '紫框 · 史诗', fx: 'fx-pulse' },
-  red: { id: 'red', label: '红框 · 传说', fx: 'fx-pulse' },
-  gold: { id: 'gold', label: '金框 · 神话', fx: 'fx-shimmer' },
-  rainbow: { id: 'rainbow', label: '七彩框 · 至尊', fx: 'fx-rainbow' },
+  fan: { id: 'fan', label: '凡 · 白色', fx: '' },
+  zhen: { id: 'zhen', label: '珍 · 蓝色', fx: '' },
+  jue: { id: 'jue', label: '绝 · 紫色', fx: '' },
+  chuan: { id: 'chuan', label: '传 · 橙色', fx: '' },
+  shen: { id: 'shen', label: '神 · 赤红', fx: '' },
+  xu: { id: 'xu', label: '墟 · 暗金红', fx: 'fx-xu' },
+  yao: { id: 'yao', label: '曜 · 幻彩镭射', fx: 'fx-yao' },
 };
 
 const FRAME_IDS = Object.keys(CARD_FRAMES);
+const LEGACY_FRAME_MAP = {
+  white: 'fan', green: 'zhen', blue: 'zhen', purple: 'jue', red: 'chuan',
+  gold: 'shen', orange: 'chuan', rainbow: 'yao',
+};
+
+export function starOf(star) {
+  const v = Math.round(Number(star) || 1);
+  return Math.max(1, Math.min(STAR_MAX, v));
+}
+
+export function starTierLabel(star) {
+  return STAR_TIERS[starOf(star) - 1].label;
+}
+
+export function starTierFullLabel(star) {
+  const t = STAR_TIERS[starOf(star) - 1];
+  return `${t.label}｜${t.hint}`;
+}
+
+export function frameIdFromStar(star) {
+  return STAR_TIERS[starOf(star) - 1].frameId;
+}
 
 export function normalizeCardFrame(frame, star) {
   const f = String(frame || '').trim();
+  if (LEGACY_FRAME_MAP[f]) return LEGACY_FRAME_MAP[f];
   if (FRAME_IDS.includes(f)) return f;
-  const s = Math.max(1, Math.min(5, Math.round(Number(star) || 1)));
-  return ({ 1: 'white', 2: 'green', 3: 'blue', 4: 'purple', 5: 'gold' })[s] || 'white';
+  return frameIdFromStar(star);
 }
 
 export function frameLabel(frameId) {
-  const f = CARD_FRAMES[frameId];
-  return f ? f.label : CARD_FRAMES.white.label;
+  const id = LEGACY_FRAME_MAP[frameId] || frameId;
+  const f = CARD_FRAMES[id];
+  return f ? f.label : CARD_FRAMES.fan.label;
 }
 
 export function resolveFrameAssetUrl(c, assets) {
@@ -70,7 +106,7 @@ export function idleProgressOf(r) {
     chars[id] = {
       level: Math.max(1, Math.min(60, Math.round(Number(c.level) || 1))),
       exp: Math.max(0, Math.min(99999, Math.round(Number(c.exp) || 0))),
-      star: Math.max(1, Math.min(5, Math.round(Number(c.star) || 1))),
+      star: starOf(c.star),
       copies: Math.max(0, Math.min(99, Math.round(Number(c.copies) || 0))),
     };
   });
@@ -109,9 +145,9 @@ export function normalizeIdleProgress(r, stageLen) {
   };
 }
 
-function starOf(n) {
-  const v = Math.round(Number(n) || 1);
-  return Math.max(1, Math.min(5, v));
+function starBadgeSpan(star) {
+  const fid = frameIdFromStar(star);
+  return `<span class="star tier-${fid}">${escHtml(starTierLabel(star))}</span>`;
 }
 
 export function expNeed(level) {
@@ -121,7 +157,8 @@ export function levelUpCost(level) {
   return 30 + level * 20;
 }
 export function starUpNeed(star) {
-  return star;
+  if (starOf(star) >= STAR_MAX) return STAR_MERGE_NEED;
+  return STAR_MERGE_NEED;
 }
 
 export function fightHp(base, owned) {
@@ -188,11 +225,12 @@ export function portraitHtml(c, cls, assets) {
   const idAttr = c && c.id ? ` data-char-id="${escAttr(c.id)}"` : '';
   const frameCls = frameClasses(c, assets);
   const overlay = frameOverlayHtml(c, assets);
+  const badge = starBadgeSpan(star);
   if (url) {
-    return `<div class="${cls} has-img ${frameCls}"${idAttr}><div class="card-art">${portraitMediaInner(c)}</div>${overlay}<span class="star">${star}★</span><span class="nm">${escHtml(name)}</span></div>`;
+    return `<div class="${cls} has-img ${frameCls}"${idAttr}><div class="card-art">${portraitMediaInner(c)}</div>${overlay}${badge}<span class="nm">${escHtml(name)}</span></div>`;
   }
   const tone = (c && c.faction) === 'dark' ? 'dark' : 'light';
-  return `<div class="${cls} tone-${tone} ${frameCls}"${idAttr}><span class="ch">${escHtml(ch)}</span>${overlay}<span class="star">${star}★</span><span class="nm">${escHtml(name)}</span></div>`;
+  return `<div class="${cls} tone-${tone} ${frameCls}"${idAttr}><span class="ch">${escHtml(ch)}</span>${overlay}${badge}<span class="nm">${escHtml(name)}</span></div>`;
 }
 
 const SKILL_KIND_ZH = { atk: '攻击', heal: '治疗', buff: '强化' };
@@ -229,7 +267,7 @@ export function buildCharSheet(r, charId, opts) {
     url: base.portrait || '',
     portraitKind: portraitKindOf(base),
     name: base.name,
-    subtitle: `${factionText(mode, base.faction || base.elem)} · ${star}★${level} · ${frameLabel(normalizeCardFrame(base.frame, star))}`,
+    subtitle: `${factionText(mode, base.faction || base.elem)} · ${starTierFullLabel(star)}${level} · ${frameLabel(normalizeCardFrame(base.frame, star))}`,
     stats: `生命 ${hp} · 攻击 ${atk} · 速度 ${base.spd}`,
     desc: base.desc || '',
     skills: skills.length ? skills.map((s) => ({
@@ -430,7 +468,7 @@ export function paintIdleShell(frame, run, tab) {
     </div>
     <div class="idle-stage-banner">
       <div class="idle-stage-title">${escHtml(stageLine)}</div>
-      <div class="idle-stage-sub">召唤抽卡 · 升级升星 · 挂机推关</div>
+      <div class="idle-stage-sub">召唤抽卡 · 5 张同阶合成升阶 · 挂机推关</div>
     </div>
     <div class="idle-party">${slots.join('')}</div>
     <div class="idle-cta">
@@ -520,14 +558,14 @@ function paintDetail(frame, run, prog, id) {
   box.innerHTML = `
     <div class="idle-detail-card">
       ${portraitBlock}
-      <div class="idle-detail-name">${escHtml(c.name)} · ${c.star}★ · Lv.${c.level}</div>
-      <div class="idle-detail-meta">攻 ${c.fightAtk} · 血 ${c.fightHp} · 碎片 ${c.copies} · 经验 ${c.exp}/${need}</div>
+      <div class="idle-detail-name">${escHtml(c.name)} · ${starTierFullLabel(c.star)} · Lv.${c.level}</div>
+      <div class="idle-detail-meta">攻 ${c.fightAtk} · 血 ${c.fightHp} · 同阶碎片 ${c.copies} · 经验 ${c.exp}/${need}</div>
       ${descBlock}
       ${skillsBlock}
       <div class="idle-detail-ops">
         <button type="button" class="btn tiny" id="idleTeamBtn">${onTeam ? '撤下' : '上阵'}</button>
         <button type="button" class="btn tiny primary" id="idleLvBtn" ${prog.gold < cost || c.level >= 60 ? 'disabled' : ''}>升级 (${cost}🪙)</button>
-        <button type="button" class="btn tiny" id="idleStarBtn" ${c.star >= 5 || c.copies < needStar ? 'disabled' : ''}>升星 (${needStar}碎片)</button>
+        <button type="button" class="btn tiny" id="idleStarBtn" ${c.star >= STAR_MAX || c.copies < needStar ? 'disabled' : ''}>升阶 (${needStar} 张同阶)</button>
       </div>
     </div>`;
   box.querySelector('#idleTeamBtn').addEventListener('click', () => {
@@ -555,7 +593,7 @@ function paintGacha(frame, run, prog) {
     </div>
     <div class="idle-stage-banner">
       <div class="idle-stage-title">女神卡池</div>
-      <div class="idle-stage-sub">从作品角色表抽取。重复角色变碎片，可升星。</div>
+      <div class="idle-stage-sub">从作品角色表抽取。重复角色变同阶碎片，5 张合成升一阶。</div>
     </div>
     <div class="gacha-pool" id="gachaPool"></div>
     <div class="gacha-result" id="gachaResult"></div>
@@ -588,7 +626,7 @@ export function renderGachaResult(frame, r, results) {
   box.innerHTML = results.map((x) => {
     const c = (r.roster || []).find((u) => u.id === x.id) || { name: '?', star: 1 };
     const tag = x.dup ? '碎片+1' : 'NEW';
-    return `<div class="gacha-chip star${x.star}">${escHtml(c.name)} ${x.star}★ <span>${tag}</span></div>`;
+    return `<div class="gacha-chip star${x.star}">${escHtml(c.name)} ${starTierLabel(x.star)} <span>${tag}</span></div>`;
   }).join('');
 }
 
@@ -685,9 +723,9 @@ export function starUpChar(r, id) {
   const prog = normalizeIdleProgress(r, (r.stages || []).length);
   const o = prog.chars[id];
   if (!o) return { ok: false, error: '还没有这个角色' };
-  if (o.star >= 5) return { ok: false, error: '已满星' };
+  if (o.star >= STAR_MAX) return { ok: false, error: '已满阶' };
   const need = starUpNeed(o.star);
-  if (o.copies < need) return { ok: false, error: '碎片不够' };
+  if (o.copies < need) return { ok: false, error: `需要 ${need} 张同阶碎片` };
   o.copies -= need;
   o.star += 1;
   r.progress = prog;

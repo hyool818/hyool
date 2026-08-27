@@ -1,4 +1,5 @@
 /* 卡牌试玩样式（自 story-editor 精简） */
+@import url('/card-frames.css');
 #playOverlay .battle-view{position:relative;height:100%;width:100%;display:flex;flex-direction:column;gap:10px;padding:16px 18px 12px;box-sizing:border-box;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,rgba(139,123,255,.14),transparent 70%),linear-gradient(180deg,#15132a,#0c0b18)}
 #playOverlay .battle-view.portrait{padding:12px 10px 8px}
 #playOverlay .rogue-view.portrait .idle-shell{max-width:420px;margin:0 auto}
