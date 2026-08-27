@@ -28,6 +28,7 @@ import {
   CARD_FRAMES,
   cardFrameClass,
   frameTierLabelFromFrame,
+  starOf,
 } from '/story-idle.js';
 
 const ELEM_OPTS = [['fire', '火'], ['water', '水'], ['wood', '木'], ['light', '光'], ['dark', '暗']];
@@ -356,10 +357,6 @@ function frameField(label, value, onChange) {
   );
 }
 
-function starOf(n) {
-  return Math.max(1, Math.min(STAR_MAX, Math.round(Number(n) || 1)));
-}
-
 function patchListLabel(type, id, text) {
   const sel = id
     ? `#mcList .mc-item[data-type="${type}"][data-id="${CSS.escape(id)}"]`
@@ -430,7 +427,7 @@ function syncCharViews(c, opts = {}) {
     const star = cardEl?.querySelector('.star');
     if (star) {
       const fid = normalizeCardFrame(c.frame, c.star);
-      star.textContent = starTierLabel(c.star || 1);
+      star.textContent = frameTierLabelFromFrame(c.frame, c.star);
       star.className = 'star tier-' + fid;
     }
   }
@@ -859,6 +856,8 @@ function renderPanel() {
     panel.appendChild(tierField('品阶', c.star, (v) => {
       c.star = starOf(v);
       c.frame = '';
+      const ch = rogue()?.progress?.chars?.[c.id];
+      if (ch) ch.star = c.star;
       scheduleSave();
       syncCharViews(c, { portrait: true });
     }));
@@ -1130,10 +1129,19 @@ function applyDemo() {
 }
 
 // ---------- 试玩 ----------
+function syncTrialProgressStars() {
+  const r = rogue();
+  if (!r?.roster?.length || !r.progress?.chars) return;
+  r.roster.forEach((c) => {
+    if (r.progress.chars[c.id]) r.progress.chars[c.id].star = starOf(c.star);
+  });
+}
+
 function startPlay() {
   if (!work) return;
   const g = cardGuideText(work);
   if (!g.ready && !confirm(g.line + '\n仍要试玩？')) return;
+  syncTrialProgressStars();
   $('#playOverlay').classList.add('show');
   $('#playTitle').textContent = work.title || '';
   startRogueRun({ type: 'rogue', content: '' }, {

@@ -30,6 +30,7 @@ import {
   portraitKindOf,
   portraitThumbHtml,
   portraitMediaInner,
+  starOf,
 } from '/story-idle.js';
 
 export const ROGUE_KIND = 'gacha_rogue';
@@ -165,7 +166,7 @@ export function normalizeRogue(raw) {
     portrait: String(c.portrait || '').trim().slice(0, 512),
     portraitKind: c.portraitKind === 'video' ? 'video' : 'image',
     desc: String(c.desc || '').trim().slice(0, 120),
-    frame: normalizeCardFrame(c.frame, c.star),
+    frame: c.frameAssetId ? normalizeCardFrame(c.frame, c.star) : '',
     frameAssetId: String(c.frameAssetId || '').trim().slice(0, 64),
   }));
   out.roster.forEach(c => {
@@ -607,13 +608,14 @@ function beginRun(ids) {
   run.team = ids.map((id, slot) => {
     const c = r.roster.find(x => x.id === id) || r.roster[0];
     const owned = prog.chars[id] || { level: 1, exp: 0, star: c.star || 1, copies: 0 };
+    const star = starOf(owned.star || c.star);
     const atk = Math.round(fightAtk(c, owned) * bond);
     const hp = fightHp(c, owned);
     return {
       id: c.id, name: c.name, elem: c.elem, slot, front: slot < 2,
       maxHp: hp, hp, atk, spd: c.spd, portrait: c.portrait || '',
-      portraitKind: portraitKindOf(c), star: c.star || 1,
-      frame: normalizeCardFrame(c.frame, c.star),
+      portraitKind: portraitKindOf(c), star,
+      frame: c.frameAssetId ? normalizeCardFrame(c.frame, star) : normalizeCardFrame('', star),
       gauge: 0, buff: 0, next: 0, cards: charCards(r, c, rng),
     };
   });

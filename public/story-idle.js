@@ -164,11 +164,11 @@ function frameBadgeSpan(c) {
   return `<span class="star tier-${fid}">${escHtml(label)}</span>`;
 }
 
-/** 角色用品阶 star；敌人等无 star 的单位用 frame 颜色框 */
+/** 角标与边框共用 normalizeCardFrame，避免 star 与 frame 各算各的 */
 export function cardBadgeHtml(c) {
-  const star = Number(c && c.star);
-  if (Number.isFinite(star) && star >= 1) return starBadgeSpan(star);
-  return frameBadgeSpan(c);
+  const fid = normalizeCardFrame(c && c.frame, c && c.star);
+  const label = frameTierLabelFromFrame(c && c.frame, c && c.star);
+  return `<span class="star tier-${fid}">${escHtml(label)}</span>`;
 }
 
 export function expNeed(level) {
@@ -200,12 +200,17 @@ export function ownedOf(r, id) {
   const base = (r.roster || []).find((c) => c.id === id);
   const o = prog.chars[id];
   if (!base || !o) return null;
+  const star = starOf(o.star);
+  const frame = base.frameAssetId
+    ? normalizeCardFrame(base.frame, star)
+    : normalizeCardFrame('', star);
   return {
     ...base,
     level: o.level,
     exp: o.exp,
-    star: o.star,
+    star,
     copies: o.copies,
+    frame,
     fightHp: fightHp(base, o),
     fightAtk: fightAtk(base, o),
   };
