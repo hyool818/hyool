@@ -10,6 +10,10 @@ import {
     storeD1Chunks,
     storeUploadBytes,
 } from "./assets-storage.js";
+import {
+    dataUrlToResponse,
+    profileForApi
+} from "./profile-media.js";
 
 // 收费/免费作品列自动补列（幂等；正式迁移见 schema/migrate_monetization.sql）
 let monetizationEnsured = false;
@@ -467,7 +471,7 @@ export default {
                     user: {
                         id: profile.id,
                         username: profile.username,
-                        profile: profile
+                        profile: profileForApi(profile)
                     }
                 });
 
@@ -561,7 +565,7 @@ export default {
 
                 return json({
                     success: true,
-                    profile: profile
+                    profile: profileForApi(profile)
                 });
 
             } catch (error) {
@@ -1296,7 +1300,7 @@ export default {
 
                 return json({
                     success: true,
-                    profile: updatedProfile
+                    profile: profileForApi(updatedProfile)
                 });
 
             } catch (error) {
@@ -1530,27 +1534,6 @@ export default {
 
         if (imgMatch && request.method === "GET") {
             try {
-
-                const allowed = await checkRateLimit(
-                    request,
-                    env,
-                    "img",
-                    60,
-                    60
-                );
-
-                if (!allowed) {
-                    return new Response(
-                        "Too many requests",
-                        {
-                            status: 429,
-                            headers: {
-                                "Content-Type": "text/plain",
-                                "Retry-After": "60"
-                            }
-                        }
-                    );
-                }
                 const imageId = imgMatch[1];
 
                 const r2Response = await serveFromR2(env, imageId, request);
@@ -1934,55 +1917,6 @@ async function getYonderSettings(
 
 
 /* =========================================================
-   YONDER PROFILE MEDIA HELPERS
-========================================================= */
-
-const INLINE_PROFILE_MEDIA_MAX = 8192;
-
-function profileMediaUrlForApi(url, username, kind) {
-    if (!url || typeof url !== "string") return url || "";
-    if (url.startsWith("data:") && url.length > INLINE_PROFILE_MEDIA_MAX) {
-        return `/api/yonder/${encodeURIComponent(username)}/${kind}`;
-    }
-    return url;
-}
-
-function profileForApi(profile) {
-    const username = profile.username || "";
-    return {
-        ...profile,
-        avatar_url: profileMediaUrlForApi(profile.avatar_url, username, "avatar"),
-        background_url: profileMediaUrlForApi(profile.background_url, username, "background")
-    };
-}
-
-function dataUrlToResponse(dataUrl) {
-    if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
-        return null;
-    }
-    const comma = dataUrl.indexOf(",");
-    if (comma < 0) return null;
-    const header = dataUrl.slice(0, comma);
-    const payload = dataUrl.slice(comma + 1);
-    const mimeMatch = header.match(/^data:([^;]+)/);
-    const mime = mimeMatch ? mimeMatch[1] : "application/octet-stream";
-    try {
-        const binary = atob(payload);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        return new Response(bytes, {
-            headers: {
-                "Content-Type": mime,
-                "Cache-Control": "public, max-age=86400"
-            }
-        });
-    } catch {
-        return null;
-    }
-}
-
-
-/* =========================================================
    BUILD YONDER PAYLOAD（资料 + 设置 + 作品）
    isOwner=true 返回全部作品；访客只返回公开作品
    （角色：share_id 非空；世界：status='published'）
@@ -2142,7 +2076,7 @@ async function createLoginResponse(
             user: {
                 id: userId,
                 username: username,
-                profile: profile || {}
+                profile: profile ? profileForApi(profile) : {}
             }
         },
         200,

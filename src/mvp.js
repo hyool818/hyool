@@ -19,6 +19,7 @@
 } from "./ai/gateway.js";
 import { listModelInfos } from "./ai/models.js";
 import { TTS_VOICES } from "./tts.js";
+import { profileMediaUrlForApi } from "./profile-media.js";
 import {
     loadCompanionState,
     emotionAt,
@@ -788,27 +789,43 @@ export async function handleMvpRoutes(
     if (pathname === "/api/plaza" && method === "GET") {
         try {
             const result = await env.DB.prepare(
-                `SELECT w.*, p.username, p.display_name, p.avatar_url
+                `SELECT w.id, w.name, w.description, w.cover_image, w.updated_at, w.world_json,
+                        p.username, p.display_name, p.avatar_url
                  FROM worlds w
                  LEFT JOIN profiles p ON w.owner_id = p.id
                  WHERE w.status = 'published' AND w.type = 'life'
                  ORDER BY w.updated_at DESC LIMIT 100`
             ).all();
-            const worlds = [];
-            for (const row of (result.results || [])) {
-                const w = await formatWorld(env, row);
-                if (!w) continue;
-                worlds.push({
-                    ...w,
-                    owner_username: row.username || "",
-                    owner_display_name: row.display_name || row.username || "TA",
-                    owner_avatar_url: row.avatar_url || ""
-                });
-            }
+            const worlds = (result.results || []).map((row) => {
+                let natives_count = 0;
+                let scenes_count = 0;
+                try {
+                    const wj = JSON.parse(row.world_json || "{}");
+                    natives_count = Array.isArray(wj.natives) ? wj.natives.length : 0;
+                    scenes_count = Array.isArray(wj.scenes) ? wj.scenes.length : 0;
+                } catch { /* ignore */ }
+                const ownerUsername = row.username || "";
+                return {
+                    id: row.id,
+                    name: row.name,
+                    description: row.description,
+                    cover_image: row.cover_image,
+                    updated_at: row.updated_at,
+                    natives_count,
+                    scenes_count,
+                    owner_username: ownerUsername,
+                    owner_display_name: row.display_name || ownerUsername || "TA",
+                    owner_avatar_url: profileMediaUrlForApi(row.avatar_url, ownerUsername, "avatar")
+                };
+            });
 
-            // 幻灵世界广场同时收录已发布的故事作品（status='published' 且主页可见 share_id 非空）
             const sRes = await env.DB.prepare(
-                `SELECT s.id, s.title, s.cover_image, s.status, s.data, s.updated_at,
+                `SELECT s.id, s.title, s.cover_image, s.updated_at,
+                        json_extract(s.data, '$.kind') AS story_kind,
+                        json_extract(s.data, '$.orientation') AS story_orientation,
+                        json_extract(s.data, '$.chapters') AS chapters_json,
+                        json_extract(s.data, '$.rpg.cards') AS cards_json,
+                        json_extract(s.data, '$.rpg.enemies') AS enemies_json,
                         p.username, p.display_name, p.avatar_url
                  FROM stories s
                  LEFT JOIN profiles p ON s.owner_id = p.id
@@ -817,30 +834,50 @@ export async function handleMvpRoutes(
             ).all();
             const stories = [];
             for (const row of (sRes.results || [])) {
-                const data = parseStoryData(row.data);
-                let chapters = 0;
-                let blocks = 0;
-                for (const c of (data.chapters || [])) {
-                    chapters++;
-                    blocks += Array.isArray(c.blocks) ? c.blocks.length : 0;
-                }
+                const dataKind = row.story_kind || "story";
+                const kind = workKind(typeof dataKind === "string" ? dataKind.replace(/^"|"$/g, "") : dataKind);
+                let orientation = row.story_orientation;
+                if (typeof orientation === "string") orientation = orientation.replace(/^"|"$/g, "");
+                let chapters_count = 0;
+                let blocks_count = 0;
+                try {
+                    const chapters = JSON.parse(row.chapters_json || "[]");
+                    if (Array.isArray(chapters)) {
+                        chapters_count = chapters.length;
+                        blocks_count = chapters.reduce(
+                            (n, c) => n + (Array.isArray(c?.blocks) ? c.blocks.length : 0),
+                            0
+                        );
+                    }
+                } catch { /* ignore */ }
+                let cards_count = 0;
+                let enemies_count = 0;
+                try {
+                    const cards = JSON.parse(row.cards_json || "[]");
+                    const enemies = JSON.parse(row.enemies_json || "[]");
+                    if (Array.isArray(cards)) cards_count = cards.length;
+                    if (Array.isArray(enemies)) enemies_count = enemies.length;
+                } catch { /* ignore */ }
+                const ownerUsername = row.username || "";
                 stories.push({
                     id: row.id,
                     title: row.title || "未名作品",
                     cover_image: row.cover_image || "",
-                    kind: workKind(data.kind),
-                    orientation: data.orientation === "portrait" ? "portrait" : "landscape",
-                    chapters_count: chapters,
-                    blocks_count: blocks,
-                    cards_count: Array.isArray((data.rpg || {}).cards) ? data.rpg.cards.length : 0,
-                    enemies_count: Array.isArray((data.rpg || {}).enemies) ? data.rpg.enemies.length : 0,
+                    kind,
+                    orientation: orientation === "portrait" ? "portrait" : "landscape",
+                    chapters_count,
+                    blocks_count,
+                    cards_count,
+                    enemies_count,
                     updated_at: row.updated_at,
-                    owner_username: row.username || "",
-                    owner_display_name: row.display_name || row.username || "TA",
-                    owner_avatar_url: row.avatar_url || ""
+                    owner_username: ownerUsername,
+                    owner_display_name: row.display_name || ownerUsername || "TA",
+                    owner_avatar_url: profileMediaUrlForApi(row.avatar_url, ownerUsername, "avatar")
                 });
             }
-            return json({ success: true, worlds, stories });
+            return json({ success: true, worlds, stories }, 200, {
+                "Cache-Control": "public, max-age=30"
+            });
         } catch (error) {
             console.error("PLAZA ERROR:", error);
             return json({ success: false, error: "加载失败。" }, 500);
