@@ -84,6 +84,7 @@ let playBranchIdx = 0;
 let playBranchEnd = 'main';
 let playBranchEndJump = '';
 let playChoiceBlockId = null;
+let playTakenChoiceId = null;
 let playResumeMainIdx = 0;
 /** 当前选项未走到的支线入口（block id），顺序播放时自动跳过 */
 let playSiblingJumps = null;
@@ -191,24 +192,39 @@ function normalizeChoice(b) {
       { id: uid(), label: '继续', jump: 'next', branch: [], branchEnd: 'main' },
       { id: uid(), label: '结束', jump: 'end', branch: [], branchEnd: 'shot' },
     ];
+    return;
   }
-  b.choices = b.choices.map((c) => {
-    const branch = Array.isArray(c.branch) ? c.branch.map(normalizeBranchBlock) : [];
-    let branchEnd = c.branchEnd;
-    if (branchEnd === 'end') branchEnd = 'shot';
-    if (branchEnd !== 'main' && branchEnd !== 'choice' && branchEnd !== 'shot') {
-      branchEnd = branch.length ? 'main' : undefined;
+  b.choices.forEach((c) => {
+    if (!c.id) c.id = uid();
+    c.label = String(c.label || '选项').slice(0, 40);
+    if (!c.jump) c.jump = 'next';
+    c.branch = Array.isArray(c.branch) ? c.branch.map(normalizeBranchBlock) : [];
+
+    if (c.branchEnd && String(c.branchEnd).startsWith('b_')) {
+      if (!c.branchEndJump) c.branchEndJump = c.branchEnd;
+      c.branchEnd = 'shot';
     }
-    const out = {
-      id: c.id || uid(),
-      label: String(c.label || '选项').slice(0, 40),
-      jump: c.jump || 'next',
-      branch,
-      branchEnd,
-    };
-    if (branchEnd === 'shot' && c.branchEndJump) out.branchEndJump = c.branchEndJump;
-    return out;
+    if (c.branchEnd === 'end') c.branchEnd = 'shot';
+    if (c.branchEndJump && c.branchEnd !== 'choice') c.branchEnd = 'shot';
+    if (c.branchEnd !== 'main' && c.branchEnd !== 'choice' && c.branchEnd !== 'shot') {
+      c.branchEnd = c.branch.length ? 'main' : undefined;
+    }
+    if (c.branchEnd === 'shot' && !c.branchEndJump) delete c.branchEndJump;
+    else if (c.branchEnd !== 'shot') delete c.branchEndJump;
   });
+}
+
+function resolveOptionBranchEnd(c) {
+  if (!c) return { end: 'main', jump: '' };
+  let end = c.branchEnd || 'main';
+  let jump = c.branchEndJump || '';
+  if (end && end !== 'main' && end !== 'choice' && end !== 'shot' && String(end).startsWith('b_')) {
+    jump = end;
+    end = 'shot';
+  }
+  if (end === 'end') end = 'shot';
+  if (jump && end !== 'choice') end = 'shot';
+  return { end, jump };
 }
 
 function optionUsesBranch(c) {
@@ -1591,10 +1607,18 @@ function choiceEditor(b) {
       shotLab.textContent = '结束镜（主线里的失败/结局镜头）';
       shotPickerWrap.appendChild(shotLab);
       shotPickerWrap.appendChild(makeBranchEndShotSelect(c.branchEndJump || '', (v) => {
-        if (v) c.branchEndJump = v;
-        else delete c.branchEndJump;
+        if (v) {
+          c.branchEndJump = v;
+          c.branchEnd = 'shot';
+        } else {
+          delete c.branchEndJump;
+        }
         scheduleSave();
+        syncEndSel();
       }));
+    };
+    const syncEndSel = () => {
+      endSel.value = c.branchEnd || 'main';
     };
     endSel.addEventListener('change', () => {
       c.branchEnd = endSel.value;
@@ -1941,6 +1965,7 @@ function startPlay() {
   playBranchEnd = 'main';
   playBranchEndJump = '';
   playChoiceBlockId = null;
+  playTakenChoiceId = null;
   playResumeMainIdx = 0;
   playSiblingJumps = null;
   playing = true;
@@ -1968,9 +1993,17 @@ function stopPlay() {
 }
 
 function finishBranchPlay() {
-  const end = playBranchEnd;
-  const endJump = playBranchEndJump;
+  let end = playBranchEnd;
+  let endJump = playBranchEndJump;
   const choiceBlockId = playChoiceBlockId;
+  const choiceBlock = playMainFlat.find((b) => b.id === choiceBlockId);
+  const taken = choiceBlock?.choices?.find((o) => o.id === playTakenChoiceId);
+  if (taken) {
+    const resolved = resolveOptionBranchEnd(taken);
+    end = resolved.end;
+    endJump = resolved.jump;
+  }
+
   playBranchFlat = null;
   playBranchIdx = 0;
   playSiblingJumps = null;
@@ -1990,6 +2023,9 @@ function finishBranchPlay() {
       renderPlay();
       return;
     }
+    toast('找不到结束镜，请检查选项里的「结束镜」设置', true);
+  } else if (end === 'shot') {
+    toast('请先为这条选项选择结束镜', true);
   }
 
   playMainIdx = playResumeMainIdx;
@@ -2053,14 +2089,13 @@ function renderPlay() {
   fore.className = 'play-fore';
 
   if (b.type === 'choice') {
-    normalizeChoice(b);
     fore.classList.add('dlg-fore');
     const box = document.createElement('div');
     box.className = 'play-choice';
     box.innerHTML = '<div class="pc-prompt">' + escapeHtml(b.content || '请选择：') + '</div>';
     const opts = document.createElement('div');
     opts.className = 'pc-opts';
-    b.choices.forEach((c) => {
+    (b.choices || []).forEach((c) => {
       const btnEl = document.createElement('button');
       btnEl.type = 'button';
       btnEl.className = 'pc-opt';
@@ -2068,13 +2103,15 @@ function renderPlay() {
       btnEl.addEventListener('click', (e) => {
         e.stopPropagation();
         if (optionUsesBranch(c)) {
+          const resolved = resolveOptionBranchEnd(c);
           setPlayChoiceContext(b, c);
           playResumeMainIdx = resolvePlayNextIndex(playMainIdx);
           playChoiceBlockId = b.id;
+          playTakenChoiceId = c.id;
           playBranchFlat = c.branch;
           playBranchIdx = 0;
-          playBranchEnd = c.branchEnd || 'main';
-          playBranchEndJump = c.branchEndJump || '';
+          playBranchEnd = resolved.end;
+          playBranchEndJump = resolved.jump;
           renderPlay();
         } else {
           setPlayChoiceContext(b, c);
@@ -2192,6 +2229,7 @@ function playPrev() {
     }
     playBranchFlat = null;
     playBranchIdx = 0;
+    playTakenChoiceId = null;
     renderPlay();
     return;
   }
