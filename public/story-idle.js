@@ -151,6 +151,25 @@ function starBadgeSpan(star) {
   return `<span class="star tier-${fid}">${escHtml(starTierLabel(star))}</span>`;
 }
 
+export function frameTierLabelFromFrame(frame, starFallback) {
+  const fid = normalizeCardFrame(frame, starFallback);
+  const tier = STAR_TIERS.find((t) => t.frameId === fid);
+  return tier ? tier.label : '凡';
+}
+
+function frameBadgeSpan(c) {
+  const fid = normalizeCardFrame(c && c.frame, 1);
+  const label = frameTierLabelFromFrame(c && c.frame, 1);
+  return `<span class="star tier-${fid}">${escHtml(label)}</span>`;
+}
+
+/** 角色用品阶 star；敌人等无 star 的单位用 frame 颜色框 */
+export function cardBadgeHtml(c) {
+  const star = Number(c && c.star);
+  if (Number.isFinite(star) && star >= 1) return starBadgeSpan(star);
+  return frameBadgeSpan(c);
+}
+
 export function expNeed(level) {
   return 40 + level * 25;
 }
@@ -222,11 +241,10 @@ export function portraitHtml(c, cls, assets) {
   const name = (c && c.name) || '?';
   const ch = name.slice(0, 1);
   const url = c && c.portrait;
-  const star = (c && c.star) || 1;
   const idAttr = c && c.id ? ` data-char-id="${escAttr(c.id)}"` : '';
   const frameCls = frameClasses(c, assets);
   const overlay = frameOverlayHtml(c, assets);
-  const badge = starBadgeSpan(star);
+  const badge = cardBadgeHtml(c);
   if (url) {
     return `<div class="${cls} has-img ${frameCls}"${idAttr}><div class="card-art">${portraitMediaInner(c)}</div>${overlay}${badge}<span class="nm">${escHtml(name)}</span></div>`;
   }

@@ -27,6 +27,7 @@ import {
   normalizeCardFrame,
   CARD_FRAMES,
   cardFrameClass,
+  frameTierLabelFromFrame,
 } from '/story-idle.js';
 
 const ELEM_OPTS = [['fire', '火'], ['water', '水'], ['wood', '木'], ['light', '光'], ['dark', '暗']];
@@ -390,12 +391,11 @@ function patchListCharThumb(c) {
   }
 }
 
-function replacePreviewCard(unit, opts = {}) {
+function replacePreviewCard(unit) {
   const wrap = $('#mcStage .card-big');
   if (!wrap) return;
-  const cardUnit = opts.enemy ? { ...unit, star: 0 } : unit;
   const tmp = document.createElement('div');
-  tmp.innerHTML = portraitHtml(cardUnit, 'goddess-card book card-frame', work?.assets || []);
+  tmp.innerHTML = portraitHtml(unit, 'goddess-card book card-frame', work?.assets || []);
   const newCard = tmp.firstElementChild;
   if (!newCard) return;
   const oldCard = wrap.querySelector('.goddess-card');
@@ -481,7 +481,7 @@ function syncEnemyViews(e, opts = {}) {
   }
   if (nameEl) nameEl.textContent = '👹 ' + (e.name || '');
   if (metaEl) metaEl.innerHTML = enemyPreviewMeta(e);
-  if (opts.portrait || opts.frame) replacePreviewCard(e, { enemy: true });
+  if (opts.portrait || opts.frame) replacePreviewCard(e);
   else {
     const cardEl = stage.querySelector('.goddess-card');
     const nm = cardEl?.querySelector('.nm');
@@ -491,6 +491,12 @@ function syncEnemyViews(e, opts = {}) {
       const drop = [...cardEl.classList].filter((c) => !keep.includes(c) && (c.startsWith('frame-') || c.startsWith('fx-') || c === 'card-frame-asset'));
       drop.forEach((c) => cardEl.classList.remove(c));
       cardFrameClass(e, work?.assets || []).split(/\s+/).filter(Boolean).forEach((c) => cardEl.classList.add(c));
+      const badgeEl = cardEl.querySelector('.star');
+      if (badgeEl) {
+        const fid = normalizeCardFrame(e.frame, 1);
+        badgeEl.textContent = frameTierLabelFromFrame(e.frame, 1);
+        badgeEl.className = 'star tier-' + fid;
+      }
     }
   }
   // 关卡面板里敌人多选标签同步
@@ -732,7 +738,7 @@ function renderPreview() {
     if (!e) { stage.innerHTML = '<div class="empty-hint">选一个敌人</div>'; return; }
     const wrap = document.createElement('div');
     wrap.className = 'card-big';
-    wrap.innerHTML = portraitHtml({ ...e, star: 0 }, 'goddess-card book card-frame', work?.assets || []) +
+    wrap.innerHTML = portraitHtml(e, 'goddess-card book card-frame', work?.assets || []) +
       '<div class="card-name">👹 ' + escapeHtml(e.name) + '</div>' +
       '<div class="card-meta">' + enemyPreviewMeta(e) + '</div>';
     stage.appendChild(wrap);
