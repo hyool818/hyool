@@ -10,6 +10,11 @@ import {
   cardGuideText,
   CARD_MODES,
   buildRogueDemoData,
+  normalizeStageEnemySlots,
+  stageEnemySlotsFlat,
+  stageEnemyTotal,
+  STAGE_WAVE_SIZE,
+  STAGE_ENEMY_MAX,
 } from '/story-rogue.js';
 import {
   portraitHtml,
@@ -501,6 +506,46 @@ function syncStageViews(s) {
   if (select.type === 'stage' && select.id === s.id) renderPreview();
 }
 
+function ensureStageSlots(s) {
+  if (!Array.isArray(s.enemySlots)) {
+    s.enemySlots = normalizeStageEnemySlots(s);
+  }
+  return s.enemySlots;
+}
+
+function stageSlotCount(s, enemyId) {
+  const slot = ensureStageSlots(s).find((x) => x.id === enemyId);
+  return slot ? slot.count : 0;
+}
+
+function setStageSlotCount(s, enemyId, count) {
+  ensureStageSlots(s);
+  const idx = s.enemySlots.findIndex((x) => x.id === enemyId);
+  if (count < 1) {
+    if (idx >= 0) s.enemySlots.splice(idx, 1);
+  } else if (idx >= 0) {
+    s.enemySlots[idx].count = count;
+  } else {
+    s.enemySlots.push({ id: enemyId, count });
+  }
+  s.enemySlots = normalizeStageEnemySlots(s);
+  s.enemyIds = stageEnemySlotsFlat(s.enemySlots);
+}
+
+function stagePreviewText(s, r) {
+  const slots = normalizeStageEnemySlots(s);
+  if (!slots.length) return '（未配敌人）';
+  const parts = slots.map(({ id, count }) => {
+    const name = r.enemies.find((x) => x.id === id)?.name || id;
+    return count > 1 ? escapeHtml(name) + '×' + count : escapeHtml(name);
+  });
+  const total = stageEnemyTotal(slots);
+  let txt = parts.join('、');
+  if (total > STAGE_WAVE_SIZE) txt += '<br>共 ' + total + ' 名 · 分 ' + Math.ceil(total / STAGE_WAVE_SIZE) + ' 轮';
+  else if (total > 1) txt += '<br>共 ' + total + ' 名';
+  return txt;
+}
+
 function applyPortrait(entityType, entityId, url, kind) {
   const c = liveEntity(entityType, entityId);
   if (!c) return;
@@ -697,9 +742,8 @@ function renderPreview() {
   if (select.type === 'stage') {
     const s = selectedStage();
     if (!s) { stage.innerHTML = '<div class="empty-hint">选一关</div>'; return; }
-    const names = (s.enemyIds || []).map((id) => r.enemies.find((x) => x.id === id)?.name || id).join('、') || '（未配敌人）';
     stage.innerHTML = '<div class="card-name">⚔ ' + escapeHtml(s.title || '关卡') + '</div>' +
-      '<div class="card-meta">出战：' + escapeHtml(names) + '</div>';
+      '<div class="card-meta">出战：' + stagePreviewText(s, r) + '</div>';
     return;
   }
 
@@ -854,13 +898,26 @@ function renderPanel() {
     if (!s) return;
     panel.appendChild(field('关卡名', 'text', s.title || '', (v) => { s.title = v; scheduleSave(); syncStageViews(s); }, { maxLen: 40 }));
     const lab = document.createElement('label');
-    lab.textContent = '本关敌人（可多选）';
+    lab.textContent = '本关敌人（勾选并设数量）';
     panel.appendChild(lab);
+    const hint = document.createElement('p');
+    hint.className = 'mc-stage-hint';
+    hint.textContent = '每轮最多 ' + STAGE_WAVE_SIZE + ' 名，整关最多 ' + STAGE_ENEMY_MAX + ' 名（超过 ' + STAGE_WAVE_SIZE + ' 自动分两轮）';
+    panel.appendChild(hint);
     const picks = document.createElement('div');
     picks.className = 'mc-enemy-picks';
+    const totalEl = document.createElement('div');
+    totalEl.className = 'mc-stage-total';
+    const refreshTotal = () => {
+      const slots = normalizeStageEnemySlots(s);
+      const total = stageEnemyTotal(slots);
+      totalEl.textContent = '本关合计 ' + total + ' / ' + STAGE_ENEMY_MAX + ' 名';
+      totalEl.classList.toggle('warn', total < 1);
+    };
     if (!r.enemies.length) {
       picks.innerHTML = '<p style="font-size:12px;color:var(--muted)">请先在「敌人」里添加</p>';
     } else {
+      ensureStageSlots(s);
       r.enemies.forEach((e) => {
         const row = document.createElement('label');
         row.className = 'mc-enemy-pick';
@@ -868,19 +925,51 @@ function renderPanel() {
         const ck = document.createElement('input');
         ck.type = 'checkbox';
         ck.value = e.id;
-        ck.checked = (s.enemyIds || []).includes(e.id);
-        ck.addEventListener('change', () => {
-          if (!Array.isArray(s.enemyIds)) s.enemyIds = [];
-          if (ck.checked) s.enemyIds.push(e.id);
-          else s.enemyIds = s.enemyIds.filter((x) => x !== e.id);
+        const cur = stageSlotCount(s, e.id);
+        ck.checked = cur > 0;
+        const qty = document.createElement('input');
+        qty.type = 'number';
+        qty.className = 'mc-enemy-qty';
+        qty.min = '1';
+        qty.max = String(STAGE_WAVE_SIZE);
+        qty.value = String(cur > 0 ? cur : 1);
+        qty.disabled = !ck.checked;
+        const maxForEnemy = () => {
+          const others = stageEnemyTotal(normalizeStageEnemySlots(s).filter((x) => x.id !== e.id));
+          return Math.max(1, Math.min(STAGE_WAVE_SIZE, STAGE_ENEMY_MAX - others));
+        };
+        const applyQty = () => {
+          let n = Math.max(1, Math.min(maxForEnemy(), Number(qty.value) || 1));
+          qty.value = String(n);
+          if (ck.checked) setStageSlotCount(s, e.id, n);
           scheduleSave();
-          renderPreview();
+          refreshTotal();
+          syncStageViews(s);
+        };
+        ck.addEventListener('change', () => {
+          qty.disabled = !ck.checked;
+          if (ck.checked) {
+            qty.value = String(Math.max(1, Number(qty.value) || 1));
+            applyQty();
+          } else {
+            setStageSlotCount(s, e.id, 0);
+            scheduleSave();
+            refreshTotal();
+            syncStageViews(s);
+          }
         });
-        row.append(ck, document.createTextNode(' ' + e.name));
+        qty.addEventListener('input', () => {
+          if (!ck.checked) return;
+          applyQty();
+        });
+        qty.addEventListener('blur', applyQty);
+        row.append(ck, document.createTextNode(' ' + e.name + ' '), qty, document.createTextNode(' 名'));
         picks.appendChild(row);
       });
     }
     panel.appendChild(picks);
+    panel.appendChild(totalEl);
+    refreshTotal();
     foot.append(btn('删除关卡', () => removeStage(s.id), true));
     panel.appendChild(foot);
   }
@@ -968,7 +1057,10 @@ function removeChar(id) {
   if (!confirm('删除这个角色？')) return;
   const r = rogue();
   r.roster = r.roster.filter((c) => c.id !== id);
-  r.stages.forEach((s) => { if (s.enemyIds) s.enemyIds = s.enemyIds.filter((x) => x !== id); });
+  r.stages.forEach((s) => {
+    if (s.enemySlots) s.enemySlots = s.enemySlots.filter((x) => x.id !== id);
+    if (s.enemyIds) s.enemyIds = s.enemyIds.filter((x) => x !== id);
+  });
   if (select.type === 'char' && select.id === id) select = { type: 'settings', id: null };
   scheduleSave();
   renderEdit();
@@ -987,7 +1079,10 @@ function removeEnemy(id) {
   if (!confirm('删除这个敌人？')) return;
   const r = rogue();
   r.enemies = r.enemies.filter((e) => e.id !== id);
-  r.stages.forEach((s) => { if (s.enemyIds) s.enemyIds = s.enemyIds.filter((x) => x !== id); });
+  r.stages.forEach((s) => {
+    if (s.enemySlots) s.enemySlots = s.enemySlots.filter((x) => x.id !== id);
+    if (s.enemyIds) s.enemyIds = s.enemyIds.filter((x) => x !== id);
+  });
   if (select.type === 'enemy' && select.id === id) select = { type: 'settings', id: null };
   scheduleSave();
   renderEdit();
@@ -996,7 +1091,7 @@ function removeEnemy(id) {
 function addStage() {
   const r = rogue();
   const n = (r.stages?.length || 0) + 1;
-  const s = { id: uid(), title: '第' + n + '关', enemyIds: r.enemies[0] ? [r.enemies[0].id] : [] };
+  const s = { id: uid(), title: '第' + n + '关', enemySlots: r.enemies[0] ? [{ id: r.enemies[0].id, count: 1 }] : [], enemyIds: r.enemies[0] ? [r.enemies[0].id] : [] };
   if (!Array.isArray(r.stages)) r.stages = [];
   r.stages.push(s);
   select = { type: 'stage', id: s.id };

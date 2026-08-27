@@ -33,6 +33,50 @@ import {
 } from '/story-idle.js';
 
 export const ROGUE_KIND = 'gacha_rogue';
+export const STAGE_WAVE_SIZE = 6;
+export const STAGE_ENEMY_MAX = 12;
+
+export function normalizeStageEnemySlots(raw) {
+  const s = raw || {};
+  let slots = [];
+  if (Array.isArray(s.enemySlots) && s.enemySlots.length) {
+    slots = s.enemySlots.filter((x) => x && x.id).map((x) => ({
+      id: String(x.id),
+      count: clamp(x.count, 1, STAGE_WAVE_SIZE, 1),
+    }));
+  } else if (Array.isArray(s.enemyIds)) {
+    const counts = {};
+    s.enemyIds.filter(Boolean).forEach((id) => {
+      const k = String(id);
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    slots = Object.keys(counts).map((id) => ({ id, count: Math.min(counts[id], STAGE_WAVE_SIZE) }));
+  }
+  return clampStageEnemySlots(slots);
+}
+
+function clampStageEnemySlots(slots) {
+  let total = 0;
+  const out = [];
+  (slots || []).forEach((slot) => {
+    if (!slot || !slot.id) return;
+    const room = STAGE_ENEMY_MAX - total;
+    if (room <= 0) return;
+    const c = Math.min(slot.count, STAGE_WAVE_SIZE, room);
+    if (c < 1) return;
+    out.push({ id: slot.id, count: c });
+    total += c;
+  });
+  return out;
+}
+
+export function stageEnemySlotsFlat(slots) {
+  return (slots || []).flatMap(({ id, count }) => Array(count).fill(String(id)));
+}
+
+export function stageEnemyTotal(slots) {
+  return (slots || []).reduce((a, x) => a + (Number(x.count) || 0), 0);
+}
 export const CARD_MODES = {
   idle: {
     id: 'idle',
@@ -206,15 +250,20 @@ export function normalizeRogue(raw) {
     unitIds: Array.isArray(b.unitIds) ? b.unitIds.map(String).slice(0, 6) : [],
     atkPct: clamp(b.atkPct, 5, 80, 15),
   }));
-  out.stages = (Array.isArray(r.stages) ? r.stages : []).filter(s => s && (s.title || (s.enemyIds || []).length)).map((s, i) => ({
-    id: s.id || uid(),
-    title: String(s.title || ('第' + (i + 1) + '关')).trim().slice(0, 20),
-    enemyIds: Array.isArray(s.enemyIds) ? s.enemyIds.map(String).slice(0, 8) : [],
-  }));
+  out.stages = (Array.isArray(r.stages) ? r.stages : []).filter(s => s && (s.title || (s.enemyIds || []).length || (s.enemySlots || []).length)).map((s, i) => {
+    const enemySlots = normalizeStageEnemySlots(s);
+    return {
+      id: s.id || uid(),
+      title: String(s.title || ('第' + (i + 1) + '关')).trim().slice(0, 20),
+      enemySlots,
+      enemyIds: stageEnemySlotsFlat(enemySlots),
+    };
+  });
   if (!out.stages.length && out.enemies.length) {
     out.stages = out.enemies.map((e, i) => ({
       id: 'st_' + e.id,
       title: e.isBoss ? '首领 · ' + e.name : '第' + (i + 1) + '关 · ' + e.name,
+      enemySlots: [{ id: e.id, count: 1 }],
       enemyIds: [e.id],
     }));
   }
@@ -329,14 +378,15 @@ function relicMods(relics) {
 function stageNodes(r) {
   if ((r.stages || []).length) {
     return r.stages.map((s) => {
-      const ids = (s.enemyIds || []).filter(Boolean);
-      const hasBossEnemy = ids.some((id) => {
+      const enemySlots = normalizeStageEnemySlots(s);
+      const ids = stageEnemySlotsFlat(enemySlots);
+      const hasBossEnemy = enemySlots.some(({ id }) => {
         const e = r.enemies.find((x) => x.id === id);
         return e && e.isBoss;
       });
       const bossTitle = /首领|boss/i.test(String(s.title || ''));
       const type = hasBossEnemy || bossTitle ? 'boss' : 'battle';
-      return { type, enemyIds: ids, title: s.title };
+      return { type, enemySlots, enemyIds: ids, title: s.title };
     });
   }
   const enemies = r.enemies || [];
@@ -620,19 +670,50 @@ function enterNode() {
   startBattleNode(node);
 }
 
-function livingEnemiesFrom(node) {
+function enemyTemplatesFromNode(node) {
   const r = run.rogue;
-  let list = (node.enemyIds || []).map(id => r.enemies.find(e => e.id === id)).filter(Boolean);
-  if (!list.length) list = [{ name: '练习木桩', hp: 40, atk: 6, spd: 10, elem: 'wood' }];
-  if (node.type === 'elite') list = list.map(e => ({ ...e, hp: Math.round(e.hp * 1.35), atk: Math.round(e.atk * 1.15) }));
-  if (node.type === 'boss') list = list.map(e => ({ ...e, hp: Math.max(e.hp, 160), isBoss: true }));
-  return list.map((e, i) => ({
-    id: (e.id || 'e') + '_' + i, name: e.name, elem: e.elem || 'wood',
-    maxHp: e.hp, hp: e.hp, atk: e.atk, spd: e.spd, gauge: 0, isEnemy: true,
+  const slots = node.enemySlots?.length ? node.enemySlots : normalizeStageEnemySlots({ enemyIds: node.enemyIds });
+  let list = [];
+  slots.forEach(({ id, count }) => {
+    const e = r.enemies.find((x) => x.id === id);
+    if (!e) return;
+    const n = Math.max(1, Math.min(STAGE_WAVE_SIZE, Number(count) || 1));
+    for (let i = 0; i < n; i++) list.push({ ...e });
+  });
+  if (!list.length) list = [{ id: 'dummy', name: '练习木桩', hp: 40, atk: 6, spd: 10, elem: 'wood' }];
+  if (node.type === 'elite') list = list.map((e) => ({ ...e, hp: Math.round(e.hp * 1.35), atk: Math.round(e.atk * 1.15) }));
+  if (node.type === 'boss') list = list.map((e) => ({ ...e, hp: Math.max(e.hp, 160), isBoss: true }));
+  return list;
+}
+
+function splitBattleWaves(templates) {
+  const waves = [];
+  for (let i = 0; i < templates.length; i += STAGE_WAVE_SIZE) {
+    waves.push(templates.slice(i, i + STAGE_WAVE_SIZE));
+  }
+  return waves.length ? waves : [templates];
+}
+
+function spawnEnemyInstances(templates, waveKey) {
+  return templates.map((e, i) => ({
+    id: (e.id || 'e') + '_' + waveKey + '_' + i,
+    name: e.name,
+    elem: e.elem || 'wood',
+    maxHp: e.hp,
+    hp: e.hp,
+    atk: e.atk,
+    spd: e.spd,
+    gauge: 0,
+    isEnemy: true,
     portrait: e.portrait || '',
     portraitKind: portraitKindOf(e),
     frame: normalizeCardFrame(e.frame, 1),
+    isBoss: !!e.isBoss,
   }));
+}
+
+function livingEnemiesFrom(node) {
+  return spawnEnemyInstances(enemyTemplatesFromNode(node), 'w0');
 }
 
 function startBattleNode(node) {
@@ -646,9 +727,13 @@ function startBattleNode(node) {
       if (m.hp > m.maxHpBattle) m.hp = m.maxHpBattle;
     }
   });
+  const templates = enemyTemplatesFromNode(node);
+  const waves = splitBattleWaves(templates);
   run.battle = {
-    enemies: livingEnemiesFrom(node),
-    log: [`⚔️ ${NODE_LABEL[node.type]}`],
+    waves,
+    waveIdx: 0,
+    enemies: spawnEnemyInstances(waves[0], 'w0'),
+    log: [`⚔️ ${NODE_LABEL[node.type]}${waves.length > 1 ? ' · 第1/' + waves.length + '轮' : ''}`],
     phase: 'running',
     majorFight: isMajorFightNode(node),
   };
@@ -674,7 +759,19 @@ function battleTick() {
   const mods = relicMods(run.relics);
   const party = run.team.filter(m => m.hp > 0);
   const foes = run.battle.enemies.filter(e => e.hp > 0);
-  if (!foes.length) { finishBattle(true); return; }
+  if (!foes.length) {
+    const b = run.battle;
+    if (b.waves && b.waveIdx < b.waves.length - 1) {
+      b.waveIdx += 1;
+      b.enemies = spawnEnemyInstances(b.waves[b.waveIdx], 'w' + b.waveIdx);
+      b.log.push(`— 第 ${b.waveIdx + 1}/${b.waves.length} 轮 —`);
+      paint();
+      tickTimer = setTimeout(battleTick, 80);
+      return;
+    }
+    finishBattle(true);
+    return;
+  }
   if (!party.length) { finishBattle(false); return; }
   const units = [...party.map(m => ({ who: m, enemy: false })), ...foes.map(e => ({ who: e, enemy: true }))];
   const step = (4 + run.speed * 3);
@@ -731,8 +828,8 @@ function resolveAct(who, isEnemy, mods) {
 function isMajorFightNode(node) {
   if (!node) return false;
   if (node.type === 'boss' || node.type === 'elite') return true;
-  const ids = node.enemyIds || [];
-  return ids.some((id) => {
+  const slots = node.enemySlots?.length ? node.enemySlots : normalizeStageEnemySlots({ enemyIds: node.enemyIds });
+  return slots.some(({ id }) => {
     const e = run.rogue.enemies.find((x) => x.id === id);
     return e && e.isBoss;
   });
@@ -814,7 +911,8 @@ function paintBattle(frame) {
   const b = run.battle;
   const winHint = run.rogue.mode === 'rogue' ? '选一张技能带进后面。' : '下一关自动开始。';
   const loseHint = run.rogue.mode === 'rogue' ? '再开一局会换一套技能和事件。' : '改改角色或敌人数值再试。';
-  const top = `<div class="bt-top"><div class="bt-round">自动中 · ${run.speed}x</div>
+  const waveTxt = b.waves && b.waves.length > 1 ? ` · 第${(b.waveIdx || 0) + 1}/${b.waves.length}轮` : '';
+  const top = `<div class="bt-top"><div class="bt-round">自动中 · ${run.speed}x${waveTxt}</div>
     <div class="rg-speeds">
       <button class="btn tiny ${run.speed === 1 ? 'primary' : ''}" data-sp="1">1x</button>
       <button class="btn tiny ${run.speed === 2 ? 'primary' : ''}" data-sp="2">2x</button>
