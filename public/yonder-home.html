@@ -3197,7 +3197,7 @@ async function mountProfileHubUI() {
     if (!window.ProfileHubUI) {
         await new Promise((resolve, reject) => {
             const s = document.createElement("script");
-            s.src = "/profile-hub-ui.js?v=20260828b";
+            s.src = "/profile-hub-ui.js?v=20260828d";
             s.onload = resolve;
             s.onerror = reject;
             document.body.appendChild(s);

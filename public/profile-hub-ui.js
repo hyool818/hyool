@@ -1,4 +1,13 @@
 /** Profile hub UI — world wizard, char edit, world detail (yonder-home) */
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 let bridge = { getChars: () => [], getWorlds: () => [], onCharsChanged: () => {}, onWorldsChanged: () => {} };
 function syncChars() { allChars = bridge.getChars() || []; }
 function syncWorlds() { allWorlds = bridge.getWorlds() || []; }

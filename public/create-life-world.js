@@ -19,7 +19,7 @@ async function boot() {
     if (!window.ProfileHubUI) {
       await new Promise((resolve, reject) => {
         const s = document.createElement("script");
-        s.src = "/profile-hub-ui.js?v=20260828c";
+        s.src = "/profile-hub-ui.js?v=20260828d";
         s.onload = resolve;
         s.onerror = () => reject(new Error("向导脚本加载失败"));
         document.body.appendChild(s);
