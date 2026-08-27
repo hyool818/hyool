@@ -1327,7 +1327,6 @@ body{
     <video
         class="life-video"
         id="lifeVideo"
-        src="./life.mp4"
         muted
         defaultmuted
         playsinline
@@ -1335,7 +1334,7 @@ body{
         x5-playsinline="true"
         x5-video-player-type="h5"
         x5-video-player-fullscreen="false"
-        preload="metadata"
+        preload="none"
         disablepictureinpicture
         disableremoteplayback
         controlslist="nodownload nofullscreen noremoteplayback"
@@ -1617,48 +1616,29 @@ window.addEventListener(
         world.classList.add("show");
 
 
-        /* 从第一帧开始 */
+        const startVideo = () => {
+            if (!lifeVideo.src) lifeVideo.src = "./life.mp4";
+            try { lifeVideo.currentTime = 0; } catch (e) {}
+            try {
+                lifeVideo.defaultMuted = true;
+                lifeVideo.muted = true;
+                lifeVideo.volume = 0;
+                lifeVideo.setAttribute("muted", "");
+                lifeVideo.setAttribute("playsinline", "");
+                lifeVideo.setAttribute("webkit-playsinline", "");
+                lifeVideo.setAttribute("x5-playsinline", "true");
+                lifeVideo.setAttribute("x5-video-player-type", "h5");
+                lifeVideo.playsInline = true;
+            } catch (e) {}
+            const playPromise = lifeVideo.play();
+            if (playPromise !== undefined) playPromise.catch(() => {});
+        };
 
-        try{
-
-            lifeVideo.currentTime = 0;
-
-        }catch(e){}
-
-
-        /*
-         * 国内夸克/UC 等会劫持带音轨的 <video>：全屏原生播放器 + 有声，
-         * 盖住整页。已去掉 mp4 音轨；此处再强制静音/内联，避免二次接管。
-         */
-        try{
-            lifeVideo.defaultMuted = true;
-            lifeVideo.muted = true;
-            lifeVideo.volume = 0;
-            lifeVideo.setAttribute("muted", "");
-            lifeVideo.setAttribute("playsinline", "");
-            lifeVideo.setAttribute("webkit-playsinline", "");
-            lifeVideo.setAttribute("x5-playsinline", "true");
-            lifeVideo.setAttribute("x5-video-player-type", "h5");
-            lifeVideo.playsInline = true;
-        }catch(e){}
-
-
-        /* 自动播放（勿依赖 HTML autoplay，减少夸克提前接管） */
-
-        const playPromise =
-            lifeVideo.play();
-
-
-        if(
-            playPromise !== undefined
-        ){
-
-            playPromise.catch(
-                () => {}
-            );
-
+        if ("requestIdleCallback" in window) {
+            requestIdleCallback(startVideo, { timeout: 800 });
+        } else {
+            setTimeout(startVideo, 400);
         }
-
 
         /*
          * 约 1.2 秒后

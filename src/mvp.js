@@ -125,13 +125,19 @@ export async function handleMvpRoutes(
     if (pathname === "/hub" || pathname === "/hub.html") {
         const user = await getAuthenticatedUser(request, env);
         const search = new URL(request.url).search;
-        if (user?.username) {
-            const dest = `/@${String(user.username).trim().toLowerCase()}${search}`;
-            return Response.redirect(new URL(dest, request.url).toString(), 302);
-        }
-        if (search.includes("create=world") || search.includes("world=")) {
-            const next = encodeURIComponent("/hub" + search);
+        if (search.includes("create=world") || search.includes("create=life")) {
+            if (user?.username) {
+                return Response.redirect(new URL("/studio-world.html?create=life", request.url).toString(), 302);
+            }
+            const next = encodeURIComponent("/studio-world.html?create=life");
             return Response.redirect(new URL("/yonder.html?next=" + next, request.url).toString(), 302);
+        }
+        if (user?.username) {
+            if (search.includes("world=")) {
+                const dest = `/@${String(user.username).trim().toLowerCase()}${search}`;
+                return Response.redirect(new URL(dest, request.url).toString(), 302);
+            }
+            return Response.redirect(new URL(`/@${String(user.username).trim().toLowerCase()}`, request.url).toString(), 302);
         }
         return Response.redirect(new URL("/plaza", request.url).toString(), 302);
     }

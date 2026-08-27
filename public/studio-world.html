@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>创造世界 · HYOOL</title>
 <link rel="stylesheet" href="/workspace/css/workspace.css">
+<link rel="stylesheet" href="/profile-hub.css">
 <style>
 .st-main{max-width:720px;margin:0 auto;padding:0 16px 56px}
 .st-q{font-size:clamp(22px,4.5vw,32px);font-weight:700;margin:20px 0 8px}
@@ -53,29 +54,6 @@
     </div>
   </main>
 </div>
-<script>
-(function () {
-  var link = document.getElementById("createWorldLink");
-  if (!link) return;
-  link.addEventListener("click", function (e) {
-    e.preventDefault();
-    var headers = {};
-    var t = localStorage.getItem("hyool_token");
-    if (t) headers.Authorization = "Bearer " + t;
-    fetch("/api/me", { credentials: "include", cache: "no-store", headers: headers })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (d.authenticated && d.user && d.user.username) {
-          location.href = "/@" + encodeURIComponent(d.user.username) + "?create=world";
-          return;
-        }
-        location.href = "/yonder.html?create=world";
-      })
-      .catch(function () {
-        location.href = "/yonder.html?create=world";
-      });
-  });
-})();
-</script>
+<script type="module" src="/studio-world.js?v=20260828"></script>
 </body>
 </html>

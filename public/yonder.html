@@ -1745,8 +1745,8 @@ function goToYonder(username) {
         window.location.href = next;
         return;
     }
-    if (params.get("create") === "world") {
-        window.location.href = "/@" + encodeURIComponent(username) + "?create=world";
+    if (params.get("create") === "world" || params.get("create") === "life") {
+        window.location.href = "/studio-world.html?create=life";
         return;
     }
 

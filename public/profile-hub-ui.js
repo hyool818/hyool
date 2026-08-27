@@ -598,9 +598,15 @@ function openWizardModal() {
   wizardInit();
   showModal('wizardModal', true);
 }
+function openWizardLife() {
+  syncChars();
+  wizardInit();
+  pickForm('life');
+  showModal('wizardModal', true);
+}
 function handleProfileHubQuery() {
   const q = new URLSearchParams(location.search);
-  if (q.get('create') === 'world') openWizardModal();
+  if (q.get('create') === 'world' || q.get('create') === 'life') openWizardLife();
   const wid = q.get('world');
   if (wid) openWorldDetailById(wid);
 }
@@ -644,6 +650,7 @@ window.ProfileHubUI = {
     handleProfileHubQuery();
   },
   openWizard: openWizardModal,
+  openWizardLife,
   openCharEdit,
   openWorldDetail: openWorldDetailById,
 };

@@ -124,9 +124,9 @@ async function partA(){
   g('closeEditor').click();
 }
 
-/* ================= Part B: /hub?create=world → 个人主页打开向导 ================= */
+/* ================= Part B: studio-world 创建生命世界向导 ================= */
 async function partB(){
-  await loadIframe('/hub?create=world&v=' + Date.now());
+  await loadIframe('/studio-world.html?create=life&v=' + Date.now());
   const f = document.getElementById('fa');
   const doc = await waitFor(() => {
     const d = f.contentDocument;
@@ -135,7 +135,7 @@ async function partB(){
   }, 30000, 'profile wizard modal shown');
   const dots = doc.querySelectorAll('#wizardSteps .wizard-step-dot');
   const step1 = doc.querySelector('.wstep.active[data-wstep="1"]');
-  ok(f.contentDocument.location.pathname.startsWith('/@'), 'B: /hub?create=world 重定向到个人主页', f.contentDocument.location.pathname);
+  ok(f.contentDocument.location.pathname === '/studio-world.html', 'B: 在创造世界页打开向导', f.contentDocument.location.pathname);
   ok(true, 'B: 直达自定义世界向导弹窗', '?create=world');
   ok(dots.length === 5, 'B: 向导 5 步圆点', dots.length + ' 步');
   ok(!!step1, 'B: 第 1 步激活（题材）', step1 ? (step1.querySelector('.wstep-title') || {}).textContent : '(无)');
