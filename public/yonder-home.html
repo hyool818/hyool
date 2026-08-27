@@ -2423,7 +2423,11 @@ body {
 (function () {
   const c = new URLSearchParams(location.search).get("create");
   if (c === "world" || c === "life") {
-    location.replace("/create-life-world.html");
+    const qs = new URLSearchParams(location.search);
+    qs.delete("create");
+    const rest = qs.toString();
+    const from = location.pathname + (rest ? "?" + rest : "");
+    location.replace("/create-life-world.html?from=" + encodeURIComponent(from));
   }
 })();
 
@@ -3333,7 +3337,8 @@ function renderWorlds() {
 
     let html = "";
     if (state.isOwner) {
-        html += `<a href="/create-life-world.html" class="create-card">
+        const worldCreateFrom = state.username ? "/@" + encodeURIComponent(state.username) : location.pathname;
+        html += `<a href="/create-life-world.html?from=${encodeURIComponent(worldCreateFrom)}" class="create-card">
             <div class="plus">+</div>
             <div class="label">创造世界</div>
         </a>`;

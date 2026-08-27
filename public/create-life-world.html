@@ -26,13 +26,13 @@ body.life-wizard-page #wDescGroup{display:none}
 </style>
 <script>
 if (!localStorage.getItem("hyool_token")) {
-  location.replace("/yonder.html?next=" + encodeURIComponent("/create-life-world.html"));
+  location.replace("/yonder.html?next=" + encodeURIComponent("/create-life-world.html" + location.search));
 }
 </script>
 </head>
 <body class="life-wizard-page">
 <header class="lw-header">
-  <a class="lw-back" href="/studio-world.html">← 创造世界</a>
+  <a class="lw-back" id="lwBack" href="/studio-world.html">← 创造世界</a>
   <span class="lw-brand">创建生命世界</span>
 </header>
 <main class="lw-main" id="lwMain">
@@ -117,6 +117,6 @@ if (!localStorage.getItem("hyool_token")) {
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/create-life-world.js?v=20260828d"></script>
+<script type="module" src="/create-life-world.js?v=20260828e"></script>
 </body>
 </html>

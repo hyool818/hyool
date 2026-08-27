@@ -70,8 +70,8 @@ function normalizeWork(s) {
 async function checkAuth() {
   try {
     const res = await fetch('/api/me', { credentials: 'include', headers: authHeaders() });
-    const d = await res.json();
-    loggedIn = !!d.success;
+    const d = await res.json().catch(() => ({}));
+    loggedIn = !!(d.authenticated && d.user);
   } catch (e) { loggedIn = false; }
 }
 
@@ -685,6 +685,9 @@ async function route() {
   await checkAuth();
   if (!loggedIn) {
     $('#mcLogin').classList.remove('hidden');
+    $('#mcApp').classList.add('hidden');
+    const loginA = $('#mcLogin a');
+    if (loginA) loginA.href = '/yonder.html?next=' + encodeURIComponent(location.pathname + location.search);
     return;
   }
   const q = new URLSearchParams(location.search);

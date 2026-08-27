@@ -3,16 +3,42 @@ function authHeaders() {
   return t ? { Authorization: "Bearer " + t } : {};
 }
 
+function getFromPath() {
+  try {
+    const from = new URLSearchParams(location.search).get("from");
+    if (from && from.charAt(0) === "/" && from.charAt(1) !== "/") return from;
+  } catch {}
+  return "/studio-world.html";
+}
+
+function backLabel(from) {
+  if (from.startsWith("/@")) return "个人主页";
+  if (from.startsWith("/studio-world")) return "创造世界";
+  return "上一页";
+}
+
+function applyBackLink() {
+  const from = getFromPath();
+  const back = document.getElementById("lwBack");
+  if (back) {
+    back.href = from;
+    back.textContent = "← " + backLabel(from);
+  }
+  return from;
+}
+
 function showError(msg) {
+  const from = getFromPath();
   const main = document.getElementById("lwMain");
   if (main) {
-    main.innerHTML = `<div class="lw-error">${msg}<br><a href="/studio-world.html">返回创造世界</a></div>`;
+    main.innerHTML = `<div class="lw-error">${msg}<br><a href="${from}">返回${backLabel(from)}</a></div>`;
   }
 }
 
 async function boot() {
+  const from = applyBackLink();
   if (!localStorage.getItem("hyool_token")) {
-    location.replace("/yonder.html?next=" + encodeURIComponent("/create-life-world.html"));
+    location.replace("/yonder.html?next=" + encodeURIComponent("/create-life-world.html" + location.search));
     return;
   }
   try {
@@ -35,7 +61,7 @@ async function boot() {
       onWorldsChanged: () => {},
       onWorldCreated: (w) => {
         if (w && w.id && w.type === "life") {
-          location.href = "/world?world=" + encodeURIComponent(w.id) + "&from=/studio-world.html";
+          location.href = "/world?world=" + encodeURIComponent(w.id) + "&from=" + encodeURIComponent(from);
         }
       },
     });
