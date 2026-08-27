@@ -82,7 +82,6 @@ let playMainIdx = 0;
 let playBranchFlat = null;
 let playBranchIdx = 0;
 let playBranchEnd = 'main';
-let playBranchEndJump = '';
 let playChoiceBlockId = null;
 let playTakenChoiceId = null;
 let playResumeMainIdx = 0;
@@ -118,6 +117,7 @@ function selectedBlock() {
   if (editBranch) {
     const ch = blocks().find((b) => b.id === editBranch.choiceBlockId);
     const opt = (ch?.choices || []).find((c) => c.id === editBranch.choiceId);
+    if (editBranch.isEndShot) return opt?.endShot || null;
     return (opt?.branch || []).find((b) => b.id === editBranch.blockId) || null;
   }
   return blocks().find((b) => b.id === selectedId) || null;
@@ -167,7 +167,7 @@ function normalizeWork(s) {
     c.blocks.forEach((b) => {
       if (!b.id) b.id = uid();
       if (b.type === 'dialogue' && !b.speaker) b.speaker = DEFAULT_SPEAKER;
-      if (b.type === 'choice') normalizeChoice(b);
+      if (b.type === 'choice') normalizeChoice(b, c.blocks);
       if (b.media?.type === 'video') {
         ensureVideoMode(b.media);
         if (wasVideoKind) b.media.videoMode = 'clip';
@@ -186,7 +186,7 @@ function normalizeBranchBlock(bl) {
   return bl;
 }
 
-function normalizeChoice(b) {
+function normalizeChoice(b, mainBlocks) {
   if (!Array.isArray(b.choices) || !b.choices.length) {
     b.choices = [
       { id: uid(), label: '继续', jump: 'next', branch: [], branchEnd: 'main' },
@@ -199,36 +199,61 @@ function normalizeChoice(b) {
     c.label = String(c.label || '选项').slice(0, 40);
     if (!c.jump) c.jump = 'next';
     c.branch = Array.isArray(c.branch) ? c.branch.map(normalizeBranchBlock) : [];
+    if (c.endShot) c.endShot = normalizeBranchBlock(c.endShot);
 
-    if (c.branchEnd && String(c.branchEnd).startsWith('b_')) {
-      if (!c.branchEndJump) c.branchEndJump = c.branchEnd;
+    if (c.branchEndJump && !c.endShot && Array.isArray(mainBlocks)) {
+      const src = mainBlocks.find((x) => x.id === c.branchEndJump);
+      if (src) {
+        c.endShot = normalizeBranchBlock({
+          id: uid(),
+          type: src.type,
+          content: src.content,
+          speaker: src.speaker,
+          media: src.media ? { ...src.media } : undefined,
+        });
+      }
+      delete c.branchEndJump;
       c.branchEnd = 'shot';
     }
-    if (c.branchEnd === 'end') c.branchEnd = 'shot';
-    if (c.branchEndJump && c.branchEnd !== 'choice') c.branchEnd = 'shot';
-    if (c.branchEnd !== 'main' && c.branchEnd !== 'choice' && c.branchEnd !== 'shot') {
-      c.branchEnd = c.branch.length ? 'main' : undefined;
+    if (c.branchEnd && String(c.branchEnd).startsWith('b_')) {
+      delete c.branchEnd;
     }
-    if (c.branchEnd === 'shot' && !c.branchEndJump) delete c.branchEndJump;
-    else if (c.branchEnd !== 'shot') delete c.branchEndJump;
+    if (c.branchEnd === 'end') c.branchEnd = 'shot';
+    if (c.endShot && c.branchEnd !== 'choice') c.branchEnd = 'shot';
+    if (c.branchEnd !== 'main' && c.branchEnd !== 'choice' && c.branchEnd !== 'shot') {
+      c.branchEnd = (c.branch.length || c.endShot) ? 'main' : undefined;
+    }
+    if (c.branchEnd !== 'shot') delete c.branchEndJump;
+    else delete c.branchEndJump;
   });
 }
 
 function resolveOptionBranchEnd(c) {
-  if (!c) return { end: 'main', jump: '' };
+  if (!c) return 'main';
   let end = c.branchEnd || 'main';
-  let jump = c.branchEndJump || '';
-  if (end && end !== 'main' && end !== 'choice' && end !== 'shot' && String(end).startsWith('b_')) {
-    jump = end;
-    end = 'shot';
-  }
   if (end === 'end') end = 'shot';
-  if (jump && end !== 'choice') end = 'shot';
-  return { end, jump };
+  if (c.endShot && end !== 'choice') end = 'shot';
+  return end;
+}
+
+function buildBranchPlayFlat(c) {
+  const flat = [...(c.branch || [])];
+  if (resolveOptionBranchEnd(c) === 'shot' && c.endShot) flat.push(c.endShot);
+  return flat;
+}
+
+function ensureEndShot(c) {
+  if (!c.endShot) {
+    c.endShot = { id: uid(), type: 'scene', content: '失败结局……' };
+  }
+  c.branchEnd = 'shot';
+  return c.endShot;
 }
 
 function optionUsesBranch(c) {
-  return Array.isArray(c.branch) && c.branch.length > 0;
+  if (Array.isArray(c.branch) && c.branch.length > 0) return true;
+  if (resolveOptionBranchEnd(c) === 'shot' && c.endShot) return true;
+  return false;
 }
 
 function shotPreview(b) {
@@ -265,23 +290,6 @@ function makeJumpSelect(value, fromBlockId, onChange) {
   return sel;
 }
 
-function makeBranchEndShotSelect(value, onChange) {
-  const sel = document.createElement('select');
-  const empty = document.createElement('option');
-  empty.value = '';
-  empty.textContent = '选择结束镜…';
-  sel.appendChild(empty);
-  blocks().forEach((b, i) => {
-    const o = document.createElement('option');
-    o.value = b.id;
-    o.textContent = '第 ' + (i + 1) + ' 镜 · ' + (TYPE_LABEL[b.type] || b.type) + ' · ' + shotPreview(b);
-    if (value === b.id) o.selected = true;
-    sel.appendChild(o);
-  });
-  sel.addEventListener('change', () => onChange(sel.value));
-  return sel;
-}
-
 function chapter() {
   return work?.chapters?.[0] || null;
 }
@@ -293,6 +301,7 @@ function chapterForBlock(b) {
       if (blk.type !== 'choice') continue;
       for (const c of blk.choices || []) {
         if ((c.branch || []).some((x) => x.id === b.id)) return ch;
+        if (c.endShot?.id === b.id) return ch;
       }
     }
   }
@@ -464,7 +473,6 @@ function starterBlocks() {
   const b1 = { id: uid(), type: 'scene', content: '某个寻常的下课铃后，走廊里只剩下你的脚步声。' };
   const b2 = { id: uid(), type: 'dialogue', speaker: '你', content: '……今天，好像有什么不一样。' };
   const b6 = { id: uid(), type: 'scene', content: '雨夜，你独自走在回家的路上。' };
-  const bFail = { id: uid(), type: 'scene', content: '你错过了时机。故事在此告一段落。' };
   const b3 = {
     id: uid(),
     type: 'choice',
@@ -484,15 +492,15 @@ function starterBlocks() {
         label: '先回家再说',
         jump: 'end',
         branchEnd: 'shot',
-        branchEndJump: bFail.id,
         branch: [
           { id: uid(), type: 'dialogue', speaker: '你', content: '……还是回去吧。' },
         ],
+        endShot: { id: uid(), type: 'scene', content: '你错过了时机。故事在此告一段落。' },
       },
     ],
   };
-  normalizeChoice(b3);
-  return [b1, b2, b3, b6, bFail];
+  normalizeChoice(b3, [b1, b2, b3, b6]);
+  return [b1, b2, b3, b6];
 }
 
 // ---------- API ----------
@@ -1020,7 +1028,9 @@ function renderPanel() {
     const opt = (parent?.choices || []).find((c) => c.id === editBranch.choiceId);
     const crumb = document.createElement('div');
     crumb.className = 'mk-panel-crumb';
-    crumb.textContent = '← 返回「' + (opt?.label || '选项') + '」';
+    crumb.textContent = editBranch.isEndShot
+      ? '← 返回选项（失败结局镜）'
+      : '← 返回「' + (opt?.label || '选项') + '」';
     crumb.addEventListener('click', () => { editBranch = null; renderEdit(); });
     panel.appendChild(crumb);
   }
@@ -1042,7 +1052,7 @@ function renderPanel() {
   sel.addEventListener('change', () => {
     b.type = sel.value;
     if (b.type === 'dialogue' && !b.speaker) b.speaker = DEFAULT_SPEAKER;
-    if (b.type === 'choice') normalizeChoice(b);
+    if (b.type === 'choice') normalizeChoice(b, blocks());
     scheduleSave();
     renderEdit();
   });
@@ -1177,15 +1187,19 @@ function renderPanel() {
   foot.className = 'mk-panel-foot';
   if (editBranch) {
     const parent = parentChoiceBlock();
-    const opt = parent?.choices?.find((c) => c.id === editBranch.choiceId);
-    const branch = opt?.branch || [];
-    const bi = branch.findIndex((x) => x.id === b.id);
-    const up = btn('↑ 上移', () => moveBranchBlock(editBranch.choiceBlockId, editBranch.choiceId, b.id, -1));
-    const down = btn('↓ 下移', () => moveBranchBlock(editBranch.choiceBlockId, editBranch.choiceId, b.id, 1));
-    const del = btn('删除子镜头', () => removeBranchBlock(editBranch.choiceBlockId, editBranch.choiceId, b.id), true);
-    if (bi <= 0) up.disabled = true;
-    if (bi < 0 || bi >= branch.length - 1) down.disabled = true;
-    foot.append(up, down, del);
+    const opt = (parent?.choices || []).find((c) => c.id === editBranch.choiceId);
+    if (editBranch.isEndShot) {
+      foot.append(btn('删除失败结局', () => removeEndShot(editBranch.choiceBlockId, editBranch.choiceId), true));
+    } else {
+      const branch = opt?.branch || [];
+      const bi = branch.findIndex((x) => x.id === b.id);
+      const up = btn('↑ 上移', () => moveBranchBlock(editBranch.choiceBlockId, editBranch.choiceId, b.id, -1));
+      const down = btn('↓ 下移', () => moveBranchBlock(editBranch.choiceBlockId, editBranch.choiceId, b.id, 1));
+      const del = btn('删除子镜头', () => removeBranchBlock(editBranch.choiceBlockId, editBranch.choiceId, b.id), true);
+      if (bi <= 0) up.disabled = true;
+      if (bi < 0 || bi >= branch.length - 1) down.disabled = true;
+      foot.append(up, down, del);
+    }
   } else {
     foot.append(
       btn('↑ 上移', () => moveBlock(b.id, -1)),
@@ -1459,7 +1473,7 @@ function btn(text, fn, danger) {
 }
 
 function addBranchBlock(choiceBlock, choiceId, type) {
-  normalizeChoice(choiceBlock);
+  normalizeChoice(choiceBlock, blocks());
   const c = choiceBlock.choices.find((x) => x.id === choiceId);
   if (!c) return;
   if (!Array.isArray(c.branch)) c.branch = [];
@@ -1470,6 +1484,24 @@ function addBranchBlock(choiceBlock, choiceId, type) {
   selectedId = choiceBlock.id;
   editBranch = { choiceBlockId: choiceBlock.id, choiceId: c.id, blockId: bl.id };
   scheduleSave();
+  renderEdit();
+}
+
+function removeEndShot(choiceBlockId, choiceId) {
+  if (!confirm('删除这条选项的失败结局镜？')) return;
+  const ch = blocks().find((b) => b.id === choiceBlockId);
+  const c = ch?.choices?.find((x) => x.id === choiceId);
+  if (!c) return;
+  delete c.endShot;
+  if (c.branchEnd === 'shot') c.branchEnd = c.branch?.length ? 'main' : undefined;
+  if (editBranch?.isEndShot) editBranch = null;
+  scheduleSave();
+  renderEdit();
+}
+
+function selectEndShot(choiceBlock, choiceId) {
+  selectedId = choiceBlock.id;
+  editBranch = { choiceBlockId: choiceBlock.id, choiceId, isEndShot: true };
   renderEdit();
 }
 
@@ -1512,13 +1544,13 @@ function afterJumpPanel(b) {
 }
 
 function choiceEditor(b) {
-  normalizeChoice(b);
+  normalizeChoice(b, blocks());
   const wrap = document.createElement('div');
   wrap.className = 'field';
   wrap.innerHTML = '<label>选项（读者点选）</label>';
   const hint = document.createElement('p');
   hint.className = 'mk-branch-hint';
-  hint.textContent = '每条选项下方可建子镜头，与主线互不干扰；播完后回归主线、回到选项镜，或跳到主线里的结束镜。未建子镜头时仍可用「跳到」指定主线镜头。';
+  hint.textContent = '每条选项下方可建子镜头与失败结局镜，都在支线里、不占主线。播完后可回归主线或回到选项镜。未建子镜头时仍可用「跳到」指定主线镜头。';
   wrap.appendChild(hint);
   b.choices.forEach((c, i) => {
     const card = document.createElement('div');
@@ -1556,7 +1588,7 @@ function choiceEditor(b) {
     c.branch.forEach((sub, si) => {
       const shot = document.createElement('button');
       shot.type = 'button';
-      const on = editBranch?.choiceBlockId === b.id && editBranch?.choiceId === c.id && editBranch?.blockId === sub.id;
+      const on = editBranch?.choiceBlockId === b.id && editBranch?.choiceId === c.id && !editBranch.isEndShot && editBranch?.blockId === sub.id;
       shot.className = 'mk-branch-shot' + (on ? ' on' : '');
       const preview = sub.type === 'dialogue'
         ? (sub.speaker + '：' + (sub.content || '')).slice(0, 36)
@@ -1577,6 +1609,40 @@ function choiceEditor(b) {
       btn('+ 场景', () => addBranchBlock(b, c.id, 'scene')),
     );
     branchSec.appendChild(addRow);
+
+    const endShotLab = document.createElement('div');
+    endShotLab.className = 'mk-branch-label';
+    endShotLab.style.marginTop = '10px';
+    endShotLab.textContent = '失败结局镜';
+    branchSec.appendChild(endShotLab);
+    const endShots = document.createElement('div');
+    endShots.className = 'mk-branch-shots';
+    if (c.endShot) {
+      const shot = document.createElement('button');
+      shot.type = 'button';
+      const onEnd = editBranch?.choiceBlockId === b.id && editBranch?.choiceId === c.id && editBranch.isEndShot;
+      shot.className = 'mk-branch-shot fail' + (onEnd ? ' on' : '');
+      const preview = c.endShot.type === 'dialogue'
+        ? (c.endShot.speaker + '：' + (c.endShot.content || '')).slice(0, 36)
+        : (c.endShot.content || TYPE_LABEL[c.endShot.type] || '').slice(0, 36);
+      shot.innerHTML = '<span class="n">✦</span><span class="t">' + escapeHtml(preview || '（空）') + '</span>';
+      shot.addEventListener('click', () => selectEndShot(b, c.id));
+      endShots.appendChild(shot);
+    }
+    branchSec.appendChild(endShots);
+    const endShotAdd = document.createElement('div');
+    endShotAdd.className = 'mk-branch-add';
+    if (!c.endShot) {
+      endShotAdd.append(
+        btn('+ 失败结局', () => {
+          ensureEndShot(c);
+          scheduleSave();
+          selectEndShot(b, c.id);
+        }),
+      );
+    }
+    branchSec.appendChild(endShotAdd);
+
     const endWrap = document.createElement('div');
     endWrap.className = 'mk-branch-end';
     endWrap.innerHTML = '<label>子镜头播完后</label>';
@@ -1584,7 +1650,7 @@ function choiceEditor(b) {
     [
       ['main', '回归主线（选项下一镜）'],
       ['choice', '回归选项镜'],
-      ['shot', '跳到结束镜'],
+      ['shot', '播放失败结局镜'],
     ].forEach(([v, lab]) => {
       const o = document.createElement('option');
       o.value = v;
@@ -1592,43 +1658,13 @@ function choiceEditor(b) {
       if ((c.branchEnd || 'main') === v) o.selected = true;
       endSel.appendChild(o);
     });
-    const shotPickerWrap = document.createElement('div');
-    shotPickerWrap.className = 'mk-branch-end-shot';
-    shotPickerWrap.style.marginTop = '6px';
-    const syncShotPicker = () => {
-      shotPickerWrap.innerHTML = '';
-      if ((c.branchEnd || 'main') !== 'shot') {
-        shotPickerWrap.style.display = 'none';
-        return;
-      }
-      shotPickerWrap.style.display = '';
-      const shotLab = document.createElement('label');
-      shotLab.style.cssText = 'font-size:11px;color:var(--muted);display:block;margin-bottom:4px';
-      shotLab.textContent = '结束镜（主线里的失败/结局镜头）';
-      shotPickerWrap.appendChild(shotLab);
-      shotPickerWrap.appendChild(makeBranchEndShotSelect(c.branchEndJump || '', (v) => {
-        if (v) {
-          c.branchEndJump = v;
-          c.branchEnd = 'shot';
-        } else {
-          delete c.branchEndJump;
-        }
-        scheduleSave();
-        syncEndSel();
-      }));
-    };
-    const syncEndSel = () => {
-      endSel.value = c.branchEnd || 'main';
-    };
     endSel.addEventListener('change', () => {
       c.branchEnd = endSel.value;
-      if (c.branchEnd !== 'shot') delete c.branchEndJump;
+      if (c.branchEnd === 'shot' && !c.endShot) ensureEndShot(c);
       scheduleSave();
-      syncShotPicker();
+      renderEdit();
     });
     endWrap.appendChild(endSel);
-    endWrap.appendChild(shotPickerWrap);
-    syncShotPicker();
     branchSec.appendChild(endWrap);
     if (!optionUsesBranch(c)) {
       const jmpRow = document.createElement('div');
@@ -1893,7 +1929,7 @@ function addBlock(type) {
   const ch = work.chapters[0];
   const block = { id: uid(), type, content: type === 'scene' ? '新场景……' : type === 'choice' ? '你要怎么做？' : '在这里写下对白……' };
   if (type === 'dialogue') block.speaker = DEFAULT_SPEAKER;
-  if (type === 'choice') normalizeChoice(block);
+  if (type === 'choice') normalizeChoice(block, blocks());
   ch.blocks.push(block);
   selectedId = block.id;
   scheduleSave();
@@ -1963,7 +1999,6 @@ function startPlay() {
   playBranchFlat = null;
   playBranchIdx = 0;
   playBranchEnd = 'main';
-  playBranchEndJump = '';
   playChoiceBlockId = null;
   playTakenChoiceId = null;
   playResumeMainIdx = 0;
@@ -1994,19 +2029,21 @@ function stopPlay() {
 
 function finishBranchPlay() {
   let end = playBranchEnd;
-  let endJump = playBranchEndJump;
   const choiceBlockId = playChoiceBlockId;
   const choiceBlock = playMainFlat.find((b) => b.id === choiceBlockId);
   const taken = choiceBlock?.choices?.find((o) => o.id === playTakenChoiceId);
-  if (taken) {
-    const resolved = resolveOptionBranchEnd(taken);
-    end = resolved.end;
-    endJump = resolved.jump;
-  }
+  if (taken) end = resolveOptionBranchEnd(taken);
 
   playBranchFlat = null;
   playBranchIdx = 0;
   playSiblingJumps = null;
+
+  if (end === 'shot') {
+    if (!taken?.endShot) toast('请先添加失败结局镜', true);
+    else toast('试玩结束');
+    stopPlay();
+    return;
+  }
 
   if (end === 'choice' && choiceBlockId) {
     const idx = playBlockIndex(choiceBlockId);
@@ -2015,17 +2052,6 @@ function finishBranchPlay() {
       renderPlay();
       return;
     }
-  }
-  if (end === 'shot' && endJump) {
-    const idx = playBlockIndex(endJump);
-    if (idx >= 0) {
-      playMainIdx = idx;
-      renderPlay();
-      return;
-    }
-    toast('找不到结束镜，请检查选项里的「结束镜」设置', true);
-  } else if (end === 'shot') {
-    toast('请先为这条选项选择结束镜', true);
   }
 
   playMainIdx = playResumeMainIdx;
@@ -2103,15 +2129,13 @@ function renderPlay() {
       btnEl.addEventListener('click', (e) => {
         e.stopPropagation();
         if (optionUsesBranch(c)) {
-          const resolved = resolveOptionBranchEnd(c);
           setPlayChoiceContext(b, c);
           playResumeMainIdx = resolvePlayNextIndex(playMainIdx);
           playChoiceBlockId = b.id;
           playTakenChoiceId = c.id;
-          playBranchFlat = c.branch;
+          playBranchFlat = buildBranchPlayFlat(c);
           playBranchIdx = 0;
-          playBranchEnd = resolved.end;
-          playBranchEndJump = resolved.jump;
+          playBranchEnd = resolveOptionBranchEnd(c);
           renderPlay();
         } else {
           setPlayChoiceContext(b, c);
@@ -2193,9 +2217,8 @@ function hasPlayNext() {
   if (!b || b.type === 'choice') return false;
   if (playBranchFlat) {
     if (playBranchIdx < playBranchFlat.length - 1) return true;
-    if (playBranchEnd === 'choice') return playChoiceBlockId && playBlockIndex(playChoiceBlockId) >= 0;
-    if (playBranchEnd === 'shot') return !!(playBranchEndJump && playBlockIndex(playBranchEndJump) >= 0);
-    return playResumeMainIdx < playMainFlat.length;
+    if (playBranchEnd === 'shot') return false;
+    return true;
   }
   return resolvePlayNextIndex(playMainIdx) < playMainFlat.length;
 }
