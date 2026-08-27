@@ -65,7 +65,18 @@ html,body{height:100%;overflow:hidden}
 .mk-stage .dlg{position:absolute;left:0;right:0;bottom:0;padding:14px 16px 16px;background:linear-gradient(transparent,rgba(0,0,0,.75) 30%,rgba(0,0,0,.92));pointer-events:none}
 .mk-stage .dlg .sp{font-size:13px;font-weight:600;color:var(--accent2);margin-bottom:4px}
 .mk-stage .dlg .ln{font-size:15px;line-height:1.55;color:#fff}
-.mk-stage .scene-txt{position:absolute;left:50%;top:78%;transform:translate(-50%,-50%);font-size:15px;color:#fff;text-align:center;max-width:88%;line-height:1.5;text-shadow:0 2px 8px rgba(0,0,0,.8)}
+.mk-stage .scene-txt{position:absolute;text-align:center;max-width:88%;line-height:1.5;text-shadow:0 2px 8px rgba(0,0,0,.8);cursor:grab;touch-action:none;user-select:none;padding:6px 10px;border-radius:6px;border:1px dashed rgba(139,123,255,.45);z-index:2}
+.mk-stage .scene-txt.dragging{cursor:grabbing;opacity:.92;border-color:rgba(95,200,255,.7)}
+.mk-stage .scene-drag-hint{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:10px;color:rgba(255,255,255,.55);background:rgba(0,0,0,.45);padding:4px 10px;border-radius:99px;pointer-events:none;z-index:3}
+.mk-text-style{margin-top:4px}
+.mk-text-style .swatches{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.mk-text-style .swatch{width:26px;height:26px;border-radius:6px;border:2px solid transparent;cursor:pointer;padding:0}
+.mk-text-style .swatch.on{border-color:#fff;box-shadow:0 0 0 1px rgba(139,123,255,.6)}
+.mk-text-style .swatch.default{background:linear-gradient(135deg,#fff 50%,#888 50%)}
+.mk-size-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.mk-size-row input[type=range]{flex:1;accent-color:var(--accent)}
+.mk-size-row span{font-size:12px;color:var(--muted);min-width:36px;text-align:right}
+.mk-panel input[type=color]{width:100%;height:36px;padding:2px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;cursor:pointer}
 .mk-stage .empty-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:20px;line-height:1.6}
 .mk-panel{border-left:1px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;min-height:0;overflow:auto}
 .mk-panel-inner{padding:14px;display:flex;flex-direction:column;gap:12px}
@@ -218,6 +229,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260827make"></script>
+<script type="module" src="/make.js?v=20260827text"></script>
 </body>
 </html>

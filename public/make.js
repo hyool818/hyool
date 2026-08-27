@@ -5,6 +5,18 @@ const TOKEN_KEY = 'hyool_token';
 const DEFAULT_SPEAKER = '角色名';
 const MAX_FILE = 5 * 1024 * 1024;
 const TYPE_LABEL = { scene: '场景', dialogue: '对白', choice: '选项' };
+const SUB_SIZE_KEY = 'hyool_story_subtitle_size_v1';
+const SUB_SIZE_DEFAULT = 27;
+const SUB_SIZE_MIN = 18;
+const SUB_SIZE_MAX = 36;
+const COLOR_PRESETS = [
+  { id: 'default', label: '默认白', value: '' },
+  { id: 'gold', label: '金色', value: '#f5d78e' },
+  { id: 'cyan', label: '青色', value: '#7ee8fa' },
+  { id: 'pink', label: '粉色', value: '#ffb3d9' },
+  { id: 'green', label: '绿色', value: '#a8f0c6' },
+  { id: 'red', label: '红色', value: '#ff8a8a' },
+];
 
 let loggedIn = false;
 let works = [];
@@ -91,6 +103,31 @@ function redirectOtherKind(w) {
   }
   location.replace('/story-editor.html?pro=1&story=' + encodeURIComponent(w.id) + play);
   return true;
+}
+
+function getGlobalSubSize() {
+  const n = Number(localStorage.getItem(SUB_SIZE_KEY));
+  if (!Number.isFinite(n)) return SUB_SIZE_DEFAULT;
+  return Math.min(SUB_SIZE_MAX, Math.max(SUB_SIZE_MIN, Math.round(n)));
+}
+
+function setGlobalSubSize(px) {
+  localStorage.setItem(SUB_SIZE_KEY, String(Math.min(SUB_SIZE_MAX, Math.max(SUB_SIZE_MIN, Math.round(px)))));
+}
+
+function ensureSub(b) {
+  if (!b.subtitle || typeof b.subtitle !== 'object') b.subtitle = {};
+  return b.subtitle;
+}
+
+function subPos(b) {
+  const sub = ensureSub(b);
+  return { x: sub.x != null ? sub.x : 50, y: sub.y != null ? sub.y : 78 };
+}
+
+function applySubColor(el, b) {
+  const c = ensureSub(b).color;
+  if (c) el.style.color = c;
 }
 
 function starterBlocks() {
@@ -400,12 +437,30 @@ function renderPreview() {
   if (b.type === 'dialogue') {
     const dlg = document.createElement('div');
     dlg.className = 'dlg';
+    const sz = getGlobalSubSize();
     dlg.innerHTML = '<div class="sp">' + escapeHtml(b.speaker || DEFAULT_SPEAKER) + '</div><div class="ln">' + escapeHtml(formatLine(b.content)) + '</div>';
+    const sp = dlg.querySelector('.sp');
+    const ln = dlg.querySelector('.ln');
+    sp.style.fontSize = Math.round(sz * 1.15) + 'px';
+    ln.style.fontSize = sz + 'px';
+    applySubColor(sp, b);
+    applySubColor(ln, b);
     stage.appendChild(dlg);
   } else if (b.type === 'scene' && (b.content || '').trim()) {
+    const pos = subPos(b);
     const t = document.createElement('div');
     t.className = 'scene-txt';
     t.textContent = b.content;
+    t.style.left = pos.x + '%';
+    t.style.top = pos.y + '%';
+    t.style.transform = 'translate(-50%,-50%)';
+    t.style.fontSize = getGlobalSubSize() + 'px';
+    applySubColor(t, b);
+    bindSceneTextDrag(t, b, stage);
+    const hint = document.createElement('div');
+    hint.className = 'scene-drag-hint';
+    hint.textContent = '拖动文字调整位置';
+    stage.appendChild(hint);
     stage.appendChild(t);
   } else if (b.type === 'choice') {
     const dlg = document.createElement('div');
@@ -471,6 +526,10 @@ function renderPanel() {
     updateSteps();
   }));
 
+  if (b.type === 'scene' || b.type === 'dialogue') {
+    panel.appendChild(textStylePanel(b));
+  }
+
   if (b.type === 'choice') {
     panel.appendChild(choiceEditor(b));
   }
@@ -523,6 +582,128 @@ function field(label, tag, value, onInput) {
   el.addEventListener('input', () => onInput(el.value));
   wrap.append(lab, el);
   return wrap;
+}
+
+function textStylePanel(b) {
+  const sub = ensureSub(b);
+  const wrap = document.createElement('div');
+  wrap.className = 'field mk-text-style';
+  const title = document.createElement('label');
+  title.textContent = b.type === 'scene' ? '文字样式（中间预览可拖动位置）' : '文字样式';
+  wrap.appendChild(title);
+
+  const sizeRow = document.createElement('div');
+  sizeRow.className = 'mk-size-row';
+  const range = document.createElement('input');
+  range.type = 'range';
+  range.min = String(SUB_SIZE_MIN);
+  range.max = String(SUB_SIZE_MAX);
+  range.value = String(getGlobalSubSize());
+  const sizeVal = document.createElement('span');
+  sizeVal.textContent = range.value + 'px';
+  range.addEventListener('input', () => {
+    setGlobalSubSize(Number(range.value));
+    sizeVal.textContent = range.value + 'px';
+    renderPreview();
+    if (playing) renderPlay();
+  });
+  sizeRow.append(document.createElement('span'), range, sizeVal);
+  sizeRow.firstChild.textContent = '字号';
+  sizeRow.firstChild.style.fontSize = '11px';
+  sizeRow.firstChild.style.color = 'var(--muted)';
+  wrap.appendChild(sizeRow);
+
+  const colorLab = document.createElement('label');
+  colorLab.textContent = '颜色';
+  colorLab.style.marginTop = '10px';
+  wrap.appendChild(colorLab);
+
+  const sw = document.createElement('div');
+  sw.className = 'swatches';
+  COLOR_PRESETS.forEach((p) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'swatch' + (p.id === 'default' ? ' default' : '') + ((!sub.color && p.id === 'default') || sub.color === p.value ? ' on' : '');
+    btn.title = p.label;
+    if (p.value) btn.style.background = p.value;
+    btn.addEventListener('click', () => {
+      if (p.id === 'default') delete sub.color;
+      else sub.color = p.value;
+      scheduleSave();
+      sw.querySelectorAll('.swatch').forEach((x) => x.classList.remove('on'));
+      btn.classList.add('on');
+      colorInp.value = sub.color || '#ffffff';
+      renderPreview();
+      if (playing) renderPlay();
+    });
+    sw.appendChild(btn);
+  });
+  wrap.appendChild(sw);
+
+  const colorInp = document.createElement('input');
+  colorInp.type = 'color';
+  colorInp.value = sub.color || '#ffffff';
+  colorInp.addEventListener('input', () => {
+    sub.color = colorInp.value;
+    scheduleSave();
+    sw.querySelectorAll('.swatch').forEach((x) => x.classList.remove('on'));
+    renderPreview();
+    if (playing) renderPlay();
+  });
+  wrap.appendChild(colorInp);
+
+  if (b.type === 'scene') {
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'btn';
+    reset.style.marginTop = '8px';
+    reset.textContent = '重置文字位置';
+    reset.addEventListener('click', () => {
+      delete sub.x;
+      delete sub.y;
+      scheduleSave();
+      renderPreview();
+      toast('已重置到默认位置');
+    });
+    wrap.appendChild(reset);
+  }
+  return wrap;
+}
+
+function bindSceneTextDrag(el, b, stage) {
+  let dragging = false;
+  const move = (clientX, clientY) => {
+    const rect = stage.getBoundingClientRect();
+    const x = Math.min(96, Math.max(4, ((clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(96, Math.max(4, ((clientY - rect.top) / rect.height) * 100));
+    const sub = ensureSub(b);
+    sub.x = Math.round(x);
+    sub.y = Math.round(y);
+    el.style.left = sub.x + '%';
+    el.style.top = sub.y + '%';
+  };
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragging = true;
+    el.classList.add('dragging');
+    el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    move(e.clientX, e.clientY);
+  });
+  el.addEventListener('pointerup', (e) => {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('dragging');
+    try { el.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    scheduleSave();
+  });
+  el.addEventListener('pointercancel', () => {
+    dragging = false;
+    el.classList.remove('dragging');
+  });
 }
 
 function btn(text, fn, danger) {
@@ -743,17 +924,27 @@ function renderPlay() {
   fore.addEventListener('click', playNext);
   if (b.type === 'dialogue') {
     fore.classList.add('dlg-fore');
+    const sz = getGlobalSubSize();
     const d = document.createElement('div');
     d.className = 'play-dialogue';
     d.innerHTML = '<div class="pd-speaker">' + escapeHtml(b.speaker || DEFAULT_SPEAKER) + '</div><div class="pd-line">' + escapeHtml(formatLine(b.content)) + '</div>';
+    const sp = d.querySelector('.pd-speaker');
+    const ln = d.querySelector('.pd-line');
+    sp.style.fontSize = Math.round(sz * 1.15) + 'px';
+    ln.style.fontSize = sz + 'px';
+    applySubColor(sp, b);
+    applySubColor(ln, b);
     fore.appendChild(d);
   } else if (b.type === 'scene' && (b.content || '').trim()) {
+    const pos = subPos(b);
     const st = document.createElement('div');
     st.className = 'play-scene-text';
-    st.style.left = '50%';
-    st.style.top = '78%';
+    st.style.left = pos.x + '%';
+    st.style.top = pos.y + '%';
     st.style.transform = 'translate(-50%,-50%)';
+    st.style.fontSize = getGlobalSubSize() + 'px';
     st.textContent = b.content;
+    applySubColor(st, b);
     frame.appendChild(st);
   }
   frame.appendChild(fore);
