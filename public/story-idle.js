@@ -334,11 +334,14 @@ function skillListHtml(skills) {
     </div>`).join('');
 }
 
+export function closePortraitLightbox() {
+  document.getElementById('portraitLightbox')?.remove();
+}
+
 export function openCharSheet(sheet) {
   if (!sheet || (!sheet.name && !sheet.url)) return;
   const title = sheet.name || '立绘';
-  const prev = document.getElementById('portraitLightbox');
-  if (prev) prev.remove();
+  closePortraitLightbox();
   const el = document.createElement('div');
   el.id = 'portraitLightbox';
   el.className = 'portrait-lightbox';

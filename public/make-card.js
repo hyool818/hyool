@@ -20,6 +20,7 @@ import {
   portraitHtml,
   portraitThumbHtml,
   portraitKindOf,
+  closePortraitLightbox,
   STAR_TIERS,
   STAR_MAX,
   starTierLabel,
@@ -1141,6 +1142,7 @@ function startPlay() {
   if (!work) return;
   const g = cardGuideText(work);
   if (!g.ready && !confirm(g.line + '\n仍要试玩？')) return;
+  closePortraitLightbox();
   syncTrialProgressStars();
   $('#playOverlay').classList.add('show');
   $('#playTitle').textContent = work.title || '';
@@ -1157,6 +1159,7 @@ function startPlay() {
 
 function stopPlay() {
   stopRogueRun();
+  closePortraitLightbox();
   $('#playOverlay').classList.remove('show');
   $('#playBody').innerHTML = '';
 }

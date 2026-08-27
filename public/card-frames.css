@@ -1,5 +1,7 @@
 /* 卡牌品阶边框：凡→珍→绝→传→神→墟→曜（墟/曜为动态特效） */
-.goddess-card.card-frame,.bt-portrait.card-frame{position:relative;box-sizing:border-box}
+.goddess-card.card-frame,.bt-portrait.card-frame,.goddess-card.card-frame-asset,.bt-portrait.card-frame-asset{position:relative;box-sizing:border-box;overflow:hidden}
+.goddess-card.card-frame-asset .card-frame-img,.bt-portrait.card-frame-asset .card-frame-img{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;object-fit:fill;z-index:3}
+.goddess-card.card-frame-asset .card-art,.bt-portrait.card-frame-asset .card-art{position:relative;z-index:1}
 .goddess-card .star,.bt-portrait .star{
   position:absolute;top:6px;right:6px;z-index:3;font-size:11px;font-weight:700;
   border-radius:999px;padding:2px 8px;letter-spacing:.12em;line-height:1.35;
