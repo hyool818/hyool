@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>创作 · HYOOL</title>
+<title>创建作品 · HYOOL</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Liu+Jian+Mao+Cao&family=Long+Cang&family=LXGW+WenKai&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;700&family=Noto+Serif+SC:wght@400;700&family=Yuji+Syuku&family=Zen+Antique&family=Zen+Kurenaido&family=ZCOOL+KuaiLe&family=ZCOOL+QingKe+HuangYou&family=ZCOOL+XiaoWei&family=Zhi+Mang+Xing&display=swap" rel="stylesheet">
@@ -146,6 +146,11 @@ html,body{height:100%;overflow:hidden}
 .mk-orient{display:flex;gap:8px;margin-top:8px}
 .mk-orient button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--muted);cursor:pointer;font-family:inherit;font-size:12px}
 .mk-orient button.on{border-color:var(--accent);color:#cfc8ff;background:rgba(139,123,255,.12)}
+.mk-kind{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+.mk-kind button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:10px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);cursor:pointer;font-family:inherit;text-align:left}
+.mk-kind button span{font-size:11px;color:var(--muted);font-weight:400;line-height:1.45}
+.mk-kind button.on{border-color:var(--accent);color:#cfc8ff;background:rgba(139,123,255,.12)}
+.mk-modal-step.hidden{display:none}
 /* ---------- 裁剪弹窗 ---------- */
 #cropBackdrop{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;padding:16px}
 #cropBackdrop.show{display:flex}
@@ -168,7 +173,7 @@ html,body{height:100%;overflow:hidden}
   <header class="topbar" id="mkTopbar">
     <a class="back" href="/" id="mkBack">← 首页</a>
     <div class="brand">
-      <span class="brand-name" id="mkBrand">创作作品</span>
+      <span class="brand-name" id="mkBrand">创建作品</span>
       <span class="brand-sub" id="mkBrandSub">MAKE</span>
     </div>
     <div class="topbar-right">
@@ -188,12 +193,12 @@ html,body{height:100%;overflow:hidden}
       <div id="mkLogin" class="mk-login hidden">请先 <a href="/yonder.html?next=/make.html">登录</a>，才能创建和保存作品。</div>
       <div id="mkApp" class="hidden">
         <div class="mk-actions">
-          <button type="button" class="btn primary" id="mkNewBtn">＋ 新建故事</button>
+          <button type="button" class="btn primary" id="mkNewBtn">＋ 新建作品</button>
           <a class="btn" href="/brain.html" style="text-decoration:none">◎ AI 帮我想</a>
           <a class="btn" href="/plaza.html" style="text-decoration:none">去玩</a>
         </div>
         <div id="mkGrid" class="mk-grid"></div>
-        <p id="mkEmpty" class="mk-login hidden" style="padding:24px">还没有作品。点上方「新建故事」开始，或让 AI 帮你想大纲。</p>
+        <p id="mkEmpty" class="mk-login hidden" style="padding:24px">还没有作品。点上方「新建作品」开始，或让 AI 帮你想大纲。</p>
         <div class="mk-more">
           <h3>其他类型</h3>
           <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:4px">视觉小说支持图片 + 视频混排；漫画 / 卡牌 / H5 走下方专用工具。</p>
@@ -259,18 +264,30 @@ html,body{height:100%;overflow:hidden}
 
 <div class="mk-modal" id="mkModal">
   <div class="mk-modal-box">
-    <h2>新建故事</h2>
-    <label class="field"><span>作品名称</span>
-      <input type="text" id="mkNewTitle" placeholder="例如：雨夜教室" maxlength="40">
-    </label>
-    <label class="field" style="margin-top:12px"><span>画面方向</span></label>
-    <div class="mk-orient">
-      <button type="button" data-o="landscape" class="on">🖥 横屏 16:9</button>
-      <button type="button" data-o="portrait">📱 竖屏 9:16</button>
+    <h2 id="mkModalTitle">新建作品</h2>
+    <div id="mkModalStep1" class="mk-modal-step">
+      <label class="field"><span>作品名称</span>
+        <input type="text" id="mkNewTitle" placeholder="例如：雨夜教室" maxlength="40">
+      </label>
+      <label class="field" style="margin-top:12px"><span>画面方向</span></label>
+      <div class="mk-orient">
+        <button type="button" data-o="landscape" class="on">🖥 横屏 16:9</button>
+        <button type="button" data-o="portrait">📱 竖屏 9:16</button>
+      </div>
+    </div>
+    <div id="mkModalStep2" class="mk-modal-step hidden">
+      <label class="field"><span>作品类型</span></label>
+      <div class="mk-kind">
+        <button type="button" data-k="story" class="on">📖 视觉小说<span>镜头 + 预览 + 试玩，支持图片与视频镜</span></button>
+        <button type="button" data-k="comic">📚 漫画<span>分格画布 + 对白气泡</span></button>
+        <button type="button" data-k="gacha_rogue">🂠 卡牌<span>角色表 + 自动战斗 / 挂机</span></button>
+      </div>
     </div>
     <div class="row">
       <button type="button" class="btn" id="mkModalCancel" style="flex:1">取消</button>
-      <button type="button" class="btn primary" id="mkModalOk" style="flex:1">创建并开始</button>
+      <button type="button" class="btn hidden" id="mkModalBack" style="flex:1">上一步</button>
+      <button type="button" class="btn primary" id="mkModalNext" style="flex:1">下一步</button>
+      <button type="button" class="btn primary hidden" id="mkModalOk" style="flex:1">创建并开始</button>
     </div>
   </div>
 </div>
@@ -296,6 +313,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260827merge"></script>
+<script type="module" src="/make.js?v=20260828e"></script>
 </body>
 </html>

@@ -68,6 +68,8 @@ let works = [];
 let work = null;
 let selectedId = null;
 let createOrient = 'landscape';
+let createKind = 'story';
+let createStep = 1;
 let uploadTimer = null;
 let saveLabel = '';
 
@@ -404,23 +406,28 @@ async function saveWork() {
   }
 }
 
-async function createWork(title, orientation) {
+async function createWork(title, orientation, kind = WORK_KIND) {
   const res = await fetch('/api/stories', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ title, orientation, imgQuality: 'standard', kind: WORK_KIND }),
+    body: JSON.stringify({ title, orientation, imgQuality: 'standard', kind }),
   });
   const d = await res.json();
   if (!d.success) throw new Error(d.error || '创建失败');
   const s = normalizeWork({ ...d.story });
-  s.chapters[0].blocks = starterBlocks();
-  await fetch('/api/stories/' + encodeURIComponent(s.id), {
-    method: 'PUT',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ data: s }),
-  });
+  if (kind === WORK_KIND || kind === 'story' || kind === 'interactive_video') {
+    if (!s.chapters?.[0]) {
+      s.chapters = [{ id: uid(), title: '第一章', blocks: [] }];
+    }
+    s.chapters[0].blocks = starterBlocks();
+    await fetch('/api/stories/' + encodeURIComponent(s.id), {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ data: s }),
+    });
+  }
   return s;
 }
 
@@ -581,7 +588,7 @@ async function showHome() {
   $('#mkPlayBtn').style.display = 'none';
   $('#mkPubBtn').style.display = 'none';
   $('#mkDelBtn').style.display = 'none';
-  $('#mkBrand').textContent = '创作作品';
+  $('#mkBrand').textContent = '创建作品';
   $('#mkBrandSub').textContent = 'MAKE';
   $('#mkBack').href = '/';
   $('#mkBack').textContent = '← 首页';
@@ -1736,25 +1743,51 @@ function jumpPlay(jump) {
 }
 
 // ---------- 新建弹窗 ----------
+function setCreateStep(step) {
+  createStep = step;
+  $('#mkModalStep1').classList.toggle('hidden', step !== 1);
+  $('#mkModalStep2').classList.toggle('hidden', step !== 2);
+  $('#mkModalBack').classList.toggle('hidden', step !== 2);
+  $('#mkModalNext').classList.toggle('hidden', step !== 1);
+  $('#mkModalOk').classList.toggle('hidden', step !== 2);
+  $('#mkModalTitle').textContent = step === 1 ? '新建作品' : '选择类型';
+}
+
 function openCreateModal() {
   $('#mkNewTitle').value = '';
   createOrient = 'landscape';
+  createKind = 'story';
+  createStep = 1;
   $$('.mk-orient button').forEach((b) => b.classList.toggle('on', b.dataset.o === createOrient));
+  $$('.mk-kind button').forEach((b) => b.classList.toggle('on', b.dataset.k === createKind));
+  setCreateStep(1);
   $('#mkModal').classList.add('show');
   setTimeout(() => $('#mkNewTitle').focus(), 100);
 }
 
-async function confirmCreate() {
+function goCreateStep2() {
   const title = $('#mkNewTitle').value.trim();
   if (!title) { toast('请输入作品名称', true); return; }
   if (!loggedIn) { toast('请先登录', true); return; }
+  setCreateStep(2);
+}
+
+async function confirmCreate() {
+  const title = $('#mkNewTitle').value.trim();
+  if (!title) { toast('请输入作品名称', true); setCreateStep(1); return; }
+  if (!loggedIn) { toast('请先登录', true); return; }
   $('#mkModalOk').disabled = true;
   try {
-    work = await createWork(title, createOrient);
-    selectedId = blocks()[0]?.id || null;
+    const s = await createWork(title, createOrient, createKind);
     $('#mkModal').classList.remove('show');
-    showEdit();
-    toast('已创建《' + title + '》');
+    if (isStoryKind(createKind)) {
+      work = s;
+      selectedId = blocks()[0]?.id || null;
+      showEdit();
+      toast('已创建《' + title + '》');
+    } else {
+      location.href = '/story-editor.html?pro=1&story=' + encodeURIComponent(s.id);
+    }
   } catch (e) {
     toast(e.message || '创建失败', true);
   } finally {
@@ -1800,12 +1833,25 @@ async function route() {
 function bind() {
   $('#mkNewBtn').addEventListener('click', openCreateModal);
   $('#mkModalCancel').addEventListener('click', () => $('#mkModal').classList.remove('show'));
+  $('#mkModalBack').addEventListener('click', () => setCreateStep(1));
+  $('#mkModalNext').addEventListener('click', goCreateStep2);
   $('#mkModalOk').addEventListener('click', confirmCreate);
-  $('#mkNewTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmCreate(); });
+  $('#mkNewTitle').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      if (createStep === 1) goCreateStep2();
+      else confirmCreate();
+    }
+  });
   $$('.mk-orient button').forEach((b) => {
     b.addEventListener('click', () => {
       createOrient = b.dataset.o;
       $$('.mk-orient button').forEach((x) => x.classList.toggle('on', x.dataset.o === createOrient));
+    });
+  });
+  $$('.mk-kind button').forEach((b) => {
+    b.addEventListener('click', () => {
+      createKind = b.dataset.k;
+      $$('.mk-kind button').forEach((x) => x.classList.toggle('on', x.dataset.k === createKind));
     });
   });
   $('#mkAddBtn').addEventListener('click', openAddPicker);

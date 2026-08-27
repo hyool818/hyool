@@ -6,7 +6,7 @@
 
 | 功能 | 页面 | 说明 |
 |---|---|---|
-| 首页双核心 | `public/index.html` | 创作作品 / 创造世界；底部 HYOOL 标语 |
+| 首页双核心 | `public/index.html` | 创建作品 / 创造世界；底部 HYOOL 标语 |
 | **主创作应用 · 视觉小说** | `public/make.html` `public/make.js` | 镜头 + 预览 + 试玩 + 发布；图片镜 / **视频镜**（`media.videoMode`: `background` 静音循环 | `clip` 原声播完下一镜）；BGM / 配音 |
 | 旧互动视频入口 | `public/make-video.html` | 重定向 → `make.html`（`?hint=video`） |
 | 世界/IP | `public/studio-world.html` `public/create-life-world.html` | 创造世界入口；生命世界 5 步全页向导 |
