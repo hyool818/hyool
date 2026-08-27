@@ -263,6 +263,12 @@ function renderEdit() {
   stage.classList.toggle('portrait', work?.orientation !== 'landscape');
 }
 
+/** 改名时只刷新列表/预览，避免重绘面板导致输入框失焦 */
+function refreshNameViews() {
+  renderList();
+  renderPreview();
+}
+
 function renderGuide() {
   const g = cardGuideText(work);
   const el = $('#mcGuide');
@@ -456,7 +462,7 @@ function renderPanel() {
   if (select.type === 'char') {
     const c = selectedChar();
     if (!c) return;
-    panel.appendChild(field('角色名', 'text', c.name, (v) => { c.name = v.slice(0, 16); scheduleSave(); renderEdit(); }));
+    panel.appendChild(field('角色名', 'text', c.name, (v) => { c.name = v.slice(0, 16); scheduleSave(); refreshNameViews(); }));
     panel.appendChild(field('简介', 'textarea', c.desc || '', (v) => { c.desc = v.slice(0, 120); scheduleSave(); }));
     panel.appendChild(field('生命', 'number', String(c.hp), (v) => { c.hp = Math.max(40, Math.min(99999, Number(v) || 120)); scheduleSave(); renderPreview(); }));
     panel.appendChild(field('攻击', 'number', String(c.atk), (v) => { c.atk = Math.max(4, Math.min(99, Number(v) || 18)); scheduleSave(); renderPreview(); }));
@@ -491,7 +497,7 @@ function renderPanel() {
   if (select.type === 'enemy') {
     const e = selectedEnemy();
     if (!e) return;
-    panel.appendChild(field('敌人名', 'text', e.name, (v) => { e.name = v.slice(0, 16); scheduleSave(); renderEdit(); }));
+    panel.appendChild(field('敌人名', 'text', e.name, (v) => { e.name = v.slice(0, 16); scheduleSave(); refreshNameViews(); }));
     panel.appendChild(field('生命', 'number', String(e.hp), (v) => { e.hp = Math.max(1, Math.min(99999, Number(v) || 50)); scheduleSave(); renderPreview(); }));
     panel.appendChild(field('攻击', 'number', String(e.atk), (v) => { e.atk = Math.max(1, Math.min(99, Number(e.atk) || 8)); scheduleSave(); renderPreview(); }));
     panel.appendChild(field('速度', 'number', String(e.spd), (v) => { e.spd = Math.max(1, Math.min(40, Number(e.spd) || 12)); scheduleSave(); renderPreview(); }));
@@ -511,7 +517,7 @@ function renderPanel() {
   if (select.type === 'stage') {
     const s = selectedStage();
     if (!s) return;
-    panel.appendChild(field('关卡名', 'text', s.title || '', (v) => { s.title = v.slice(0, 40); scheduleSave(); renderEdit(); }));
+    panel.appendChild(field('关卡名', 'text', s.title || '', (v) => { s.title = v.slice(0, 40); scheduleSave(); refreshNameViews(); }));
     const lab = document.createElement('label');
     lab.textContent = '本关敌人（可多选）';
     panel.appendChild(lab);
