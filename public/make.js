@@ -76,6 +76,8 @@ let saveLabel = '';
 let playing = false;
 let playFlat = [];
 let playIdx = 0;
+/** 当前选项未走到的支线入口（block id），顺序播放时自动跳过 */
+let playSiblingJumps = null;
 let playAudio = null;
 let playBgm = null;
 let playBgmUrl = null;
