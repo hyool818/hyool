@@ -31,6 +31,7 @@ import {
   portraitThumbHtml,
   portraitMediaInner,
   starOf,
+  closePortraitLightbox,
 } from '/story-idle.js';
 
 export const ROGUE_KIND = 'gacha_rogue';
@@ -839,6 +840,7 @@ function isMajorFightNode(node) {
 
 function finishBattle(win) {
   if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+  closePortraitLightbox();
   const major = !!(run.battle && run.battle.majorFight);
   if (!win) {
     run.battle.phase = 'lost';
@@ -855,14 +857,22 @@ function finishBattle(win) {
 }
 
 function afterWin(opts) {
-  const quiet = !!(opts && opts.quiet);
+  const quiet = !!(opts && typeof opts === 'object' && !(opts instanceof Event) && opts.quiet);
   if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+  closePortraitLightbox();
+  if (!run || !run.battle) return;
   run.team.forEach(m => { if (m.hp > 0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp * 0.12)); });
-  if (run.rogue.mode === 'idle') {
-    const reward = rewardIdleStage(run.rogue, run.nodeIdx);
-    if (run.story) run.story.rogue = run.rogue;
-    if (run.ctx.onPersist) run.ctx.onPersist();
-    if (!quiet) toast('通关 +' + reward.gold + ' 金币，上阵角色 +' + reward.exp + ' 经验');
+  try {
+    if (run.rogue.mode === 'idle') {
+      const reward = rewardIdleStage(run.rogue, run.nodeIdx);
+      if (run.story) run.story.rogue = run.rogue;
+      if (run.ctx.onPersist) run.ctx.onPersist();
+      if (!quiet) toast('通关 +' + reward.gold + ' 金币，上阵角色 +' + reward.exp + ' 经验');
+    }
+  } catch (err) {
+    console.error(err);
+    toast('结算失败，请再点一次', true);
+    return;
   }
   if (run.rogue.mode === 'rogue') startCardPick();
   else advanceNode();
@@ -964,12 +974,12 @@ function paintBattle(frame) {
   if (b.phase === 'won') {
     result = `<div class="bt-result"><div class="bt-result-title">${b.majorFight ? '首领战胜利' : '赢了'}</div>
       <div class="bt-result-text">${winHint}</div>
-      <div class="bt-result-ops"><button class="btn primary" id="rgNext">继续</button></div></div>`;
+      <div class="bt-result-ops"><button type="button" class="btn primary" id="rgNext">继续</button></div></div>`;
   } else if (b.phase === 'lost') {
     result = `<div class="bt-result"><div class="bt-result-title lost">倒下了</div>
       <div class="bt-result-text">${loseHint}</div>
-      <div class="bt-result-ops"><button class="btn primary" id="rgRetry">${run.rogue.mode === 'idle' ? '回主城' : '再来一次'}</button>
-      <button class="btn ghost" id="rgExit2">退出</button></div></div>`;
+      <div class="bt-result-ops"><button type="button" class="btn primary" id="rgRetry">${run.rogue.mode === 'idle' ? '回主城' : '再来一次'}</button>
+      <button type="button" class="btn ghost" id="rgExit2">退出</button></div></div>`;
   }
   frame.innerHTML = `${top}
     <div class="bt-board">
@@ -994,15 +1004,27 @@ function paintBattle(frame) {
     if (c && c.onExit) c.onExit();
   });
   const nx = frame.querySelector('#rgNext');
-  if (nx) nx.addEventListener('click', afterWin);
+  if (nx) {
+    nx.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      afterWin();
+    });
+  }
   const rt = frame.querySelector('#rgRetry');
-  if (rt) rt.addEventListener('click', () => {
+  if (rt) rt.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (run.rogue.mode === 'idle') goIdleHome();
     else startRogueRun(run.block, run.ctx);
   });
   const e2 = frame.querySelector('#rgExit2');
-  if (e2) e2.addEventListener('click', run.ctx.onExit);
-  bindPortraitZoom(frame, makePortraitZoomCtx(run));
+  if (e2) e2.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (run.ctx.onExit) run.ctx.onExit();
+  });
+  if (b.phase === 'running') bindPortraitZoom(frame, makePortraitZoomCtx(run));
 }
 
 function pct(a, b) { return b ? Math.max(0, Math.min(100, Math.round(a / b * 100))) : 0; }

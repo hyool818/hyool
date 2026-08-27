@@ -15,7 +15,7 @@ import {
   stageEnemyTotal,
   STAGE_WAVE_SIZE,
   STAGE_ENEMY_MAX,
-} from '/story-rogue.js';
+} from '/story-rogue.js?v=202608291';
 import {
   portraitHtml,
   portraitThumbHtml,
@@ -30,7 +30,7 @@ import {
   cardFrameClass,
   frameTierLabelFromFrame,
   starOf,
-} from '/story-idle.js';
+} from '/story-idle.js?v=202608291';
 
 const ELEM_OPTS = [['fire', '火'], ['water', '水'], ['wood', '木'], ['light', '光'], ['dark', '暗']];
 import { fetchMyVault, vaultLoggedIn } from '/my-vault-api.js';
