@@ -90,8 +90,9 @@ html,body{height:100%;overflow:hidden}
 .mk-bg-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border:2px dashed var(--line2);border-radius:10px;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;transition:.15s}
 .mk-bg-btn:hover{border-color:var(--accent);color:var(--accent)}
 .mk-bg-preview{position:relative;border-radius:8px;overflow:hidden;margin-top:8px}
-.mk-bg-preview img{width:100%;display:block;border-radius:8px}
-.mk-bg-preview button{position:absolute;top:6px;right:6px;font-size:10px;padding:4px 8px}
+.mk-bg-preview img,.mk-bg-preview video{width:100%;display:block;border-radius:8px}
+.mk-bg-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mk-bg-ops .btn{font-size:11px;padding:6px 10px;position:static}
 .mk-choice-row{display:flex;gap:6px;margin-bottom:6px}
 .mk-choice-row input{flex:1}
 .mk-choice-row button{flex:0 0 auto;padding:6px 8px;font-size:11px}
@@ -128,8 +129,6 @@ html,body{height:100%;overflow:hidden}
 .mk-orient{display:flex;gap:8px;margin-top:8px}
 .mk-orient button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--muted);cursor:pointer;font-family:inherit;font-size:12px}
 .mk-orient button.on{border-color:var(--accent);color:#cfc8ff;background:rgba(139,123,255,.12)}
-.mk-bg-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.mk-bg-ops .btn{font-size:11px;padding:6px 10px}
 /* ---------- 裁剪弹窗 ---------- */
 #cropBackdrop{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;padding:16px}
 #cropBackdrop.show{display:flex}
@@ -269,6 +268,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260827fontcrop"></script>
+<script type="module" src="/make.js?v=20260827bgops"></script>
 </body>
 </html>
