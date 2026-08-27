@@ -203,7 +203,7 @@ body {
     margin: 0 auto;
 
     padding:
-        130px 24px 90px;
+        110px 24px calc(90px + env(safe-area-inset-bottom));
 }
 
 
@@ -215,13 +215,13 @@ body {
 
     text-align: center;
 
-    margin-bottom: 90px;
+    margin-bottom: 40px;
 }
 
 .avatar {
 
-    width: 112px;
-    height: 112px;
+    width: 104px;
+    height: 104px;
 
     border-radius: 50%;
 
@@ -230,7 +230,7 @@ body {
     display: block;
 
     margin:
-        0 auto 24px;
+        0 auto 18px;
 
     background:
         linear-gradient(
@@ -266,16 +266,16 @@ body {
 
     margin: 0;
 
-    font-size: 32px;
+    font-size: clamp(26px, 5vw, 34px);
 
-    font-weight: 600;
+    font-weight: 650;
 
     letter-spacing: -.02em;
 }
 
 .username {
 
-    margin-top: 8px;
+    margin-top: 6px;
 
     color:
         rgba(255,255,255,.42);
@@ -285,17 +285,17 @@ body {
 
 .bio {
 
-    max-width: 600px;
+    max-width: 560px;
 
     margin:
-        20px auto 0;
+        14px auto 0;
 
-    line-height: 1.8;
+    line-height: 1.75;
 
     color:
         rgba(255,255,255,.65);
 
-    font-size: 15px;
+    font-size: 14px;
 }
 
 
@@ -417,23 +417,7 @@ body {
    EMPTY
 ===================================================== */
 
-.empty {
-
-    padding:
-        60px 20px;
-
-    text-align: center;
-
-    border:
-        1px dashed rgba(255,255,255,.10);
-
-    border-radius: 20px;
-
-    color:
-        rgba(255,255,255,.32);
-
-    font-size: 13px;
-}
+/* empty styles live near .library */
 
 
 /* =====================================================
@@ -1232,8 +1216,8 @@ body {
 .stats {
     display: flex;
     justify-content: center;
-    gap: 2.5rem;
-    margin: 1.6rem 0 0;
+    gap: 2rem;
+    margin: 1.25rem 0 0;
 }
 
 .stat {
@@ -1241,16 +1225,129 @@ body {
 }
 
 .stat .num {
-    font-size: 1.6rem;
+    font-size: 1.35rem;
     font-weight: 700;
     color: #fff;
+    letter-spacing: -.02em;
 }
 
 .stat .label {
-    font-size: .72rem;
+    font-size: .68rem;
     color: rgba(255,255,255,.40);
-    letter-spacing: .05em;
-    margin-top: 2px;
+    letter-spacing: .08em;
+    margin-top: 3px;
+    text-transform: uppercase;
+}
+
+
+/* =====================================================
+   LIBRARY TABS
+===================================================== */
+
+.library {
+    margin-top: 8px;
+}
+
+.library-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 0 0 22px;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.library-tab {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: rgba(255,255,255,.48);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 550;
+    padding: 9px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: color .2s, background .2s;
+}
+
+.library-tab .tab-count {
+    font-size: 11px;
+    min-width: 1.4em;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.06);
+    color: rgba(255,255,255,.45);
+}
+
+.library-tab.active {
+    color: #fff;
+    background: rgba(139,139,255,.18);
+}
+
+.library-tab.active .tab-count {
+    background: rgba(139,139,255,.28);
+    color: #d4d4ff;
+}
+
+.library-tab[hidden] {
+    display: none !important;
+}
+
+.library .section {
+    margin-top: 0;
+}
+
+.library .section-title {
+    display: none;
+}
+
+.lib-panel {
+    display: none;
+}
+
+.lib-panel.is-active {
+    display: block;
+}
+
+.empty {
+    padding: 48px 20px;
+    text-align: center;
+    border: 1px dashed rgba(255,255,255,.10);
+    border-radius: 20px;
+    color: rgba(255,255,255,.38);
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.empty .empty-cta {
+    display: inline-flex;
+    margin-top: 14px;
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(139,139,255,.35);
+    background: rgba(139,139,255,.12);
+    color: #d0d0ff;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+@media (hover: hover) {
+    .empty .empty-cta:hover {
+        background: rgba(139,139,255,.2);
+        color: #fff;
+    }
 }
 
 
@@ -1319,6 +1416,8 @@ body {
 .world-card .badge.form { background: rgba(120,220,170,.14); color: #9fdcbb; }
 .world-card .badge.form.rpg { background: rgba(255,120,90,.16); color: #ffb3a3; }
 .world-card .badge.form.rogue { background: rgba(180,140,255,.16); color: #d4c2ff; }
+.world-card .badge.form.h5 { background: rgba(90,200,255,.14); color: #9ad8ff; }
+.world-card .badge.form.comic { background: rgba(255,180,90,.14); color: #ffd09a; }
 
 /* 显示/隐藏按钮（主人视图：角色卡 / 世界卡） */
 .char-card, .world-card { position: relative; }
@@ -1932,14 +2031,45 @@ body {
             class="bio"
         ></div>
 
+        <div class="stats" id="profileStats" hidden>
+            <div class="stat">
+                <div class="num" id="statChars">0</div>
+                <div class="label">角色</div>
+            </div>
+            <div class="stat">
+                <div class="num" id="statWorlds">0</div>
+                <div class="label">世界</div>
+            </div>
+            <div class="stat">
+                <div class="num" id="statStories">0</div>
+                <div class="label">作品</div>
+            </div>
+        </div>
+
     </section>
 
+
+    <div class="library" id="library">
+
+        <div class="library-tabs" role="tablist" aria-label="主页内容">
+            <button type="button" class="library-tab active" role="tab" data-lib="chars" aria-selected="true">
+                角色 <span class="tab-count" id="tabCountChars">0</span>
+            </button>
+            <button type="button" class="library-tab" role="tab" data-lib="worlds" aria-selected="false">
+                世界 <span class="tab-count" id="tabCountWorlds">0</span>
+            </button>
+            <button type="button" class="library-tab" role="tab" data-lib="stories" aria-selected="false">
+                作品 <span class="tab-count" id="tabCountStories">0</span>
+            </button>
+        </div>
 
     <!-- CHARACTERS -->
 
     <section
         id="worksSection"
-        class="section"
+        class="section lib-panel is-active"
+        data-lib-panel="chars"
+        role="tabpanel"
     >
 
         <div class="section-title">
@@ -1970,8 +2100,9 @@ body {
 
     <section
         id="worldsSection"
-        class="section"
-        style="display:none;"
+        class="section lib-panel"
+        data-lib-panel="worlds"
+        role="tabpanel"
     >
 
         <div class="section-title">
@@ -2002,8 +2133,9 @@ body {
 
     <section
         id="storiesSection"
-        class="section"
-        style="display:none;"
+        class="section lib-panel"
+        data-lib-panel="stories"
+        role="tabpanel"
     >
 
         <div class="section-title">
@@ -2028,6 +2160,8 @@ body {
         </div>
 
     </section>
+
+    </div>
 
 
     <!-- CUSTOM MODULES（自定义模块区，模块名可改） -->
@@ -2447,6 +2581,8 @@ const state = {
 
     worlds: [],
 
+    stories: [],
+
     works: {
         characters: [],
         worlds: [],
@@ -2455,11 +2591,13 @@ const state = {
 
     isOwner: false,
 
+    libTab: "chars",
+
     profileExpand: { chars: false, worlds: false, stories: false }
 
 };
 
-const PROFILE_CARD_MAX = 3;
+const PROFILE_CARD_MAX = 8;
 
 function profileVisibleItems(items, section) {
     if (state.profileExpand[section]) return items;
@@ -2481,6 +2619,94 @@ window.profileViewAll = function (section, href) {
     else if (section === "worlds") renderWorlds();
     else if (section === "stories") renderStories();
 };
+
+function storyKindMeta(kind) {
+    if (kind === "h5_game") return { label: "H5", cls: "h5" };
+    if (kind === "gacha_rogue") return { label: "卡牌", cls: "rogue" };
+    if (kind === "card_rpg") return { label: "卡牌 RPG", cls: "rpg" };
+    if (kind === "comic") return { label: "漫画", cls: "comic" };
+    return { label: "故事", cls: "" };
+}
+
+function bindLibraryTabs() {
+    if (state._libBound) return;
+    state._libBound = true;
+    document.querySelectorAll(".library-tab").forEach((btn) => {
+        btn.addEventListener("click", () => setLibraryTab(btn.dataset.lib));
+    });
+    const hash = String(location.hash || "").replace(/^#/, "");
+    if (hash === "worlds" || hash === "chars") state.libTab = hash;
+    else if (hash === "works" || hash === "stories") state.libTab = "stories";
+}
+
+function setLibraryTab(id) {
+    const allowed = ["chars", "worlds", "stories"];
+    if (!allowed.includes(id)) id = "chars";
+    state.libTab = id;
+    document.querySelectorAll(".library-tab").forEach((btn) => {
+        const on = btn.dataset.lib === id;
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.querySelectorAll(".lib-panel").forEach((panel) => {
+        const on = panel.dataset.libPanel === id;
+        panel.classList.toggle("is-active", on);
+        panel.style.display = "";
+    });
+    try {
+        const hash = id === "stories" ? "works" : id;
+        history.replaceState(null, "", "#" + hash);
+    } catch (e) { /* ignore */ }
+}
+
+function syncLibraryUI() {
+    bindLibraryTabs();
+    const showWorks = !(state.settings && state.settings.show_works === 0);
+    const lib = document.getElementById("library");
+    if (lib) lib.style.display = showWorks ? "" : "none";
+
+    const chars = state.characters || [];
+    const worlds = state.worlds || [];
+    const stories = state.stories || [];
+
+    const counts = {
+        chars: chars.length,
+        worlds: worlds.length,
+        stories: stories.length,
+    };
+    const show = {
+        chars: state.isOwner || counts.chars > 0,
+        worlds: state.isOwner || counts.worlds > 0,
+        stories: state.isOwner || counts.stories > 0,
+    };
+
+    ["chars", "worlds", "stories"].forEach((key) => {
+        const tab = document.querySelector('.library-tab[data-lib="' + key + '"]');
+        if (tab) tab.hidden = !show[key];
+        const countEl = document.getElementById(
+            key === "chars" ? "tabCountChars" : key === "worlds" ? "tabCountWorlds" : "tabCountStories"
+        );
+        if (countEl) countEl.textContent = String(counts[key]);
+    });
+
+    const stats = document.getElementById("profileStats");
+    if (stats) {
+        const any = counts.chars + counts.worlds + counts.stories > 0 || state.isOwner;
+        stats.hidden = !any;
+        const sc = document.getElementById("statChars");
+        const sw = document.getElementById("statWorlds");
+        const ss = document.getElementById("statStories");
+        if (sc) sc.textContent = String(counts.chars);
+        if (sw) sw.textContent = String(counts.worlds);
+        if (ss) ss.textContent = String(counts.stories);
+    }
+
+    let tab = state.libTab || "chars";
+    if (!show[tab]) {
+        tab = show.chars ? "chars" : show.worlds ? "worlds" : show.stories ? "stories" : "chars";
+    }
+    setLibraryTab(tab);
+}
 
 
 /* =====================================================
@@ -2758,13 +2984,19 @@ function render() {
                 : "none";
 
     if (state.isOwner) {
-        document.getElementById("navEditBtn").addEventListener("click", openEditor);
+        const editBtn = document.getElementById("navEditBtn");
+        if (editBtn && !editBtn.dataset.bound) {
+            editBtn.dataset.bound = "1";
+            editBtn.addEventListener("click", openEditor);
+        }
         const vaultBtn = document.getElementById("navVaultBtn");
         if (vaultBtn) {
             vaultBtn.style.display = "flex";
             vaultBtn.href = "/my-vault?from=" + encodeURIComponent("/@" + state.username);
         }
     }
+
+    bindLibraryTabs();
 
     // 作品（角色 + 世界 + 故事作品）主人与访客都渲染：主人=全部，访客=公开作品
     loadCharacters();
@@ -3151,7 +3383,7 @@ function applySettings(
     );
 
     setVisible(
-        "worksSection",
+        "library",
         settings.show_works !== 0
     );
 
@@ -3291,6 +3523,7 @@ function renderCharacters() {
     } else {
         grid.innerHTML = html;
     }
+    syncLibraryUI();
 }
 
 /* =====================================================
@@ -3323,13 +3556,8 @@ function renderWorlds() {
     const grid = document.getElementById("worldGrid");
     const section = document.getElementById("worldsSection");
     const worlds = state.worlds || [];
-    const showWorks = (state.settings && state.settings.show_works !== 0);
 
-    if (!worlds.length && !state.isOwner) {
-        section.style.display = "none";
-        return;
-    }
-    section.style.display = showWorks ? "" : "none";
+    section.style.display = "";
 
     const formLabelOf = ({ story: "故事剧本", game: "H5 小游戏", mixed: "故事 + 游戏" });
     const hasMore = profileHasMore(worlds, "worlds");
@@ -3374,10 +3602,13 @@ function renderWorlds() {
     }).join("");
 
     if (!html) {
-        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${state.isOwner ? "还没有创造世界。" : "还没有公开的世界。"}</div>`;
+        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${state.isOwner
+            ? '还没有创造世界。<br><a class="empty-cta" href="/create-life-world.html">去创造世界</a>'
+            : "还没有公开的世界。"}</div>`;
     } else {
         grid.innerHTML = html;
     }
+    syncLibraryUI();
 }
 
 /* =====================================================
@@ -3408,27 +3639,27 @@ function renderStories() {
     const grid = document.getElementById("storyGrid");
     const section = document.getElementById("storiesSection");
     const stories = state.stories || [];
-    const showWorks = (state.settings && state.settings.show_works !== 0);
 
-    if (!stories.length && !state.isOwner) {
-        section.style.display = "none";
-        return;
-    }
-    section.style.display = showWorks ? "" : "none";
+    section.style.display = "";
 
     const hasMore = profileHasMore(stories, "stories");
     const visible = profileVisibleItems(stories, "stories");
 
     let html = "";
     if (state.isOwner) {
-        html += `<a href="/studio.html" class="create-card">
+        html += `<a href="/make.html" class="create-card">
             <div class="plus">+</div>
-            <div class="label">新建作品</div>
+            <div class="label">视觉小说</div>
+        </a>`;
+        html += `<a href="/make-card.html" class="create-card">
+            <div class="plus">+</div>
+            <div class="label">卡牌游戏</div>
         </a>`;
     }
     html += visible.map((s, i) => {
         const sVisible = !!(s.share_id && s.share_id !== "");
         const sPublished = s.status === "published";
+        const kind = storyKindMeta(s.kind);
         const ownerBtns = state.isOwner ? `
             <button class="vis-toggle pub ${sPublished ? 'off' : ''}" onclick="toggleStoryPublish('${s.id}', ${!sPublished}, event)" title="发布后进入主站幻灵世界广场">${sPublished ? '下架' : '发布'}</button>` : "";
         const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("stories", "/my-works.html") : "";
@@ -3441,7 +3672,7 @@ function renderStories() {
                 <div class="name">${escapeHtml(s.title || '未命名')}</div>
                 <div class="badges">
                     ${!sPublished ? `<span class="badge draft">未发布</span>` : ''}
-                    <span class="badge form${s.kind === 'card_rpg' ? ' rpg' : (s.kind === 'gacha_rogue' ? ' rogue' : (s.kind === 'h5_game' ? ' h5' : ''))}">${s.kind === 'h5_game' ? '🎮 H5' : (s.kind === 'gacha_rogue' ? '🂠 卡牌' : (s.kind === 'card_rpg' ? '⚔️ 卡牌RPG' : '故事作品'))}</span>
+                    <span class="badge form${kind.cls ? ' ' + kind.cls : ''}">${escapeHtml(kind.label)}</span>
                 </div>
             </div>
         </a>
@@ -3449,10 +3680,16 @@ function renderStories() {
     }).join("");
 
     if (!html) {
-        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${state.isOwner ? "还没有作品。" : "还没有公开的作品。"}</div>`;
+        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${state.isOwner
+            ? '还没有作品。<br><a class="empty-cta" href="/make.html">去做视觉小说</a>'
+            : "还没有公开的作品。"}</div>`;
+    } else if (!stories.length && state.isOwner) {
+        // only create cards — fine
+        grid.innerHTML = html;
     } else {
         grid.innerHTML = html;
     }
+    syncLibraryUI();
 }
 
 // 发布 = 进入幻灵世界广场（status='published'）；下架 = 从广场移除（draft）；主页始终可见
