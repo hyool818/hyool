@@ -2748,7 +2748,10 @@ function render() {
     if (state.isOwner) {
         document.getElementById("navEditBtn").addEventListener("click", openEditor);
         const vaultBtn = document.getElementById("navVaultBtn");
-        if (vaultBtn) vaultBtn.style.display = "flex";
+        if (vaultBtn) {
+            vaultBtn.style.display = "flex";
+            vaultBtn.href = "/my-vault?from=" + encodeURIComponent("/@" + state.username);
+        }
     }
 
     // 作品（角色 + 世界 + 故事作品）主人与访客都渲染：主人=全部，访客=公开作品

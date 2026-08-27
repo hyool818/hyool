@@ -8,7 +8,71 @@ const FILTERS = [
   ['audio', '音频'],
 ];
 
+const MAX_IMG_LOADS = 2;
 let catFilter = 'all';
+let imgLoading = 0;
+const imgWait = [];
+let vaultObserver = null;
+
+function setupBackNav() {
+  const el = document.getElementById('vaultBack');
+  if (!el) return;
+  const from = new URLSearchParams(location.search).get('from');
+  if (from && from.charAt(0) === '/' && from.charAt(1) !== '/') {
+    el.href = from;
+    return;
+  }
+  el.href = '/';
+  el.addEventListener('click', (e) => {
+    if (history.length > 1) {
+      e.preventDefault();
+      history.back();
+    }
+  });
+}
+
+function scheduleImgLoad(img, url) {
+  imgWait.push(() => {
+    imgLoading++;
+    const done = () => {
+      imgLoading = Math.max(0, imgLoading - 1);
+      pumpImgQueue();
+    };
+    img.addEventListener('load', () => {
+      img.classList.add('is-loaded');
+      done();
+    }, { once: true });
+    img.addEventListener('error', done, { once: true });
+    img.src = url;
+  });
+  pumpImgQueue();
+}
+
+function pumpImgQueue() {
+  while (imgLoading < MAX_IMG_LOADS && imgWait.length) {
+    const run = imgWait.shift();
+    if (run) run();
+  }
+}
+
+function observeThumb(img, url) {
+  img.dataset.src = url;
+  img.alt = '';
+  img.decoding = 'async';
+  if (!vaultObserver) {
+    vaultObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target;
+        vaultObserver.unobserve(el);
+        const u = el.dataset.src;
+        delete el.dataset.src;
+        if (u) scheduleImgLoad(el, u);
+      });
+    }, { rootMargin: '100px' });
+  }
+  vaultObserver.observe(img);
+}
 
 async function uploadFile(file) {
   if (!file || !file.size) return null;
@@ -43,6 +107,11 @@ async function loadVault() {
   const grid = $('#vaultGrid');
   const empty = $('#vaultEmpty');
   if (!grid) return;
+  if (vaultObserver) {
+    vaultObserver.disconnect();
+    vaultObserver = null;
+  }
+  imgWait.length = 0;
   grid.innerHTML = '<div class="vault-empty">加载中…</div>';
   try {
     const items = await fetchMyVault(catFilter);
@@ -74,17 +143,14 @@ async function loadVault() {
       thumb.className = 'thumb';
       if (a.type === 'image') {
         const img = document.createElement('img');
-        img.src = a.url;
-        img.alt = '';
-        img.loading = 'lazy';
+        observeThumb(img, a.url);
         thumb.appendChild(img);
       } else if (a.type === 'video') {
-        const v = document.createElement('video');
-        v.src = a.url;
-        v.muted = true;
-        v.playsInline = true;
-        v.preload = 'metadata';
-        thumb.appendChild(v);
+        const ic = document.createElement('div');
+        ic.className = 'ic';
+        ic.textContent = '▶';
+        ic.title = '视频 · 点击复制地址';
+        thumb.appendChild(ic);
       } else {
         const ic = document.createElement('div');
         ic.className = 'ic';
@@ -111,6 +177,7 @@ async function loadVault() {
 }
 
 function init() {
+  setupBackNav();
   const login = $('#vaultLogin');
   const app = $('#vaultApp');
   if (!vaultLoggedIn()) {
