@@ -171,8 +171,14 @@ function textEffect(b) {
   return e && TEXT_EFFECTS[e] ? e : 'none';
 }
 
+function sceneText(b) {
+  if (b.type !== 'scene') return '';
+  return String(b.content || '').trim();
+}
+
 function captionLabel(b) {
   if (b.type === 'dialogue') return b.speaker || DEFAULT_SPEAKER;
+  if (!sceneText(b)) return '';
   const sub = ensureSub(b);
   if (sub.showLabel === false) return '';
   return String(sub.label || '旁白').trim();
@@ -192,10 +198,13 @@ function captionContent(b) {
 }
 
 function hasCaption(b) {
-  return (b.type === 'dialogue' || b.type === 'scene') && !!captionContent(b);
+  if (b.type === 'scene') return !!sceneText(b);
+  if (b.type === 'dialogue') return !!captionContent(b);
+  return false;
 }
 
 function buildCaption(b, opts) {
+  if (b.type === 'scene' && !sceneText(b)) return null;
   const editing = !!(opts && opts.editing);
   const mode = textMode(b);
   const sz = getGlobalSubSize();
@@ -236,6 +245,7 @@ function buildCaption(b, opts) {
 function mountCaption(stage, b, editing) {
   if (!hasCaption(b)) return;
   const cap = buildCaption(b, { editing });
+  if (!cap) return;
   if (editing && textMode(b) === 'float') {
     bindCaptionDrag(cap, b, stage);
     const hint = document.createElement('div');
@@ -1336,10 +1346,12 @@ function renderPlay() {
   fore.addEventListener('click', playNext);
   if (hasCaption(b)) {
     const cap = buildCaption(b, { editing: false });
-    if (textMode(b) === 'float' || textMode(b) === 'fullscreen') {
-      frame.appendChild(cap);
-    } else {
-      fore.appendChild(cap);
+    if (cap) {
+      if (textMode(b) === 'float' || textMode(b) === 'fullscreen') {
+        frame.appendChild(cap);
+      } else {
+        fore.appendChild(cap);
+      }
     }
   }
   frame.appendChild(fore);
