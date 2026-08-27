@@ -765,6 +765,17 @@ async function loadWorld(){
     renderFeed();
     renderSide();
     updateHeader();
+    if (S.world.chat_requires_login) {
+      stopLoop();
+      const composer = document.querySelector(".composer");
+      if (composer) composer.style.display = "none";
+      const note = document.createElement("div");
+      note.className = "narrator";
+      note.innerHTML = '聊天记录彼此隔离。登录后开启只属于你的旅程 → <a href="/yonder.html?next=' +
+        encodeURIComponent(location.pathname + location.search) + '" style="color:#b7b7ff">去登录</a>';
+      $("feed").appendChild(note);
+      return;
+    }
     startLoop();
     maybeGapSummary();
   } catch (e) {

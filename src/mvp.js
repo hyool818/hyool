@@ -771,10 +771,11 @@ export async function handleMvpRoutes(
             // 生命世界：创建初始「主线」线程并指向它（kind='main'，不可手动删除，删除整个世界除外）
             if (type === "life" && worldJson) {
                 const threadId = "wt_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+                await ensureWorldThreadUserColumn(env);
                 await env.DB.prepare(
-                    `INSERT INTO world_threads (id, world_id, kind, scene_id, title, status, turn, created_at, updated_at)
-                     VALUES (?, ?, 'main', '', '主线', 'active', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-                ).bind(threadId, worldId).run();
+                    `INSERT INTO world_threads (id, world_id, kind, scene_id, title, status, turn, user_id, created_at, updated_at)
+                     VALUES (?, ?, 'main', '', '主线', 'active', 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+                ).bind(threadId, worldId, user.id).run();
                 worldJson.life.currentThreadId = threadId;
                 await env.DB.prepare(
                     "UPDATE worlds SET world_json = ? WHERE id = ?"
@@ -1359,9 +1360,8 @@ export async function handleMvpRoutes(
     const lifeNameMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/name$/);
     const lifeStoryMatch = pathname.match(/^\/api\/worlds\/(world_[a-z0-9_]+)\/life\/story$/);
 
-    // 校验生命世界归属；返回 { user, world } 或直接返回错误 Response
-    // opts.public=true 时，已发布（status='published'）的世界对游客放行，
-    // user 兜底为 { username:'游客' }（聊天/发言等仅需要展示名的场合可用）
+    // 校验生命世界归属；返回 { user, world, isGuest } 或错误 Response
+    // opts.public=true：已发布世界对登录访客放行（每人独立聊天线程）；未登录可看简介但无聊天记录
     async function requireOwnedLifeWorld(id, opts = {}) {
         const allowPublic = opts.public === true;
         const user = await getAuthenticatedUser(request);
@@ -1373,10 +1373,11 @@ export async function handleMvpRoutes(
             return json({ success: false, error: "这个世界不是生命世界。" }, 400);
         }
         if (user && world.owner_id === user.id) {
-            return { user, world };
+            return { user, world, isGuest: false, isOwner: true };
         }
         if (allowPublic && world.status === "published") {
-            return { user, world, isGuest: true };
+            // isGuest：未登录访客；登录访客 isOwner=false 且有 user
+            return { user: user || null, world, isGuest: !user, isOwner: false };
         }
         if (!user) {
             return json({ success: false, error: "请先登录。" }, 401);
@@ -1394,7 +1395,7 @@ export async function handleMvpRoutes(
         try {
             const auth = await requireOwnedLifeWorld(lifeMatch[1], { public: true });
             if (!auth.world) return auth;
-            return json(await formatLifeWorld(env, auth.world));
+            return json(await formatLifeWorld(env, auth.world, auth));
         } catch (error) {
             console.error("LIFE GET ERROR:", error);
             return json({ success: false, error: "世界加载失败。" }, 500);
@@ -1684,16 +1685,27 @@ export async function handleMvpRoutes(
         try {
             const auth = await requireOwnedLifeWorld(lifeThreadsMatch[1], { public: true });
             if (!auth.world) return auth;
+            if (!auth.user) {
+                return json({
+                    success: false,
+                    error: "请先登录后再进入世界聊天。",
+                    login_url: "/yonder.html?next=" + encodeURIComponent("/world?world=" + auth.world.id)
+                }, 401);
+            }
+            await ensureWorldThreadUserColumn(env);
             const body = await request.json();
             const kind = ["auto", "scene", "main"].includes(body.kind) ? body.kind : "auto";
             const sceneId = String(body.scene_id || "").slice(0, 40);
             const wj = await loadWorldJson(env, auth.world.id);
+            const threadUserId = auth.user.id;
+            const isOwner = !!auth.isOwner;
 
             let thread = null;
-            if (kind === "scene" && sceneId) {
+            if (kind === "scene" && sceneId && isOwner) {
                 const exist = await env.DB.prepare(
-                    `SELECT * FROM world_threads WHERE world_id = ? AND kind = 'scene' AND scene_id = ? AND status = 'active' LIMIT 1`
-                ).bind(auth.world.id, sceneId).first();
+                    `SELECT * FROM world_threads WHERE world_id = ? AND kind = 'scene' AND scene_id = ?
+                     AND status = 'active' AND (user_id IS NULL OR user_id = '' OR user_id = ?) LIMIT 1`
+                ).bind(auth.world.id, sceneId, threadUserId).first();
                 if (exist) thread = exist;
             }
 
@@ -1703,16 +1715,18 @@ export async function handleMvpRoutes(
                     : (String(body.title || "").trim().slice(0, 60) || (kind === "auto" ? "日常" : "主线"));
                 const id = "wt_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
                 await env.DB.prepare(
-                    `INSERT INTO world_threads (id, world_id, kind, scene_id, title, status, turn, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, 'active', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-                ).bind(id, auth.world.id, kind, sceneId, title).run();
-                thread = { id, world_id: auth.world.id, kind, scene_id: sceneId, title, status: "active", turn: 0 };
+                    `INSERT INTO world_threads (id, world_id, kind, scene_id, title, status, turn, user_id, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, 'active', 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+                ).bind(id, auth.world.id, kind, sceneId, title, threadUserId).run();
+                thread = { id, world_id: auth.world.id, kind, scene_id: sceneId, title, status: "active", turn: 0, user_id: threadUserId };
             }
 
-            wj.life.currentThreadId = thread.id;
-            await saveWorldJson(env, auth.world.id, wj);
+            if (isOwner) {
+                wj.life.currentThreadId = thread.id;
+                await saveWorldJson(env, auth.world.id, wj);
+            }
 
-            const threads = await loadWorldThreads(env, auth.world.id);
+            const threads = await loadWorldThreads(env, auth.world.id, { isOwner, ownerId: auth.world.owner_id, viewerId: threadUserId });
             return json({ success: true, thread: formatThread(thread), threads });
         } catch (error) {
             console.error("LIFE THREAD ERROR:", error);
@@ -1754,15 +1768,19 @@ export async function handleMvpRoutes(
                     // 理论上不应发生：始终有一条主线线程兜底
                     const id = "wt_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
                     await env.DB.prepare(
-                        `INSERT INTO world_threads (id, world_id, kind, scene_id, title, status, turn, created_at, updated_at)
-                         VALUES (?, ?, 'main', '', '主线', 'active', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-                    ).bind(id, auth.world.id).run();
+                        `INSERT INTO world_threads (id, world_id, kind, scene_id, title, status, turn, user_id, created_at, updated_at)
+                         VALUES (?, ?, 'main', '', '主线', 'active', 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+                    ).bind(id, auth.world.id, auth.user.id).run();
                     wj.life.currentThreadId = id;
                 }
                 await saveWorldJson(env, auth.world.id, wj);
             }
 
-            const threads = await loadWorldThreads(env, auth.world.id);
+            const threads = await loadWorldThreads(env, auth.world.id, {
+                isOwner: true,
+                ownerId: auth.world.owner_id,
+                viewerId: auth.user.id
+            });
             return json({ success: true, threads });
         } catch (error) {
             console.error("LIFE THREAD DELETE ERROR:", error);
@@ -1774,6 +1792,10 @@ export async function handleMvpRoutes(
         try {
             const auth = await requireOwnedLifeWorld(lifeThreadMetaMatch[1], { public: true });
             if (!auth.world) return auth;
+            if (!auth.user) {
+                return json({ success: false, error: "请先登录。" }, 401);
+            }
+            await ensureWorldThreadUserColumn(env);
             const body = await request.json();
             const threadId = String(body.thread_id || "").slice(0, 40);
             const thread = await env.DB.prepare(
@@ -1782,23 +1804,34 @@ export async function handleMvpRoutes(
             if (!thread) {
                 return json({ success: false, error: "线程不存在。" }, 404);
             }
+            const scope = { isOwner: !!auth.isOwner, ownerId: auth.world.owner_id, viewerId: auth.user.id };
+            if (!threadBelongsToViewer(thread, scope)) {
+                return json({ success: false, error: "无权修改该线程。" }, 403);
+            }
             const title = String(body.title || "").trim().slice(0, 60);
             if (title) {
                 await env.DB.prepare(
                     "UPDATE world_threads SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
                 ).bind(title, threadId).run();
             }
-            const wj = await loadWorldJson(env, auth.world.id);
-            wj.threadMeta = (wj.threadMeta && typeof wj.threadMeta === "object" && !Array.isArray(wj.threadMeta)) ? wj.threadMeta : {};
-            wj.threadMeta[threadId] = {
-                desc: String(body.desc || "").trim().slice(0, 800),
-                bg: String(body.bg || "").trim().slice(0, 1200)
-            };
-            await saveWorldJson(env, auth.world.id, wj);
+            // 共享 threadMeta 仅主人可写；访客只改自己线程标题
+            if (auth.isOwner) {
+                const wj = await loadWorldJson(env, auth.world.id);
+                wj.threadMeta = (wj.threadMeta && typeof wj.threadMeta === "object" && !Array.isArray(wj.threadMeta)) ? wj.threadMeta : {};
+                wj.threadMeta[threadId] = {
+                    desc: String(body.desc || "").trim().slice(0, 800),
+                    bg: String(body.bg || "").trim().slice(0, 1200)
+                };
+                await saveWorldJson(env, auth.world.id, wj);
+                const fresh = await env.DB.prepare(
+                    "SELECT id, world_id, kind, scene_id, title, status, turn, user_id, created_at, updated_at FROM world_threads WHERE id = ?"
+                ).bind(threadId).first();
+                return json({ success: true, thread: formatThread(fresh), meta: wj.threadMeta[threadId] });
+            }
             const fresh = await env.DB.prepare(
-                "SELECT id, world_id, kind, scene_id, title, status, turn, created_at, updated_at FROM world_threads WHERE id = ?"
+                "SELECT id, world_id, kind, scene_id, title, status, turn, user_id, created_at, updated_at FROM world_threads WHERE id = ?"
             ).bind(threadId).first();
-            return json({ success: true, thread: formatThread(fresh), meta: wj.threadMeta[threadId] });
+            return json({ success: true, thread: formatThread(fresh), meta: {} });
         } catch (error) {
             console.error("LIFE THREAD META ERROR:", error);
             return json({ success: false, error: "保存失败。" }, 500);
@@ -1888,7 +1921,9 @@ export async function handleMvpRoutes(
             wj.natives = (wj.natives || []).concat(created);
             await saveWorldJson(env, world.id, wj);
 
-            const thread = await pickLifeThread(env, world.id, wj, String(body.thread_id || ""));
+            const thread = await pickLifeThread(env, world.id, wj, String(body.thread_id || ""), {
+                isOwner: true, ownerId: world.owner_id, viewerId: auth.user.id
+            });
             let messages = [];
             let threadOut = null;
             if (thread) {
@@ -1925,8 +1960,17 @@ export async function handleMvpRoutes(
         try {
             const auth = await requireOwnedLifeWorld(lifeChatMatch[1], { public: true });
             if (!auth.world) return auth;
+            if (!auth.user) {
+                return json({
+                    success: false,
+                    error: "请先登录后再聊天，聊天记录仅自己可见。",
+                    login_url: "/yonder.html?next=" + encodeURIComponent("/world?world=" + auth.world.id)
+                }, 401);
+            }
+            await ensureWorldThreadUserColumn(env);
             const { world } = auth;
-            const userName = auth.isGuest === true ? "游客" : (auth.user ? auth.user.username : "游客");
+            const isOwner = !!auth.isOwner;
+            const userName = auth.user.username || "旅人";
             const body = await request.json();
             const message = String(body.message || "").trim().slice(0, 2000);
             if (!message) {
@@ -1934,26 +1978,33 @@ export async function handleMvpRoutes(
             }
 
             const wj = await loadWorldJson(env, world.id);
-            const thread = await pickLifeThread(env, world.id, wj, String(body.thread_id || ""));
+            const scope = { isOwner, ownerId: world.owner_id, viewerId: auth.user.id };
+            let thread = isOwner
+                ? await pickLifeThread(env, world.id, wj, String(body.thread_id || ""), scope)
+                : await ensurePersonalMainThread(env, world.id, auth.user.id);
             if (!thread) {
                 return json({ success: false, error: "还没有可用线程，请先创建线程。" }, 400);
             }
-            // 发言所在的线程成为当前线程（世界页重开时直接回到这里）
-            wj.life.currentThreadId = thread.id;
+            if (!threadBelongsToViewer(thread, scope)) {
+                return json({ success: false, error: "无权使用该线程。" }, 403);
+            }
 
-            // 用户发言
             const userMsg = await appendWorldMessages(env, thread.id, [
                 { actor: "user", name: userName, content: message }
             ]);
 
-            // 在场角色回应 1~2 名
             let recent = await loadThreadMessages(env, thread.id, 24);
             const activeCast = await activeCastForThread(env, world, wj, thread);
             const speakers = pickNextSpeakers(activeCast, recent, activeCast.length >= 3 ? 2 : 1);
             const replies = speakers.length
                 ? await runWorldTurn({ env, world, wj, thread, cast: activeCast, recent, speakers, userName, opening: false, mock: body.mock === true })
                 : [];
-            await saveWorldJson(env, world.id, wj);
+
+            // 仅主人回写共享世界状态；访客聊天互不影响
+            if (isOwner) {
+                wj.life.currentThreadId = thread.id;
+                await saveWorldJson(env, world.id, wj);
+            }
 
             return json({ success: true, messages: [...userMsg, ...replies] });
         } catch (error) {
@@ -1966,8 +2017,12 @@ export async function handleMvpRoutes(
         try {
             const auth = await requireOwnedLifeWorld(lifeTickMatch[1], { public: true });
             if (!auth.world) return auth;
+            // 世界自主运转只属于主人；访客不共享主人时间线
+            if (!auth.isOwner) {
+                return json({ success: true, skipped: true, reason: "visitor", messages: [] });
+            }
             const { world } = auth;
-            const userName = auth.isGuest === true ? "游客" : (auth.user ? auth.user.username : "游客");
+            const userName = auth.user ? auth.user.username : "旅人";
             const body = await request.json();
             const wj = await loadWorldJson(env, world.id);
             if (wj.life.paused) {
@@ -1994,12 +2049,21 @@ export async function handleMvpRoutes(
         try {
             const auth = await requireOwnedLifeWorld(lifeMessagesMatch[1], { public: true });
             if (!auth.world) return auth;
+            await ensureWorldThreadUserColumn(env);
+            if (!auth.user) {
+                return json({ success: true, thread: null, messages: [], chat_requires_login: true });
+            }
             const url = new URL(request.url);
             const threadId = url.searchParams.get("thread") || "";
             const after = parseInt(url.searchParams.get("after"), 10) || 0;
             const wj = await loadWorldJson(env, auth.world.id);
-            const thread = await pickLifeThread(env, auth.world.id, wj, threadId);
-            if (!thread) {
+            const scope = { isOwner: !!auth.isOwner, ownerId: auth.world.owner_id, viewerId: auth.user.id };
+            const thread = auth.isOwner
+                ? await pickLifeThread(env, auth.world.id, wj, threadId, scope)
+                : (threadId
+                    ? await pickLifeThread(env, auth.world.id, wj, threadId, scope)
+                    : await ensurePersonalMainThread(env, auth.world.id, auth.user.id));
+            if (!thread || !threadBelongsToViewer(thread, scope)) {
                 return json({ success: true, thread: null, messages: [] });
             }
             const result = await env.DB.prepare(
@@ -2037,7 +2101,9 @@ export async function handleMvpRoutes(
             if (!auth.world) return auth;
             const body = await request.json();
             const wj = await loadWorldJson(env, auth.world.id);
-            const thread = await pickLifeThread(env, auth.world.id, wj, String(body.thread_id || ""));
+            const thread = await pickLifeThread(env, auth.world.id, wj, String(body.thread_id || ""), {
+                isOwner: true, ownerId: auth.world.owner_id, viewerId: auth.user.id
+            });
             if (!thread) {
                 return json({ success: true, summary: "" });
             }
@@ -2785,25 +2851,11 @@ export async function handleMvpRoutes(
 
             const userMsgId = "msg_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
             const assistantMsgId = "msg_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+            const isCharOwner = character.owner_id === user.id;
             const newIntimacy = intimacy + 1;
 
-            // ---- Companion Engine：情绪落账 + 关系自动升温 + 家庭时间推进（惰性）----
-            companionState.emotion = applyEmotionToMessage(companionState, aiUserMessage);
-            companionState.relation = autoAdvanceRelation(companionState, newIntimacy);
-            const familyEvents = await advanceFamilyState(env, { character, ownerId: user.id, state: companionState });
-            const companionStateJson = JSON.stringify(companionState);
-
-            // 主动找你：亲密里程碑跨过 / 孩子出生 → 生成 inbox 条目
-            const inboxItems = [];
-            for (const t of milestoneTriggered(intimacy, newIntimacy)) {
-                inboxItems.push(buildMilestoneInbox(character, t));
-            }
-            if (familyEvents.includes("child")) {
-                const child = companionState.family.children[companionState.family.children.length - 1];
-                inboxItems.push(buildChildInbox(character, child));
-            }
-
-            await env.DB.batch([
+            // Companion Engine：仅主人会话回写角色上的共享亲密/家庭状态，避免访客互相污染
+            const batch = [
                 env.DB.prepare(
                     "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, 'user', ?, CURRENT_TIMESTAMP)"
                 ).bind(userMsgId, conversation.id, storedContent),
@@ -2812,21 +2864,48 @@ export async function handleMvpRoutes(
                 ).bind(assistantMsgId, conversation.id, aiResult.reply),
                 env.DB.prepare(
                     "UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                ).bind(conversation.id),
-                env.DB.prepare(
+                ).bind(conversation.id)
+            ];
+
+            let companionPayload = null;
+            if (isCharOwner) {
+                companionState.emotion = applyEmotionToMessage(companionState, aiUserMessage);
+                companionState.relation = autoAdvanceRelation(companionState, newIntimacy);
+                const familyEvents = await advanceFamilyState(env, { character, ownerId: user.id, state: companionState });
+                const companionStateJson = JSON.stringify(companionState);
+                batch.push(env.DB.prepare(
                     "UPDATE characters SET intimacy = ?, companion_state = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                ).bind(newIntimacy, companionStateJson, characterId),
-                ...inboxItems.map(item => env.DB.prepare(
-                    "INSERT INTO companion_inbox (id, user_id, character_id, kind, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
-                ).bind(
-                    "inb_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12),
-                    user.id,
-                    characterId,
-                    item.kind,
-                    item.title,
-                    item.body
-                ))
-            ]);
+                ).bind(newIntimacy, companionStateJson, characterId));
+
+                const inboxItems = [];
+                for (const t of milestoneTriggered(intimacy, newIntimacy)) {
+                    inboxItems.push(buildMilestoneInbox(character, t));
+                }
+                if (familyEvents.includes("child")) {
+                    const child = companionState.family.children[companionState.family.children.length - 1];
+                    inboxItems.push(buildChildInbox(character, child));
+                }
+                inboxItems.forEach((item) => {
+                    batch.push(env.DB.prepare(
+                        "INSERT INTO companion_inbox (id, user_id, character_id, kind, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+                    ).bind(
+                        "inb_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                        user.id,
+                        characterId,
+                        item.kind,
+                        item.title,
+                        item.body
+                    ));
+                });
+                companionPayload = {
+                    emotion: { label: companionState.emotion.label, intensity: companionState.emotion.intensity },
+                    relation: { stage: companionState.relation.stage, label: RELATION_LABEL[companionState.relation.stage] },
+                    family: companionState.family,
+                    intimacy: newIntimacy
+                };
+            }
+
+            await env.DB.batch(batch);
 
             if (aiResult.memory_note) {
                 await env.DB.prepare(
@@ -2864,10 +2943,10 @@ export async function handleMvpRoutes(
                     content: aiResult.reply
                 },
                 memories_count: memCount?.cnt || 0,
-                intimacy: newIntimacy,
-                emotion: { label: companionState.emotion.label, intensity: companionState.emotion.intensity },
-                relation: { stage: companionState.relation.stage, label: RELATION_LABEL[companionState.relation.stage] },
-                family: companionState.family,
+                intimacy: companionPayload ? companionPayload.intimacy : intimacy,
+                emotion: companionPayload ? companionPayload.emotion : null,
+                relation: companionPayload ? companionPayload.relation : null,
+                family: companionPayload ? companionPayload.family : null,
                 ai_mode: env.AI ? "workers-ai" : "mock"
             });
 
@@ -2897,6 +2976,9 @@ export async function handleMvpRoutes(
             const character = await getCharacterById(env, companionStateMatch[1]);
             if (!character) {
                 return json({ success: false, error: "角色不存在。" }, 404);
+            }
+            if (character.owner_id !== user.id) {
+                return json({ success: true, state: null, unread: [] });
             }
 
             const state = loadCompanionState(character);
@@ -3574,10 +3656,64 @@ async function resolveWorldCast(env, world, wj) {
     return cast;
 }
 
-async function loadWorldThreads(env, worldId) {
-    const result = await env.DB.prepare(
-        "SELECT id, world_id, kind, scene_id, title, status, turn, created_at, updated_at FROM world_threads WHERE world_id = ? AND status = 'active' ORDER BY updated_at DESC"
-    ).bind(worldId).all();
+async function ensureWorldThreadUserColumn(env) {
+    if (env.__worldThreadUserReady) return;
+    await env.DB.prepare("ALTER TABLE world_threads ADD COLUMN user_id TEXT DEFAULT ''").run().catch(() => {});
+    await env.DB.prepare(
+        "CREATE INDEX IF NOT EXISTS idx_world_threads_world_user ON world_threads(world_id, user_id)"
+    ).run().catch(() => {});
+    env.__worldThreadUserReady = true;
+}
+
+function threadBelongsToViewer(thread, scope) {
+    if (!thread || !scope) return false;
+    const uid = String(thread.user_id || "");
+    if (scope.isOwner) {
+        return !uid || uid === scope.ownerId || uid === scope.viewerId;
+    }
+    return !!scope.viewerId && uid === scope.viewerId;
+}
+
+async function ensurePersonalMainThread(env, worldId, userId) {
+    await ensureWorldThreadUserColumn(env);
+    const exist = await env.DB.prepare(
+        `SELECT * FROM world_threads
+         WHERE world_id = ? AND user_id = ? AND kind = 'main' AND status = 'active'
+         LIMIT 1`
+    ).bind(worldId, userId).first();
+    if (exist) return exist;
+    const id = "wt_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+    await env.DB.prepare(
+        `INSERT INTO world_threads (id, world_id, kind, scene_id, title, status, turn, user_id, created_at, updated_at)
+         VALUES (?, ?, 'main', '', '我的旅程', 'active', 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    ).bind(id, worldId, userId).run();
+    return {
+        id, world_id: worldId, kind: "main", scene_id: "", title: "我的旅程",
+        status: "active", turn: 0, user_id: userId
+    };
+}
+
+async function loadWorldThreads(env, worldId, scope = null) {
+    await ensureWorldThreadUserColumn(env);
+    let result;
+    if (scope && scope.isOwner) {
+        result = await env.DB.prepare(
+            `SELECT id, world_id, kind, scene_id, title, status, turn, user_id, created_at, updated_at
+             FROM world_threads
+             WHERE world_id = ? AND status = 'active'
+               AND (user_id IS NULL OR user_id = '' OR user_id = ?)
+             ORDER BY updated_at DESC`
+        ).bind(worldId, scope.ownerId || scope.viewerId || "").all();
+    } else if (scope && scope.viewerId) {
+        result = await env.DB.prepare(
+            `SELECT id, world_id, kind, scene_id, title, status, turn, user_id, created_at, updated_at
+             FROM world_threads
+             WHERE world_id = ? AND status = 'active' AND user_id = ?
+             ORDER BY updated_at DESC`
+        ).bind(worldId, scope.viewerId).all();
+    } else {
+        return [];
+    }
     return (result.results || []).map(formatThread);
 }
 
@@ -3589,6 +3725,7 @@ function formatThread(t) {
         title: t.title || "",
         status: t.status || "active",
         turn: Number(t.turn) || 0,
+        user_id: t.user_id || "",
         created_at: t.created_at,
         updated_at: t.updated_at
     };
@@ -3633,11 +3770,26 @@ async function appendWorldMessages(env, threadId, items) {
     return res.results || [];
 }
 
-/** 选定线程：优先指定 id，否则当前线程，否则最新活跃线程 */
-async function pickLifeThread(env, worldId, wj, threadId) {
-    const rows = await env.DB.prepare(
-        "SELECT * FROM world_threads WHERE world_id = ? AND status = 'active' ORDER BY updated_at DESC"
-    ).bind(worldId).all();
+/** 选定线程：优先指定 id，否则当前线程，否则最新活跃线程（按访问者隔离） */
+async function pickLifeThread(env, worldId, wj, threadId, scope = null) {
+    await ensureWorldThreadUserColumn(env);
+    let rows;
+    if (scope && !scope.isOwner && scope.viewerId) {
+        rows = await env.DB.prepare(
+            `SELECT * FROM world_threads WHERE world_id = ? AND status = 'active' AND user_id = ?
+             ORDER BY updated_at DESC`
+        ).bind(worldId, scope.viewerId).all();
+    } else if (scope && scope.isOwner) {
+        rows = await env.DB.prepare(
+            `SELECT * FROM world_threads WHERE world_id = ? AND status = 'active'
+             AND (user_id IS NULL OR user_id = '' OR user_id = ?)
+             ORDER BY updated_at DESC`
+        ).bind(worldId, scope.ownerId || "").all();
+    } else {
+        rows = await env.DB.prepare(
+            "SELECT * FROM world_threads WHERE world_id = ? AND status = 'active' ORDER BY updated_at DESC"
+        ).bind(worldId).all();
+    }
     const list = rows.results || [];
     if (!list.length) return null;
 
@@ -3645,7 +3797,7 @@ async function pickLifeThread(env, worldId, wj, threadId) {
         const hit = list.find((t) => t.id === threadId);
         if (hit) return hit;
     }
-    if (wj.life.currentThreadId) {
+    if (scope && scope.isOwner && wj.life.currentThreadId) {
         const cur = list.find((t) => t.id === wj.life.currentThreadId);
         if (cur) return cur;
     }
@@ -4159,7 +4311,9 @@ async function applyStoryBeat(env, world, wj, thread, cast, beat) {
 async function maybeRunStatePulse(env, world, wj, mock) {
     if (!wj.state) wj.state = {};
     const state = wj.state;
-    const threads = await loadWorldThreads(env, world.id);
+    const threads = await loadWorldThreads(env, world.id, {
+        isOwner: true, ownerId: world.owner_id, viewerId: world.owner_id
+    });
     const pulsedSeqs = (state.pulsedSeqs && typeof state.pulsedSeqs === "object" && !Array.isArray(state.pulsedSeqs))
         ? state.pulsedSeqs
         : (state.pulsedSeqs = {});
@@ -4200,7 +4354,9 @@ async function runWorldTickCore(env, world, wj, speakerCount, threadId, userName
     if (!cast.length) {
         return { skipped: true, reason: "no-cast", messages: [] };
     }
-    const thread = await pickLifeThread(env, world.id, wj, threadId);
+    const thread = await pickLifeThread(env, world.id, wj, threadId, {
+        isOwner: true, ownerId: world.owner_id, viewerId: world.owner_id
+    });
     if (!thread) {
         return { skipped: true, reason: "no-thread", messages: [] };
     }
@@ -4234,12 +4390,65 @@ async function runWorldTickCore(env, world, wj, speakerCount, threadId, userName
     return { skipped: !messages.length, reason: messages.length ? "" : "no-line", messages, beat };
 }
 
-/** 生命世界完整视图（world.html 首次加载用） */
-async function formatLifeWorld(env, world) {
+/** 生命世界完整视图（world.html 首次加载用）；聊天按访问者隔离 */
+async function formatLifeWorld(env, world, auth = null) {
+    await ensureWorldThreadUserColumn(env);
     const wj = parseWorldJson(world);
     const cast = await resolveWorldCast(env, world, wj);
-    const threads = await loadWorldThreads(env, world.id);
-    let thread = threads.find((t) => t.id === wj.life.currentThreadId) || threads[0] || null;
+    const isOwner = !!(auth && auth.isOwner);
+    const viewerId = auth && auth.user ? auth.user.id : null;
+
+    // 未登录访客：只看世界简介，不暴露任何人的聊天
+    if (!isOwner && !viewerId) {
+        return {
+            success: true,
+            world: {
+                id: world.id,
+                owner_id: world.owner_id,
+                name: world.name,
+                description: world.description,
+                cover_image: world.cover_image,
+                status: world.status,
+                type: world.type,
+                background: wj.background,
+                natives: wj.natives,
+                relations: wj.relations,
+                scenes: wj.scenes,
+                areas: wj.areas,
+                threadMeta: {},
+                life: { ...wj.life, currentThreadId: "" },
+                state: wj.state,
+                cast,
+                threads: [],
+                currentThread: null,
+                messages: [],
+                chat_requires_login: true
+            }
+        };
+    }
+
+    const scope = { isOwner, ownerId: world.owner_id, viewerId };
+    let threads = await loadWorldThreads(env, world.id, scope);
+    let thread = null;
+    if (isOwner) {
+        thread = threads.find((t) => t.id === wj.life.currentThreadId) || threads[0] || null;
+        // 兼容旧数据：主线程尚无 user_id 时仍可读
+        if (!thread) {
+            const legacy = await env.DB.prepare(
+                `SELECT * FROM world_threads WHERE world_id = ? AND status = 'active' ORDER BY created_at ASC LIMIT 1`
+            ).bind(world.id).first();
+            if (legacy) {
+                thread = formatThread(legacy);
+                threads = [thread];
+            }
+        }
+    } else {
+        const personal = await ensurePersonalMainThread(env, world.id, viewerId);
+        thread = formatThread(personal);
+        threads = await loadWorldThreads(env, world.id, scope);
+        if (!threads.find((t) => t.id === thread.id)) threads = [thread, ...threads];
+    }
+
     const messages = thread ? await loadThreadMessages(env, thread.id, 60) : [];
     return {
         success: true,
@@ -4256,13 +4465,15 @@ async function formatLifeWorld(env, world) {
             relations: wj.relations,
             scenes: wj.scenes,
             areas: wj.areas,
-            threadMeta: wj.threadMeta,
-            life: wj.life,
-            state: wj.state,
+            threadMeta: isOwner ? wj.threadMeta : {},
+            life: isOwner ? wj.life : { ...wj.life, currentThreadId: thread ? thread.id : "" },
+            state: isOwner ? wj.state : { tickCount: 0 },
             cast,
             threads,
             currentThread: thread,
-            messages
+            messages,
+            chat_requires_login: false,
+            is_owner: isOwner
         }
     };
 }

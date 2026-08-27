@@ -1324,11 +1324,35 @@ async function sendMessage() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const isOwner = await checkAuth();
+  const loggedIn = await checkAuth();
   if (!getCharId()) { location.href = "/plaza"; return; }
 
-  // 访客（未登录 / 历史游客已清理）：只读展示角色卡，隐藏仅主人功能与聊天
-  if (!isOwner) {
+  let me = null;
+  if (loggedIn) {
+    try {
+      const h = {};
+      const t = localStorage.getItem("hyool_token");
+      if (t) h.Authorization = "Bearer " + t;
+      const res = await fetch("/api/me", { credentials: "include", cache: "no-store", headers: h });
+      const data = await res.json();
+      if (data.authenticated && data.user) me = data.user;
+    } catch {}
+  }
+
+  // 先取角色，判断是否主人（登录 ≠ 主人）
+  let charOwnerId = "";
+  try {
+    const cres = await api("/api/characters/" + getCharId());
+    if (cres.success && cres.character) {
+      character = cres.character;
+      charOwnerId = cres.character.owner_id || "";
+    }
+  } catch {}
+
+  const isCharOwner = !!(loggedIn && me && charOwnerId && me.id === charOwnerId);
+
+  // 未登录：只读卡面，不加载任何人的聊天
+  if (!loggedIn) {
     ["scriptBtn", "settingsBtn", "logoutBtn", "changePortraitBtn"].forEach(id => {
       const el = $(id);
       if (el) el.style.display = "none";
@@ -1339,8 +1363,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     note.className = "guest-login-note";
     const bt = buddyBackTarget();
     const nextPath = location.pathname + (bt.startsWith("/@") ? "?from=" + encodeURIComponent(bt) : "");
-    note.innerHTML = 'TA 的故事从这里开始。登录后与 TA 聊天 → <a href="/yonder.html?next=' + encodeURIComponent(nextPath) + '">去登录</a>';
+    note.innerHTML = 'TA 的故事从这里开始。登录后开启只属于你的对话 → <a href="/yonder.html?next=' + encodeURIComponent(nextPath) + '">去登录</a>';
     $("chatInner").appendChild(note);
+  } else if (!isCharOwner) {
+    // 登录访客：可聊，但是私密会话；隐藏主人专属控件
+    ["scriptBtn", "settingsBtn", "changePortraitBtn"].forEach(id => {
+      const el = $(id);
+      if (el) el.style.display = "none";
+    });
   }
 
   const backBtn = $("backBtn");
@@ -1356,6 +1386,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 沉淀为剧本：对话 → LLM → worlds.script_json
   $("scriptBtn").addEventListener("click", async () => {
+    if (!isCharOwner) { toast("只有角色主人可以沉淀剧本。"); return; }
     const btn = $("scriptBtn");
     btn.disabled = true; btn.textContent = "🎬 沉淀中…";
     try {
@@ -1370,9 +1401,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
           const t = localStorage.getItem("hyool_token");
           const h = t ? { Authorization: "Bearer " + t } : {};
-          const me = await fetch("/api/me", { credentials: "include", headers: h }).then(r => r.json());
-          if (me.authenticated && me.user?.username) {
-            location.href = "/@" + encodeURIComponent(me.user.username) + "?world=" + encodeURIComponent(w.id);
+          const me2 = await fetch("/api/me", { credentials: "include", headers: h }).then(r => r.json());
+          if (me2.authenticated && me2.user?.username) {
+            location.href = "/@" + encodeURIComponent(me2.user.username) + "?world=" + encodeURIComponent(w.id);
             return;
           }
         } catch {}
@@ -1393,6 +1424,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Settings
   $("settingsBtn").addEventListener("click", () => {
+    if (!isCharOwner) return;
     updateSettingsUI();
     $("settingsOverlay").classList.add("show");
   });
@@ -1495,9 +1527,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }, { passive: true });
   window.addEventListener("touchend", () => { cropState.drag = false; });
 
-  if (isOwner) {
+  if (loggedIn) {
+    // 每名登录用户各自会话；主人额外加载亲密/家庭状态
     await loadMessages();
-    loadCompanionState(); // fire-and-forget：情绪/关系/家庭 + TA 主动留话
+    if (isCharOwner) loadCompanionState();
   } else {
     await loadVisitorCharacter();
   }
