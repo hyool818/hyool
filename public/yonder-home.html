@@ -4652,11 +4652,16 @@ function openCropModal(file, mode) {
             : "裁剪头像";
 
     const reader = new FileReader();
+    reader.onerror = function() {
+        alert("无法读取该图片，请换 JPG / PNG / WebP 格式。");
+    };
     reader.onload = function(e) {
         const img = new Image();
+        img.onerror = function() {
+            alert("无法解析该图片，请换 JPG / PNG / WebP 格式。");
+        };
         img.onload = function() {
             if (!img.width || !img.height) {
-                // 无固有尺寸的 SVG：无法计算显示区域，直接直传原文件（cover 显示）
                 closeCropModal();
                 const fd = new FormData();
                 fd.append("file", file);
@@ -4673,12 +4678,15 @@ function openCropModal(file, mode) {
                 })
                     .then(r => r.json())
                     .then(data => {
-                        if (data.success) {
+                        if (!data.success) throw new Error(data.error || "上传失败");
+                        if (mode === "avatar") {
+                            document.getElementById("editAvatarUrl").value = data.url;
+                            document.getElementById("avatarPreview").innerHTML =
+                                '<img src="' + escapeHtml(data.url) + '" alt="">';
+                        } else {
                             document.getElementById("backgroundValue").value = data.url;
                             document.getElementById("backgroundType").value = "image";
                             document.getElementById("backgroundRegion").value = "";
-                        } else {
-                            throw new Error(data.error || "上传失败");
                         }
                     })
                     .catch(err => alert(err.message || "上传失败。"));
@@ -4718,9 +4726,10 @@ async function confirmCrop() {
 
     const isBg = cropState.mode === "background" || cropState.mode === "background-anim";
     const isAnim = cropState.mode === "background-anim";
+    const img = cropState.img;
     const scale = cropState.baseScale * cropState.zoom;
-    const sw = cropState.img.width * scale;
-    const sh = cropState.img.height * scale;
+    const sw = img.width * scale;
+    const sh = img.height * scale;
     const imgStartX = cropState.stageW / 2 - sw / 2 + cropState.offsetX;
     const imgStartY = cropState.stageH / 2 - sh / 2 + cropState.offsetY;
     const cropX = (cropState.stageW - cropState.cropW) / 2;
@@ -4731,36 +4740,34 @@ async function confirmCrop() {
     const srcW = cropState.cropW / scale;
     const srcH = cropState.cropH / scale;
 
-    const imgW = cropState.img.width;
-    const imgH = cropState.img.height;
+    const imgW = img.width;
+    const imgH = img.height;
     const rawFile = cropState.rawFile;
 
     closeCropModal();
 
-    const formData = new FormData();
-
-    if (isAnim) {
-        // 动图 / SVG：不重编码，保留动画与矢量，直传原文件
-        formData.append("file", rawFile);
-    } else {
-        const out = document.createElement("canvas");
-        out.width = isBg ? 1920 : 256;
-        out.height = isBg ? 1080 : 256;
-        const octx = out.getContext("2d");
-        octx.drawImage(cropState.img, srcX, srcY, srcW, srcH, 0, 0, out.width, out.height);
-
-        const blob = await new Promise(resolve =>
-            out.toBlob(resolve, isBg ? "image/jpeg" : "image/png", isBg ? 0.9 : undefined)
-        );
-        if (!blob) {
-            if (btn) btn.disabled = false;
-            alert("裁剪失败，请重试。");
-            return;
-        }
-        formData.append("file", blob, isBg ? "background.jpg" : "avatar.png");
-    }
-
     try {
+        const formData = new FormData();
+
+        if (isAnim) {
+            formData.append("file", rawFile);
+        } else {
+            const out = document.createElement("canvas");
+            out.width = isBg ? 1920 : 256;
+            out.height = isBg ? 1080 : 256;
+            const octx = out.getContext("2d");
+            octx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, out.width, out.height);
+
+            const blob = await new Promise(resolve =>
+                out.toBlob(resolve, isBg ? "image/jpeg" : "image/png", isBg ? 0.9 : undefined)
+            );
+            if (!blob) {
+                alert("裁剪失败，请重试。");
+                return;
+            }
+            formData.append("file", blob, isBg ? "background.jpg" : "avatar.png");
+        }
+
         const response = await fetch("/api/upload", {
             method: "POST",
             credentials: "include",
