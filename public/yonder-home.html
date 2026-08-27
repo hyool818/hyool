@@ -3303,9 +3303,9 @@ function renderStories() {
 
     let html = "";
     if (state.isOwner) {
-        html += `<a href="/story-editor" class="create-card">
+        html += `<a href="/studio.html" class="create-card">
             <div class="plus">+</div>
-            <div class="label">创造作品</div>
+            <div class="label">新建作品</div>
         </a>`;
     }
     html += visible.map((s, i) => {
@@ -3313,7 +3313,7 @@ function renderStories() {
         const sPublished = s.status === "published";
         const ownerBtns = state.isOwner ? `
             <button class="vis-toggle pub ${sPublished ? 'off' : ''}" onclick="toggleStoryPublish('${s.id}', ${!sPublished}, event)" title="发布后进入主站幻灵世界广场">${sPublished ? '下架' : '发布'}</button>` : "";
-        const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("stories", "/story-editor") : "";
+        const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("stories", "/my-works.html") : "";
         return `
         <a class="world-card${sVisible ? '' : ' hidden-card'}" href="${storyPlayUrl(s)}">
             ${viewAll}

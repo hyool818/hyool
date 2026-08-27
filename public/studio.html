@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>创作 · HYOOL</title>
+<link rel="stylesheet" href="/workspace/css/workspace.css">
+<style>
+.studio-main{max-width:960px;margin:0 auto;padding:0 16px 56px}
+.studio-hero{margin:16px 0 28px}
+.studio-hero h1{font-size:clamp(26px,5vw,36px);margin:0 0 10px;letter-spacing:.04em;font-weight:700}
+.studio-hero .lead{color:var(--muted);font-size:14px;line-height:1.75;max-width:640px}
+.studio-hero .pill{display:inline-block;margin-top:12px;padding:6px 14px;border-radius:999px;font-size:11px;
+  border:1px solid rgba(139,123,255,.4);background:rgba(139,123,255,.1);color:#cfc8ff}
+.studio-pillar{margin-bottom:36px}
+.studio-pillar-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.studio-pillar-head h2{font-size:18px;margin:0;letter-spacing:.06em}
+.studio-pillar-head span{font-size:12px;color:var(--muted)}
+.studio-group{margin-bottom:18px}
+.studio-group-title{font-size:11px;letter-spacing:.14em;color:var(--muted);margin-bottom:8px;text-transform:uppercase}
+.studio-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.studio-card{display:flex;flex-direction:column;gap:8px;padding:16px;border-radius:12px;border:1px solid var(--line2);
+  background:linear-gradient(180deg,#14141e,#0e0e16);text-decoration:none;color:inherit;transition:.15s;min-height:120px}
+.studio-card:hover{border-color:rgba(139,123,255,.5);transform:translateY(-1px)}
+.studio-card.featured{border-color:rgba(139,123,255,.45);background:linear-gradient(145deg,rgba(139,123,255,.12),#101018)}
+.studio-card .ic{font-size:22px;line-height:1}
+.studio-card .t{font-size:14px;font-weight:600}
+.studio-card .d{font-size:11px;color:var(--muted);line-height:1.65;flex:1}
+.studio-card .go{font-size:11px;color:var(--accent2);margin-top:auto}
+.studio-card.soon{opacity:.55;pointer-events:none}
+.studio-util{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:20px;border-top:1px solid var(--line)}
+.studio-util a,.studio-util button{font-size:12px;padding:8px 14px;border-radius:8px;border:1px solid var(--line2);
+  background:#12121c;color:var(--muted);text-decoration:none;cursor:pointer;font-family:inherit}
+.studio-util a:hover,.studio-util button:hover{color:var(--text);border-color:rgba(255,255,255,.25)}
+.studio-diagram{font-size:11px;color:var(--muted);line-height:1.8;margin-top:24px;padding:14px 16px;border-radius:10px;
+  border:1px dashed var(--line2);font-family:ui-monospace,monospace;white-space:pre;overflow-x:auto}
+.top-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.top-actions a{font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid var(--line2);color:var(--muted);text-decoration:none}
+.top-actions a:hover{color:#fff;border-color:rgba(139,123,255,.45)}
+</style>
+</head>
+<body>
+<div class="hub">
+  <header class="hub-topbar">
+    <a class="back" href="/">← 首页</a>
+    <div class="hub-brand">
+      <span class="hub-brand-name">HYOOL</span>
+      <span class="hub-brand-en">CREATE · PLAY · SHARE</span>
+    </div>
+    <div class="top-actions">
+      <a href="/plaza">去玩</a>
+      <a href="/yonder.html" id="studioMeLink">我的</a>
+    </div>
+  </header>
+
+  <main class="studio-main">
+    <section class="studio-hero">
+      <h1>零基础，做出能玩的作品</h1>
+      <p class="lead">HYOOL 帮普通人把审美变成<strong>视觉小说、游戏、漫画</strong>等成品。AI 帮你起步，改完<strong>立刻试玩</strong>，满意再发布到主页与广场。</p>
+      <span class="pill">AI 辅助 · 实时预览 · 站内闭环可玩</span>
+    </section>
+
+    <!-- AI 入口 -->
+    <section class="studio-pillar">
+      <div class="studio-pillar-head">
+        <h2>最快开始</h2>
+        <span>零想法也能开写</span>
+      </div>
+      <div class="studio-grid">
+        <a class="studio-card featured" href="/brain.html">
+          <span class="ic">◎</span>
+          <span class="t">AI 一句话出作品</span>
+          <span class="d">说你想做什么 → 确认企划 → 自动生成骨架，进编辑器改字加图就能播。</span>
+          <span class="go">打开 AI 中枢 →</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- 创作作品 -->
+    <section class="studio-pillar" id="works">
+      <div class="studio-pillar-head">
+        <h2>创作作品</h2>
+        <span>故事 · 游戏 · 画面</span>
+      </div>
+
+      <div class="studio-group">
+        <div class="studio-group-title">故事</div>
+        <div class="studio-grid">
+          <a class="studio-card" href="/story-editor.html?new=story">
+            <span class="ic">📖</span>
+            <span class="t">互动小说</span>
+            <span class="d">场景 + 对白 + 选项分支。像读故事，但能点选改结局。</span>
+            <span class="go">开始创作 →</span>
+          </a>
+          <a class="studio-card" href="/story-editor.html?new=story&amp;mode=visual">
+            <span class="ic">🎬</span>
+            <span class="t">视觉小说</span>
+            <span class="d">立绘 + 背景 + 配音。同一编辑器，侧重画面演出。</span>
+            <span class="go">开始创作 →</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="studio-group">
+        <div class="studio-group-title">游戏</div>
+        <div class="studio-grid">
+          <a class="studio-card" href="/story-editor.html?new=card">
+            <span class="ic">🂠</span>
+            <span class="t">卡牌游戏</span>
+            <span class="d">填角色和关卡表，挂机 / 自动战 / 每局不同，改完就能打。</span>
+            <span class="go">开始创作 →</span>
+          </a>
+          <a class="studio-card" href="/h5-game.html">
+            <span class="ic">🎮</span>
+            <span class="t">H5 网页游戏</span>
+            <span class="d">粘贴 Cocos / Phaser 构建地址，站内 iframe 即玩、可发布。</span>
+            <span class="go">进入工坊 →</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="studio-group">
+        <div class="studio-group-title">视觉</div>
+        <div class="studio-grid">
+          <a class="studio-card" href="/story-editor.html?new=comic">
+            <span class="ic">📚</span>
+            <span class="t">漫画</span>
+            <span class="d">分格画布 + 气泡对白。一格一格填，像做条漫。</span>
+            <span class="go">开始创作 →</span>
+          </a>
+          <div class="studio-card soon">
+            <span class="ic">✨</span>
+            <span class="t">动态漫画</span>
+            <span class="d">分格 + 轻动效（筹备中）。</span>
+            <span class="go">敬请期待</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="studio-group">
+        <div class="studio-group-title">声音 · 影像（工具）</div>
+        <div class="studio-grid">
+          <a class="studio-card" href="/workspace.html">
+            <span class="ic">🖼</span>
+            <span class="t">图片 / 视频工具</span>
+            <span class="d">抠图、压缩、简单剪辑。做完把地址贴进作品里。</span>
+            <span class="go">打开工具箱 →</span>
+          </a>
+          <div class="studio-card soon">
+            <span class="ic">♪</span>
+            <span class="t">音乐工作室</span>
+            <span class="d">MIDI 编曲（筹备中）。</span>
+            <span class="go">敬请期待</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 创造世界 -->
+    <section class="studio-pillar" id="world">
+      <div class="studio-pillar-head">
+        <h2>创造世界</h2>
+        <span>角色 · 世界 · IP</span>
+      </div>
+      <div class="studio-grid">
+        <a class="studio-card" href="/create.html">
+          <span class="ic">👤</span>
+          <span class="t">创建角色</span>
+          <span class="d">快速捏一个 AI 角色：名字、性格、形象。可聊天、可进世界。</span>
+          <span class="go">去创角 →</span>
+        </a>
+        <a class="studio-card" href="/hub">
+          <span class="ic">🌍</span>
+          <span class="t">生命世界</span>
+          <span class="d">把角色放进一个会运转的世界：关系、场景、自动剧情。</span>
+          <span class="go">我的彼岸 →</span>
+        </a>
+        <a class="studio-card" href="/plaza">
+          <span class="ic">🏛</span>
+          <span class="t">幻灵广场</span>
+          <span class="d">逛别人发布的作品与世界，找灵感、直接玩。</span>
+          <span class="go">去玩 →</span>
+        </a>
+        <a class="studio-card" href="/my-vault.html">
+          <span class="ic">🗄</span>
+          <span class="t">我的素材库</span>
+          <span class="d">云端存图 / 配音 / 视频，作品里复用。</span>
+          <span class="go">打开专属库 →</span>
+        </a>
+      </div>
+    </section>
+
+    <div class="studio-util">
+      <a href="/my-works.html">我的全部作品</a>
+      <a href="/yonder.html">登录 / 注册</a>
+      <a href="/workspace.html">高级图片工具</a>
+    </div>
+
+    <details style="margin-top:20px">
+      <summary style="cursor:pointer;color:var(--muted);font-size:12px">产品结构（给想了解的人）</summary>
+      <pre class="studio-diagram">HYOOL
+├── 创作作品 · 故事 / 游戏 / 视觉
+│   └── 底层：作品编辑器 + 素材 + 时间轴 + 互动引擎
+└── 创造世界 · 角色 / 世界 / IP
+    └── 底层：角色库 + 生命世界 + 个人主页</pre>
+    </details>
+  </main>
+</div>
+<script>
+(function () {
+  var t = localStorage.getItem('hyool_token');
+  var me = document.getElementById('studioMeLink');
+  if (t && me) me.textContent = '我的主页';
+  if (location.hash === '#world') {
+    var el = document.getElementById('world');
+    if (el) setTimeout(function () { el.scrollIntoView({ behavior: 'smooth' }); }, 100);
+  }
+})();
+</script>
+</body>
+</html>

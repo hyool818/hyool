@@ -392,6 +392,17 @@ body{
    FOUR POSITIONS
 ========================================================= */
 
+.light.yonder,
+.light.infinite{
+    display:none !important;
+    pointer-events:none;
+}
+
+.light.fantasy,
+.light.life{
+    cursor:pointer;
+}
+
 .light.fantasy{
     left:50%;
     top:28%;
@@ -1366,21 +1377,21 @@ body{
 
     <div
         class="light fantasy"
-        data-world="fantasy"
+        data-world="create"
     >
 
         <div class="light-label">
 
             <div class="light-name">
-                幻想
+                创作作品
             </div>
 
             <div class="light-meaning">
-                让想象成为作品。
+                故事 · 游戏 · 漫画，改完就能玩。
             </div>
 
             <div class="light-tags">
-                AI 图片 · 视频 · 音乐 · 故事 · 角色
+                互动小说 · 卡牌 · H5 · 漫画 · AI 一句话
             </div>
 
         </div>
@@ -1388,83 +1399,43 @@ body{
     </div>
 
 
-    <!-- ===================================================
-         YONDER
-    ==================================================== -->
+    <!-- 彼岸入口改到底栏；此处隐藏旧光点 -->
 
     <div
         class="light yonder"
         data-world="yonder"
-    >
+        aria-hidden="true"
+    ></div>
 
-        <div class="light-label">
-
-            <div class="light-name">
-                彼岸
-            </div>
-
-            <div class="light-meaning">
-                让作品抵达彼岸。
-            </div>
-
-            <div class="light-tags">
-                展示 · 分享 · 发现 · 个人空间 · 社区
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <!-- ===================================================
-         INFINITE
-    ==================================================== -->
 
     <div
         class="light infinite"
         data-world="infinite"
-    >
-
-        <div class="light-label">
-
-            <div class="light-name">
-                无限
-            </div>
-
-            <div class="light-meaning">
-                让创造拥有无限可能。
-            </div>
-
-            <div class="light-tags">
-                AI 模型 · 工具 · 素材 · 工作流 · 实验
-            </div>
-
-        </div>
-
-    </div>
+        aria-hidden="true"
+    ></div>
 
 
     <!-- ===================================================
-         LIFE
+         创造世界
     ==================================================== -->
 
     <div
         class="light life"
-        data-world="life"
+        data-world="world"
     >
 
         <div class="light-label">
 
             <div class="light-name">
-                生命
+                创造世界
             </div>
 
             <div class="light-meaning">
-                让创造拥有真正的存在。
+                角色 · 世界 · IP，让作品有根。
             </div>
 
             <div class="light-tags">
-                AI 角色 · 数字人格 · 智能体 · 虚拟生命
+                创角 · 生命世界 · 素材库 · 广场
             </div>
 
         </div>
@@ -1479,17 +1450,13 @@ body{
     <div class="core">
 
         <div class="core-cn">
-            <span class="core-entry" data-world="fantasy">幻想</span>
+            <span class="core-entry" data-world="create">创作作品</span>
             <span class="core-sep">×</span>
-            <span class="core-entry" data-world="yonder">彼岸</span>
-            <span class="core-sep">×</span>
-            <span class="core-entry" data-world="infinite">无限</span>
-            <span class="core-sep">×</span>
-            <span class="core-entry" data-world="life">生命</span>
+            <span class="core-entry" data-world="world">创造世界</span>
         </div>
 
         <div class="core-en">
-            Fantasy · Yonder · Infinite · Life
+            Create Works · Create World
         </div>
 
     </div>
@@ -1502,11 +1469,11 @@ body{
     <div class="world-slogan">
 
         <div class="line-one">
-            自幻想，奔赴彼岸。
+            零基础，也能做出能玩的作品。
         </div>
 
         <div class="line-two">
-            于无限，孕育生命。
+            AI 辅助 · 实时预览 · 站内发布
         </div>
 
     </div>
@@ -1519,7 +1486,14 @@ body{
     <div class="realm">
 
         <div class="realm-title">
-            HYOOL REALM
+            HYOOL
+        </div>
+
+        <div class="home-util" style="margin-top:14px;display:flex;flex-wrap:wrap;justify-content:center;gap:10px 18px;font-size:11px;letter-spacing:.08em">
+            <a href="/plaza" style="color:rgba(255,255,255,.55);text-decoration:none">去玩</a>
+            <a href="/yonder.html" style="color:rgba(255,255,255,.55);text-decoration:none">我的</a>
+            <a href="/brain.html" style="color:rgba(255,255,255,.55);text-decoration:none">AI 中枢</a>
+            <a href="/workspace.html" style="color:rgba(255,255,255,.55);text-decoration:none">图片工具</a>
         </div>
 
     </div>
@@ -1821,6 +1795,17 @@ document.addEventListener(
    CORE ENTRY CLICKS (center text = world entrances)
 ========================================================= */
 
+function goWorld(worldName){
+    let href = null;
+    if (worldName === "create" || worldName === "fantasy") href = "studio.html";
+    else if (worldName === "world" || worldName === "life") href = "studio.html#world";
+    else if (worldName === "yonder") href = "yonder.html";
+    else if (worldName === "infinite") href = "workspace.html";
+    if (!href) return;
+    world.classList.add("entering-world");
+    setTimeout(() => { window.location.href = href; }, 650);
+}
+
 document.querySelectorAll(".core-entry").forEach(
     entry => {
 
@@ -1830,130 +1815,36 @@ document.querySelectorAll(".core-entry").forEach(
 
                 event.stopPropagation();
 
-                const worldName =
-                    entry.dataset.world;
-
-
-                /* =========================================
-                   彼岸：正式进入
-                ========================================= */
-
-                if(
-                    worldName === "yonder"
-                ){
-
-                    world.classList.add(
-                        "entering-world"
-                    );
-
-
-                    setTimeout(
-                        () => {
-
-                            window.location.href =
-                                "yonder.html";
-
-                        },
-                        650
-                    );
-
-
-                    return;
-
-                }
-
-
-                /* =========================================
-                   无限：进入工作区
-                ========================================= */
-
-                if(
-                    worldName === "infinite"
-                ){
-
-                    world.classList.add(
-                        "entering-world"
-                    );
-
-
-                    setTimeout(
-                        () => {
-
-                            window.location.href =
-                                "workspace.html";
-
-                        },
-                        650
-                    );
-
-
-                    return;
-
-                }
-
-
-                /* =========================================
-                   幻想：进入制作世界
-                ========================================= */
-
-                if(
-                    worldName === "fantasy"
-                ){
-
-                    world.classList.add(
-                        "entering-world"
-                    );
-
-
-                    setTimeout(
-                        () => {
-
-                            window.location.href =
-                                "fantasy.html";
-
-                        },
-                        650
-                    );
-
-
-                    return;
-
-                }
-
-
-                /* =========================================
-                   生命：进入生命世界广场
-                ========================================= */
-
-                if(
-                    worldName === "life"
-                ){
-
-                    world.classList.add(
-                        "entering-world"
-                    );
-
-
-                    setTimeout(
-                        () => {
-
-                            window.location.href =
-                                "/plaza";
-
-                        },
-                        650
-                    );
-
-
-                    return;
-
-                }
+                goWorld(entry.dataset.world);
 
             }
         );
 
     }
 );
+
+document.querySelectorAll(".light[data-world]").forEach(
+    el => {
+
+        el.addEventListener(
+            "click",
+            event => {
+
+                event.stopPropagation();
+
+                const w = el.dataset.world;
+
+                if (w === "yonder" || w === "infinite") return;
+
+                goWorld(w);
+
+            }
+        );
+
+    }
+);
+
+/* legacy block removed — navigation via goWorld() */
 
 
 

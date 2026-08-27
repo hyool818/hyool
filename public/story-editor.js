@@ -922,8 +922,10 @@ async function syncWithServer() {
 }
 
 // URL 直达：?story=<id>[&play=1]（个人主页 / 幻灵世界广场点击进入播放）
+// ?new=story|comic|card|h5 — 从创作中枢预选类型（不自动创建）
 function handleUrlDeepLink() {
   const q = new URLSearchParams(location.search);
+  applyNewWorkQuery(q);
   const targetId = q.get('story');
   if (!targetId) return;
   const local = stories.find(x => x.id === targetId);
@@ -945,6 +947,36 @@ function handleUrlDeepLink() {
       if (q.get('play') === '1') startPlay();
     })
     .catch(() => { /* 静默 */ });
+}
+
+function applyNewWorkQuery(q) {
+  if (!q) q = new URLSearchParams(location.search);
+  const raw = q.get('new') || q.get('create');
+  if (!raw) return;
+  if (raw === 'h5') {
+    location.replace('/h5-game.html');
+    return;
+  }
+  const map = {
+    story: 'story', novel: 'story', visual: 'story', interactive: 'story',
+    comic: 'comic', card: 'gacha_rogue', game: 'gacha_rogue', rpg: 'card_rpg',
+  };
+  const kind = map[raw] || raw;
+  if (!['story', 'comic', 'gacha_rogue', 'card_rpg'].includes(kind)) return;
+  backToLibrary();
+  createKind = kind;
+  document.querySelectorAll('#createKindRow .kind-card, #createKindMore .kind-card').forEach(x => {
+    x.classList.toggle('active', x.dataset.kind === kind);
+  });
+  const demoBtn = $('#rpgDemoBtn');
+  if (demoBtn) demoBtn.classList.toggle('hidden', kind !== 'card_rpg');
+  const rogueDemo = $('#rogueDemoBtn');
+  if (rogueDemo) rogueDemo.classList.toggle('hidden', kind !== 'gacha_rogue');
+  const titleEl = $('#newTitle');
+  if (titleEl) {
+    titleEl.focus();
+    titleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 const uid = () => 'b_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -1130,31 +1162,20 @@ function openStory(id) {
   showEditor();
 }
 function backToLibrary() {
-  currentId = null;
-  chapterId = null;
-  selectedBlockId = null;
-  playFlat = [];
-  selectedBlockId = null;
-  tlStop();
-  $('#viewEditor').classList.add('hidden');
-  $('#playBtn').classList.add('hidden');
-  $('#libBtn').classList.add('hidden');
-  const stb = $('#studioTopbar');
-  if (stb) stb.classList.add('hidden');
-  renderLibrary();
-  $('#viewLibrary').classList.remove('hidden');
+  window.location.href = '/my-works.html';
 }
 
 // ---------- HYOOL Studio 壳：资源树 / 素材库 / 属性栏 ----------
 const RES_ITEMS = [
   { id: 'plot', icon: '📖', label: '剧情' },
   { id: 'characters', icon: '👤', label: '角色' },
+  { id: 'assets', icon: '🖼', label: '素材' },
   { id: 'world', icon: '🌍', label: '世界' },
-  { id: 'assets', icon: '🗄', label: '专属库' },
   { id: 'music', icon: '🎵', label: '音乐' },
   { id: 'sfx', icon: '🔊', label: '音效' },
   { id: 'ai', icon: '🤖', label: 'AI' },
 ];
+const SIMPLE_RES_IDS = ['plot', 'characters', 'assets', 'world'];
 const ASSET_CATS = { assets: null, music: 'music', sfx: 'sfx' };
 const STORY_SIMPLE_UI_KEY = 'hyool_story_simple_ui_v1';
 const STORY_GUIDE_DISMISS_KEY = 'hyool_story_guide_dismiss_v1';
@@ -1634,7 +1655,7 @@ function renderResTree() {
   const s = story();
   host.innerHTML = '';
   const items = (s && s.kind === 'story' && isStorySimpleUi())
-    ? RES_ITEMS.filter((item) => item.id === 'plot' || item.id === 'characters')
+    ? RES_ITEMS.filter((item) => SIMPLE_RES_IDS.includes(item.id))
     : RES_ITEMS;
   items.forEach(item => {
     const btn = document.createElement('button');
@@ -6885,7 +6906,24 @@ function bindInit(el, event, fn) {
   el.addEventListener(event, fn);
 }
 
+function applyLibraryCreateMode() {
+  const q = new URLSearchParams(location.search);
+  const createOnly = !q.get('story') && (q.get('new') || q.get('create'));
+  const sections = document.querySelectorAll('#viewLibrary .hub-section');
+  if (sections[1]) sections[1].style.display = createOnly ? 'none' : '';
+  const hero = document.querySelector('#viewLibrary .hub-hero-name');
+  const meaning = document.querySelector('#viewLibrary .hub-hero-meaning');
+  if (createOnly && hero) hero.textContent = '新建作品';
+  if (createOnly && meaning) meaning.textContent = '起名 → 创建 → 立刻进编辑器试玩。';
+}
+
 function init() {
+  const q = new URLSearchParams(location.search);
+  if (!q.get('story') && !q.get('new') && !q.get('create')) {
+    location.replace('/my-works.html');
+    return;
+  }
+  applyLibraryCreateMode();
   try {
   bindComicDropHost();
   window.addEventListener('error', (e) => {

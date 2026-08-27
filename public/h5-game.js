@@ -48,7 +48,7 @@ function showList() {
   $('#h5ListView')?.classList.remove('hidden');
   $('#h5ListApp')?.classList.toggle('hidden', !loggedIn);
   $('#h5EditView')?.classList.add('hidden');
-  $('#h5Back').href = '/fantasy.html';
+  $('#h5Back').href = '/studio.html';
   location.hash = '';
 }
 
