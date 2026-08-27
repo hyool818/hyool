@@ -21,9 +21,17 @@ const FONT_OPTIONS = [
   { id: 'default', label: '默认', family: '' },
   { id: 'noto-sans', label: '思源黑体', family: '"Noto Sans SC", sans-serif' },
   { id: 'noto-serif', label: '思源宋体', family: '"Noto Serif SC", serif' },
+  { id: 'wenkai', label: '霞鹜文楷', family: '"LXGW WenKai", serif' },
+  { id: 'zcool-xiaowei', label: '站酷小薇体', family: '"ZCOOL XiaoWei", serif' },
   { id: 'zcool', label: '站酷快乐体', family: '"ZCOOL KuaiLe", cursive' },
+  { id: 'zcool-huangyou', label: '站酷黄油体', family: '"ZCOOL QingKe HuangYou", cursive' },
+  { id: 'zen-kurenaido', label: '禅楷（细笔）', family: '"Zen Kurenaido", cursive' },
+  { id: 'zen-antique', label: '禅古（做旧）', family: '"Zen Antique", serif' },
+  { id: 'yuji-syuku', label: '玉辞祝', family: '"Yuji Syuku", serif' },
   { id: 'mashan', label: '马善政手写', family: '"Ma Shan Zheng", cursive' },
   { id: 'longcang', label: '龙藏体', family: '"Long Cang", cursive' },
+  { id: 'liu-jian', label: '刘建毛草', family: '"Liu Jian Mao Cao", cursive' },
+  { id: 'zhi-mang', label: '志莽星', family: '"Zhi Mang Xing", cursive' },
 ];
 const CROP_PROFILE = {
   landscape: { viewW: 480, viewH: 270, outW: 1280, outH: 720, label: '16:9 横屏' },
