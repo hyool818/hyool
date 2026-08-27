@@ -1,5 +1,6 @@
 // 女神挂机壳：主城 / 女神册（养成）/ 召唤卡池 / 关卡。
 // 由 story-rogue.js 在 mode===idle 时调用。
+import { toast } from '/workspace/js/ui.js';
 
 /** 品阶：凡→珍→绝→传→神→墟→曜；5 张同阶碎片合成升一阶 */
 export const STAR_MAX = 7;
@@ -129,7 +130,7 @@ export function normalizeIdleProgress(r, stageLen) {
   }
   const owned = Object.keys(chars);
   teamIds = teamIds.filter((id) => owned.includes(id));
-  if (!teamIds.length && owned.length) teamIds = owned.slice(0, maxTeam);
+  if (!teamIds.length && owned.length) teamIds = owned.slice(0, 1);
   teamIds = teamIds.slice(0, maxTeam);
   teamIds.forEach((id) => {
     if (!chars[id]) {
@@ -498,6 +499,7 @@ export function paintIdleShell(frame, run, tab) {
     ${tabsHtml('home')}`;
   bindChrome(frame, run);
   bindPortraitZoom(frame, makePortraitZoomCtx(run));
+  bindIdleParty(frame, run, team);
   const push = frame.querySelector('#idlePush');
   if (push && !push.disabled) {
     push.addEventListener('click', () => {
@@ -670,6 +672,18 @@ function paintStages(frame, run, prog) {
   bindChrome(frame, run);
 }
 
+function bindIdleParty(frame, run, team) {
+  frame.querySelectorAll('.idle-party .goddess-card').forEach((el, i) => {
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => {
+      const c = team[i];
+      if (c) run.idleCharId = c.id;
+      if (run.ctx.onIdleTab) run.ctx.onIdleTab('book');
+      if (!c) toast('在女神册点「上阵」加入空位');
+    });
+  });
+}
+
 function bindChrome(frame, run) {
   const ex = frame.querySelector('#idleExit');
   if (ex) ex.addEventListener('click', () => run.ctx.onExit && run.ctx.onExit());
@@ -704,11 +718,6 @@ export function pullGacha(r, n) {
     }
   }
   prog.gold -= cost;
-  Object.keys(prog.chars).forEach((id) => {
-    if (prog.teamIds.length < (r.teamSize || 4) && !prog.teamIds.includes(id)) {
-      prog.teamIds.push(id);
-    }
-  });
   r.progress = prog;
   return { ok: true, results, gold: prog.gold };
 }

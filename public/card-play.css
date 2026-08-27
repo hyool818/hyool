@@ -22,7 +22,8 @@
 #playOverlay .idle-stage-row.cur{border-color:rgba(180,140,255,.55);background:rgba(139,123,255,.12)}
 #playOverlay .idle-empty{color:var(--muted);font-size:12px;text-align:center;padding:24px 12px;line-height:1.7}
 #playOverlay .goddess-card{width:78px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161422;overflow:hidden;position:relative;text-align:center;padding:0 0 8px;color:var(--text)}
-#playOverlay .goddess-card.slot{width:86px}
+#playOverlay .goddess-card.slot{width:86px;cursor:pointer}
+#playOverlay .goddess-card.slot.empty{cursor:pointer}
 #playOverlay .goddess-card.book{width:104px;padding-bottom:8px;cursor:pointer;border:1px solid var(--line2);background:#14121f}
 #playOverlay .goddess-card.book.sel{border-color:rgba(180,140,255,.75);box-shadow:0 0 0 1px rgba(180,140,255,.35)}
 #playOverlay .goddess-card.empty{border-style:dashed;opacity:.7;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:130px}

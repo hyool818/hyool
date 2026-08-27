@@ -1116,7 +1116,7 @@ function starterByMode(mode) {
       progress: {
         stageIdx: 0,
         gold: 800,
-        teamIds: ['c_yue', 'c_ye', 'c_xia', 'c_ling'],
+        teamIds: ['c_yue'],
         chars: {
           c_yue: { level: 1, exp: 0, star: 4, copies: 0 },
           c_ye: { level: 1, exp: 0, star: 4, copies: 0 },
