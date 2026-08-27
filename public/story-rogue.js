@@ -971,13 +971,13 @@ function afterWin(opts) {
       if (run.story) run.story.rogue = run.rogue;
       try { if (run.ctx.onPersist) run.ctx.onPersist(); } catch (e) { console.error(e); }
       const total = Math.max(1, (run.nodes || []).length);
-      toast(`第${clearedIdx + 1}/${total}关通关 · +${reward.gold}🪙 · 经验+${reward.exp}`);
+      try { toast(`第${clearedIdx + 1}/${total}关通关 · +${reward.gold}🪙 · 经验+${reward.exp}`); } catch (e) { console.error(e); }
     } else if (!quiet) {
-      toast('战斗胜利');
+      try { toast('战斗胜利'); } catch (e) { console.error(e); }
     }
   } catch (err) {
     console.error(err);
-    toast('结算异常，仍继续推进', true);
+    try { toast('结算异常，仍继续推进', true); } catch (e) { console.error(e); }
   }
   if (run.rogue.mode === 'rogue') startCardPick();
   else advanceNode();

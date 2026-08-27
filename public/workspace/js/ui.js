@@ -4,9 +4,15 @@ export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 let toastTimer = null;
 export function toast(msg, isErr = false, ms = 2600) {
-  const t = $('#toast');
+  let t = $('#toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.className = 'toast';
+    document.body.appendChild(t);
+  }
   t.textContent = msg;
-  t.classList.toggle('err', isErr);
+  t.classList.toggle('err', !!isErr);
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), ms);
