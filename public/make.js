@@ -628,6 +628,7 @@ async function showHome() {
   $('#mkPlayBtn').style.display = 'none';
   $('#mkPubBtn').style.display = 'none';
   $('#mkDelBtn').style.display = 'none';
+  $('#mkAddBtnTop').style.display = 'none';
   $('#mkBrand').textContent = '创建作品';
   $('#mkBrandSub').textContent = 'MAKE';
   $('#mkBack').href = '/';
@@ -650,6 +651,7 @@ function showEdit() {
   $('#mkPlayBtn').style.display = '';
   $('#mkPubBtn').style.display = '';
   $('#mkDelBtn').style.display = '';
+  $('#mkAddBtnTop').style.display = '';
   $('#mkBrand').textContent = work?.title || '未命名';
   $('#mkBrandSub').textContent = '编辑中';
   $('#mkBack').href = PAGE;
@@ -1637,7 +1639,7 @@ function openAddPicker() {
     ['choice', '🔀 选项'],
   ];
   const m = document.createElement('div');
-  m.className = 'mk-modal show';
+  m.className = 'mk-modal mk-picker-modal show';
   m.innerHTML = '<div class="mk-modal-box"><h2>加镜头</h2><div id="pickList"></div><button type="button" class="btn" id="pickClose" style="width:100%;margin-top:12px">取消</button></div>';
   document.body.appendChild(m);
   const list = m.querySelector('#pickList');
@@ -1920,7 +1922,10 @@ function bind() {
       $$('.mk-kind button').forEach((x) => x.classList.toggle('on', x.dataset.k === createKind));
     });
   });
-  $('#mkAddBtn').addEventListener('click', openAddPicker);
+  ['mkAddBtn', 'mkAddBtnTop', 'mkAddBtnHead'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', openAddPicker);
+  });
   $('#mkPlayBtn').addEventListener('click', startPlay);
   $('#mkPubBtn').addEventListener('click', togglePublish);
   $('#mkDelBtn').addEventListener('click', () => {
