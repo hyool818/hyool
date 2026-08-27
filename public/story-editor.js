@@ -7449,7 +7449,7 @@ window.StoryEditor = {
   localStorage: () => { try { return localStorage.getItem(SAVE_KEY); } catch (e) { return null; } },
 };
 
-stories = normalizeStories(loadStories());
+stories = normalizeStories(loadStories()).filter((x) => !isStoryDeleted(x.id));
 init();
 
 

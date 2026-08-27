@@ -6,6 +6,13 @@ const TOKEN_KEY = 'hyool_token';
 const DEFAULT_SPEAKER = '角色名';
 const MAX_FILE = 5 * 1024 * 1024;
 const TYPE_LABEL = { scene: '场景', dialogue: '对白', choice: '选项' };
+const KIND_LABEL = {
+  story: '互动小说',
+  comic: '漫画',
+  gacha_rogue: '卡牌',
+  card_rpg: '卡牌RPG',
+  h5_game: 'H5',
+};
 const SUB_SIZE_KEY = 'hyool_story_subtitle_size_v1';
 const SUB_SIZE_DEFAULT = 27;
 const SUB_SIZE_MIN = 18;
@@ -396,20 +403,17 @@ async function deleteWorkById(id, title) {
       credentials: 'include',
       headers: authHeaders(),
     });
-    const d = await res.json();
-    if (!d.success) throw new Error(d.error || '删除失败');
-    purgeLocalStory(id);
-    works = works.filter((w) => w.id !== id);
-    const wasEditingDeleted = work && work.id === id;
-    if (wasEditingDeleted) {
-      work = null;
-      selectedId = null;
+    const d = await res.json().catch(() => ({}));
+    if (!d.success) {
+      if (res.status === 404) purgeLocalStory(id);
+      throw new Error(d.error || (res.status === 404 ? '云端已不存在，已从本地清除' : '删除失败'));
     }
+    purgeLocalStory(id);
     toast('已删除');
-    if (wasEditingDeleted) showHome();
-    else renderHome();
+    await showHome();
   } catch (e) {
     toast(e.message || '删除失败', true);
+    if (String(e.message || '').includes('本地清除')) await showHome();
   }
 }
 
@@ -434,7 +438,7 @@ async function uploadFile(file) {
 }
 
 // ---------- 视图 ----------
-function showHome() {
+async function showHome() {
   work = null;
   selectedId = null;
   history.replaceState(null, '', '/make.html');
@@ -442,11 +446,21 @@ function showHome() {
   $('#viewEdit').classList.remove('show');
   $('#mkPlayBtn').style.display = 'none';
   $('#mkPubBtn').style.display = 'none';
+  $('#mkDelBtn').style.display = 'none';
   $('#mkBrand').textContent = '创作作品';
   $('#mkBrandSub').textContent = 'MAKE';
   $('#mkBack').href = '/';
   $('#mkBack').textContent = '← 首页';
-  loadWorksList().then((list) => { works = list; renderHome(); }).catch(() => renderHome());
+  try {
+    works = await loadWorksList();
+  } catch (e) {
+    if (e.message === 'login') {
+      $('#mkLogin').classList.remove('hidden');
+      $('#mkApp').classList.add('hidden');
+      return;
+    }
+  }
+  renderHome();
 }
 
 function showEdit() {
@@ -454,6 +468,7 @@ function showEdit() {
   $('#viewEdit').classList.add('show');
   $('#mkPlayBtn').style.display = '';
   $('#mkPubBtn').style.display = '';
+  $('#mkDelBtn').style.display = '';
   $('#mkBrand').textContent = work?.title || '未命名';
   $('#mkBrandSub').textContent = '编辑中';
   $('#mkBack').href = '/make.html';
@@ -485,10 +500,13 @@ function renderHome() {
   all.forEach((w) => grid.appendChild(homeCard(w)));
 }
 
+function kindLabel(kind) {
+  return KIND_LABEL[kind] || kind || '作品';
+}
+
 function homeCard(w) {
   const card = document.createElement('div');
   card.className = 'mk-card';
-  const isStory = w.kind === 'story';
   const cover = w.cover_image
     ? '<img src="' + escapeHtml(w.cover_image) + '" alt="">'
     : (w.kind === 'h5_game' ? '🎮' : '📖');
@@ -498,17 +516,17 @@ function homeCard(w) {
       '<div class="thumb">' + cover + '</div>' +
       '<div class="info">' +
         '<div class="title">' + escapeHtml(w.title) + '</div>' +
-        '<div class="meta">' + (isStory ? '互动小说' : w.kind) + ' · ' + (pub ? '已发布' : '草稿') + '</div>' +
+        '<div class="meta">' + kindLabel(w.kind) + ' · ' + (pub ? '已发布' : '草稿') + '</div>' +
       '</div>' +
     '</div>' +
     '<div class="ops">' +
       '<button type="button" class="btn primary play-btn">▶ 试玩</button>' +
       '<button type="button" class="btn edit-btn">编辑</button>' +
-      (isStory ? '<button type="button" class="btn danger del-btn">删除</button>' : '') +
+      '<button type="button" class="btn danger del-btn">删除</button>' +
     '</div>';
   card.querySelector('.edit-btn').addEventListener('click', (e) => { e.stopPropagation(); openWork(w.id, false); });
   card.querySelector('.play-btn').addEventListener('click', (e) => { e.stopPropagation(); openWork(w.id, true); });
-  if (isStory) card.querySelector('.del-btn').addEventListener('click', (e) => { e.stopPropagation(); deleteWorkById(w.id, w.title); });
+  card.querySelector('.del-btn').addEventListener('click', (e) => { e.stopPropagation(); deleteWorkById(w.id, w.title); });
   card.addEventListener('click', () => openWork(w.id, false));
   return card;
 }
@@ -1461,6 +1479,9 @@ function bind() {
   $('#mkAddBtn').addEventListener('click', openAddPicker);
   $('#mkPlayBtn').addEventListener('click', startPlay);
   $('#mkPubBtn').addEventListener('click', togglePublish);
+  $('#mkDelBtn').addEventListener('click', () => {
+    if (work) deleteWorkById(work.id, work.title || '未命名');
+  });
   $('#playClose').addEventListener('click', stopPlay);
   $('#playPrev').addEventListener('click', playPrev);
   $('#playNext').addEventListener('click', playNext);
