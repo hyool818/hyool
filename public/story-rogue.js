@@ -613,10 +613,17 @@ function paintPick(frame) {
 function charCards(r, c, rng) {
   const mine = r.skills.filter(s => s.ownerId === c.id);
   const pool = mine.length ? mine : r.skills.filter(s => !s.ownerId);
-  const fallback = [{ id: 'basic_' + c.id, name: '普攻', kind: 'atk', power: 100, elem: c.elem }];
+  const basicId = 'basic_' + c.id;
+  const fallback = [{ id: basicId, name: '普攻', kind: 'atk', power: 100, elem: c.elem }];
   const src = pool.length ? pool : fallback;
   if (r.mode === 'rogue') return pick(rng, src, Math.min(2, src.length)).map(s => s.id);
-  if (r.mode === 'idle') return [src[0].id];
+  if (r.mode === 'idle') {
+    const primary = src[0];
+    if ((primary.kind || 'atk') === 'atk') return [primary.id];
+    // 治疗/增益角色也要能普攻，否则残敌会永远打不掉
+    const atk = src.find((s) => (s.kind || 'atk') === 'atk');
+    return atk ? [atk.id, primary.id] : [basicId, primary.id];
+  }
   return src.map(s => s.id);
 }
 
@@ -766,7 +773,7 @@ function startBattleNode(node) {
   };
   run.phase = 'battle';
   paint();
-  tickTimer = setTimeout(battleTick, 80);
+  scheduleBattleTick(80);
 }
 
 function skillOf(id) {
@@ -775,23 +782,15 @@ function skillOf(id) {
 function nextSkill(m) {
   const fallback = { name: '普攻', kind: 'atk', power: 90, elem: m.elem };
   if (!m.cards || !m.cards.length) return fallback;
+  // 战斗中只抽攻击技；没有就普攻（避免治疗循环卡残血）
   const foesAlive = (run.battle.enemies || []).some((e) => e.hp > 0);
-  const needHeal = run.team.some((x) => {
-    if (x.hp <= 0) return false;
-    const max = x.maxHpBattle || x.maxHp || 1;
-    return x.hp / max < 0.65;
-  });
   const items = m.cards.map((id) => ({ id, sk: skillOf(id) }));
-  const kindOf = (sk) => (sk && sk.kind) || 'atk';
   let pool = items;
   if (foesAlive) {
-    const atks = items.filter((p) => kindOf(p.sk) === 'atk');
-    const heals = items.filter((p) => kindOf(p.sk) === 'heal');
-    if (needHeal && heals.length) pool = heals;
-    else if (atks.length) pool = atks;
-    else pool = items.filter((p) => kindOf(p.sk) !== 'heal');
+    const atks = items.filter((p) => ((p.sk && p.sk.kind) || 'atk') === 'atk');
+    pool = atks.length ? atks : [];
   }
-  if (!pool.length) pool = items;
+  if (!pool.length) return fallback;
   const chosen = pool[m.next % pool.length];
   m.next = (m.next + 1) % Math.max(1, m.cards.length);
   return (chosen && chosen.sk) || fallback;
@@ -799,67 +798,71 @@ function nextSkill(m) {
 function posTakenMul(m) { return m.front ? 1.15 : 0.85; }
 function posAtkMul(m) { return m.front ? 1.05 : 0.95; }
 
+function scheduleBattleTick(ms) {
+  if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+  if (!run || run.phase !== 'battle' || !run.battle || run.battle.phase !== 'running') return;
+  tickTimer = setTimeout(battleTick, ms);
+}
+
 function battleTick() {
   if (!run || run.phase !== 'battle' || !run.battle || run.battle.phase !== 'running') return;
-  const mods = relicMods(run.relics);
-  const party = run.team.filter(m => m.hp > 0);
-  const foes = run.battle.enemies.filter(e => e.hp > 0);
-  if (!foes.length) {
-    const b = run.battle;
-    if (b.waves && b.waveIdx < b.waves.length - 1) {
-      b.waveIdx += 1;
-      b.enemies = spawnEnemyInstances(b.waves[b.waveIdx], 'w' + b.waveIdx);
-      b.log.push(`— 第 ${b.waveIdx + 1}/${b.waves.length} 轮 —`);
-      run.battle.actFx = null;
-      try { refreshBattle(true); } catch (err) { console.error(err); }
-      tickTimer = setTimeout(battleTick, 80);
-      return;
-    }
-    finishBattle(true);
-    return;
-  }
-  if (!party.length) { finishBattle(false); return; }
-  if (run.battle.actFx) run.battle.actFx = null;
-  const units = [...party.map(m => ({ who: m, enemy: false })), ...foes.map(e => ({ who: e, enemy: true }))];
-  const step = (4 + run.speed * 3);
-  units.forEach(u => { u.who.gauge = (u.who.gauge || 0) + (u.who.spdBattle || u.who.spd || 12) * step / 20; });
-  let actor = null;
-  units.forEach(u => {
-    if (u.who.gauge >= 100 && (!actor || u.who.gauge > actor.who.gauge)) actor = u;
-  });
-  if (actor) {
-    actor.who.gauge -= 100;
-    resolveAct(actor.who, actor.enemy, mods);
-    if (run.battle.log.length > 36) run.battle.log = run.battle.log.slice(-36);
-    if (!run.battle.enemies.some((e) => e.hp > 0)) {
+  try {
+    const mods = relicMods(run.relics);
+    const party = run.team.filter(m => m.hp > 0);
+    const foes = run.battle.enemies.filter(e => e.hp > 0);
+    if (!foes.length) {
       const b = run.battle;
       if (b.waves && b.waveIdx < b.waves.length - 1) {
         b.waveIdx += 1;
         b.enemies = spawnEnemyInstances(b.waves[b.waveIdx], 'w' + b.waveIdx);
         b.log.push(`— 第 ${b.waveIdx + 1}/${b.waves.length} 轮 —`);
+        run.battle.actFx = null;
         try { refreshBattle(true); } catch (err) { console.error(err); }
-      } else {
-        finishBattle(true);
+        scheduleBattleTick(80);
         return;
       }
-    } else if (!run.team.some((m) => m.hp > 0)) {
-      finishBattle(false);
+      finishBattle(true);
       return;
-    } else {
-      try { refreshBattle(false); } catch (err) { console.error(err); }
     }
-    // 出手特效播完再继续；局部刷新不拆立绘，动图可完整播
-    const fxMs = Math.max(260, Math.round(480 / Math.max(1, run.speed)));
-    tickTimer = setTimeout(() => {
-      if (run && run.battle) run.battle.actFx = null;
-      try { refreshBattle(false); } catch (err) { console.error(err); }
-      battleTick();
-    }, fxMs);
-    return;
-  }
-  try { refreshBattle(false); } catch (err) { console.error(err); }
-  if (run && run.phase === 'battle' && run.battle && run.battle.phase === 'running') {
-    tickTimer = setTimeout(battleTick, run.speed >= 4 ? 16 : (run.speed === 2 ? 40 : 80));
+    if (!party.length) { finishBattle(false); return; }
+    if (run.battle.actFx) run.battle.actFx = null;
+    const units = [...party.map(m => ({ who: m, enemy: false })), ...foes.map(e => ({ who: e, enemy: true }))];
+    const step = (4 + run.speed * 3);
+    units.forEach(u => { u.who.gauge = (u.who.gauge || 0) + (u.who.spdBattle || u.who.spd || 12) * step / 20; });
+    let actor = null;
+    units.forEach(u => {
+      if (u.who.gauge >= 100 && (!actor || u.who.gauge > actor.who.gauge)) actor = u;
+    });
+    if (actor) {
+      actor.who.gauge -= 100;
+      resolveAct(actor.who, actor.enemy, mods);
+      if (run.battle.log.length > 36) run.battle.log = run.battle.log.slice(-36);
+      if (!run.battle.enemies.some((e) => e.hp > 0)) {
+        const b = run.battle;
+        if (b.waves && b.waveIdx < b.waves.length - 1) {
+          b.waveIdx += 1;
+          b.enemies = spawnEnemyInstances(b.waves[b.waveIdx], 'w' + b.waveIdx);
+          b.log.push(`— 第 ${b.waveIdx + 1}/${b.waves.length} 轮 —`);
+          try { refreshBattle(true); } catch (err) { console.error(err); }
+        } else {
+          finishBattle(true);
+          return;
+        }
+      } else if (!run.team.some((m) => m.hp > 0)) {
+        finishBattle(false);
+        return;
+      } else {
+        try { refreshBattle(false); } catch (err) { console.error(err); }
+      }
+      const fxMs = Math.max(260, Math.round(480 / Math.max(1, run.speed)));
+      scheduleBattleTick(fxMs);
+      return;
+    }
+    try { refreshBattle(false); } catch (err) { console.error(err); }
+    scheduleBattleTick(run.speed >= 4 ? 16 : (run.speed === 2 ? 40 : 80));
+  } catch (err) {
+    console.error(err);
+    scheduleBattleTick(120);
   }
 }
 
@@ -885,21 +888,12 @@ function resolveAct(who, isEnemy, mods) {
     return;
   }
   // 勿改 skillOf 返回的目录对象，用本地副本决定本回合行为
-  const sk = { ...nextSkill(who) };
-  const needHeal = party.some((x) => x.hp / (x.maxHpBattle || x.maxHp || 1) < 0.65);
-  // 场上还有敌人时：不白嫖治疗/空蓄力，优先打人
-  if (sk.kind === 'heal' && foes.length && !needHeal) {
-    sk.kind = 'atk';
-    sk.name = sk.name || '普攻';
-    sk.power = sk.power || 90;
+  // 有敌人时一律攻击（治疗/蓄力留到非战斗或无目标时），避免残血互奶卡住
+  let sk = { ...nextSkill(who) };
+  if (foes.length && sk.kind !== 'atk') {
+    sk = { name: '普攻', kind: 'atk', power: 90, elem: who.elem };
   }
-  if (sk.kind === 'buff' && foes.length) {
-    sk.kind = 'atk';
-    sk.name = '普攻';
-    sk.power = 90;
-    sk.elem = who.elem;
-  }
-  if (sk.kind === 'heal') {
+  if (sk.kind === 'heal' && !foes.length) {
     const t = party.slice().sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
     const heal = Math.max(1, Math.round((who.atk * (sk.power / 100)) * 0.8));
     t.hp = Math.min(t.maxHpBattle || t.maxHp, t.hp + heal);
@@ -910,7 +904,7 @@ function resolveAct(who, isEnemy, mods) {
     run.battle.actFx = fx;
     return;
   }
-  if (sk.kind === 'buff') {
+  if (sk.kind === 'buff' && !foes.length) {
     who.buff = (who.buff || 0) + 1;
     run.battle.log.push(`${who.name} 蓄力`);
     fx.targetIds = [who.id];
@@ -918,12 +912,13 @@ function resolveAct(who, isEnemy, mods) {
     run.battle.actFx = fx;
     return;
   }
-  const t = foes[0];
+  const t = foes.slice().sort((a, b) => a.hp - b.hp)[0];
   if (!t) { run.battle.actFx = fx; return; }
   const elem = sk.elem || who.elem;
   let mul = elemMul(elem, t.elem) + (mods.elem || 0);
   if (who.buff > 0) { mul *= 1.35; who.buff -= 1; }
-  const dmg = Math.max(1, Math.round(who.atk * posAtkMul(who) * mods.atk * ((sk.power || 100) / 100) * mul));
+  const power = Number(sk.power) > 0 ? Number(sk.power) : 100;
+  const dmg = Math.max(1, Math.round(who.atk * posAtkMul(who) * mods.atk * (power / 100) * mul));
   t.hp = Math.max(0, t.hp - dmg);
   run.battle.log.push(`${who.name}「${sk.name || '普攻'}」→ ${t.name} ${dmg}`);
   fx.targetIds = [t.id];
