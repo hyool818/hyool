@@ -7,8 +7,8 @@
 | 功能 | 页面 | 说明 |
 |---|---|---|
 | 首页双核心 | `public/index.html` | 创作作品 / 创造世界；底栏：创作 / 去玩 / 我的 / AI |
-| **主创作应用 · 视觉小说** | `public/make.html` `public/make.js` | 镜头 + 预览 + 试玩 + 发布；BGM / 对白配音；`story-local-cache.js` 删作防复活 |
-| **互动视频** | `public/make-video.html` `public/make.js` | 同壳；`kind=interactive_video`；默认视频镜头、试玩带原声 |
+| **主创作应用 · 视觉小说** | `public/make.html` `public/make.js` | 镜头 + 预览 + 试玩 + 发布；图片镜 / **视频镜**（`media.videoMode`: `background` 静音循环 | `clip` 原声播完下一镜）；BGM / 配音 |
+| 旧互动视频入口 | `public/make-video.html` | 重定向 → `make.html`（`?hint=video`） |
 | 世界/IP | `public/studio-world.html` | 创造世界入口 |
 | 旧入口重定向 | `public/studio.html` `public/my-works.html` `public/fantasy.html` | → `/make.html` |
 | 漫画 / 卡牌 · 专业 | `public/story-editor.html` `?pro=1` | 分格、卡牌战斗；make 底栏链入 |

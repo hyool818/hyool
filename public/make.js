@@ -1,43 +1,17 @@
-// make.js — HYOOL 主创作应用（互动小说 / 视觉小说 / 互动视频）
+// make.js — HYOOL 主创作应用（视觉小说：图片镜 + 视频镜）
 import { $, $$, toast } from '/workspace/js/ui.js';
 import { purgeLocalStory } from '/story-local-cache.js';
 
-const STORY_CFG = {
-  page: '/make.html',
-  kind: 'story',
-  brandSub: 'MAKE',
-  newBtn: '＋ 新建故事',
-  modalTitle: '新建故事',
-  heroTitle: '写故事，加图片，点试玩',
-  heroDesc: '像做 PPT 一样做视觉小说：左边是镜头顺序，中间实时预览，右边改字加图。改完立刻试玩，满意再发布。',
-  emptyHint: '还没有作品。点上方「新建故事」开始，或让 AI 帮你想大纲。',
-  loginNext: '/make.html',
-  videoFirst: false,
-  unmuteVideo: false,
-};
-const VIDEO_CFG = {
-  page: '/make-video.html',
-  kind: 'interactive_video',
-  brandSub: 'VIDEO',
-  newBtn: '＋ 新建互动视频',
-  modalTitle: '新建互动视频',
-  heroTitle: '拍视频，加字幕，点试玩',
-  heroDesc: '与视觉小说同款流程：每镜上传 MP4，叠加对白与选项，试玩后发布到广场。',
-  emptyHint: '还没有互动视频。点上方新建，或从视觉小说页切换过来。',
-  loginNext: '/make-video.html',
-  videoFirst: true,
-  unmuteVideo: true,
-};
-const CFG = (typeof window !== 'undefined' && window.__MAKE_CONFIG__)
-  || (typeof location !== 'undefined' && location.pathname.includes('make-video') ? VIDEO_CFG : STORY_CFG);
+const PAGE = '/make.html';
+const WORK_KIND = 'story';
 
 const TOKEN_KEY = 'hyool_token';
 const DEFAULT_SPEAKER = '角色名';
 const MAX_FILE = 5 * 1024 * 1024;
 const TYPE_LABEL = { scene: '场景', dialogue: '对白', choice: '选项' };
 const KIND_LABEL = {
-  story: '互动小说',
-  interactive_video: '互动视频',
+  story: '视觉小说',
+  interactive_video: '视觉小说',
   comic: '漫画',
   gacha_rogue: '卡牌',
   card_rpg: '卡牌RPG',
@@ -83,6 +57,10 @@ const TEXT_MODES = {
 const TEXT_EFFECTS = {
   none: { label: '无' },
   pulse: { label: '脉冲' },
+};
+const VIDEO_MODES = {
+  background: { label: '背景循环', hint: '静音循环，适合 Galgame 动态背景' },
+  clip: { label: '视频镜', hint: '保留原声，播完自动进下一镜（点击可跳过）' },
 };
 
 let loggedIn = false;
@@ -134,13 +112,27 @@ function setSave(st) {
   el.style.color = st === 'err' ? 'var(--bad)' : st === 'ok' ? 'var(--good)' : 'var(--muted)';
 }
 
-function isStoryLikeKind(k) {
-  return k === 'story' || k === 'interactive_video';
+function isStoryKind(k) {
+  return !k || k === 'story' || k === 'interactive_video';
+}
+
+function videoMode(media) {
+  if (!media || media.type !== 'video') return null;
+  return media.videoMode === 'clip' ? 'clip' : 'background';
+}
+
+function ensureVideoMode(media) {
+  if (!media || media.type !== 'video') return;
+  if (media.videoMode !== 'clip' && media.videoMode !== 'background') {
+    media.videoMode = 'background';
+  }
 }
 
 function normalizeWork(s) {
   if (!s || typeof s !== 'object') return null;
-  if (!isStoryLikeKind(s.kind)) return s;
+  if (!isStoryKind(s.kind)) return s;
+  const wasVideoKind = s.kind === 'interactive_video';
+  if (wasVideoKind) s.kind = WORK_KIND;
   if (s.orientation !== 'portrait') s.orientation = 'landscape';
   if (!FONT_OPTIONS.some((f) => f.id === s.textFont)) s.textFont = 'default';
   if (!Array.isArray(s.chapters) || !s.chapters.length) {
@@ -152,8 +144,13 @@ function normalizeWork(s) {
       if (!b.id) b.id = uid();
       if (b.type === 'dialogue' && !b.speaker) b.speaker = DEFAULT_SPEAKER;
       if (b.type === 'choice') normalizeChoice(b);
+      if (b.media?.type === 'video') {
+        ensureVideoMode(b.media);
+        if (wasVideoKind) b.media.videoMode = 'clip';
+      }
     });
   });
+  s.kind = WORK_KIND;
   return s;
 }
 
@@ -184,17 +181,9 @@ function chapterForBlock(b) {
 
 function redirectOtherKind(w) {
   const kind = w.kind || 'story';
-  if (kind === CFG.kind) return false;
+  if (isStoryKind(kind)) return false;
   const q = new URLSearchParams(location.search);
   const play = q.get('play') === '1' ? '&play=1' : '';
-  if (kind === 'story') {
-    location.replace('/make.html?story=' + encodeURIComponent(w.id) + play);
-    return true;
-  }
-  if (kind === 'interactive_video') {
-    location.replace('/make-video.html?story=' + encodeURIComponent(w.id) + play);
-    return true;
-  }
   if (kind === 'h5_game') {
     location.replace('/h5-game.html#edit=' + encodeURIComponent(w.id));
     return true;
@@ -338,19 +327,6 @@ function applyTextFont(el) {
 }
 
 function starterBlocks() {
-  if (CFG.videoFirst) {
-    return [
-      { id: uid(), type: 'scene', content: '开场镜头：上传视频后，字幕会叠在画面上。' },
-      { id: uid(), type: 'dialogue', speaker: '旁白', content: '故事从这里开始。' },
-      {
-        id: uid(), type: 'choice', content: '接下来？',
-        choices: [
-          { id: uid(), label: '继续观看', jump: 'next' },
-          { id: uid(), label: '结束', jump: 'end' },
-        ],
-      },
-    ];
-  }
   return [
     { id: uid(), type: 'scene', content: '某个寻常的下课铃后，走廊里只剩下你的脚步声。' },
     { id: uid(), type: 'dialogue', speaker: '你', content: '……今天，好像有什么不一样。' },
@@ -391,7 +367,10 @@ async function loadWork(id) {
   const res = await fetch('/api/stories/' + encodeURIComponent(id), { credentials: 'include', headers: authHeaders() });
   const d = await res.json();
   if (!d.success || !d.story) throw new Error(d.error || '作品不存在');
-  return normalizeWork(d.story);
+  const prevKind = d.story.kind;
+  const s = normalizeWork({ ...d.story });
+  if (prevKind === 'interactive_video') s._needsKindMigrate = true;
+  return s;
 }
 
 function scheduleSave() {
@@ -403,6 +382,7 @@ function scheduleSave() {
 
 async function saveWork() {
   if (!work || !loggedIn) return;
+  work.kind = WORK_KIND;
   try {
     const res = await fetch('/api/stories/' + encodeURIComponent(work.id), {
       method: 'PUT',
@@ -429,7 +409,7 @@ async function createWork(title, orientation) {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ title, orientation, imgQuality: 'standard', kind: CFG.kind }),
+    body: JSON.stringify({ title, orientation, imgQuality: 'standard', kind: WORK_KIND }),
   });
   const d = await res.json();
   if (!d.success) throw new Error(d.error || '创建失败');
@@ -595,14 +575,14 @@ function playVoiceForBlock(b) {
 async function showHome() {
   work = null;
   selectedId = null;
-  history.replaceState(null, '', CFG.page);
+  history.replaceState(null, '', PAGE);
   $('#viewHome').classList.remove('hidden');
   $('#viewEdit').classList.remove('show');
   $('#mkPlayBtn').style.display = 'none';
   $('#mkPubBtn').style.display = 'none';
   $('#mkDelBtn').style.display = 'none';
   $('#mkBrand').textContent = '创作作品';
-  $('#mkBrandSub').textContent = CFG.brandSub;
+  $('#mkBrandSub').textContent = 'MAKE';
   $('#mkBack').href = '/';
   $('#mkBack').textContent = '← 首页';
   try {
@@ -625,11 +605,11 @@ function showEdit() {
   $('#mkDelBtn').style.display = '';
   $('#mkBrand').textContent = work?.title || '未命名';
   $('#mkBrandSub').textContent = '编辑中';
-  $('#mkBack').href = CFG.page;
+  $('#mkBack').href = PAGE;
   $('#mkBack').textContent = '← 作品列表';
   $('#mkPubBtn').textContent = work?.status === 'published' ? '下架' : '发布';
   renderEdit();
-  history.replaceState(null, '', CFG.page + '?story=' + encodeURIComponent(work.id));
+  history.replaceState(null, '', PAGE + '?story=' + encodeURIComponent(work.id));
 }
 
 function updateSteps() {
@@ -647,8 +627,8 @@ function updateSteps() {
 function renderHome() {
   const grid = $('#mkGrid');
   grid.innerHTML = '';
-  const mine = works.filter((w) => (w.kind || 'story') === CFG.kind);
-  const others = works.filter((w) => (w.kind || 'story') !== CFG.kind);
+  const mine = works.filter((w) => isStoryKind(w.kind));
+  const others = works.filter((w) => !isStoryKind(w.kind));
   const all = [...mine, ...others];
   $('#mkEmpty').classList.toggle('hidden', mine.length > 0);
   all.forEach((w) => grid.appendChild(homeCard(w)));
@@ -692,6 +672,10 @@ async function openWork(id, play) {
     work = w;
     selectedId = blocks()[0]?.id || null;
     showEdit();
+    if (work._needsKindMigrate) {
+      delete work._needsKindMigrate;
+      scheduleSave();
+    }
     if (play) startPlay();
   } catch (e) {
     toast(e.message || '打不开作品', true);
@@ -794,12 +778,20 @@ function renderShots() {
     row.innerHTML =
       '<span class="num">' + (i + 1) + '</span>' +
       '<div class="body">' +
-        '<div class="type">' + (TYPE_LABEL[b.type] || b.type) + (b.media?.url ? (b.media.type === 'video' ? ' · 有视频' : ' · 有图') : '') + '</div>' +
+        '<div class="type">' + (TYPE_LABEL[b.type] || b.type) + mediaShotTag(b) + '</div>' +
         '<div class="txt">' + escapeHtml(preview || '（空）') + '</div>' +
       '</div>';
     row.addEventListener('click', () => { selectedId = b.id; renderEdit(); });
     list.appendChild(row);
   });
+}
+
+function mediaShotTag(b) {
+  if (!b.media?.url) return '';
+  if (b.media.type === 'video') {
+    return videoMode(b.media) === 'clip' ? ' · 视频镜' : ' · 背景视频';
+  }
+  return ' · 有图';
 }
 
 function renderPreview() {
@@ -841,11 +833,9 @@ function renderPreview() {
   } else if (!b.media?.url) {
     const hint = document.createElement('div');
     hint.className = 'empty-hint';
-    if (CFG.videoFirst && b.type === 'scene') {
-      hint.textContent = '右侧上传视频，字幕会叠在画面上';
-    } else {
-      hint.textContent = b.type === 'scene' ? '写场景文字后，字幕会出现在这里' : '对白会显示在底部';
-    }
+    hint.textContent = b.type === 'scene'
+      ? '写场景文字后，字幕会出现在这里'
+      : '对白会显示在底部';
     stage.appendChild(hint);
   }
 }
@@ -904,7 +894,7 @@ function renderPanel() {
 
   const bgSec = document.createElement('div');
   bgSec.className = 'field';
-  bgSec.innerHTML = '<label>' + (CFG.videoFirst ? '镜头视频 / 背景图' : '背景图 / 视频') + '</label>';
+  bgSec.innerHTML = '<label>背景图 / 视频</label>';
   if (b.media?.url) {
     const prev = document.createElement('div');
     prev.className = 'mk-bg-preview';
@@ -937,11 +927,12 @@ function renderPanel() {
     ops.appendChild(rm);
     prev.appendChild(ops);
     bgSec.appendChild(prev);
+    if (b.media.type === 'video') bgSec.appendChild(videoModePanel(b));
   } else {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'mk-bg-btn';
-    btn.textContent = CFG.videoFirst ? '🎬 点击上传视频' : '🖼 点击上传背景图';
+    btn.textContent = '🖼 上传图片或视频';
     btn.addEventListener('click', () => pickMedia(b));
     bgSec.appendChild(btn);
   }
@@ -1019,6 +1010,39 @@ function field(label, tag, value, onInput) {
   el.value = value;
   el.addEventListener('input', () => onInput(el.value));
   wrap.append(lab, el);
+  return wrap;
+}
+
+function videoModePanel(b) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field mk-video-mode';
+  wrap.style.marginTop = '8px';
+  const lab = document.createElement('label');
+  lab.textContent = '视频用法';
+  wrap.appendChild(lab);
+  const sel = document.createElement('select');
+  Object.entries(VIDEO_MODES).forEach(([id, meta]) => {
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = meta.label;
+    if (videoMode(b.media) === id) o.selected = true;
+    sel.appendChild(o);
+  });
+  const hint = document.createElement('p');
+  hint.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.55;margin-top:6px';
+  const syncHint = () => {
+    hint.textContent = VIDEO_MODES[videoMode(b.media)]?.hint || '';
+  };
+  syncHint();
+  sel.addEventListener('change', () => {
+    b.media.videoMode = sel.value;
+    scheduleSave();
+    syncHint();
+    renderShots();
+    renderPreview();
+    if (playing) renderPlay();
+  });
+  wrap.append(sel, hint);
   return wrap;
 }
 
@@ -1281,9 +1305,7 @@ function choiceEditor(b) {
 function pickMedia(b) {
   const inp = document.createElement('input');
   inp.type = 'file';
-  inp.accept = CFG.videoFirst
-    ? 'video/mp4,video/webm,image/*'
-    : 'image/*,video/mp4,video/webm';
+  inp.accept = 'image/*,video/mp4,video/webm';
   inp.addEventListener('change', async () => {
     const f = inp.files?.[0];
     if (!f) return;
@@ -1297,10 +1319,10 @@ async function handleMediaFile(f, b) {
     toast('上传中…');
     const media = await uploadFile(f);
     if (!media) return;
-    b.media = media;
+    b.media = { ...media, videoMode: 'background' };
     scheduleSave();
     renderEdit();
-    toast('背景已添加');
+    toast('视频已添加，可在下方切换「视频镜」');
     return;
   }
   if (!/^image\//.test(f.type)) {
@@ -1623,12 +1645,20 @@ function renderPlay() {
     const bg = document.createElement('div');
     bg.className = 'play-media-bg';
     if (b.media.type === 'video') {
+      const mode = videoMode(b.media);
       const v = document.createElement('video');
       v.src = b.media.url;
       v.autoplay = true;
-      v.loop = true;
-      v.muted = !CFG.unmuteVideo;
+      v.loop = mode === 'background';
+      v.muted = mode === 'background';
       v.playsInline = true;
+      v.preload = 'auto';
+      if (mode === 'clip') {
+        v.onended = () => {
+          if (!playing || playFlat[playIdx] !== b) return;
+          playNext();
+        };
+      }
       bg.appendChild(v);
     } else {
       const img = document.createElement('img');
@@ -1761,25 +1791,10 @@ async function route() {
   if (q.get('new') === '1' || q.get('new') === 'story' || q.get('new') === 'video') {
     openCreateModal();
   }
-  applyHomeCopy();
+  if (q.get('hint') === 'video') {
+    setTimeout(() => toast('上传 MP4 后，在右侧选「视频镜」：保留原声，播完自动下一镜'), 500);
+  }
   renderHome();
-}
-
-function applyHomeCopy() {
-  const h1 = document.querySelector('.mk-hero h1');
-  const p = document.querySelector('.mk-hero p');
-  if (h1) h1.textContent = CFG.heroTitle;
-  if (p) p.textContent = CFG.heroDesc;
-  const newBtn = $('#mkNewBtn');
-  if (newBtn) newBtn.textContent = CFG.newBtn;
-  const empty = $('#mkEmpty');
-  if (empty) empty.textContent = CFG.emptyHint;
-  const modalTitle = document.querySelector('#mkModal h2');
-  if (modalTitle) modalTitle.textContent = CFG.modalTitle;
-  const login = $('#mkLogin a');
-  if (login) login.href = '/yonder.html?next=' + encodeURIComponent(CFG.loginNext);
-  const picStep = document.querySelector('.mk-step[data-step="pic"]');
-  if (picStep) picStep.textContent = CFG.videoFirst ? '② 视频' : '② 图';
 }
 
 function bind() {

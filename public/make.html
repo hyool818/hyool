@@ -182,8 +182,8 @@ html,body{height:100%;overflow:hidden}
   <main class="app-main" id="viewHome">
     <div class="mk-home">
       <section class="mk-hero">
-        <h1>写故事，加图片，点试玩</h1>
-        <p>像做 PPT 一样做视觉小说：左边是镜头顺序，中间实时预览，右边改字加图。改完立刻试玩，满意再发布。</p>
+        <h1>写故事，加图片或视频，点试玩</h1>
+        <p>像做 PPT 一样做视觉小说：左边镜头顺序，中间实时预览，右边改字加图。<strong>图片镜</strong>可裁剪；上传 MP4 后可选<strong>背景循环</strong>（静音）或<strong>视频镜</strong>（原声，播完进下一镜）。</p>
       </section>
       <div id="mkLogin" class="mk-login hidden">请先 <a href="/yonder.html?next=/make.html">登录</a>，才能创建和保存作品。</div>
       <div id="mkApp" class="hidden">
@@ -196,12 +196,8 @@ html,body{height:100%;overflow:hidden}
         <p id="mkEmpty" class="mk-login hidden" style="padding:24px">还没有作品。点上方「新建故事」开始，或让 AI 帮你想大纲。</p>
         <div class="mk-more">
           <h3>其他类型</h3>
-          <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:4px">视觉小说在上面创建；下面这些走专用工具，一样能试玩发布。</p>
+          <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:4px">视觉小说支持图片 + 视频混排；漫画 / 卡牌 / H5 走下方专用工具。</p>
           <div class="mk-more-grid">
-            <a class="mk-more-card" href="/make-video.html">
-              <strong>🎬 互动视频</strong>
-              <span>每镜上传 MP4，叠加对白与选项</span>
-            </a>
             <a class="mk-more-card" href="/h5-game.html">
               <strong>🎮 H5 网页游戏</strong>
               <span>粘贴游戏链接，站内 iframe 试玩</span>
@@ -300,6 +296,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260827audio"></script>
+<script type="module" src="/make.js?v=20260827merge"></script>
 </body>
 </html>

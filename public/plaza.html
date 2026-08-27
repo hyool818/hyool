@@ -145,11 +145,8 @@ async function loadPlaza() {
       const isRpg = s.kind === "card_rpg";
       const isRogue = s.kind === "gacha_rogue";
       const isH5 = s.kind === "h5_game";
-      const isVideo = s.kind === "interactive_video";
       const badge = isH5
         ? `<span class="badge story" style="background:rgba(120,200,140,.14);color:#a8e8b8">🎮 H5</span>`
-        : isVideo
-        ? `<span class="badge story" style="background:rgba(95,200,255,.12);color:#9ee8ff">🎬 互动视频</span>`
         : isRogue
         ? `<span class="badge story rogue">🂠 卡牌</span>`
         : isRpg ? `<span class="badge story rpg">⚔️ 卡牌RPG</span>` : `<span class="badge story">故事作品</span>`;
@@ -162,9 +159,7 @@ async function loadPlaza() {
         : `${Number(s.chapters_count) || 0} 章 · ${Number(s.blocks_count) || 0} 块积木 · ${orient}`;
       const playHref = isH5
         ? `/h5-play.html?story=${s.id}&from=/plaza`
-        : isVideo
-        ? `/make-video.html?story=${s.id}&play=1&from=/plaza`
-        : (s.kind === "story" || !s.kind)
+        : (s.kind === "story" || s.kind === "interactive_video" || !s.kind)
         ? `/make.html?story=${s.id}&play=1&from=/plaza`
         : `/story-editor.html?story=${s.id}&play=1&from=/plaza`;
       return `<div class="card" onclick="location.href='${playHref}'">

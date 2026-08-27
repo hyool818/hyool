@@ -3283,10 +3283,7 @@ function storyPlayUrl(s) {
     if (s.kind === "h5_game") {
         return "/h5-play.html?story=" + encodeURIComponent(s.id) + "&from=" + encodeURIComponent(from);
     }
-    if (s.kind === "interactive_video") {
-        return "/make-video.html?story=" + encodeURIComponent(s.id) + "&play=1&from=" + encodeURIComponent(from);
-    }
-    if (s.kind === "story" || !s.kind) {
+    if (s.kind === "story" || s.kind === "interactive_video" || !s.kind) {
         return "/make.html?story=" + encodeURIComponent(s.id) + "&play=1&from=" + encodeURIComponent(from);
     }
     return "/story-editor.html?story=" + encodeURIComponent(s.id) + "&play=1&from=" + encodeURIComponent(from);
