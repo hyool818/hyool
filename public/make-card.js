@@ -263,12 +263,6 @@ function renderEdit() {
   stage.classList.toggle('portrait', work?.orientation !== 'landscape');
 }
 
-/** 改名/改数值时只刷新列表与预览，不重绘属性面板 */
-function refreshNameViews() {
-  renderList();
-  renderPreview();
-}
-
 function charPreviewMeta(c) {
   let meta = (c.star || 1) + '★ · 生命 ' + c.hp + ' · 攻击 ' + c.atk + '<br>速度 ' + c.spd;
   if (c.desc) meta += '<br>' + escapeHtml(c.desc);
