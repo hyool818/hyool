@@ -373,7 +373,16 @@ function syncCharViews(c, opts = {}) {
 
 function syncEnemyViews(e) {
   patchListLabel('enemy', e.id, e.name);
-  if (select.type === 'enemy' && select.id === e.id) renderPreview();
+  if (select.type !== 'enemy' || select.id !== e.id) return;
+  const nameEl = $('#mcStage .card-name');
+  if (nameEl) nameEl.textContent = '👹 ' + (e.name || '');
+  else renderPreview();
+  // 关卡面板里敌人多选标签同步
+  $$('#mcPanel .mc-enemy-pick').forEach((row) => {
+    if (row.dataset.enemyId !== e.id) return;
+    const tail = row.childNodes[row.childNodes.length - 1];
+    if (tail) tail.textContent = ' ' + (e.name || '');
+  });
 }
 
 function syncStageViews(s) {
@@ -535,15 +544,39 @@ function renderPreview() {
     escapeHtml(CARD_MODES[r.mode]?.hint || '') + '</div>';
 }
 
-function field(label, tag, value, onInput) {
+function field(label, tag, value, onInput, opts = {}) {
+  const maxLen = opts.maxLen || 0;
   const wrap = document.createElement('div');
   wrap.className = 'field';
   const lab = document.createElement('label');
   lab.textContent = label;
   const el = document.createElement(tag === 'textarea' ? 'textarea' : 'input');
   if (tag !== 'textarea') el.type = tag === 'number' ? 'number' : 'text';
+  if (tag !== 'number') {
+    el.setAttribute('lang', 'zh-CN');
+    el.autocomplete = 'off';
+    el.spellcheck = false;
+  }
   el.value = value;
-  el.addEventListener('input', () => onInput(el.value));
+  let composing = false;
+  const fire = () => {
+    let v = el.value;
+    if (maxLen > 0 && v.length > maxLen) {
+      v = v.slice(0, maxLen);
+      el.value = v;
+    }
+    onInput(v);
+  };
+  el.addEventListener('compositionstart', () => { composing = true; });
+  el.addEventListener('compositionend', () => {
+    composing = false;
+    fire();
+  });
+  el.addEventListener('input', () => {
+    if (composing) return;
+    fire();
+  });
+  el.addEventListener('blur', fire);
   wrap.append(lab, el);
   return wrap;
 }
@@ -605,8 +638,8 @@ function renderPanel() {
   if (select.type === 'char') {
     const c = selectedChar();
     if (!c) return;
-    panel.appendChild(field('角色名', 'text', c.name, (v) => { c.name = v.slice(0, 16); scheduleSave(); syncCharViews(c); }));
-    panel.appendChild(field('简介', 'textarea', c.desc || '', (v) => { c.desc = v.slice(0, 120); scheduleSave(); syncCharViews(c); }));
+    panel.appendChild(field('角色名', 'text', c.name, (v) => { c.name = v; scheduleSave(); syncCharViews(c); }, { maxLen: 16 }));
+    panel.appendChild(field('简介', 'textarea', c.desc || '', (v) => { c.desc = v; scheduleSave(); syncCharViews(c); }, { maxLen: 120 }));
     panel.appendChild(field('生命', 'number', String(c.hp), (v) => { c.hp = Math.max(40, Math.min(99999, Number(v) || 120)); scheduleSave(); syncCharViews(c); }));
     panel.appendChild(field('攻击', 'number', String(c.atk), (v) => { c.atk = Math.max(4, Math.min(99, Number(v) || 18)); scheduleSave(); syncCharViews(c); }));
     panel.appendChild(field('速度', 'number', String(c.spd), (v) => { c.spd = Math.max(6, Math.min(40, Number(v) || 16)); scheduleSave(); syncCharViews(c); }));
@@ -652,7 +685,7 @@ function renderPanel() {
   if (select.type === 'enemy') {
     const e = selectedEnemy();
     if (!e) return;
-    panel.appendChild(field('敌人名', 'text', e.name, (v) => { e.name = v.slice(0, 16); scheduleSave(); syncEnemyViews(e); }));
+    panel.appendChild(field('敌人名', 'text', e.name, (v) => { e.name = v; scheduleSave(); syncEnemyViews(e); }, { maxLen: 16 }));
     panel.appendChild(field('生命', 'number', String(e.hp), (v) => { e.hp = Math.max(1, Math.min(99999, Number(v) || 50)); scheduleSave(); renderPreview(); }));
     panel.appendChild(field('攻击', 'number', String(e.atk), (v) => { e.atk = Math.max(1, Math.min(99, Number(e.atk) || 8)); scheduleSave(); renderPreview(); }));
     panel.appendChild(field('速度', 'number', String(e.spd), (v) => { e.spd = Math.max(1, Math.min(40, Number(e.spd) || 12)); scheduleSave(); renderPreview(); }));
@@ -672,7 +705,7 @@ function renderPanel() {
   if (select.type === 'stage') {
     const s = selectedStage();
     if (!s) return;
-    panel.appendChild(field('关卡名', 'text', s.title || '', (v) => { s.title = v.slice(0, 40); scheduleSave(); syncStageViews(s); }));
+    panel.appendChild(field('关卡名', 'text', s.title || '', (v) => { s.title = v; scheduleSave(); syncStageViews(s); }, { maxLen: 40 }));
     const lab = document.createElement('label');
     lab.textContent = '本关敌人（可多选）';
     panel.appendChild(lab);
@@ -684,8 +717,10 @@ function renderPanel() {
       r.enemies.forEach((e) => {
         const row = document.createElement('label');
         row.className = 'mc-enemy-pick';
+        row.dataset.enemyId = e.id;
         const ck = document.createElement('input');
         ck.type = 'checkbox';
+        ck.value = e.id;
         ck.checked = (s.enemyIds || []).includes(e.id);
         ck.addEventListener('change', () => {
           if (!Array.isArray(s.enemyIds)) s.enemyIds = [];
