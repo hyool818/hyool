@@ -637,6 +637,10 @@ function beginRun(ids) {
     return;
   }
   run.relics = [];
+  if (r.mode === 'idle' || r.mode === 'queue') {
+    enterNode();
+    return;
+  }
   run.phase = 'map';
   paint();
 }
@@ -852,8 +856,10 @@ function finishBattle(win) {
     paint();
     return;
   }
-  // 普通小怪：不进入「赢了」界面，直接发奖并推进
-  if (!major) {
+  // 挂机/关卡：不弹结算窗，战斗页顶栏显示层数并直接进下一关
+  // rogue 普通战同样静默；仅 rogue 首领保留结算（要选技能）
+  const mode = run.rogue.mode;
+  if (mode === 'idle' || mode === 'queue' || !major) {
     afterWin({ quiet: true });
     return;
   }
@@ -866,13 +872,17 @@ function afterWin(opts) {
   if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
   closePortraitLightbox();
   if (!run || !run.battle) return;
+  const clearedIdx = run.nodeIdx;
   run.team.forEach(m => { if (m.hp > 0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp * 0.12)); });
   try {
     if (run.rogue.mode === 'idle') {
-      const reward = rewardIdleStage(run.rogue, run.nodeIdx);
+      const reward = rewardIdleStage(run.rogue, clearedIdx);
       if (run.story) run.story.rogue = run.rogue;
       if (run.ctx.onPersist) run.ctx.onPersist();
-      if (!quiet) toast('通关 +' + reward.gold + ' 金币，上阵角色 +' + reward.exp + ' 经验');
+      const total = Math.max(1, (run.nodes || []).length);
+      toast(`第${clearedIdx + 1}/${total}关通关 · +${reward.gold}🪙 · 经验+${reward.exp}`);
+    } else if (!quiet) {
+      toast('战斗胜利');
     }
   } catch (err) {
     console.error(err);
@@ -920,6 +930,11 @@ function advanceNode() {
     paint();
     return;
   }
+  // 挂机/关卡：留在战斗流程，直接开下一关，不闪地图页
+  if (run.rogue.mode === 'idle' || run.rogue.mode === 'queue') {
+    enterNode();
+    return;
+  }
   run.phase = 'map';
   paint();
 }
@@ -940,14 +955,19 @@ function paintBattle(frame) {
   const ready = b.phase === 'running' ? battleReadyIds(b) : new Set();
   const winHint = run.rogue.mode === 'rogue' ? '选一张技能带进后面。' : '下一关自动开始。';
   const loseHint = run.rogue.mode === 'rogue' ? '再开一局会换一套技能和事件。' : '改改角色或敌人数值再试。';
+  const node = run.nodes[run.nodeIdx];
+  const total = Math.max(1, (run.nodes || []).length);
+  const showLayer = run.rogue.mode === 'idle' || run.rogue.mode === 'queue';
+  const layerTxt = showLayer ? `第${run.nodeIdx + 1}/${total}关` : '';
+  const nodeTitle = showLayer && node && node.title ? ` · ${esc(node.title)}` : '';
   const waveTxt = b.waves && b.waves.length > 1 ? ` · 第${(b.waveIdx || 0) + 1}/${b.waves.length}轮` : '';
-  const top = `<div class="bt-top"><div class="bt-round">速度条满 · 依次出手 · ${run.speed}x${waveTxt}</div>
+  const top = `<div class="bt-top"><div class="bt-round">${layerTxt ? `<span class="bt-layer">${layerTxt}</span>${nodeTitle}<span class="bt-sep">·</span>` : ''}速度条 · ${run.speed}x${waveTxt}</div>
     <div class="rg-speeds">
-      <button class="btn tiny ${run.speed === 1 ? 'primary' : ''}" data-sp="1">1x</button>
-      <button class="btn tiny ${run.speed === 2 ? 'primary' : ''}" data-sp="2">2x</button>
-      <button class="btn tiny ${run.speed === 4 ? 'primary' : ''}" data-sp="4">4x</button>
+      <button type="button" class="btn tiny ${run.speed === 1 ? 'primary' : ''}" data-sp="1">1x</button>
+      <button type="button" class="btn tiny ${run.speed === 2 ? 'primary' : ''}" data-sp="2">2x</button>
+      <button type="button" class="btn tiny ${run.speed === 4 ? 'primary' : ''}" data-sp="4">4x</button>
     </div>
-    <button class="btn tiny ghost" id="rgExit">退出</button></div>`;
+    <button type="button" class="btn tiny ghost" id="rgExit">退出</button></div>`;
   const foes = (b.enemies || []).map(e => {
     const assets = (run.story && run.story.assets) || [];
     const fcls = cardFrameClass(e, assets);

@@ -218,7 +218,9 @@
 #playOverlay .bt-top{
   position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;
 }
-#playOverlay .bt-round{font-size:14px;font-weight:800;color:#ffd76a;text-shadow:0 0 12px rgba(255,200,80,.35)}
+#playOverlay .bt-round{font-size:13px;font-weight:800;color:#ffd76a;text-shadow:0 0 12px rgba(255,200,80,.35);display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+#playOverlay .bt-layer{display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(255,215,106,.16);border:1px solid rgba(255,215,106,.45);font-size:12px;letter-spacing:.04em}
+#playOverlay .bt-sep{opacity:.55;font-weight:600}
 #playOverlay .bt-board{
   flex:1;min-height:0;display:flex;flex-direction:column;
   border:1px solid rgba(180,140,255,.22);border-radius:14px;overflow:hidden;
