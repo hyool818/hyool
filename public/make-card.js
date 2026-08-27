@@ -1220,6 +1220,7 @@ function bind() {
   });
   $('#mcPubBtn').addEventListener('click', togglePublish);
   $('#mcDelBtn').addEventListener('click', deleteSelected);
+  $('#mcPlayBtn').addEventListener('click', startPlay);
   $('#mcDemoBtn').addEventListener('click', applyDemo);
   $('#playClose').addEventListener('click', stopPlay);
   $('#mcBack').addEventListener('click', (e) => {
