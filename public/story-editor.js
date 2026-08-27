@@ -1954,7 +1954,7 @@ function renderAssetsPanel(host, categoryFilter) {
     cloudTip.textContent = '云端只存你的素材，可跨作品复用。删除后文件从 R2 移除。';
     host.appendChild(cloudTip);
     const openVault = document.createElement('a');
-    openVault.href = '/my-vault';
+    openVault.href = '/my-vault?from=' + encodeURIComponent(location.pathname + location.search);
     openVault.className = 'btn wide';
     openVault.style.cssText = 'display:block;text-align:center;text-decoration:none;margin-bottom:10px';
     openVault.textContent = '打开专属库管理页 →';

@@ -14,21 +14,25 @@ let imgLoading = 0;
 const imgWait = [];
 let vaultObserver = null;
 
+function resolveBackHref() {
+  const from = new URLSearchParams(location.search).get('from');
+  if (from && from.charAt(0) === '/' && from.charAt(1) !== '/') return from;
+  try {
+    const ref = document.referrer ? new URL(document.referrer) : null;
+    if (ref && ref.origin === location.origin) {
+      const p = ref.pathname;
+      if (p === '/studio-world.html' || p === '/studio-world') return p + ref.search;
+      if (p.startsWith('/@')) return p + ref.search;
+    }
+  } catch { /* ignore */ }
+  return '/studio-world.html';
+}
+
 function setupBackNav() {
   const el = document.getElementById('vaultBack');
   if (!el) return;
-  const from = new URLSearchParams(location.search).get('from');
-  if (from && from.charAt(0) === '/' && from.charAt(1) !== '/') {
-    el.href = from;
-    return;
-  }
-  el.href = '/';
-  el.addEventListener('click', (e) => {
-    if (history.length > 1) {
-      e.preventDefault();
-      history.back();
-    }
-  });
+  el.href = resolveBackHref();
+  el.textContent = '← 返回';
 }
 
 function scheduleImgLoad(img, url) {
