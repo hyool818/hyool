@@ -7,7 +7,7 @@
 | 功能 | 页面 | 说明 |
 |---|---|---|
 | 首页双核心 | `public/index.html` | 创作作品 / 创造世界；底栏：去玩 / 我的 / AI / 工具 |
-| 统一创作入口 | `public/studio.html` | 取代 `fantasy.html`（已重定向）；故事/游戏/视觉 + 世界/IP |
+| 统一创作入口 | `public/studio.html` `public/studio-world.html` | 向导式选题；世界/IP 独立页 |
 | 我的作品 | `public/my-works.html` `public/my-works.js` | 全部 kind 列表；试玩 / 编辑 / 发布；`story-editor` 无参数时跳转至此 |
 | 旧幻想总览 | `public/fantasy.html` | → `/studio.html` |
 

@@ -1193,15 +1193,37 @@ function setStorySimpleUi(on) {
 
 function applyStorySimpleUiChrome() {
   const simple = isStorySimpleUi();
+  const shell = $('#viewEditor');
+  if (shell) shell.classList.toggle('easy-shell', simple);
+  const easyBar = $('#easyStepBar');
+  if (easyBar) easyBar.classList.toggle('hidden', !simple);
   document.querySelectorAll('.story-advanced').forEach((el) => {
     el.classList.toggle('story-advanced-hidden', simple);
   });
   const dock = $('#timelineDock');
   if (dock && simple) dock.classList.add('collapsed');
   const propHead = $('#propHead');
-  if (propHead) propHead.textContent = simple ? '镜头属性' : '属性';
+  if (propHead) propHead.textContent = simple ? '在这里改' : '属性';
   const blockLabel = $('#blockListLabel');
-  if (blockLabel) blockLabel.textContent = simple ? '镜头列表（从上到下播放）' : '镜头列表';
+  if (blockLabel) blockLabel.textContent = simple ? '镜头（从上到下播放）' : '镜头列表';
+  renderEasyStepBar();
+}
+
+function renderEasyStepBar() {
+  if (!isStorySimpleUi()) return;
+  const s = story();
+  const ch = chapter();
+  const blocks = ch ? ch.blocks.length : 0;
+  const b = selectedBlockId ? findBlock(selectedBlockId) : null;
+  const hasMedia = b && b.media && b.media.url;
+  const pub = s && s.status === 'published';
+  const set = (id, cls) => { const el = $(id); if (el) { el.classList.remove('on', 'done'); if (cls) el.classList.add(cls); } };
+  set('#esWrite', blocks > 0 ? 'done' : 'on');
+  set('#esPicture', hasMedia ? 'done' : (blocks > 0 ? 'on' : ''));
+  set('#esPlay', blocks > 0 ? 'on' : '');
+  set('#esPub', pub ? 'done' : '');
+  const pubBtn = $('#easyPubBtn');
+  if (pubBtn && s) pubBtn.textContent = pub ? '从广场下架' : '发布作品';
 }
 
 function renderStoryGuideBar() {
@@ -1630,6 +1652,7 @@ function selectBlock(id) {
   renderStagePreview();
   renderPropertyPanel();
   renderTimelineDock();
+  renderEasyStepBar();
 }
 
 function renderStudioTopbar() {
@@ -2258,6 +2281,7 @@ function renderPropertyPanel() {
     return;
   }
   const b = selectedBlockId ? findBlock(selectedBlockId) : null;
+  const simple = isStorySimpleUi();
   if (!b) {
     if (head) head.textContent = '属性';
     const s = story();
@@ -2299,14 +2323,15 @@ function renderPropertyPanel() {
   if (b.type === 'dialogue' || b.type === 'scene') {
     const f2 = document.createElement('div');
     f2.className = 'field';
-    f2.innerHTML = '<label>文本</label>';
+    f2.innerHTML = '<label>' + (b.type === 'scene' ? '这一镜写什么' : '角色说什么') + '</label>';
     const ta = document.createElement('textarea');
-    ta.className = 'txt'; ta.rows = 4;
+    ta.className = 'txt'; ta.rows = simple ? 5 : 4;
     ta.value = b.content || '';
-    ta.placeholder = b.type === 'scene' ? '场景文字' : '对白内容';
-    ta.addEventListener('change', () => { b.content = ta.value; persist(); renderBlocks(); renderTimelineDock(); });
+    ta.placeholder = b.type === 'scene' ? '例如：雨夜，旧寺庙门前……' : '例如：你怎么会在这里？';
+    ta.addEventListener('input', () => { b.content = ta.value; persist(); renderBlocks(); renderTimelineDock(); renderEasyStepBar(); });
     f2.appendChild(ta);
     wrap.appendChild(f2);
+    if (!simple) {
     const entry = (story().cast || {})[b.speaker || DEFAULT_SPEAKER];
     const voiceNote = document.createElement('p');
     voiceNote.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.6';
@@ -2330,6 +2355,7 @@ function renderPropertyPanel() {
     castBtn.addEventListener('click', openCastEditor);
     row.append(subBtn, castBtn);
     wrap.appendChild(row);
+    }
   }
   if (b.type === 'battle') {
     const p = document.createElement('button');
@@ -2349,18 +2375,25 @@ function renderPropertyPanel() {
   ops.className = 'bm-ops';
   ops.style.marginTop = '8px';
   const mediaBtn = document.createElement('button');
-  mediaBtn.className = 'btn tiny';
-  mediaBtn.textContent = b.media ? '换画面' : '加画面';
-  mediaBtn.addEventListener('click', () => pickMedia(b, mediaBtn));
-  const audioBtn = document.createElement('button');
-  audioBtn.className = 'btn tiny';
-  audioBtn.textContent = b.audio ? '换配音' : '加配音';
-  audioBtn.addEventListener('click', () => pickAudio(b, audioBtn));
-  const bgmBtn = document.createElement('button');
-  bgmBtn.className = 'btn tiny';
-  bgmBtn.textContent = '本幕 BGM';
-  bgmBtn.addEventListener('click', () => openBlockBgmEditor(b));
-  ops.append(mediaBtn, audioBtn, bgmBtn);
+  if (simple && (b.type === 'dialogue' || b.type === 'scene')) {
+    mediaBtn.className = 'btn primary btn-easy-media';
+    mediaBtn.textContent = b.media ? '🖼 更换这一镜的背景图' : '🖼 给这一镜加背景图（第②步）';
+    mediaBtn.addEventListener('click', () => pickMedia(b, mediaBtn));
+    ops.appendChild(mediaBtn);
+  } else {
+    mediaBtn.className = 'btn tiny';
+    mediaBtn.textContent = b.media ? '换画面' : '加画面';
+    mediaBtn.addEventListener('click', () => pickMedia(b, mediaBtn));
+    const audioBtn = document.createElement('button');
+    audioBtn.className = 'btn tiny';
+    audioBtn.textContent = b.audio ? '换配音' : '加配音';
+    audioBtn.addEventListener('click', () => pickAudio(b, audioBtn));
+    const bgmBtn = document.createElement('button');
+    bgmBtn.className = 'btn tiny';
+    bgmBtn.textContent = '本幕 BGM';
+    bgmBtn.addEventListener('click', () => openBlockBgmEditor(b));
+    ops.append(mediaBtn, audioBtn, bgmBtn);
+  }
   wrap.appendChild(ops);
   body.appendChild(wrap);
 }
@@ -6930,6 +6963,8 @@ function init() {
     if (e && e.message) toast('编辑器异常：' + String(e.message).slice(0, 80), true);
   });
   bindInit($('#createBtn'), 'click', createStory);
+  const createBack = $('#createBackBtn');
+  if (createBack) createBack.addEventListener('click', () => { location.href = '/studio.html'; });
   bindInit($('#newTitle'), 'keydown', (e) => { if (e.key === 'Enter') createStory(); });
   const guideAdv = $('#storyGuideAdvanced');
   if (guideAdv) guideAdv.addEventListener('click', () => { setStorySimpleUi(false); toast('已显示分支图、选项、时间轴等全部功能'); });
@@ -6938,6 +6973,12 @@ function init() {
     try { localStorage.setItem(STORY_GUIDE_DISMISS_KEY, '1'); } catch (e) { /* ignore */ }
     renderStoryGuideBar();
   });
+  const easyPlay = $('#easyPlayBtn');
+  if (easyPlay) easyPlay.addEventListener('click', startPlay);
+  const easyPub = $('#easyPubBtn');
+  if (easyPub) easyPub.addEventListener('click', publishCurrentStory);
+  const easyAdv = $('#easyAdvBtn');
+  if (easyAdv) easyAdv.addEventListener('click', () => { setStorySimpleUi(false); toast('已切换到老手模式：分支图、时间轴、选项等全部显示'); });
   $('#storyTitle').addEventListener('input', () => {
     const s = story();
     const v = $('#storyTitle').value.trim();
