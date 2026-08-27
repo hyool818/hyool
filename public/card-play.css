@@ -303,6 +303,104 @@
 }
 #playOverlay .bt-log-line{font-size:12px;color:var(--text);line-height:1.7;word-break:break-all}
 
+/* 出手互动：行动者光波 + 目标震动/受疗 */
+#playOverlay .bt-enemy,
+#playOverlay .bt-member{position:relative;overflow:visible;isolation:isolate}
+#playOverlay .bt-enemy.acting,
+#playOverlay .bt-member.acting{
+  z-index:3;
+  animation:bt-act-pop .48s cubic-bezier(.2,1.4,.3,1) both;
+}
+#playOverlay .bt-enemy.acting.act-atk,
+#playOverlay .bt-member.acting.act-atk{
+  box-shadow:0 0 0 1px rgba(255,220,140,.7),0 0 22px rgba(255,180,80,.45);
+}
+#playOverlay .bt-enemy.acting.act-heal,
+#playOverlay .bt-member.acting.act-heal{
+  box-shadow:0 0 0 1px rgba(120,230,160,.7),0 0 22px rgba(80,210,140,.4);
+}
+#playOverlay .bt-enemy.acting.act-buff,
+#playOverlay .bt-member.acting.act-buff{
+  box-shadow:0 0 0 1px rgba(160,180,255,.75),0 0 22px rgba(120,150,255,.45);
+  animation:bt-act-buff .5s ease-out both;
+}
+#playOverlay .bt-wave{
+  position:absolute;left:50%;top:42%;width:18px;height:18px;margin:-9px 0 0 -9px;
+  border-radius:50%;border:2px solid rgba(255,230,160,.95);
+  pointer-events:none;z-index:4;
+  animation:bt-wave-ring .5s ease-out forwards;
+  box-shadow:0 0 12px rgba(255,200,100,.55);
+}
+#playOverlay .bt-wave.elem-fire{border-color:rgba(255,120,70,.95);box-shadow:0 0 14px rgba(255,90,40,.55)}
+#playOverlay .bt-wave.elem-water{border-color:rgba(90,190,255,.95);box-shadow:0 0 14px rgba(60,160,255,.55)}
+#playOverlay .bt-wave.elem-wood{border-color:rgba(110,220,130,.95);box-shadow:0 0 14px rgba(70,200,100,.5)}
+#playOverlay .bt-wave.elem-light{border-color:rgba(255,230,150,.95);box-shadow:0 0 14px rgba(255,210,100,.55)}
+#playOverlay .bt-wave.elem-dark{border-color:rgba(180,120,255,.95);box-shadow:0 0 14px rgba(150,90,255,.55)}
+#playOverlay .bt-flash{
+  position:absolute;inset:-4px;border-radius:12px;pointer-events:none;z-index:2;
+  background:radial-gradient(circle at 50% 40%,rgba(255,240,200,.45),transparent 62%);
+  animation:bt-flash-fade .45s ease-out forwards;
+}
+#playOverlay .bt-enemy.hit.hit-atk,
+#playOverlay .bt-member.hit.hit-atk{
+  animation:bt-hit-shake .42s ease-out both;
+  filter:brightness(1.15);
+}
+#playOverlay .bt-enemy.hit.hit-heal,
+#playOverlay .bt-member.hit.hit-heal{
+  animation:bt-heal-pulse .48s ease-out both;
+  box-shadow:0 0 0 1px rgba(120,230,160,.65),0 0 18px rgba(80,210,140,.35);
+}
+#playOverlay .bt-enemy.hit.hit-buff,
+#playOverlay .bt-member.hit.hit-buff{
+  animation:bt-buff-rise .48s ease-out both;
+}
+#playOverlay .bt-enemy.acting .bt-portrait,
+#playOverlay .bt-member.acting .bt-portrait{
+  animation:bt-portrait-kick .45s ease-out both;
+}
+@keyframes bt-act-pop{
+  0%{transform:scale(.92);filter:brightness(1)}
+  40%{transform:scale(1.1);filter:brightness(1.25)}
+  100%{transform:scale(1.04);filter:brightness(1.08)}
+}
+@keyframes bt-act-buff{
+  0%{transform:scale(.96) translateY(2px)}
+  50%{transform:scale(1.08) translateY(-4px)}
+  100%{transform:scale(1.03) translateY(-1px)}
+}
+@keyframes bt-wave-ring{
+  0%{transform:scale(.35);opacity:1}
+  70%{opacity:.55}
+  100%{transform:scale(3.4);opacity:0}
+}
+@keyframes bt-flash-fade{
+  0%{opacity:1}
+  100%{opacity:0}
+}
+@keyframes bt-hit-shake{
+  0%,100%{transform:translateX(0) scale(1)}
+  20%{transform:translateX(-5px) scale(1.03)}
+  40%{transform:translateX(5px) scale(.98)}
+  60%{transform:translateX(-3px) scale(1.02)}
+  80%{transform:translateX(2px)}
+}
+@keyframes bt-heal-pulse{
+  0%{transform:scale(.96);filter:brightness(1)}
+  45%{transform:scale(1.08);filter:brightness(1.2) saturate(1.15)}
+  100%{transform:scale(1.02);filter:brightness(1.06)}
+}
+@keyframes bt-buff-rise{
+  0%{transform:translateY(3px) scale(.98)}
+  55%{transform:translateY(-5px) scale(1.06)}
+  100%{transform:translateY(-1px) scale(1.02)}
+}
+@keyframes bt-portrait-kick{
+  0%{transform:scale(1)}
+  35%{transform:scale(1.06)}
+  100%{transform:scale(1)}
+}
+
 /* 结算层：盖住棋盘，必须可点 */
 #playOverlay .bt-result{
   position:absolute;inset:0;z-index:40;

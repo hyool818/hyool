@@ -748,6 +748,7 @@ function startBattleNode(node) {
     log: [`⚔️ ${NODE_LABEL[node.type]}${waves.length > 1 ? ' · 第1/' + waves.length + '轮' : ''}`],
     phase: 'running',
     majorFight: isMajorFightNode(node),
+    actFx: null,
   };
   run.phase = 'battle';
   paint();
@@ -777,6 +778,7 @@ function battleTick() {
       b.waveIdx += 1;
       b.enemies = spawnEnemyInstances(b.waves[b.waveIdx], 'w' + b.waveIdx);
       b.log.push(`— 第 ${b.waveIdx + 1}/${b.waves.length} 轮 —`);
+      run.battle.actFx = null;
       try { paint(); } catch (err) { console.error(err); }
       tickTimer = setTimeout(battleTick, 80);
       return;
@@ -785,6 +787,7 @@ function battleTick() {
     return;
   }
   if (!party.length) { finishBattle(false); return; }
+  if (run.battle.actFx) run.battle.actFx = null;
   const units = [...party.map(m => ({ who: m, enemy: false })), ...foes.map(e => ({ who: e, enemy: true }))];
   const step = (4 + run.speed * 3);
   units.forEach(u => { u.who.gauge = (u.who.gauge || 0) + (u.who.spdBattle || u.who.spd || 12) * step / 20; });
@@ -796,7 +799,6 @@ function battleTick() {
     actor.who.gauge -= 100;
     resolveAct(actor.who, actor.enemy, mods);
     if (run.battle.log.length > 36) run.battle.log = run.battle.log.slice(-36);
-    // 同一拍内击杀全部敌人时立刻结算，避免 tick 中断导致卡在 0 血场上
     if (!run.battle.enemies.some((e) => e.hp > 0)) {
       const b = run.battle;
       if (b.waves && b.waveIdx < b.waves.length - 1) {
@@ -811,6 +813,14 @@ function battleTick() {
       finishBattle(false);
       return;
     }
+    try { paint(); } catch (err) { console.error(err); }
+    // 出手特效播完再继续，避免整页重绘掐断动画
+    const fxMs = Math.max(260, Math.round(480 / Math.max(1, run.speed)));
+    tickTimer = setTimeout(() => {
+      if (run && run.battle) run.battle.actFx = null;
+      battleTick();
+    }, fxMs);
+    return;
   }
   try { paint(); } catch (err) { console.error(err); }
   if (run && run.phase === 'battle' && run.battle && run.battle.phase === 'running') {
@@ -821,12 +831,22 @@ function battleTick() {
 function resolveAct(who, isEnemy, mods) {
   const party = run.team.filter(m => m.hp > 0);
   const foes = run.battle.enemies.filter(e => e.hp > 0);
+  const fx = {
+    actorId: who.id,
+    targetIds: [],
+    kind: 'atk',
+    elem: who.elem || 'light',
+    side: isEnemy ? 'enemy' : 'party',
+  };
   if (isEnemy) {
     const t = party[Math.floor(Math.random() * party.length)];
-    if (!t) return;
+    if (!t) { run.battle.actFx = fx; return; }
     const dmg = Math.max(1, Math.round(who.atk * posTakenMul(t) * elemMul(who.elem, t.elem)));
     t.hp = Math.max(0, t.hp - dmg);
     run.battle.log.push(`${who.name} → ${t.name} ${dmg}`);
+    fx.targetIds = [t.id];
+    fx.kind = 'atk';
+    run.battle.actFx = fx;
     return;
   }
   const sk = nextSkill(who);
@@ -835,21 +855,32 @@ function resolveAct(who, isEnemy, mods) {
     const heal = Math.max(1, Math.round((who.atk * (sk.power / 100)) * 0.8));
     t.hp = Math.min(t.maxHpBattle || t.maxHp, t.hp + heal);
     run.battle.log.push(`${who.name} 治疗 ${t.name} +${heal}`);
+    fx.targetIds = [t.id];
+    fx.kind = 'heal';
+    fx.elem = sk.elem || who.elem || 'wood';
+    run.battle.actFx = fx;
     return;
   }
   if (sk.kind === 'buff') {
     who.buff = (who.buff || 0) + 1;
     run.battle.log.push(`${who.name} 蓄力`);
+    fx.targetIds = [who.id];
+    fx.kind = 'buff';
+    run.battle.actFx = fx;
     return;
   }
   const t = foes[0];
-  if (!t) return;
+  if (!t) { run.battle.actFx = fx; return; }
   const elem = sk.elem || who.elem;
   let mul = elemMul(elem, t.elem) + (mods.elem || 0);
   if (who.buff > 0) { mul *= 1.35; who.buff -= 1; }
   const dmg = Math.max(1, Math.round(who.atk * posAtkMul(who) * mods.atk * (sk.power / 100) * mul));
   t.hp = Math.max(0, t.hp - dmg);
   run.battle.log.push(`${who.name}「${sk.name}」→ ${t.name} ${dmg}`);
+  fx.targetIds = [t.id];
+  fx.kind = 'atk';
+  fx.elem = elem || who.elem || 'fire';
+  run.battle.actFx = fx;
 }
 
 function isMajorFightNode(node) {
@@ -983,13 +1014,26 @@ function paintBattle(frame) {
       <button type="button" class="btn tiny ${run.speed === 4 ? 'primary' : ''}" data-sp="4">4x</button>
     </div>
     <button type="button" class="btn tiny ghost" id="rgExit">退出</button></div>`;
+  const fx = b.actFx;
+  const isActor = (id) => !!(fx && fx.actorId === id);
+  const isTarget = (id) => !!(fx && Array.isArray(fx.targetIds) && fx.targetIds.includes(id));
+  const fxCls = (id) => {
+    let c = '';
+    if (isActor(id)) c += ` acting act-${fx.kind || 'atk'} elem-${fx.elem || 'light'}`;
+    if (isTarget(id)) c += ` hit hit-${fx.kind || 'atk'}`;
+    return c;
+  };
+  const waveHtml = (id) => (isActor(id)
+    ? `<span class="bt-wave elem-${esc(fx.elem || 'light')}" aria-hidden="true"></span><span class="bt-flash" aria-hidden="true"></span>`
+    : '');
   const foes = (b.enemies || []).map(e => {
     const assets = (run.story && run.story.assets) || [];
     const fcls = cardFrameClass(e, assets);
     const overlay = frameOverlayHtml(e, assets);
     const readyCls = ready.has(e.id) ? ' ready' : '';
     return `
-    <div class="bt-enemy${e.hp <= 0 ? ' dead' : ''}${readyCls}" data-enemy-id="${esc(e.id)}">
+    <div class="bt-enemy${e.hp <= 0 ? ' dead' : ''}${readyCls}${fxCls(e.id)}" data-enemy-id="${esc(e.id)}">
+      ${waveHtml(e.id)}
       ${e.portrait ? `<div class="bt-portrait ${fcls}"><div class="card-art">${portraitMediaInner(e)}</div>${overlay}</div>` : ''}
       <div class="bt-enemy-name">${esc(e.name)} · ${elemLabel(e.elem)}</div>
       <div class="bt-hp-row"><div class="bt-bar"><div class="bt-bar-fill enemy" style="width:${pct(e.hp, e.maxHp)}%"></div></div><span class="bt-hp-num">${e.hp}/${e.maxHp}</span></div>
@@ -1002,7 +1046,8 @@ function paintBattle(frame) {
     const overlay = frameOverlayHtml(m, assets);
     const readyCls = ready.has(m.id) ? ' ready' : '';
     return `
-    <div class="bt-member${m.hp <= 0 ? ' dead' : ''}${m.front ? ' hero' : ''}${readyCls}" data-char-id="${esc(m.id)}">
+    <div class="bt-member${m.hp <= 0 ? ' dead' : ''}${m.front ? ' hero' : ''}${readyCls}${fxCls(m.id)}" data-char-id="${esc(m.id)}">
+      ${waveHtml(m.id)}
       ${m.portrait ? `<div class="bt-portrait ${fcls}"><div class="card-art">${portraitMediaInner(m)}</div>${overlay}</div>` : ''}
       <div class="bt-member-name">${m.front ? '前' : '后'} ${esc(m.name)} · ${elemLabel(m.elem)}</div>
       <div class="bt-hp-row"><div class="bt-bar"><div class="bt-bar-fill hp" style="width:${pct(m.hp, m.maxHp)}%"></div></div><span class="bt-hp-num">${m.hp}/${m.maxHp}</span></div>
