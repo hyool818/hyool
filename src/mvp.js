@@ -905,7 +905,7 @@ export async function handleMvpRoutes(
        POST /api/stories           → 创建作品 {title, orientation, imgQuality}
        GET  /api/stories/:id       → 单部作品（本人 或 已发布公开播放）
        PUT  /api/stories/:id       → 保存完整作品 {data}（本人）
-       POST /api/stories/:id/publish → 发布/下架 {published}（本人）
+       POST /api/stories/:id/publish → 发布/下架 {published}；主页显示/隐藏 {visible}（本人）
        POST /api/stories/:id/delete  → 删除（本人）
     ===================================================== */
 
@@ -1135,18 +1135,34 @@ export async function handleMvpRoutes(
             }
 
             const body = await request.json();
-            const published = !!body.published;
-            // 作品创建即主页可见（share_id 恒非空）；发布/下架只切换 status（广场可见性）
-            const shareId = (row.share_id || "").trim() || ("s" + crypto.randomUUID().replace(/-/g, "").slice(0, 8));
+            let status = row.status === "published" ? "published" : "draft";
+            let shareId = (row.share_id || "").trim() || null;
+
+            // visible：主页对访客是否露出（share_id）；published：是否进广场
+            if (body.visible !== undefined) {
+                if (body.visible) {
+                    shareId = shareId || ("s" + crypto.randomUUID().replace(/-/g, "").slice(0, 8));
+                } else {
+                    shareId = null;
+                    status = "draft";
+                }
+            }
+            if (body.published !== undefined) {
+                const published = !!body.published;
+                status = published ? "published" : "draft";
+                if (published) {
+                    shareId = shareId || ("s" + crypto.randomUUID().replace(/-/g, "").slice(0, 8));
+                }
+            }
 
             await env.DB.prepare(
                 `UPDATE stories SET status = ?, share_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-            ).bind(published ? "published" : "draft", shareId, row.id).run();
+            ).bind(status, shareId, row.id).run();
 
             return json({
                 success: true,
                 story: {
-                    id: row.id, title: row.title, status: published ? "published" : "draft", share_id: shareId
+                    id: row.id, title: row.title, status, share_id: shareId
                 }
             });
         } catch (error) {

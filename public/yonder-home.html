@@ -3661,7 +3661,10 @@ function renderStories() {
         const sPublished = s.status === "published";
         const kind = storyKindMeta(s.kind);
         const ownerBtns = state.isOwner ? `
-            <button class="vis-toggle pub ${sPublished ? 'off' : ''}" onclick="toggleStoryPublish('${s.id}', ${!sPublished}, event)" title="发布后进入主站幻灵世界广场">${sPublished ? '下架' : '发布'}</button>` : "";
+            ${!sVisible ? `<div class="hidden-tag">已隐藏</div>` : ''}
+            <button type="button" class="vis-toggle pub ${sPublished ? 'off' : ''}" onclick="toggleStoryPublish('${escapeHtml(s.id)}', ${!sPublished}, event)" title="发布后进入主站幻灵世界广场">${sPublished ? '下架' : '发布'}</button>
+            <button type="button" class="vis-toggle del" onclick="deleteStoryCard('${escapeHtml(s.id)}', event)">删除</button>
+            <button type="button" class="vis-toggle ${sVisible ? '' : 'off'}" onclick="toggleStoryVisible('${escapeHtml(s.id)}', ${!sVisible}, event)" title="控制个人主页上的卡片可见性">${sVisible ? '隐藏' : '显示'}</button>` : "";
         const viewAll = hasMore && i === visible.length - 1 ? viewAllTag("stories", "/my-works.html") : "";
         return `
         <a class="world-card${sVisible ? '' : ' hidden-card'}" href="${storyPlayUrl(s)}">
@@ -3712,6 +3715,51 @@ async function toggleStoryPublish(id, targetPublish, ev) {
     } catch (e) {
         console.error('TOGGLE STORY PUBLISH ERROR:', e);
         alert(e.message || '操作失败，请稍后再试。');
+    }
+}
+
+async function toggleStoryVisible(id, targetVisible, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    try {
+        const res = await fetch('/api/stories/' + encodeURIComponent(id) + '/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ visible: !!targetVisible })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || '操作失败。');
+        const s = (state.stories || []).find(x => x.id === id);
+        if (s) {
+            s.share_id = data.story && data.story.share_id ? data.story.share_id : '';
+            if (data.story && data.story.status) s.status = data.story.status;
+        }
+        renderStories();
+    } catch (e) {
+        console.error('TOGGLE STORY VISIBLE ERROR:', e);
+        alert(e.message || '操作失败，请稍后再试。');
+    }
+}
+
+async function deleteStoryCard(id, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    const s = (state.stories || []).find(x => x.id === id);
+    const name = (s && s.title) || '该作品';
+    if (!confirm('确定删除作品「' + name + '」？此操作不可恢复。')) return;
+    try {
+        const res = await fetch('/api/stories/' + encodeURIComponent(id) + '/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || '删除失败。');
+        state.stories = (state.stories || []).filter(x => x.id !== id);
+        if (state.works && Array.isArray(state.works.stories)) {
+            state.works.stories = state.works.stories.filter(x => x.id !== id);
+        }
+        renderStories();
+    } catch (e) {
+        console.error('DELETE STORY ERROR:', e);
+        alert(e.message || '删除失败，请稍后再试。');
     }
 }
 
