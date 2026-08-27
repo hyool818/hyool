@@ -777,7 +777,7 @@ function battleTick() {
       b.waveIdx += 1;
       b.enemies = spawnEnemyInstances(b.waves[b.waveIdx], 'w' + b.waveIdx);
       b.log.push(`— 第 ${b.waveIdx + 1}/${b.waves.length} 轮 —`);
-      paint();
+      try { paint(); } catch (err) { console.error(err); }
       tickTimer = setTimeout(battleTick, 80);
       return;
     }
@@ -796,9 +796,24 @@ function battleTick() {
     actor.who.gauge -= 100;
     resolveAct(actor.who, actor.enemy, mods);
     if (run.battle.log.length > 36) run.battle.log = run.battle.log.slice(-36);
+    // 同一拍内击杀全部敌人时立刻结算，避免 tick 中断导致卡在 0 血场上
+    if (!run.battle.enemies.some((e) => e.hp > 0)) {
+      const b = run.battle;
+      if (b.waves && b.waveIdx < b.waves.length - 1) {
+        b.waveIdx += 1;
+        b.enemies = spawnEnemyInstances(b.waves[b.waveIdx], 'w' + b.waveIdx);
+        b.log.push(`— 第 ${b.waveIdx + 1}/${b.waves.length} 轮 —`);
+      } else {
+        finishBattle(true);
+        return;
+      }
+    } else if (!run.team.some((m) => m.hp > 0)) {
+      finishBattle(false);
+      return;
+    }
   }
-  paint();
-  if (run.phase === 'battle' && run.battle.phase === 'running') {
+  try { paint(); } catch (err) { console.error(err); }
+  if (run && run.phase === 'battle' && run.battle && run.battle.phase === 'running') {
     tickTimer = setTimeout(battleTick, run.speed >= 4 ? 16 : (run.speed === 2 ? 40 : 80));
   }
 }
@@ -848,22 +863,23 @@ function isMajorFightNode(node) {
 }
 
 function finishBattle(win) {
+  if (!run || !run.battle) return;
+  if (run.battle.phase !== 'running') return;
   if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
   closePortraitLightbox();
-  const major = !!(run.battle && run.battle.majorFight);
+  const major = !!run.battle.majorFight;
   if (!win) {
     run.battle.phase = 'lost';
     paint();
     return;
   }
-  // 挂机/关卡：不弹结算窗，战斗页顶栏显示层数并直接进下一关
-  // rogue 普通战同样静默；仅 rogue 首领保留结算（要选技能）
+  // 先锁住阶段，避免重复结算；挂机/关卡不弹窗，直接进下一关
+  run.battle.phase = 'won';
   const mode = run.rogue.mode;
   if (mode === 'idle' || mode === 'queue' || !major) {
     afterWin({ quiet: true });
     return;
   }
-  run.battle.phase = 'won';
   paint();
 }
 
@@ -871,14 +887,14 @@ function afterWin(opts) {
   const quiet = !!(opts && typeof opts === 'object' && !(opts instanceof Event) && opts.quiet);
   if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
   closePortraitLightbox();
-  if (!run || !run.battle) return;
+  if (!run) return;
   const clearedIdx = run.nodeIdx;
   run.team.forEach(m => { if (m.hp > 0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp * 0.12)); });
   try {
     if (run.rogue.mode === 'idle') {
       const reward = rewardIdleStage(run.rogue, clearedIdx);
       if (run.story) run.story.rogue = run.rogue;
-      if (run.ctx.onPersist) run.ctx.onPersist();
+      try { if (run.ctx.onPersist) run.ctx.onPersist(); } catch (e) { console.error(e); }
       const total = Math.max(1, (run.nodes || []).length);
       toast(`第${clearedIdx + 1}/${total}关通关 · +${reward.gold}🪙 · 经验+${reward.exp}`);
     } else if (!quiet) {
@@ -886,8 +902,7 @@ function afterWin(opts) {
     }
   } catch (err) {
     console.error(err);
-    toast('结算失败，请再点一次', true);
-    return;
+    toast('结算异常，仍继续推进', true);
   }
   if (run.rogue.mode === 'rogue') startCardPick();
   else advanceNode();

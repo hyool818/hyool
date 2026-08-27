@@ -242,23 +242,23 @@
 #playOverlay .bt-river-hint{font-size:10px;color:var(--muted);letter-spacing:.04em}
 #playOverlay .bt-camp-empty{color:var(--muted);font-size:12px;text-align:center;padding:16px 0;width:100%}
 #playOverlay .bt-enemies,#playOverlay .bt-party{
-  display:flex;justify-content:center;align-items:flex-end;align-content:flex-end;
-  gap:8px;flex-wrap:wrap;flex:1;min-height:0;overflow:auto;padding:2px 0;
+  display:flex;justify-content:center;align-items:flex-start;align-content:flex-start;
+  gap:6px;flex-wrap:wrap;flex:1;min-height:0;overflow:auto;padding:2px 0;
 }
 #playOverlay .bt-camp-party .bt-party{align-items:flex-start;align-content:flex-start}
 #playOverlay .bt-enemy{
-  width:92px;max-width:28vw;border:1px solid rgba(255,140,120,.28);background:rgba(8,8,18,.78);
-  border-radius:10px;padding:6px 6px 8px;text-align:center;box-sizing:border-box;
-  transition:box-shadow .15s,border-color .15s;
+  width:76px;max-width:23vw;border:1px solid rgba(255,140,120,.28);background:rgba(8,8,18,.78);
+  border-radius:10px;padding:5px 5px 6px;text-align:center;box-sizing:border-box;
+  transition:box-shadow .15s,border-color .15s;flex:0 0 auto;
 }
 #playOverlay .bt-enemy.ready{
   border-color:rgba(255,200,120,.85);box-shadow:0 0 0 1px rgba(255,200,120,.45),0 0 14px rgba(255,160,80,.25);
 }
 #playOverlay .bt-enemy.dead{opacity:.45;filter:grayscale(1)}
 #playOverlay .bt-member{
-  width:92px;max-width:28vw;border:1px solid rgba(140,180,255,.28);background:rgba(8,8,18,.78);
-  border-radius:10px;padding:6px 6px 8px;text-align:center;box-sizing:border-box;
-  transition:box-shadow .15s,border-color .15s;
+  width:76px;max-width:23vw;border:1px solid rgba(140,180,255,.28);background:rgba(8,8,18,.78);
+  border-radius:10px;padding:5px 5px 6px;text-align:center;box-sizing:border-box;
+  transition:box-shadow .15s,border-color .15s;flex:0 0 auto;
 }
 #playOverlay .bt-member.ready{
   border-color:rgba(255,215,106,.85);box-shadow:0 0 0 1px rgba(255,215,106,.45),0 0 14px rgba(255,215,106,.22);
@@ -267,37 +267,39 @@
 #playOverlay .bt-member.dead{opacity:.45;filter:grayscale(1)}
 #playOverlay .bt-enemy .bt-portrait,
 #playOverlay .bt-member .bt-portrait{
-  width:100%;aspect-ratio:9/16;height:auto;max-height:72px;border-radius:6px;overflow:hidden;
+  width:100%;aspect-ratio:9/16;height:auto;max-height:none;border-radius:6px;overflow:hidden;
   margin:0 auto 4px;background:#1a1a28;position:relative;box-sizing:border-box;
 }
 #playOverlay .bt-portrait.card-frame{position:relative;box-sizing:border-box;overflow:hidden}
-#playOverlay .bt-portrait .card-art,
+#playOverlay .bt-portrait .card-art{
+  width:100%;aspect-ratio:9/16;height:auto;overflow:hidden;line-height:0;background:#1a1a28;
+}
 #playOverlay .bt-portrait .card-art img,
 #playOverlay .bt-portrait .card-art video{
-  width:100%;height:100%;object-fit:cover;object-position:center top;display:block;
+  width:100%;height:100%;aspect-ratio:9/16;object-fit:cover;object-position:center top;display:block;
 }
 #playOverlay .bt-portrait img,#playOverlay .bt-portrait video{cursor:zoom-in}
 #playOverlay .bt-enemy-name{
-  font-size:11px;font-weight:700;color:#ffd9a8;margin-bottom:4px;
+  font-size:10px;font-weight:700;color:#ffd9a8;margin-bottom:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 #playOverlay .bt-member-name{
-  font-size:11px;font-weight:700;color:#cfc8ff;margin-bottom:4px;
+  font-size:10px;font-weight:700;color:#cfc8ff;margin-bottom:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 #playOverlay .bt-member.hero .bt-member-name{color:#ffd76a}
-#playOverlay .bt-hp-row{display:flex;align-items:center;gap:8px}
-#playOverlay .bt-hp-num{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;flex-shrink:0}
-#playOverlay .bt-bar{flex:1;height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
+#playOverlay .bt-hp-row{display:flex;align-items:center;gap:4px}
+#playOverlay .bt-hp-num{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;flex-shrink:0}
+#playOverlay .bt-bar{flex:1;height:6px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
 #playOverlay .bt-bar-fill{height:100%;border-radius:4px;transition:width .25s}
 #playOverlay .bt-bar-fill.hp{background:linear-gradient(90deg,#5ecf7a,#8b7bff)}
 #playOverlay .bt-bar-fill.enemy{background:linear-gradient(90deg,#ff5f4d,#ff9a5a)}
 #playOverlay .bt-bar-fill.spd{background:linear-gradient(90deg,#5ad0ff,#8b7bff);transition:width .08s linear}
-#playOverlay .rg-spd{height:5px;margin-top:4px}
+#playOverlay .rg-spd{height:4px;margin-top:3px}
 #playOverlay .bt-log{
-  flex:0 0 auto;min-height:56px;max-height:100px;overflow-y:auto;
+  flex:0 0 auto;min-height:40px;max-height:72px;overflow-y:auto;
   border:1px solid rgba(255,255,255,.1);background:rgba(6,6,14,.55);
-  border-radius:10px;padding:6px 10px;display:flex;flex-direction:column;gap:2px;
+  border-radius:10px;padding:5px 8px;display:flex;flex-direction:column;gap:2px;
 }
 #playOverlay .bt-log-line{font-size:12px;color:var(--text);line-height:1.7;word-break:break-all}
 
