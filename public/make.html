@@ -111,9 +111,13 @@ html,body{height:100%;overflow:hidden}
 .mk-bg-preview img,.mk-bg-preview video{width:100%;display:block;border-radius:8px}
 .mk-bg-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .mk-bg-ops .btn{font-size:11px;padding:6px 10px;position:static}
-.mk-choice-row{display:flex;gap:6px;margin-bottom:6px}
-.mk-choice-row input{flex:1}
+.mk-choice-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center}
+.mk-choice-row input{flex:1;min-width:120px}
+.mk-choice-row select{flex:0 1 160px;min-width:120px;font-size:11px;padding:8px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font-family:inherit}
 .mk-choice-row button{flex:0 0 auto;padding:6px 8px;font-size:11px}
+.mk-branch-hint{font-size:11px;color:var(--muted);line-height:1.65;margin:4px 0 8px}
+.mk-after-jump{margin-top:8px}
+.mk-after-jump select{width:100%;font-size:12px;padding:8px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font-family:inherit}
 .mk-panel-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
 
 /* ---------- 播放层 ---------- */
@@ -313,6 +317,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260828e"></script>
+<script type="module" src="/make.js?v=20260828f"></script>
 </body>
 </html>

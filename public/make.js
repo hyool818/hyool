@@ -170,6 +170,40 @@ function normalizeChoice(b) {
   }));
 }
 
+function shotPreview(b) {
+  if (!b) return '';
+  if (b.type === 'dialogue') return (b.speaker + '：' + (b.content || '')).slice(0, 28);
+  return (b.content || TYPE_LABEL[b.type] || '').slice(0, 28);
+}
+
+function jumpTargetOptions(fromBlockId) {
+  const opts = [
+    { value: 'next', label: '下一镜（顺序）' },
+    { value: 'end', label: '结束' },
+  ];
+  blocks().forEach((b, i) => {
+    if (b.id === fromBlockId) return;
+    opts.push({
+      value: b.id,
+      label: '第 ' + (i + 1) + ' 镜 · ' + (TYPE_LABEL[b.type] || b.type) + ' · ' + shotPreview(b),
+    });
+  });
+  return opts;
+}
+
+function makeJumpSelect(value, fromBlockId, onChange) {
+  const sel = document.createElement('select');
+  jumpTargetOptions(fromBlockId).forEach((o) => {
+    const opt = document.createElement('option');
+    opt.value = o.value;
+    opt.textContent = o.label;
+    if ((value || 'next') === o.value) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener('change', () => onChange(sel.value));
+  return sel;
+}
+
 function chapter() {
   return work?.chapters?.[0] || null;
 }
@@ -329,17 +363,23 @@ function applyTextFont(el) {
 }
 
 function starterBlocks() {
-  return [
-    { id: uid(), type: 'scene', content: '某个寻常的下课铃后，走廊里只剩下你的脚步声。' },
-    { id: uid(), type: 'dialogue', speaker: '你', content: '……今天，好像有什么不一样。' },
-    {
-      id: uid(), type: 'choice', content: '你要怎么做？',
-      choices: [
-        { id: uid(), label: '推开教室的门', jump: 'next' },
-        { id: uid(), label: '先回家再说', jump: 'end' },
-      ],
-    },
-  ];
+  const b1 = { id: uid(), type: 'scene', content: '某个寻常的下课铃后，走廊里只剩下你的脚步声。' };
+  const b2 = { id: uid(), type: 'dialogue', speaker: '你', content: '……今天，好像有什么不一样。' };
+  const b4 = { id: uid(), type: 'dialogue', speaker: '你', content: '推开门，教室里空无一人，只有窗外雨声。' };
+  const b5 = { id: uid(), type: 'dialogue', speaker: '你', content: '……还是回去吧。' };
+  const b6 = { id: uid(), type: 'scene', content: '雨夜，你独自走在回家的路上。' };
+  const b3 = {
+    id: uid(),
+    type: 'choice',
+    content: '你要怎么做？',
+    choices: [
+      { id: uid(), label: '推开教室的门', jump: b4.id },
+      { id: uid(), label: '先回家再说', jump: b5.id },
+    ],
+  };
+  b4.afterJump = b6.id;
+  b5.afterJump = b6.id;
+  return [b1, b2, b3, b4, b5, b6];
 }
 
 // ---------- API ----------
@@ -893,6 +933,7 @@ function renderPanel() {
 
   if (b.type === 'scene' || b.type === 'dialogue') {
     panel.appendChild(textStylePanel(b));
+    panel.appendChild(afterJumpPanel(b));
   }
 
   if (b.type === 'choice') {
@@ -1269,11 +1310,27 @@ function btn(text, fn, danger) {
   return b;
 }
 
+function afterJumpPanel(b) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field mk-after-jump';
+  wrap.innerHTML = '<label>点过后跳到</label><p class="mk-branch-hint">分支的最后一镜可设「跳到」汇合镜头，避免误入另一条线。</p>';
+  const val = b.afterJump || 'next';
+  wrap.appendChild(makeJumpSelect(val, b.id, (v) => {
+    b.afterJump = v === 'next' ? '' : v;
+    scheduleSave();
+  }));
+  return wrap;
+}
+
 function choiceEditor(b) {
   normalizeChoice(b);
   const wrap = document.createElement('div');
   wrap.className = 'field';
   wrap.innerHTML = '<label>选项（读者点选）</label>';
+  const hint = document.createElement('p');
+  hint.className = 'mk-branch-hint';
+  hint.textContent = '每条选项可跳到不同镜头。先在左侧加好分支镜头，再在这里指定「跳到第几镜」。';
+  wrap.appendChild(hint);
   b.choices.forEach((c, i) => {
     const row = document.createElement('div');
     row.className = 'mk-choice-row';
@@ -1282,6 +1339,10 @@ function choiceEditor(b) {
     inp.value = c.label;
     inp.placeholder = '选项 ' + (i + 1);
     inp.addEventListener('input', () => { c.label = inp.value; scheduleSave(); renderPreview(); renderShots(); });
+    const jmp = makeJumpSelect(c.jump, b.id, (v) => {
+      c.jump = v;
+      scheduleSave();
+    });
     const rm = document.createElement('button');
     rm.type = 'button';
     rm.className = 'btn danger';
@@ -1292,7 +1353,7 @@ function choiceEditor(b) {
       scheduleSave();
       renderEdit();
     });
-    row.append(inp, rm);
+    row.append(inp, jmp, rm);
     wrap.appendChild(row);
   });
   const add = document.createElement('button');
@@ -1725,6 +1786,11 @@ function renderPlay() {
 }
 
 function playNext() {
+  const b = playFlat[playIdx];
+  if (b?.afterJump && b.afterJump !== 'next') {
+    jumpPlay(b.afterJump);
+    return;
+  }
   if (playIdx < playFlat.length - 1) { playIdx++; renderPlay(); }
   else { stopPlay(); toast('试玩结束'); }
 }
