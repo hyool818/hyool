@@ -17,6 +17,18 @@ const COLOR_PRESETS = [
   { id: 'green', label: '绿色', value: '#a8f0c6' },
   { id: 'red', label: '红色', value: '#ff8a8a' },
 ];
+const FONT_OPTIONS = [
+  { id: 'default', label: '默认', family: '' },
+  { id: 'noto-sans', label: '思源黑体', family: '"Noto Sans SC", sans-serif' },
+  { id: 'noto-serif', label: '思源宋体', family: '"Noto Serif SC", serif' },
+  { id: 'zcool', label: '站酷快乐体', family: '"ZCOOL KuaiLe", cursive' },
+  { id: 'mashan', label: '马善政手写', family: '"Ma Shan Zheng", cursive' },
+  { id: 'longcang', label: '龙藏体', family: '"Long Cang", cursive' },
+];
+const CROP_PROFILE = {
+  landscape: { viewW: 480, viewH: 270, outW: 1280, outH: 720, label: '16:9 横屏' },
+  portrait: { viewW: 270, viewH: 480, outW: 1080, outH: 1920, label: '9:16 竖屏' },
+};
 
 let loggedIn = false;
 let works = [];
@@ -29,6 +41,9 @@ let saveLabel = '';
 let playing = false;
 let playFlat = [];
 let playIdx = 0;
+
+let cropState = { img: null, baseScale: 1, zoom: 1, offsetX: 0, offsetY: 0, viewW: 480, viewH: 270, outW: 1280, outH: 720, drag: false, dragStartX: 0, dragStartY: 0 };
+let cropTargetBlock = null;
 
 const uid = () => 'b_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -64,6 +79,7 @@ function normalizeWork(s) {
   if (!s || typeof s !== 'object') return null;
   if (s.kind !== 'story') return s;
   if (s.orientation !== 'portrait') s.orientation = 'landscape';
+  if (!FONT_OPTIONS.some((f) => f.id === s.textFont)) s.textFont = 'default';
   if (!Array.isArray(s.chapters) || !s.chapters.length) {
     s.chapters = [{ id: 'ch_' + uid().slice(2), title: '第一章', blocks: [] }];
   }
@@ -128,6 +144,17 @@ function subPos(b) {
 function applySubColor(el, b) {
   const c = ensureSub(b).color;
   if (c) el.style.color = c;
+}
+
+function getWorkFontFamily() {
+  const id = work?.textFont || 'default';
+  const f = FONT_OPTIONS.find((x) => x.id === id);
+  return f?.family || '';
+}
+
+function applyTextFont(el) {
+  const ff = getWorkFontFamily();
+  if (ff) el.style.fontFamily = ff;
 }
 
 function starterBlocks() {
@@ -445,6 +472,8 @@ function renderPreview() {
     ln.style.fontSize = sz + 'px';
     applySubColor(sp, b);
     applySubColor(ln, b);
+    applyTextFont(sp);
+    applyTextFont(ln);
     stage.appendChild(dlg);
   } else if (b.type === 'scene' && (b.content || '').trim()) {
     const pos = subPos(b);
@@ -456,6 +485,7 @@ function renderPreview() {
     t.style.transform = 'translate(-50%,-50%)';
     t.style.fontSize = getGlobalSubSize() + 'px';
     applySubColor(t, b);
+    applyTextFont(t);
     bindSceneTextDrag(t, b, stage);
     const hint = document.createElement('div');
     hint.className = 'scene-drag-hint';
@@ -545,12 +575,29 @@ function renderPanel() {
     } else {
       prev.innerHTML = '<img src="' + escapeHtml(b.media.url) + '" alt="">';
     }
+    const ops = document.createElement('div');
+    ops.className = 'mk-bg-ops';
+    if (b.media.type !== 'video') {
+      const cropBtn = document.createElement('button');
+      cropBtn.type = 'button';
+      cropBtn.className = 'btn';
+      cropBtn.textContent = '✂ 裁剪';
+      cropBtn.addEventListener('click', () => recropMedia(b));
+      ops.appendChild(cropBtn);
+    }
+    const replaceBtn = document.createElement('button');
+    replaceBtn.type = 'button';
+    replaceBtn.className = 'btn';
+    replaceBtn.textContent = '更换';
+    replaceBtn.addEventListener('click', () => pickMedia(b));
+    ops.appendChild(replaceBtn);
     const rm = document.createElement('button');
     rm.type = 'button';
     rm.className = 'btn danger';
     rm.textContent = '移除';
     rm.addEventListener('click', () => { delete b.media; scheduleSave(); renderEdit(); });
-    prev.appendChild(rm);
+    ops.appendChild(rm);
+    prev.appendChild(ops);
     bgSec.appendChild(prev);
   } else {
     const btn = document.createElement('button');
@@ -612,6 +659,27 @@ function textStylePanel(b) {
   sizeRow.firstChild.style.fontSize = '11px';
   sizeRow.firstChild.style.color = 'var(--muted)';
   wrap.appendChild(sizeRow);
+
+  const fontLab = document.createElement('label');
+  fontLab.textContent = '字体（全作品统一）';
+  fontLab.style.marginTop = '10px';
+  wrap.appendChild(fontLab);
+  const fontSel = document.createElement('select');
+  FONT_OPTIONS.forEach((f) => {
+    const o = document.createElement('option');
+    o.value = f.id;
+    o.textContent = f.label;
+    if ((work?.textFont || 'default') === f.id) o.selected = true;
+    fontSel.appendChild(o);
+  });
+  fontSel.addEventListener('change', () => {
+    if (!work) return;
+    work.textFont = fontSel.value;
+    scheduleSave();
+    renderPreview();
+    if (playing) renderPlay();
+  });
+  wrap.appendChild(fontSel);
 
   const colorLab = document.createElement('label');
   colorLab.textContent = '颜色';
@@ -762,6 +830,13 @@ function pickMedia(b) {
   inp.addEventListener('change', async () => {
     const f = inp.files?.[0];
     if (!f) return;
+    await handleMediaFile(f, b);
+  });
+  inp.click();
+}
+
+async function handleMediaFile(f, b) {
+  if (/^video\//.test(f.type)) {
     toast('上传中…');
     const media = await uploadFile(f);
     if (!media) return;
@@ -769,8 +844,211 @@ function pickMedia(b) {
     scheduleSave();
     renderEdit();
     toast('背景已添加');
+    return;
+  }
+  if (!/^image\//.test(f.type)) {
+    toast('请选图片或 MP4 视频', true);
+    return;
+  }
+  if (f.type === 'image/gif') {
+    toast('上传中…');
+    const media = await uploadFile(f);
+    if (!media) return;
+    b.media = media;
+    scheduleSave();
+    renderEdit();
+    toast('背景已添加');
+    return;
+  }
+  openCropModal(f, b);
+}
+
+async function recropMedia(b) {
+  if (!b.media?.url || b.media.type === 'video') return;
+  try {
+    toast('加载图片…');
+    const img = await loadImageFromUrl(b.media.url);
+    openCropWithImage(img, b);
+  } catch (e) {
+    toast('无法加载图片', true);
+  }
+}
+
+function loadImageFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('load fail'));
+    img.src = url;
   });
-  inp.click();
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('parse fail'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('read fail'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function cropProfile() {
+  return CROP_PROFILE[work?.orientation === 'portrait' ? 'portrait' : 'landscape'];
+}
+
+function setupCropView() {
+  const p = cropProfile();
+  cropState.viewW = p.viewW;
+  cropState.viewH = p.viewH;
+  cropState.outW = p.outW;
+  cropState.outH = p.outH;
+  const canvas = $('#cropCanvas');
+  canvas.width = p.viewW;
+  canvas.height = p.viewH;
+  canvas.style.width = p.viewW + 'px';
+  canvas.style.height = p.viewH + 'px';
+  const hint = $('#cropHint');
+  if (hint) hint.textContent = p.label + ' · ' + p.outW + '×' + p.outH;
+}
+
+function clampCropOffset() {
+  const scale = cropState.baseScale * cropState.zoom;
+  const sw = cropState.img.width * scale;
+  const sh = cropState.img.height * scale;
+  const maxOX = Math.max(0, (sw - cropState.viewW) / 2);
+  const maxOY = Math.max(0, (sh - cropState.viewH) / 2);
+  cropState.offsetX = Math.min(maxOX, Math.max(-maxOX, cropState.offsetX));
+  cropState.offsetY = Math.min(maxOY, Math.max(-maxOY, cropState.offsetY));
+}
+
+function renderCrop() {
+  const canvas = $('#cropCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = cropState.viewW;
+  const H = cropState.viewH;
+  ctx.fillStyle = '#0a0a12';
+  ctx.fillRect(0, 0, W, H);
+  if (!cropState.img) return;
+  clampCropOffset();
+  const scale = cropState.baseScale * cropState.zoom;
+  const sw = cropState.img.width * scale;
+  const sh = cropState.img.height * scale;
+  const drawX = W / 2 - sw / 2 + cropState.offsetX;
+  const drawY = H / 2 - sh / 2 + cropState.offsetY;
+  ctx.drawImage(cropState.img, drawX, drawY, sw, sh);
+  ctx.strokeStyle = 'rgba(139,123,255,.65)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, W - 2, H - 2);
+}
+
+function openCropWithImage(img, block) {
+  cropTargetBlock = block;
+  setupCropView();
+  cropState.img = img;
+  cropState.baseScale = Math.max(cropState.viewW / img.width, cropState.viewH / img.height);
+  cropState.zoom = 1;
+  cropState.offsetX = 0;
+  cropState.offsetY = 0;
+  const zoomEl = $('#cropZoom');
+  if (zoomEl) zoomEl.value = '100';
+  renderCrop();
+  $('#cropBackdrop').classList.add('show');
+  $('#cropConfirm').disabled = false;
+}
+
+async function openCropModal(file, block) {
+  try {
+    const img = await loadImageFromFile(file);
+    openCropWithImage(img, block);
+  } catch (e) {
+    toast('图片读取失败', true);
+  }
+}
+
+function closeCropModal() {
+  $('#cropBackdrop').classList.remove('show');
+  cropState.img = null;
+  cropTargetBlock = null;
+  cropState.drag = false;
+}
+
+async function confirmCrop() {
+  if (!cropState.img || !cropTargetBlock) return;
+  const btn = $('#cropConfirm');
+  btn.disabled = true;
+  const W = cropState.viewW;
+  const H = cropState.viewH;
+  const scale = cropState.baseScale * cropState.zoom;
+  const sw = cropState.img.width * scale;
+  const sh = cropState.img.height * scale;
+  const drawX = W / 2 - sw / 2 + cropState.offsetX;
+  const drawY = H / 2 - sh / 2 + cropState.offsetY;
+  const srcX = -drawX / scale;
+  const srcY = -drawY / scale;
+  const srcW = W / scale;
+  const srcH = H / scale;
+  const out = document.createElement('canvas');
+  out.width = cropState.outW;
+  out.height = cropState.outH;
+  out.getContext('2d').drawImage(cropState.img, srcX, srcY, srcW, srcH, 0, 0, out.width, out.height);
+  const block = cropTargetBlock;
+  closeCropModal();
+  out.toBlob(async (blob) => {
+    btn.disabled = false;
+    if (!blob) { toast('裁剪失败', true); return; }
+    toast('上传中…');
+    const file = new File([blob], 'bg.jpg', { type: 'image/jpeg' });
+    const media = await uploadFile(file);
+    if (!media) return;
+    block.media = media;
+    scheduleSave();
+    renderEdit();
+    toast('背景已更新');
+  }, 'image/jpeg', 0.9);
+}
+
+function bindCrop() {
+  $('#cropCancel').addEventListener('click', closeCropModal);
+  $('#cropConfirm').addEventListener('click', confirmCrop);
+  $('#cropZoomOut').addEventListener('click', () => {
+    cropState.zoom = Math.max(1, +(cropState.zoom - 0.1).toFixed(2));
+    $('#cropZoom').value = String(Math.round(cropState.zoom * 100));
+    renderCrop();
+  });
+  $('#cropZoomIn').addEventListener('click', () => {
+    cropState.zoom = Math.min(4, +(cropState.zoom + 0.1).toFixed(2));
+    $('#cropZoom').value = String(Math.round(cropState.zoom * 100));
+    renderCrop();
+  });
+  $('#cropZoom').addEventListener('input', (e) => {
+    cropState.zoom = parseFloat(e.target.value) / 100;
+    renderCrop();
+  });
+  const canvas = $('#cropCanvas');
+  canvas.addEventListener('pointerdown', (e) => {
+    cropState.drag = true;
+    cropState.dragStartX = e.clientX - cropState.offsetX;
+    cropState.dragStartY = e.clientY - cropState.offsetY;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!cropState.drag) return;
+    cropState.offsetX = e.clientX - cropState.dragStartX;
+    cropState.offsetY = e.clientY - cropState.dragStartY;
+    renderCrop();
+  });
+  canvas.addEventListener('pointerup', () => { cropState.drag = false; });
+  canvas.addEventListener('pointercancel', () => { cropState.drag = false; });
+  $('#cropBackdrop').addEventListener('click', (e) => {
+    if (e.target === $('#cropBackdrop')) closeCropModal();
+  });
 }
 
 function addBlock(type) {
@@ -934,6 +1212,8 @@ function renderPlay() {
     ln.style.fontSize = sz + 'px';
     applySubColor(sp, b);
     applySubColor(ln, b);
+    applyTextFont(sp);
+    applyTextFont(ln);
     fore.appendChild(d);
   } else if (b.type === 'scene' && (b.content || '').trim()) {
     const pos = subPos(b);
@@ -945,6 +1225,7 @@ function renderPlay() {
     st.style.fontSize = getGlobalSubSize() + 'px';
     st.textContent = b.content;
     applySubColor(st, b);
+    applyTextFont(st);
     frame.appendChild(st);
   }
   frame.appendChild(fore);
@@ -1053,6 +1334,7 @@ function bind() {
       showHome();
     }
   });
+  bindCrop();
 }
 
 bind();
