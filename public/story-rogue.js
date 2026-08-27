@@ -6,6 +6,7 @@ import {
   normalizeIdleProgress,
   idleProgressOf,
   rewardIdleStage,
+  resetIdleStages,
   portraitHtml,
   pullGacha,
   levelUpChar,
@@ -513,6 +514,19 @@ function bindIdleCtx(ctx) {
     run.idleCharId = id;
     run.phase = 'book';
     run.idleTab = 'book';
+    paint();
+  };
+  ctx.onIdleResetStages = () => {
+    if (!run || run.rogue.mode !== 'idle') return;
+    const prog = normalizeIdleProgress(run.rogue, (run.rogue.stages || []).length);
+    if (prog.stageIdx <= 0) { toast('已经在第 1 关', true); return; }
+    if (!confirm('重置关卡进度到第 1 关？\n（金币、角色养成和阵容会保留）')) return;
+    const res = resetIdleStages(run.rogue);
+    if (!res.ok) { toast(res.error || '重置失败', true); return; }
+    if (run.story) run.story.rogue = run.rogue;
+    if (run.ctx.onPersist) run.ctx.onPersist();
+    toast('已重置到第 1 关');
+    run.phase = run.idleTab === 'stages' ? 'stages' : 'home';
     paint();
   };
 }

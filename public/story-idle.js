@@ -506,6 +506,7 @@ export function paintIdleShell(frame, run, tab) {
       <button type="button" class="btn primary wide" id="idlePush" ${(!stages.length || cleared || !team.length) ? 'disabled' : ''}>
         ${cleared ? '已通关' : (team.length ? '▶ 挂机推关' : '先去女神册选人')}
       </button>
+      ${prog.stageIdx > 0 ? '<button type="button" class="btn wide" id="idleResetStages" style="margin-top:8px">重置关卡进度</button>' : ''}
     </div>
     ${tabsHtml('home')}`;
   bindChrome(frame, run);
@@ -515,6 +516,12 @@ export function paintIdleShell(frame, run, tab) {
   if (push && !push.disabled) {
     push.addEventListener('click', () => {
       if (run.ctx.onIdlePush) run.ctx.onIdlePush(prog.teamIds.slice());
+    });
+  }
+  const resetBtn = frame.querySelector('#idleResetStages');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      if (run.ctx.onIdleResetStages) run.ctx.onIdleResetStages();
     });
   }
 }
@@ -684,8 +691,19 @@ function paintStages(frame, run, prog) {
       <button type="button" class="btn tiny ghost" id="idleExit">退出</button>
     </div>
     <div class="idle-stage-list">${rows}</div>
+    <div class="idle-cta">
+      ${prog.stageIdx > 0
+        ? '<button type="button" class="btn wide" id="idleResetStages">重置关卡进度</button>'
+        : '<div class="idle-empty" style="padding:8px 0">从第 1 关开始推关</div>'}
+    </div>
     ${tabsHtml('stages')}`;
   bindChrome(frame, run);
+  const resetBtn = frame.querySelector('#idleResetStages');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      if (run.ctx.onIdleResetStages) run.ctx.onIdleResetStages();
+    });
+  }
 }
 
 function bindIdleParty(frame, run, team) {
@@ -794,5 +812,14 @@ export function rewardIdleStage(r, stageIdx) {
   });
   r.progress = prog;
   return { gold, exp };
+}
+
+/** 重置关卡进度（保留金币、角色养成与阵容） */
+export function resetIdleStages(r) {
+  const prog = normalizeIdleProgress(r, (r.stages || []).length);
+  if (prog.stageIdx <= 0) return { ok: false, error: '已经在第 1 关' };
+  prog.stageIdx = 0;
+  r.progress = prog;
+  return { ok: true, stageIdx: 0 };
 }
 
