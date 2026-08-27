@@ -779,7 +779,7 @@ function battleTick() {
       b.enemies = spawnEnemyInstances(b.waves[b.waveIdx], 'w' + b.waveIdx);
       b.log.push(`— 第 ${b.waveIdx + 1}/${b.waves.length} 轮 —`);
       run.battle.actFx = null;
-      try { paint(); } catch (err) { console.error(err); }
+      try { refreshBattle(true); } catch (err) { console.error(err); }
       tickTimer = setTimeout(battleTick, 80);
       return;
     }
@@ -805,6 +805,7 @@ function battleTick() {
         b.waveIdx += 1;
         b.enemies = spawnEnemyInstances(b.waves[b.waveIdx], 'w' + b.waveIdx);
         b.log.push(`— 第 ${b.waveIdx + 1}/${b.waves.length} 轮 —`);
+        try { refreshBattle(true); } catch (err) { console.error(err); }
       } else {
         finishBattle(true);
         return;
@@ -812,17 +813,19 @@ function battleTick() {
     } else if (!run.team.some((m) => m.hp > 0)) {
       finishBattle(false);
       return;
+    } else {
+      try { refreshBattle(false); } catch (err) { console.error(err); }
     }
-    try { paint(); } catch (err) { console.error(err); }
-    // 出手特效播完再继续，避免整页重绘掐断动画
+    // 出手特效播完再继续；局部刷新不拆立绘，动图可完整播
     const fxMs = Math.max(260, Math.round(480 / Math.max(1, run.speed)));
     tickTimer = setTimeout(() => {
       if (run && run.battle) run.battle.actFx = null;
+      try { refreshBattle(false); } catch (err) { console.error(err); }
       battleTick();
     }, fxMs);
     return;
   }
-  try { paint(); } catch (err) { console.error(err); }
+  try { refreshBattle(false); } catch (err) { console.error(err); }
   if (run && run.phase === 'battle' && run.battle && run.battle.phase === 'running') {
     tickTimer = setTimeout(battleTick, run.speed >= 4 ? 16 : (run.speed === 2 ? 40 : 80));
   }
@@ -996,18 +999,104 @@ function battleReadyIds(b) {
   return ids;
 }
 
-function paintBattle(frame) {
+/** 阵容/波次结构签名：变了才允许整页重绘（否则动图会被拆掉重播） */
+function battleStructKey() {
   const b = run.battle;
-  const ready = b.phase === 'running' ? battleReadyIds(b) : new Set();
-  const winHint = run.rogue.mode === 'rogue' ? '选一张技能带进后面。' : '下一关自动开始。';
-  const loseHint = run.rogue.mode === 'rogue' ? '再开一局会换一套技能和事件。' : '改改角色或敌人数值再试。';
+  if (!b) return '';
+  const eids = (b.enemies || []).map((e) => e.id).join(',');
+  const pids = (run.team || []).map((m) => m.id).join(',');
+  return [run.nodeIdx, b.waveIdx || 0, b.phase, eids, pids, b.majorFight ? 1 : 0].join('|');
+}
+
+function battleRoundHtml() {
+  const b = run.battle;
   const node = run.nodes[run.nodeIdx];
   const total = Math.max(1, (run.nodes || []).length);
   const showLayer = run.rogue.mode === 'idle' || run.rogue.mode === 'queue';
   const layerTxt = showLayer ? `第${run.nodeIdx + 1}/${total}关` : '';
   const nodeTitle = showLayer && node && node.title ? ` · ${esc(node.title)}` : '';
   const waveTxt = b.waves && b.waves.length > 1 ? ` · 第${(b.waveIdx || 0) + 1}/${b.waves.length}轮` : '';
-  const top = `<div class="bt-top"><div class="bt-round">${layerTxt ? `<span class="bt-layer">${layerTxt}</span>${nodeTitle}<span class="bt-sep">·</span>` : ''}速度条 · ${run.speed}x${waveTxt}</div>
+  return `${layerTxt ? `<span class="bt-layer">${layerTxt}</span>${nodeTitle}<span class="bt-sep">·</span>` : ''}速度条 · ${run.speed}x${waveTxt}`;
+}
+
+function syncBattleUnitEl(el, unit, ready, fx) {
+  if (!el || !unit) return;
+  const FX_CLS = [
+    'acting', 'act-atk', 'act-heal', 'act-buff',
+    'hit', 'hit-atk', 'hit-heal', 'hit-buff',
+    'elem-fire', 'elem-water', 'elem-wood', 'elem-light', 'elem-dark',
+  ];
+  el.classList.toggle('dead', unit.hp <= 0);
+  el.classList.toggle('ready', ready.has(unit.id));
+  FX_CLS.forEach((c) => el.classList.remove(c));
+  el.querySelectorAll('.bt-wave, .bt-flash').forEach((n) => n.remove());
+  if (fx && fx.actorId === unit.id) {
+    el.classList.add('acting', 'act-' + (fx.kind || 'atk'), 'elem-' + (fx.elem || 'light'));
+    el.insertAdjacentHTML(
+      'afterbegin',
+      `<span class="bt-wave elem-${esc(fx.elem || 'light')}" aria-hidden="true"></span><span class="bt-flash" aria-hidden="true"></span>`
+    );
+  }
+  if (fx && Array.isArray(fx.targetIds) && fx.targetIds.includes(unit.id)) {
+    el.classList.add('hit', 'hit-' + (fx.kind || 'atk'));
+  }
+  const hpFill = el.querySelector('.bt-bar-fill.hp, .bt-bar-fill.enemy');
+  const hpNum = el.querySelector('.bt-hp-num');
+  const spd = el.querySelector('.bt-bar-fill.spd');
+  if (hpFill) hpFill.style.width = pct(unit.hp, unit.maxHp) + '%';
+  if (hpNum) hpNum.textContent = unit.hp + '/' + unit.maxHp;
+  if (spd) spd.style.width = Math.min(100, unit.gauge || 0) + '%';
+}
+
+/** 局部刷新：不碰立绘 img/video，动图/短视频可连续播 */
+function patchBattleFrame(frame) {
+  const b = run.battle;
+  if (!b || !frame) return;
+  const ready = b.phase === 'running' ? battleReadyIds(b) : new Set();
+  const fx = b.actFx;
+  const round = frame.querySelector('.bt-round');
+  if (round) round.innerHTML = battleRoundHtml();
+  frame.querySelectorAll('[data-sp]').forEach((btn) => {
+    btn.classList.toggle('primary', Number(btn.dataset.sp) === run.speed);
+  });
+  (b.enemies || []).forEach((e) => {
+    const el = frame.querySelector('.bt-enemy[data-enemy-id="' + CSS.escape(e.id) + '"]');
+    syncBattleUnitEl(el, e, ready, fx);
+  });
+  (run.team || []).forEach((m) => {
+    const el = frame.querySelector('.bt-member[data-char-id="' + CSS.escape(m.id) + '"]');
+    syncBattleUnitEl(el, m, ready, fx);
+  });
+  const logEl = frame.querySelector('.bt-log');
+  if (logEl) {
+    logEl.innerHTML = (b.log || []).slice(-8).map((l) => `<div class="bt-log-line">${esc(l)}</div>`).join('');
+  }
+}
+
+function refreshBattle(force) {
+  if (!run || run.phase !== 'battle' || !run.battle) return;
+  const body = run.ctx.playBody;
+  const frame = body && body.querySelector('.battle-view.rogue-view');
+  const sig = battleStructKey();
+  const canPatch = !force
+    && frame
+    && frame.dataset.btSig === sig
+    && run.battle.phase === 'running'
+    && frame.querySelector('.bt-board')
+    && !frame.querySelector('.bt-result');
+  if (canPatch) {
+    patchBattleFrame(frame);
+    return;
+  }
+  paint();
+}
+
+function paintBattle(frame) {
+  const b = run.battle;
+  const ready = b.phase === 'running' ? battleReadyIds(b) : new Set();
+  const winHint = run.rogue.mode === 'rogue' ? '选一张技能带进后面。' : '下一关自动开始。';
+  const loseHint = run.rogue.mode === 'rogue' ? '再开一局会换一套技能和事件。' : '改改角色或敌人数值再试。';
+  const top = `<div class="bt-top"><div class="bt-round">${battleRoundHtml()}</div>
     <div class="rg-speeds">
       <button type="button" class="btn tiny ${run.speed === 1 ? 'primary' : ''}" data-sp="1">1x</button>
       <button type="button" class="btn tiny ${run.speed === 2 ? 'primary' : ''}" data-sp="2">2x</button>
@@ -1079,8 +1168,12 @@ function paintBattle(frame) {
       </div>
     </div>
     <div class="bt-log">${log}</div>${result}`;
+  frame.dataset.btSig = battleStructKey();
   frame.querySelectorAll('[data-sp]').forEach(btn => {
-    btn.addEventListener('click', () => { run.speed = Number(btn.dataset.sp) || 1; });
+    btn.addEventListener('click', () => {
+      run.speed = Number(btn.dataset.sp) || 1;
+      refreshBattle(false);
+    });
   });
   const ex = frame.querySelector('#rgExit');
   if (ex) ex.addEventListener('click', () => {
