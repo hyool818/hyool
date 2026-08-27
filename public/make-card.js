@@ -100,8 +100,18 @@ async function loadWork(id) {
   const res = await fetch('/api/stories/' + encodeURIComponent(id), { credentials: 'include', headers: authHeaders() });
   const d = await res.json();
   if (!d.success || !d.story) throw new Error(d.error || '作品不存在');
-  if ((d.story.kind || 'story') !== WORK_KIND) throw new Error('不是卡牌作品');
-  return normalizeWork({ ...d.story });
+  let raw = { ...d.story };
+  if (raw.kind === 'card_rpg') {
+    raw.kind = WORK_KIND;
+    const s = normalizeWork(raw);
+    if (!s.rogue?.roster?.length) applyStarterPack(s, s.rogue?.mode || 'idle');
+    work = s;
+    scheduleSave();
+    toast('旧版卡牌已迁入新版编辑器');
+    return s;
+  }
+  if ((raw.kind || 'story') !== WORK_KIND) throw new Error('不是卡牌作品');
+  return normalizeWork(raw);
 }
 
 function scheduleSave() {
@@ -900,6 +910,7 @@ async function route() {
     return;
   }
   showHome();
+  if (q.get('new') === '1') openCreateModal();
 }
 
 function bind() {

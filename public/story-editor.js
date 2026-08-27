@@ -108,8 +108,24 @@ function ensureUploadFile(file, kind) {
   return new File([file], file.name || 'upload', { type: mime, lastModified: file.lastModified || Date.now() });
 }
 
-// ---------- 作品类型（kind）：互动小说（story）默认；卡牌RPG（card_rpg）在共享编辑器中分支 ----------
+// ---------- 作品类型（kind）：互动小说（story）默认；卡牌已迁至 make-card.html ----------
 const KIND_LABEL = { story: '互动小说', comic: '漫画', card_rpg: '卡牌RPG（旧）', gacha_rogue: '卡牌游戏' };
+
+function isCardKind(kind) {
+  return kind === 'gacha_rogue' || kind === 'card_rpg';
+}
+
+function cardEditorHref(storyId, play) {
+  const q = new URLSearchParams();
+  if (storyId) q.set('story', storyId);
+  if (play) q.set('play', '1');
+  const s = q.toString();
+  return '/make-card.html' + (s ? '?' + s : '');
+}
+
+function redirectToCardEditor(storyId, play) {
+  location.replace(cardEditorHref(storyId, play));
+}
 const COMIC_CAPTION_STYLES = [
   { id: 'bar', label: '底部条' },
   { id: 'bubble', label: '气泡' },
@@ -965,7 +981,11 @@ function applyNewWorkQuery(q) {
     comic: 'comic', card: 'gacha_rogue', game: 'gacha_rogue', rpg: 'card_rpg',
   };
   const kind = map[raw] || raw;
-  if (!['story', 'comic', 'gacha_rogue', 'card_rpg'].includes(kind)) return;
+  if (kind === 'gacha_rogue' || kind === 'card_rpg') {
+    location.replace('/make-card.html?new=1');
+    return;
+  }
+  if (!['story', 'comic'].includes(kind)) return;
   backToLibrary();
   createKind = kind;
   document.querySelectorAll('#createKindRow .kind-card, #createKindMore .kind-card').forEach(x => {
@@ -1105,6 +1125,10 @@ function renderLibrary() {
 }
 
 async function createStory() {
+  if (createKind === 'gacha_rogue' || createKind === 'card_rpg') {
+    location.href = '/make-card.html?new=1';
+    return;
+  }
   const input = $('#newTitle');
   const title = input.value.trim();
   if (!title) { toast('请先输入作品名称', true); input.focus(); return; }
@@ -1148,9 +1172,13 @@ function showEditor() {
   renderEditorLoginBanner();
 }
 function openStory(id) {
+  const s = stories.find(x => x.id === id);
+  if (s && isCardKind(s.kind)) {
+    redirectToCardEditor(id, new URLSearchParams(location.search).get('play') === '1');
+    return;
+  }
   currentId = id;
   selectedBlockId = null;
-  const s = story();
   if (s && s.kind === 'comic') {
     s.comic = normalizeComic(s.comic);
     comicPageId = (s.comic.pages[0] && s.comic.pages[0].id) || null;
@@ -6964,6 +6992,11 @@ function shouldUseMakeApp(q) {
 
 function init() {
   const q = new URLSearchParams(location.search);
+  const rawNew = q.get('new') || q.get('create');
+  if (rawNew === 'card' || rawNew === 'game' || rawNew === 'gacha_rogue' || rawNew === 'rpg' || rawNew === 'card_rpg') {
+    location.replace('/make-card.html?new=1');
+    return;
+  }
   if (q.get('new') === 'h5' || q.get('create') === 'h5') {
     location.replace('/h5-game.html');
     return;

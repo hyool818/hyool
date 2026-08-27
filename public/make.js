@@ -331,7 +331,7 @@ function redirectOtherKind(w) {
     location.replace('/h5-game.html#edit=' + encodeURIComponent(w.id));
     return true;
   }
-  if (kind === 'gacha_rogue') {
+  if (kind === 'gacha_rogue' || kind === 'card_rpg') {
     location.replace('/make-card.html?story=' + encodeURIComponent(w.id) + play);
     return true;
   }

@@ -11,7 +11,8 @@
 | 旧互动视频入口 | `public/make-video.html` | 重定向 → `make.html`（`?hint=video`） |
 | 世界/IP | `public/studio-world.html` `public/create-life-world.html` | 创造世界入口；生命世界 5 步全页向导 |
 | 旧入口重定向 | `public/studio.html` `public/my-works.html` `public/fantasy.html` | → `/make.html` |
-| 漫画 / 卡牌 · 专业 | `public/story-editor.html` `?pro=1` | 分格、卡牌战斗；make 底栏链入 |
+| 漫画 · 专业 | `public/story-editor.html?pro=1` | 分格；make 底栏链入 |
+| **卡牌 · 主** | `public/make-card.html` | 可视化三栏编辑器；`story-rogue.js` / `story-idle.js` 试玩 |
 | H5 · 专工 | `public/h5-game.html` `h5-play.html` | 嵌入外部游戏 URL |
 
 ## 彼岸

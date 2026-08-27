@@ -36,7 +36,7 @@ HYOOL
 | 类型 | 入口 | 说明 |
 |---|---|---|
 | 漫画 | `story-editor.html?pro=1&new=comic` | 分格 + 气泡，功能完整，小白可从 make 底栏进入 |
-| 卡牌 | `story-editor.html?pro=1&new=card` | gacha_rogue / card_rpg |
+| 卡牌 | `public/make-card.html` | gacha_rogue；旧 card_rpg 打开时迁入新版 |
 | H5 游戏 | `h5-game.html` | 粘贴 playUrl，iframe 试玩发布 |
 
 **仍保留**

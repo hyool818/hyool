@@ -161,6 +161,8 @@ async function loadPlaza() {
         ? `/h5-play.html?story=${s.id}&from=/plaza`
         : (s.kind === "story" || s.kind === "interactive_video" || !s.kind)
         ? `/make.html?story=${s.id}&play=1&from=/plaza`
+        : (isRogue || isRpg)
+        ? `/make-card.html?story=${s.id}&play=1&from=/plaza`
         : `/story-editor.html?story=${s.id}&play=1&from=/plaza`;
       return `<div class="card" onclick="location.href='${playHref}'">
         <img class="thumb" src="${escapeHtml(s.cover_image || '')}" alt="" loading="lazy" onerror="this.style.opacity=.2">

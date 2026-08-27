@@ -5,8 +5,8 @@ const KIND = {
   story: { label: '📖 视觉小说', edit: (id) => '/make.html?story=' + encodeURIComponent(id) },
   interactive_video: { label: '📖 视觉小说', edit: (id) => '/make.html?story=' + encodeURIComponent(id) },
   comic: { label: '📚 漫画', edit: (id) => '/story-editor.html?story=' + encodeURIComponent(id) },
-  gacha_rogue: { label: '🂠 卡牌', edit: (id) => '/story-editor.html?story=' + encodeURIComponent(id) },
-  card_rpg: { label: '⚔️ 卡牌RPG', edit: (id) => '/story-editor.html?story=' + encodeURIComponent(id) },
+  gacha_rogue: { label: '🂠 卡牌', edit: (id) => '/make-card.html?story=' + encodeURIComponent(id) },
+  card_rpg: { label: '🂠 卡牌（旧）', edit: (id) => '/make-card.html?story=' + encodeURIComponent(id) },
   h5_game: { label: '🎮 H5', edit: (id) => '/h5-game.html#edit=' + encodeURIComponent(id) },
 };
 
@@ -20,6 +20,7 @@ function authHeaders() {
 function playUrl(w) {
   if (w.kind === 'h5_game') return '/h5-play.html?story=' + encodeURIComponent(w.id) + '&from=/make.html';
   if (w.kind === 'story' || w.kind === 'interactive_video' || !w.kind) return '/make.html?story=' + encodeURIComponent(w.id) + '&play=1';
+  if (w.kind === 'gacha_rogue' || w.kind === 'card_rpg') return '/make-card.html?story=' + encodeURIComponent(w.id) + '&play=1';
   return '/story-editor.html?pro=1&story=' + encodeURIComponent(w.id) + '&play=1&from=/make.html';
 }
 
