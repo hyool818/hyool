@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>卡牌游戏 · HYOOL</title>
+<link rel="stylesheet" href="/workspace/css/workspace.css">
+<link rel="stylesheet" href="/card-play.css">
+<style>
+html,body{height:100%;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100%}
+.app-main{flex:1;min-height:0;overflow:auto}
+.mc-home{max-width:920px;margin:0 auto;padding:12px 16px 56px}
+.mc-hero{margin:8px 0 20px}
+.mc-hero h1{font-size:clamp(22px,4vw,28px);font-weight:700;line-height:1.35;margin-bottom:8px}
+.mc-hero p{color:var(--muted);font-size:13px;line-height:1.75}
+.mc-actions{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px}
+.mc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.mc-card{border:1px solid var(--line2);border-radius:12px;background:var(--bg3);padding:14px;display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:.15s}
+.mc-card:hover{border-color:rgba(139,123,255,.45);transform:translateY(-1px)}
+.mc-card .row{display:flex;gap:10px;align-items:flex-start}
+.mc-card .thumb{width:72px;height:48px;border-radius:8px;background:#0a0a12;overflow:hidden;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:20px}
+.mc-card .thumb img{width:100%;height:100%;object-fit:cover}
+.mc-card .title{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-card .meta{font-size:10px;color:var(--muted);margin-top:4px}
+.mc-card .ops{display:flex;flex-wrap:wrap;gap:6px}
+.mc-card .ops .btn{padding:5px 10px;font-size:11px}
+.mc-login{text-align:center;padding:48px 16px;color:var(--muted)}
+.mc-edit{display:none;flex-direction:column;height:100%}
+.mc-edit.show{display:flex}
+.mc-guide{font-size:11px;color:var(--muted);line-height:1.65;padding:8px 12px;border-bottom:1px solid var(--line);background:rgba(139,123,255,.06)}
+.mc-guide.ready{color:#a8e6a0}
+.mc-workspace{flex:1;min-height:0;display:grid;grid-template-columns:240px 1fr 300px;gap:0}
+@media(max-width:900px){.mc-workspace{grid-template-columns:1fr;grid-template-rows:auto auto auto}}
+.mc-list{border-right:1px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;min-height:0}
+.mc-list-head{padding:10px 12px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mc-list-body{flex:1;overflow:auto;padding:8px}
+.mc-sec{font-size:10px;color:var(--accent2);letter-spacing:.08em;margin:12px 4px 6px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.mc-sec .btn{padding:2px 8px;font-size:10px}
+.mc-item{display:flex;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid transparent;cursor:pointer;margin-bottom:4px;align-items:center;font-size:12px;text-align:left;color:inherit;font-family:inherit;width:100%;background:transparent}
+.mc-item:hover{background:rgba(255,255,255,.03)}
+.mc-item.on{border-color:rgba(139,123,255,.45);background:rgba(139,123,255,.08)}
+.mc-item .ico{flex:0 0 auto;font-size:14px;width:20px;text-align:center}
+.mc-item .txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-item .thumb{width:28px;height:38px;border-radius:4px;overflow:hidden;flex:0 0 auto;background:#1a1a28}
+.mc-item .thumb img{width:100%;height:100%;object-fit:cover;object-position:center top}
+.mc-preview{background:#080810;display:flex;flex-direction:column;min-height:0;position:relative}
+.mc-stage-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:16px;min-height:0}
+.mc-stage{position:relative;width:100%;max-width:360px;aspect-ratio:9/16;background:linear-gradient(160deg,#1a1a28,#0d0d14);border-radius:12px;overflow:hidden;border:1px solid var(--line2);box-shadow:0 12px 40px rgba(0,0,0,.45);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+.mc-stage.landscape{aspect-ratio:16/9;max-width:640px}
+.mc-stage .card-big{width:min(200px,70%);margin:0 auto}
+.mc-stage .card-big .card-art img,.mc-stage .card-big .card-art video{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:10px;display:block;background:#000}
+.mc-stage .card-name{font-size:16px;font-weight:700;text-align:center;margin-top:10px}
+.mc-stage .card-meta{font-size:11px;color:var(--muted);text-align:center;margin-top:6px;line-height:1.6}
+.mc-stage .empty-hint{color:var(--muted);font-size:13px;text-align:center;line-height:1.7;padding:20px}
+.mc-panel{border-left:1px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.mc-panel-body{flex:1;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+.mc-panel label{font-size:11px;color:var(--muted);display:block;margin-bottom:4px}
+.mc-panel input[type=text],.mc-panel textarea,.mc-panel select{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font-family:inherit;font-size:13px}
+.mc-panel textarea{min-height:72px;resize:vertical;line-height:1.5}
+.mc-panel .field{margin-bottom:4px}
+.mc-panel-foot{flex-shrink:0;padding:12px 14px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
+.mc-mode-pick{display:flex;flex-direction:column;gap:8px}
+.mc-mode-btn{text-align:left;border:1px solid var(--line2);border-radius:10px;padding:10px 12px;background:#12121c;color:inherit;cursor:pointer;font-family:inherit}
+.mc-mode-btn.on{border-color:rgba(139,123,255,.55);background:rgba(139,123,255,.1)}
+.mc-mode-btn strong{display:block;font-size:13px;margin-bottom:4px}
+.mc-mode-btn span{font-size:11px;color:var(--muted);line-height:1.55}
+.mc-enemy-picks{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.mc-enemy-pick{display:flex;align-items:center;gap:8px;font-size:12px}
+.mc-bg-btn{display:flex;align-items:center;justify-content:center;width:100%;padding:14px;border:2px dashed var(--line2);border-radius:10px;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;font-family:inherit}
+.mc-bg-preview img,.mc-bg-preview video{width:100%;border-radius:8px;display:block;margin-top:8px}
+.mc-bg-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+#playOverlay{position:fixed;inset:0;z-index:200;background:#000;display:none;flex-direction:column}
+#playOverlay.show{display:flex}
+#playTop{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg2);flex:0 0 auto}
+#playBody{flex:1;min-height:0;overflow:hidden;position:relative}
+.mc-modal{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;padding:16px}
+.mc-modal.show{display:flex}
+.mc-modal-box{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:20px;width:min(420px,100%);max-height:90vh;overflow:auto}
+.mc-modal-box h2{font-size:16px;margin-bottom:14px}
+.mc-modal-step.hidden{display:none}
+.mc-orient{display:flex;gap:8px;margin-top:8px}
+.mc-orient button{flex:1;padding:10px;border:1px solid var(--line2);border-radius:8px;background:#12121c;color:inherit;cursor:pointer;font-family:inherit}
+.mc-orient button.on{border-color:var(--accent);background:rgba(139,123,255,.12)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar" id="mcTopbar">
+    <a class="back" href="/make.html" id="mcBack">← 创作</a>
+    <div class="brand">
+      <span class="brand-name" id="mcBrand">卡牌游戏</span>
+      <span class="brand-sub" id="mcBrandSub">CARD</span>
+    </div>
+    <div class="topbar-right">
+      <span id="mcSave" style="font-size:11px;color:var(--muted)"></span>
+      <button type="button" class="btn danger" id="mcDelBtn" style="display:none" title="删除当前项">删除</button>
+      <button type="button" class="btn" id="mcPlayBtn" style="display:none">▶ 试玩</button>
+      <button type="button" class="btn primary" id="mcPubBtn" style="display:none">发布</button>
+    </div>
+  </header>
+
+  <main class="app-main" id="viewHome">
+    <div class="mc-home">
+      <section class="mc-hero">
+        <h1>做卡牌游戏，像排角色卡一样简单</h1>
+        <p>左边选角色和关卡，中间实时看卡牌效果，右边改名字和数值。改完点试玩，马上进挂机 / 自动战斗。</p>
+      </section>
+      <div id="mcLogin" class="mc-login hidden">请先 <a href="/yonder.html?next=/make-card.html">登录</a>。</div>
+      <div id="mcApp" class="hidden">
+        <div class="mc-actions">
+          <button type="button" class="btn primary" id="mcNewBtn">＋ 新建卡牌游戏</button>
+          <a class="btn" href="/make.html">← 其他类型</a>
+        </div>
+        <div class="mc-grid" id="mcGrid"></div>
+        <p id="mcEmpty" class="hidden" style="text-align:center;color:var(--muted);padding:32px 0;font-size:13px">还没有卡牌作品，点上方新建</p>
+      </div>
+    </div>
+  </main>
+
+  <div class="mc-edit" id="viewEdit">
+    <div class="mc-guide" id="mcGuide">加载中…</div>
+    <div class="mc-workspace">
+      <aside class="mc-list">
+        <div class="mc-list-head">
+          <span id="mcListTitle">内容</span>
+          <button type="button" class="btn mc-shots-add-inline" id="mcDemoBtn" title="填入示例">示例</button>
+        </div>
+        <div class="mc-list-body" id="mcList"></div>
+      </aside>
+      <section class="mc-preview">
+        <div class="mc-stage-wrap">
+          <div class="mc-stage portrait" id="mcStage">
+            <div class="empty-hint">← 选左边一项<br>中间显示卡牌</div>
+          </div>
+        </div>
+      </section>
+      <aside class="mc-panel">
+        <div class="mc-panel-body" id="mcPanel">
+          <p style="color:var(--muted);font-size:13px;text-align:center;padding:24px 0">← 选左边一项</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div id="playOverlay">
+  <div id="playTop">
+    <button type="button" class="btn" id="playClose">✕ 退出试玩</button>
+    <span id="playTitle" style="font-size:13px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+  </div>
+  <div id="playBody"></div>
+</div>
+
+<div class="mc-modal" id="mcModal">
+  <div class="mc-modal-box">
+    <h2>新建卡牌游戏</h2>
+    <div id="mcModalBody">
+      <label class="field"><span>作品名称</span>
+        <input type="text" id="mcNewTitle" placeholder="例如：女神挂机" maxlength="40">
+      </label>
+      <label class="field" style="margin-top:12px"><span>屏幕方向</span>
+        <div class="mc-orient">
+          <button type="button" data-o="portrait" class="on">竖屏 9:16</button>
+          <button type="button" data-o="landscape">横屏 16:9</button>
+        </div>
+      </label>
+      <label class="field" style="margin-top:12px"><span>玩法</span>
+        <div class="mc-mode-pick" id="mcNewModes"></div>
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button type="button" class="btn primary" id="mcModalOk" style="flex:1">创建</button>
+      <button type="button" class="btn" id="mcModalCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/make-card.js?v=20260828n"></script>
+</body>
+</html>

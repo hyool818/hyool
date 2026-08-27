@@ -331,6 +331,10 @@ function redirectOtherKind(w) {
     location.replace('/h5-game.html#edit=' + encodeURIComponent(w.id));
     return true;
   }
+  if (kind === 'gacha_rogue') {
+    location.replace('/make-card.html?story=' + encodeURIComponent(w.id) + play);
+    return true;
+  }
   location.replace('/story-editor.html?pro=1&story=' + encodeURIComponent(w.id) + play);
   return true;
 }
@@ -2354,6 +2358,8 @@ async function confirmCreate() {
       selectedId = blocks()[0]?.id || null;
       showEdit();
       toast('已创建《' + title + '》');
+    } else if (createKind === 'gacha_rogue') {
+      location.href = '/make-card.html?story=' + encodeURIComponent(s.id);
     } else {
       location.href = '/story-editor.html?pro=1&story=' + encodeURIComponent(s.id);
     }
