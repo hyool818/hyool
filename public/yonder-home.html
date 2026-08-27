@@ -3280,6 +3280,9 @@ async function loadStories() {
 
 function storyPlayUrl(s) {
     const from = state.username ? "/@" + encodeURIComponent(state.username) : "";
+    if (s.kind === "h5_game") {
+        return "/h5-play.html?story=" + encodeURIComponent(s.id) + "&from=" + encodeURIComponent(from);
+    }
     return "/story-editor.html?story=" + encodeURIComponent(s.id) + "&play=1&from=" + encodeURIComponent(from);
 }
 
@@ -3320,7 +3323,7 @@ function renderStories() {
                 <div class="name">${escapeHtml(s.title || '未命名')}</div>
                 <div class="badges">
                     ${!sPublished ? `<span class="badge draft">未发布</span>` : ''}
-                    <span class="badge form${s.kind === 'card_rpg' ? ' rpg' : (s.kind === 'gacha_rogue' ? ' rogue' : '')}">${s.kind === 'gacha_rogue' ? '🂠 卡牌' : (s.kind === 'card_rpg' ? '⚔️ 卡牌RPG' : '故事作品')}</span>
+                    <span class="badge form${s.kind === 'card_rpg' ? ' rpg' : (s.kind === 'gacha_rogue' ? ' rogue' : (s.kind === 'h5_game' ? ' h5' : ''))}">${s.kind === 'h5_game' ? '🎮 H5' : (s.kind === 'gacha_rogue' ? '🂠 卡牌' : (s.kind === 'card_rpg' ? '⚔️ 卡牌RPG' : '故事作品'))}</span>
                 </div>
             </div>
         </a>

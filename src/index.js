@@ -1968,7 +1968,7 @@ async function buildYonderPayload(
         let kind = "story";
         try {
             const d = JSON.parse(s.data || "{}");
-            if (d && (d.kind === "card_rpg" || d.kind === "gacha_rogue" || d.kind === "comic")) kind = d.kind;
+            if (d && (d.kind === "card_rpg" || d.kind === "gacha_rogue" || d.kind === "comic" || d.kind === "h5_game")) kind = d.kind;
         } catch (e) { /* 旧数据/坏数据默认互动小说 */ }
         return {
             id: s.id,

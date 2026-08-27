@@ -885,7 +885,9 @@ async function syncWithServer() {
     loggedIn = true;
     setLoginHint(false);
 
-    const server = (d.stories || []).map(x => normalizeStories([x])[0]);
+    const server = (d.stories || [])
+      .filter(x => x.kind !== 'h5_game')
+      .map(x => normalizeStories([x])[0]);
     const serverIds = new Set(server.map(x => x.id));
     // 本地缓存有而云端没有的旧作品 → 自动上传迁移（先建条目再补存完整内容）
     const localOnly = stories.filter(x => !serverIds.has(x.id));

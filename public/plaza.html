@@ -144,15 +144,23 @@ async function loadPlaza() {
       const updated = s.updated_at ? new Date(s.updated_at).toLocaleDateString("zh-CN") : "";
       const isRpg = s.kind === "card_rpg";
       const isRogue = s.kind === "gacha_rogue";
-      const badge = isRogue
+      const isH5 = s.kind === "h5_game";
+      const badge = isH5
+        ? `<span class="badge story" style="background:rgba(120,200,140,.14);color:#a8e8b8">🎮 H5</span>`
+        : isRogue
         ? `<span class="badge story rogue">🂠 卡牌</span>`
         : isRpg ? `<span class="badge story rpg">⚔️ 卡牌RPG</span>` : `<span class="badge story">故事作品</span>`;
-      const hook = isRogue
+      const hook = isH5
+        ? `H5 网页游戏 · ${orient} · 浏览器即玩`
+        : isRogue
         ? `卡牌：挂机 / 排队技能 / 每局不同`
         : isRpg
         ? `${Number(s.cards_count) || 0} 张角色卡 · ${Number(s.enemies_count) || 0} 个敌人 · 自动角色战斗`
         : `${Number(s.chapters_count) || 0} 章 · ${Number(s.blocks_count) || 0} 块积木 · ${orient}`;
-      return `<div class="card" onclick="location.href='/story-editor.html?story=${s.id}&play=1&from=/plaza'">
+      const playHref = isH5
+        ? `/h5-play.html?story=${s.id}&from=/plaza`
+        : `/story-editor.html?story=${s.id}&play=1&from=/plaza`;
+      return `<div class="card" onclick="location.href='${playHref}'">
         <img class="thumb" src="${escapeHtml(s.cover_image || '')}" alt="" loading="lazy" onerror="this.style.opacity=.2">
         <div class="body">
           <div class="name">${name}${badge}</div>
@@ -162,7 +170,7 @@ async function loadPlaza() {
             <div><div class="oname">${ownerName}</div>${ownerUser ? `<div class="ouname">${ownerUser}</div>` : ""}</div>
           </div>
           <div class="foot">
-            <span>${isRogue ? "🂠 肉鸽自动" : isRpg ? "⚔️ 自动战斗" : "文字剧情"}</span>
+            <span>${isH5 ? "🎮 H5 游戏" : isRogue ? "🂠 肉鸽自动" : isRpg ? "⚔️ 自动战斗" : "文字剧情"}</span>
             <span>${updated}</span>
           </div>
         </div>

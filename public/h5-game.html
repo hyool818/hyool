@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>H5 网页游戏 · HYOOL</title>
+<link rel="stylesheet" href="/workspace/css/workspace.css">
+<style>
+.h5-main{max-width:920px;margin:0 auto;padding:0 16px 48px}
+.h5-hero p{color:var(--muted);font-size:13px;line-height:1.75;margin-top:8px}
+.h5-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:18px 0 12px}
+.h5-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.h5-card{position:relative;border:1px solid var(--line2);border-radius:12px;background:#12121c;overflow:hidden;display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit}
+.h5-card:hover{border-color:rgba(139,123,255,.45)}
+.h5-card .thumb{aspect-ratio:16/10;background:#0a0a12;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.h5-card .thumb img{width:100%;height:100%;object-fit:cover}
+.h5-card .thumb .ic{font-size:32px;opacity:.45}
+.h5-card .body{padding:10px 12px 12px;flex:1}
+.h5-card .title{font-size:13px;font-weight:600;margin-bottom:4px;color:var(--text)}
+.h5-card .meta{font-size:10px;color:var(--muted);line-height:1.5}
+.h5-card .badge{display:inline-block;margin-top:6px;padding:2px 8px;border-radius:99px;font-size:10px;border:1px solid var(--line2);color:var(--muted)}
+.h5-card .badge.pub{border-color:rgba(95,200,255,.35);color:var(--accent2)}
+.h5-empty,.h5-login{text-align:center;padding:48px 16px;color:var(--muted);line-height:1.85;font-size:13px}
+.h5-login a{color:var(--accent2)}
+.h5-editor{margin-top:12px}
+.h5-editor .panel{border:1px solid var(--line2);border-radius:12px;background:#12121c;padding:16px;margin-bottom:12px}
+.h5-editor label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px}
+.h5-editor input[type=text],.h5-editor textarea{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line2);background:#0d0d16;color:var(--text);font-family:inherit;font-size:13px}
+.h5-editor textarea{min-height:72px;resize:vertical;line-height:1.6}
+.h5-editor .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:640px){.h5-editor .row{grid-template-columns:1fr}}
+.h5-cover{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.h5-cover .preview{width:160px;aspect-ratio:16/10;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.h5-cover .preview img{width:100%;height:100%;object-fit:cover}
+.h5-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.h5-hint{font-size:11px;color:var(--muted);line-height:1.65;margin-top:8px}
+.orient-pick{display:flex;gap:8px}
+.orient-pick button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line2);background:#0d0d16;color:var(--muted);cursor:pointer;font-family:inherit;font-size:12px}
+.orient-pick button.on{border-color:var(--accent2);color:var(--accent2);background:rgba(95,200,255,.08)}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal-backdrop.show{display:flex}
+.modal-box{width:100%;max-width:400px;border:1px solid var(--line2);border-radius:14px;background:#14141e;padding:20px}
+.modal-box h3{margin:0 0 14px;font-size:15px}
+</style>
+</head>
+<body>
+<div class="hub">
+  <header class="hub-topbar">
+    <a class="back" id="h5Back" href="/fantasy.html">← 幻想</a>
+    <div class="hub-brand">
+      <span class="hub-brand-name">H5 网页游戏</span>
+      <span class="hub-brand-en">EMBED · PUBLISH · PLAY</span>
+    </div>
+  </header>
+  <main class="h5-main">
+    <section class="h5-hero" id="h5ListView">
+      <h1 class="hub-hero-name" style="font-size:22px;margin:12px 0 0">网页游戏工坊</h1>
+      <p>上传或粘贴 <strong>H5 游戏地址</strong>（Cocos / Phaser / 自研 Web 构建产物），发布后在主页与幻灵世界广场可玩。不接打地鼠类玩具模板。</p>
+    </section>
+    <div id="h5Login" class="h5-login hidden">请先 <a href="/yonder.html?next=/h5-game.html">登录彼岸</a> 后再创建游戏。</div>
+    <div id="h5ListApp" class="hidden">
+      <div class="h5-bar">
+        <span id="h5Count" style="font-size:12px;color:var(--muted)"></span>
+        <span style="flex:1"></span>
+        <button type="button" class="btn primary" id="h5CreateBtn">＋ 新建 H5 游戏</button>
+      </div>
+      <div id="h5Grid" class="h5-grid"></div>
+      <div id="h5Empty" class="h5-empty hidden">还没有 H5 游戏。点「新建」填入可访问的游戏地址即可。</div>
+    </div>
+    <div id="h5EditView" class="h5-editor hidden">
+      <div class="panel">
+        <div class="row">
+          <div>
+            <label>游戏名称</label>
+            <input type="text" id="h5Title" maxlength="40" placeholder="我的 H5 游戏">
+          </div>
+          <div>
+            <label>画幅</label>
+            <div class="orient-pick" id="h5OrientPick">
+              <button type="button" data-o="landscape" class="on">🖥 横屏 16:9</button>
+              <button type="button" data-o="portrait">📱 竖屏 9:16</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <label>游戏地址（HTTPS 或本站 /img/…）</label>
+        <input type="text" id="h5PlayUrl" placeholder="https://example.com/my-game/index.html">
+        <p class="h5-hint">支持 Cocos Creator / Phaser 等构建后的 <code>index.html</code> 链接；也可上传 zip 到专属库后粘贴 <code>/img/…</code> 地址（须能直接打开游戏页）。</p>
+      </div>
+      <div class="panel">
+        <label>简介（广场卡片展示，可选）</label>
+        <textarea id="h5Desc" maxlength="200" placeholder="一句话介绍玩法…"></textarea>
+      </div>
+      <div class="panel">
+        <label>封面</label>
+        <div class="h5-cover">
+          <div class="preview" id="h5CoverPreview"><span class="ic">🎮</span></div>
+          <div>
+            <button type="button" class="btn" id="h5CoverBtn">上传封面图</button>
+            <input type="file" id="h5CoverInput" hidden accept="image/jpeg,image/png,image/webp,image/gif">
+            <p class="h5-hint">建议 16:9 或 9:16，与画幅一致。</p>
+          </div>
+        </div>
+      </div>
+      <div class="h5-actions">
+        <button type="button" class="btn primary" id="h5SaveBtn">保存</button>
+        <button type="button" class="btn" id="h5PlayBtn">▶ 试玩</button>
+        <button type="button" class="btn" id="h5PubBtn">发布到广场</button>
+        <button type="button" class="btn danger" id="h5DelBtn">删除</button>
+      </div>
+      <p class="h5-hint" id="h5StatusLine"></p>
+    </div>
+  </main>
+</div>
+<div class="modal-backdrop" id="h5CreateModal">
+  <div class="modal-box">
+    <h3>新建 H5 游戏</h3>
+    <label>游戏名称</label>
+    <input type="text" id="h5NewTitle" maxlength="40" placeholder="未名游戏" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line2);background:#0d0d16;color:var(--text);font-family:inherit;margin-bottom:14px">
+    <div class="h5-actions" style="margin-top:0">
+      <button type="button" class="btn primary" id="h5NewConfirm">创建</button>
+      <button type="button" class="btn" id="h5NewCancel">取消</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script type="module" src="/h5-game.js?v=20260826h5"></script>
+</body>
+</html>

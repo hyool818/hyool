@@ -959,6 +959,13 @@ export async function handleMvpRoutes(
                     }]
                 };
             }
+            if (kind === "h5_game") {
+                data.chapters = [];
+                data.h5 = {
+                    playUrl: "",
+                    description: ""
+                };
+            }
 
             await env.DB.prepare(
                 `INSERT INTO stories (id, owner_id, title, data, cover_image, status, share_id, created_at, updated_at)
@@ -4346,9 +4353,9 @@ function isMissingTableError(error) {
         message.includes("does not exist");
 }
 
-/** 作品类型：互动小说 / 卡牌RPG / 肉鸽卡牌 / 漫画（共享 stories 表） */
+/** 作品类型：互动小说 / 卡牌RPG / 肉鸽卡牌 / 漫画 / H5网页游戏（共享 stories 表） */
 function workKind(kind) {
-    if (kind === "card_rpg" || kind === "gacha_rogue" || kind === "comic") return kind;
+    if (kind === "card_rpg" || kind === "gacha_rogue" || kind === "comic" || kind === "h5_game") return kind;
     return "story";
 }
 

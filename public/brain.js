@@ -36,7 +36,7 @@ async function ensureLogin() {
   try {
     const res = await fetch('/api/me', { credentials: 'include', headers: authHeaders() });
     const d = await res.json().catch(() => ({}));
-    if (!d.success || !d.user) {
+    if (!d.authenticated || !d.user) {
       $('#loginGate').classList.remove('hidden');
       return false;
     }

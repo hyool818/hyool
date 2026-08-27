@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover,maximum-scale=1.0,user-scalable=no">
+<title>游玩 · HYOOL</title>
+<style>
+:root{--bg:#08080f;--text:#ece8ff;--muted:#8888a8;--accent:#8b7bff;--line:rgba(255,255,255,.08)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif}
+.play-shell{display:flex;flex-direction:column;height:100%;height:100dvh}
+.play-top{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:rgba(12,12,20,.94);backdrop-filter:blur(10px)}
+.play-top .back{color:var(--muted);text-decoration:none;font-size:13px;white-space:nowrap}
+.play-top .back:hover{color:var(--text)}
+.play-top .title{flex:1;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.play-top .btn{padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit}
+.play-top .btn:hover{border-color:var(--accent);color:#cfc8ff}
+.play-stage{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px;background:#000}
+.play-frame-wrap{width:100%;height:100%;max-width:100%;display:flex;align-items:center;justify-content:center}
+.play-frame-wrap.portrait{max-width:min(100%, calc(100vh * 9 / 16))}
+.play-frame-wrap.landscape{max-width:min(100%, calc(100vh * 16 / 9))}
+iframe.game-frame{width:100%;height:100%;border:0;background:#000;border-radius:4px}
+.play-empty{padding:24px;text-align:center;color:var(--muted);line-height:1.8;font-size:13px}
+.play-empty a{color:var(--accent)}
+.play-loading{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="play-shell">
+  <header class="play-top">
+    <a class="back" id="playBack" href="/fantasy.html">← 返回</a>
+    <div class="title" id="playTitle">加载中…</div>
+    <button type="button" class="btn" id="playFsBtn" title="全屏">⛶</button>
+  </header>
+  <main class="play-stage" id="playStage">
+    <div class="play-loading" id="playLoading">正在加载游戏…</div>
+  </main>
+</div>
+<script type="module" src="/h5-play.js?v=20260826h5"></script>
+</body>
+</html>

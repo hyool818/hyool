@@ -27,7 +27,14 @@
 | 广场露出 | `public/plaza.html` | `GET /api/plaza` 的 `stories` | 已发布 + `share_id` 非空 |
 | 产品愿景 | `docs/editor-vision.md` | — | 仅改长期类型地图时读 |
 
-作品 `kind`：`story` | `card_rpg`（旧互殴）| `gacha_rogue`（女神挂机 / 修仙自动战 / 每局不同）。编辑壳：作品库三步创建 → 剪映式时间线（小说）/ 卡牌试玩壳。**女神挂机**：主城立绘阵容 → 女神册选人 → 召唤卡池 · 升级升星 · 挂机推关；工作室可上传角色立绘（`roster[].portrait`）；进度在 `rogue.progress`（stageIdx/gold/teamIds）。卡牌工作室：角色/关卡表格 + 行拖排序 + 立绘按钮。参考样品：`public/story-samples.js`。挂机壳：`public/story-idle.js`。底座原则：小白积木 → 可上线作品；接水果/打地鼠类已下线且不再加回。
+作品 `kind`：`story` | `card_rpg`（旧互殴）| `gacha_rogue`（女神挂机 / 修仙自动战 / 每局不同）| `comic` | `h5_game`（iframe 嵌入外部 H5 构建）。编辑壳：作品库三步创建 → 剪映式时间线（小说）/ 卡牌试玩壳 / 漫画分格 / **H5 工坊**（`h5-game.html`）。**H5**：粘贴 HTTPS 或 `/img/` 游戏地址 → `h5-play.html` 播放；走 stories 发布链，不接打地鼠玩具模板。
+
+## 幻想 · H5 网页游戏
+
+| 功能 | 页面 | API | 说明 |
+|---|---|---|---|
+| 工坊 | `public/h5-game.html` `public/h5-game.js` | `/api/stories*` `POST /api/upload` | 新建 `kind=h5_game`；填 playUrl / 封面 / 发布 |
+| 播放器 | `public/h5-play.html` `public/h5-play.js` | `GET /api/stories/:id` | iframe 嵌入；postMessage `hyool:init` 预留 |
 
 ## 幻想 · 游戏工坊（已下线）
 
