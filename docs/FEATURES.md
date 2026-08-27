@@ -22,7 +22,7 @@
 | 个人主页 | `public/yonder-home.html`（`/@username`） | `/api/profile/:username` `/api/yonder/*` | `src/index.js` |
 | 个人主页 · 专属库 | 同上（主人可见） | — | 底栏入口 → `my-vault.html` |
 | 主页作品流 | 同上 | 主页组装含 `works.stories` | `src/index.js`（stories 查询） |
-| 个人主页 · 角色库 / 世界库 | `public/yonder-home.html` `public/profile-hub-ui.js` `public/profile-hub-modals.html` `public/profile-nav.js` | 主人：创造世界向导、角色编辑、世界详情；`?create=world` `?world=id` | 分享页；访客可见公开角色/世界（聊天权限由主人定，后续） |
+| 个人主页 · 角色库 / 世界库 | `public/yonder-home.html` `public/profile-hub-ui.js` `public/profile-hub-modals.html` `public/profile-nav.js` | 主人：角色编辑、世界详情；「创造世界」→ `studio-world.html?create=life`；`?world=id` | 分享页；`?create=world` 旧书签 302 → 创造世界页 |
 | `/hub` 旧书签 | `src/mvp.js` 302 | 登录 → `/@username`；游客 → `/plaza`（**不变**）；`?create=world` → 登录后进向导 | 无 `hub.html` 页面 |
 | 角色列表 API | — | `GET /api/hub`（**不是** `/api/hub/` Brain 接口） | `src/mvp.js` |
 | 邀请码 | yonder / hub 管理 UI | `/api/invite-codes*` | `src/index.js`（仅用户 `333123`） |

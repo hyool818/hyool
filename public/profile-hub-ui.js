@@ -606,7 +606,6 @@ function openWizardLife() {
 }
 function handleProfileHubQuery() {
   const q = new URLSearchParams(location.search);
-  if (q.get('create') === 'world' || q.get('create') === 'life') openWizardLife();
   const wid = q.get('world');
   if (wid) openWorldDetailById(wid);
 }

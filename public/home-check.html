@@ -10,7 +10,7 @@
 <script>
 /* 个人主页优化冒烟：
    - @smokews 登录态：角色库/世界库、创造角色/创造世界
-   - /hub?create=world → 个人主页并打开自定义世界向导 */
+   - studio-world.html?create=life → 创造世界页打开向导（不在个人主页） */
 const results = [];
 function line(s){ results.push(s); document.getElementById('results').textContent = results.join('\n'); }
 function ok(cond, name, extra=''){ line((cond?'PASS':'FAIL')+'  '+name+(extra?'  '+extra:'')); }
