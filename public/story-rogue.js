@@ -197,6 +197,8 @@ export function normalizeRogue(raw) {
     spd: clamp(e.spd, 6, 36, 14),
     isBoss: !!e.isBoss,
     portrait: String(e.portrait || '').trim().slice(0, 240),
+    portraitKind: e.portraitKind === 'video' ? 'video' : (e.portrait ? 'image' : ''),
+    frame: normalizeCardFrame(e.frame, 1),
   }));
   out.bonds = (Array.isArray(r.bonds) ? r.bonds : []).filter(b => b && b.name).map(b => ({
     id: b.id || uid(),
@@ -628,6 +630,8 @@ function livingEnemiesFrom(node) {
     id: (e.id || 'e') + '_' + i, name: e.name, elem: e.elem || 'wood',
     maxHp: e.hp, hp: e.hp, atk: e.atk, spd: e.spd, gauge: 0, isEnemy: true,
     portrait: e.portrait || '',
+    portraitKind: portraitKindOf(e),
+    frame: normalizeCardFrame(e.frame, 1),
   }));
 }
 
@@ -817,13 +821,18 @@ function paintBattle(frame) {
       <button class="btn tiny ${run.speed === 4 ? 'primary' : ''}" data-sp="4">4x</button>
     </div>
     <button class="btn tiny ghost" id="rgExit">退出</button></div>`;
-  const foes = (b.enemies || []).map(e => `
+  const foes = (b.enemies || []).map(e => {
+    const assets = (run.story && run.story.assets) || [];
+    const fcls = cardFrameClass(e, assets);
+    const overlay = frameOverlayHtml(e, assets);
+    return `
     <div class="bt-enemy${e.hp <= 0 ? ' dead' : ''}" data-enemy-id="${esc(e.id)}">
-      ${e.portrait ? `<div class="bt-portrait"><div class="card-art">${portraitMediaInner(e)}</div></div>` : ''}
+      ${e.portrait ? `<div class="bt-portrait ${fcls}"><div class="card-art">${portraitMediaInner(e)}</div>${overlay}</div>` : ''}
       <div class="bt-enemy-name">${esc(e.name)} · ${elemLabel(e.elem)}</div>
       <div class="bt-hp-row"><div class="bt-bar"><div class="bt-bar-fill enemy" style="width:${pct(e.hp, e.maxHp)}%"></div></div><span class="bt-hp-num">${e.hp}/${e.maxHp}</span></div>
       <div class="bt-bar rg-spd"><div class="bt-bar-fill spd" style="width:${Math.min(100, e.gauge || 0)}%"></div></div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const party = run.team.map(m => {
     const assets = (run.story && run.story.assets) || [];
     const fcls = cardFrameClass(m, assets);

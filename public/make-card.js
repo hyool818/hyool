@@ -20,7 +20,11 @@ import {
   starTierLabel,
   starTierFullLabel,
   normalizeCardFrame,
+  CARD_FRAMES,
+  cardFrameClass,
 } from '/story-idle.js';
+
+const ELEM_OPTS = [['fire', '火'], ['water', '水'], ['wood', '木'], ['light', '光'], ['dark', '暗']];
 import { fetchMyVault, vaultLoggedIn } from '/my-vault-api.js';
 
 const PAGE = '/make-card.html';
@@ -60,6 +64,14 @@ function rogue() {
 
 function liveChar(id) {
   return rogue()?.roster?.find((x) => x.id === id) || null;
+}
+
+function liveEnemy(id) {
+  return rogue()?.enemies?.find((x) => x.id === id) || null;
+}
+
+function liveEntity(type, id) {
+  return type === 'enemy' ? liveEnemy(id) : liveChar(id);
 }
 
 function setSave(st) {
@@ -311,6 +323,33 @@ function tierField(label, value, onChange) {
   return wrap;
 }
 
+function selectField(label, value, options, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  const lab = document.createElement('label');
+  lab.textContent = label;
+  const sel = document.createElement('select');
+  options.forEach(([id, text]) => {
+    const o = document.createElement('option');
+    o.value = id;
+    o.textContent = text;
+    if (id === value) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', () => onChange(sel.value));
+  wrap.append(lab, sel);
+  return wrap;
+}
+
+function frameField(label, value, onChange) {
+  return selectField(
+    label,
+    normalizeCardFrame(value, 1),
+    Object.values(CARD_FRAMES).map((f) => [f.id, f.label]),
+    onChange,
+  );
+}
+
 function starOf(n) {
   return Math.max(1, Math.min(STAR_MAX, Math.round(Number(n) || 1)));
 }
@@ -346,16 +385,21 @@ function patchListCharThumb(c) {
   }
 }
 
-function replaceCharPreviewCard(c) {
+function replacePreviewCard(unit, opts = {}) {
   const wrap = $('#mcStage .card-big');
   if (!wrap) return;
+  const cardUnit = opts.enemy ? { ...unit, star: 0 } : unit;
   const tmp = document.createElement('div');
-  tmp.innerHTML = portraitHtml(c, 'goddess-card book card-frame', work?.assets || []);
+  tmp.innerHTML = portraitHtml(cardUnit, 'goddess-card book card-frame', work?.assets || []);
   const newCard = tmp.firstElementChild;
   if (!newCard) return;
   const oldCard = wrap.querySelector('.goddess-card');
   if (oldCard) oldCard.replaceWith(newCard);
   else wrap.insertBefore(newCard, wrap.firstChild);
+}
+
+function replaceCharPreviewCard(c) {
+  replacePreviewCard(c);
 }
 
 function syncCharViews(c, opts = {}) {
@@ -387,12 +431,63 @@ function syncCharViews(c, opts = {}) {
   }
 }
 
-function syncEnemyViews(e) {
+function patchListEnemyThumb(e) {
+  const btn = document.querySelector(`#mcList .mc-item[data-type="enemy"][data-id="${CSS.escape(e.id)}"]`);
+  if (!btn) return;
+  if (e.portrait) {
+    let thumb = btn.querySelector('.thumb');
+    if (!thumb) {
+      btn.querySelector('.ico')?.remove();
+      thumb = document.createElement('span');
+      thumb.className = 'thumb';
+      btn.insertBefore(thumb, btn.querySelector('.txt'));
+    }
+    thumb.innerHTML = '<img src="' + escapeHtml(e.portrait) + '" alt="">';
+  } else {
+    btn.querySelector('.thumb')?.remove();
+    if (!btn.querySelector('.ico')) {
+      const ico = document.createElement('span');
+      ico.className = 'ico';
+      ico.textContent = '👹';
+      btn.insertBefore(ico, btn.querySelector('.txt'));
+    }
+  }
+}
+
+function enemyPreviewMeta(e) {
+  const elem = ELEM_OPTS.find(([id]) => id === e.elem)?.[1] || '—';
+  let meta = elem + ' · 生命 ' + e.hp + ' · 攻击 ' + e.atk + '<br>速度 ' + e.spd;
+  if (e.isBoss) meta += '<br><strong>BOSS</strong>';
+  return meta;
+}
+
+function syncEnemyViews(e, opts = {}) {
   patchListLabel('enemy', e.id, e.name);
+  patchListEnemyThumb(e);
   if (select.type !== 'enemy' || select.id !== e.id) return;
-  const nameEl = $('#mcStage .card-name');
+  const stage = $('#mcStage');
+  if (!stage) return;
+  let nameEl = stage.querySelector('.card-name');
+  let metaEl = stage.querySelector('.card-meta');
+  if (!nameEl || !metaEl) {
+    renderPreview();
+    nameEl = stage.querySelector('.card-name');
+    metaEl = stage.querySelector('.card-meta');
+  }
   if (nameEl) nameEl.textContent = '👹 ' + (e.name || '');
-  else renderPreview();
+  if (metaEl) metaEl.innerHTML = enemyPreviewMeta(e);
+  if (opts.portrait || opts.frame) replacePreviewCard(e, { enemy: true });
+  else {
+    const cardEl = stage.querySelector('.goddess-card');
+    const nm = cardEl?.querySelector('.nm');
+    if (nm) nm.textContent = e.name || '';
+    if (cardEl) {
+      const keep = ['goddess-card', 'book', 'card-frame', 'has-img', 'tone-light', 'tone-dark'];
+      const drop = [...cardEl.classList].filter((c) => !keep.includes(c) && (c.startsWith('frame-') || c.startsWith('fx-') || c === 'card-frame-asset'));
+      drop.forEach((c) => cardEl.classList.remove(c));
+      cardFrameClass(e, work?.assets || []).split(/\s+/).filter(Boolean).forEach((c) => cardEl.classList.add(c));
+    }
+  }
   // 关卡面板里敌人多选标签同步
   $$('#mcPanel .mc-enemy-pick').forEach((row) => {
     if (row.dataset.enemyId !== e.id) return;
@@ -406,15 +501,17 @@ function syncStageViews(s) {
   if (select.type === 'stage' && select.id === s.id) renderPreview();
 }
 
-function applyPortrait(charId, url, kind) {
-  const c = liveChar(charId);
+function applyPortrait(entityType, entityId, url, kind) {
+  const c = liveEntity(entityType, entityId);
   if (!c) return;
   c.portrait = url;
   c.portraitKind = kind || (portraitKindOf({ portrait: url, portraitKind: kind }));
   scheduleSave();
   renderList();
   renderPreview();
-  refreshPortraitPanel(charId);
+  refreshPortraitPanel(entityType, entityId);
+  if (entityType === 'char') syncCharViews(c, { portrait: true });
+  else syncEnemyViews(c, { portrait: true });
 }
 
 function portraitPreviewEl(c) {
@@ -429,19 +526,19 @@ function portraitPreviewEl(c) {
   return wrap;
 }
 
-function appendPortraitPickOps(sec, charId, withRemove) {
+function appendPortraitPickOps(sec, entityType, entityId, withRemove) {
   const ops = document.createElement('div');
   ops.className = 'mc-bg-ops';
   ops.append(
-    btn('本地上传', () => pickPortraitLocal(charId)),
-    btn('素材库', () => openPortraitVault(charId)),
+    btn('本地上传', () => pickPortraitLocal(entityType, entityId)),
+    btn('素材库', () => openPortraitVault(entityType, entityId)),
   );
-  if (withRemove) ops.append(btn('移除', () => clearPortrait(charId), true));
+  if (withRemove) ops.append(btn('移除', () => clearPortrait(entityType, entityId), true));
   sec.appendChild(ops);
 }
 
-function buildPortraitField(charId) {
-  const c = liveChar(charId);
+function buildPortraitField(entityType, entityId) {
+  const c = liveEntity(entityType, entityId);
   const sec = document.createElement('div');
   sec.className = 'field mc-portrait-field';
   sec.id = 'mcPortraitField';
@@ -449,34 +546,36 @@ function buildPortraitField(charId) {
   if (c?.portrait) {
     const prev = portraitPreviewEl(c);
     if (prev) sec.appendChild(prev);
-    appendPortraitPickOps(sec, charId, true);
+    appendPortraitPickOps(sec, entityType, entityId, true);
   } else {
     const row = document.createElement('div');
     row.className = 'mc-portrait-pick';
     row.append(
-      btn('本地上传', () => pickPortraitLocal(charId)),
-      btn('素材库', () => openPortraitVault(charId)),
+      btn('本地上传', () => pickPortraitLocal(entityType, entityId)),
+      btn('素材库', () => openPortraitVault(entityType, entityId)),
     );
     sec.appendChild(row);
   }
   return sec;
 }
 
-function refreshPortraitPanel(charId) {
+function refreshPortraitPanel(entityType, entityId) {
   const sec = $('#mcPortraitField');
-  if (!sec || select.type !== 'char' || select.id !== charId) return;
-  sec.replaceWith(buildPortraitField(charId));
+  if (!sec || select.type !== entityType || select.id !== entityId) return;
+  sec.replaceWith(buildPortraitField(entityType, entityId));
 }
 
-function clearPortrait(charId) {
-  const c = liveChar(charId);
+function clearPortrait(entityType, entityId) {
+  const c = liveEntity(entityType, entityId);
   if (!c) return;
   delete c.portrait;
   delete c.portraitKind;
   scheduleSave();
   renderList();
   renderPreview();
-  refreshPortraitPanel(charId);
+  refreshPortraitPanel(entityType, entityId);
+  if (entityType === 'char') syncCharViews(c, { portrait: true });
+  else syncEnemyViews(c, { portrait: true });
 }
 
 function renderGuide() {
@@ -546,7 +645,8 @@ function renderList() {
   secE.appendChild(addE);
   host.appendChild(secE);
   (r.enemies || []).forEach((e) => {
-    host.appendChild(mkItem('enemy', e.id, '👹', e.name, ''));
+    const thumb = e.portrait ? '<img src="' + escapeHtml(e.portrait) + '" alt="">' : '';
+    host.appendChild(mkItem('enemy', e.id, '👹', e.name, thumb));
   });
 }
 
@@ -585,9 +685,12 @@ function renderPreview() {
   if (select.type === 'enemy') {
     const e = selectedEnemy();
     if (!e) { stage.innerHTML = '<div class="empty-hint">选一个敌人</div>'; return; }
-    stage.innerHTML = '<div class="card-name">👹 ' + escapeHtml(e.name) + '</div>' +
-      '<div class="card-meta">生命 ' + e.hp + ' · 攻击 ' + e.atk + ' · 速度 ' + e.spd +
-      (e.isBoss ? '<br><strong>BOSS</strong>' : '') + '</div>';
+    const wrap = document.createElement('div');
+    wrap.className = 'card-big';
+    wrap.innerHTML = portraitHtml({ ...e, star: 0 }, 'goddess-card book card-frame', work?.assets || []) +
+      '<div class="card-name">👹 ' + escapeHtml(e.name) + '</div>' +
+      '<div class="card-meta">' + enemyPreviewMeta(e) + '</div>';
+    stage.appendChild(wrap);
     return;
   }
 
@@ -709,7 +812,7 @@ function renderPanel() {
       scheduleSave();
       syncCharViews(c, { portrait: true });
     }));
-    panel.appendChild(buildPortraitField(c.id));
+    panel.appendChild(buildPortraitField('char', c.id));
     foot.append(btn('删除角色', () => removeChar(c.id), true));
     panel.appendChild(foot);
     return;
@@ -719,9 +822,20 @@ function renderPanel() {
     const e = selectedEnemy();
     if (!e) return;
     panel.appendChild(field('敌人名', 'text', e.name, (v) => { e.name = v; scheduleSave(); syncEnemyViews(e); }, { maxLen: 16 }));
-    panel.appendChild(field('生命', 'number', String(e.hp), (v) => { e.hp = Math.max(1, Math.min(99999, Number(v) || 50)); scheduleSave(); renderPreview(); }));
-    panel.appendChild(field('攻击', 'number', String(e.atk), (v) => { e.atk = Math.max(1, Math.min(99, Number(v) || 8)); scheduleSave(); renderPreview(); }));
-    panel.appendChild(field('速度', 'number', String(e.spd), (v) => { e.spd = Math.max(1, Math.min(40, Number(v) || 12)); scheduleSave(); renderPreview(); }));
+    panel.appendChild(selectField('属性', e.elem || 'wood', ELEM_OPTS, (v) => {
+      e.elem = v;
+      scheduleSave();
+      syncEnemyViews(e);
+    }));
+    panel.appendChild(frameField('颜色框', e.frame, (v) => {
+      e.frame = v;
+      scheduleSave();
+      syncEnemyViews(e, { frame: true });
+    }));
+    panel.appendChild(field('生命', 'number', String(e.hp), (v) => { e.hp = Math.max(1, Math.min(99999, Number(v) || 50)); scheduleSave(); syncEnemyViews(e); }));
+    panel.appendChild(field('攻击', 'number', String(e.atk), (v) => { e.atk = Math.max(1, Math.min(99, Number(v) || 8)); scheduleSave(); syncEnemyViews(e); }));
+    panel.appendChild(field('速度', 'number', String(e.spd), (v) => { e.spd = Math.max(1, Math.min(40, Number(v) || 12)); scheduleSave(); syncEnemyViews(e); }));
+    panel.appendChild(buildPortraitField('enemy', e.id));
     const bossWrap = document.createElement('label');
     bossWrap.className = 'mc-enemy-pick';
     const bossCk = document.createElement('input');
@@ -772,7 +886,7 @@ function renderPanel() {
   }
 }
 
-function pickPortraitLocal(charId) {
+function pickPortraitLocal(entityType, entityId) {
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm';
@@ -782,13 +896,13 @@ function pickPortraitLocal(charId) {
     toast('上传中…');
     const media = await uploadPortraitFile(f);
     if (!media) return;
-    applyPortrait(charId, media.url, media.type);
+    applyPortrait(entityType, entityId, media.url, media.type);
     toast('立绘已更新');
   });
   inp.click();
 }
 
-async function openPortraitVault(charId) {
+async function openPortraitVault(entityType, entityId) {
   if (!vaultLoggedIn()) {
     toast('请先登录后使用素材库', true);
     return;
@@ -829,7 +943,7 @@ async function openPortraitVault(charId) {
         cell.appendChild(img);
       }
       cell.addEventListener('click', () => {
-        applyPortrait(charId, a.url, a.type === 'video' ? 'video' : 'image');
+        applyPortrait(entityType, entityId, a.url, a.type === 'video' ? 'video' : 'image');
         modal.classList.remove('show');
         toast('已选用立绘');
       });
@@ -862,7 +976,7 @@ function removeChar(id) {
 
 function addEnemy() {
   const r = rogue();
-  const e = { id: uid(), name: '新敌人', elem: 'dark', hp: 50, atk: 8, spd: 12 };
+  const e = { id: uid(), name: '新敌人', elem: 'dark', hp: 50, atk: 8, spd: 12, portrait: '', frame: 'fan' };
   r.enemies.push(e);
   select = { type: 'enemy', id: e.id };
   scheduleSave();

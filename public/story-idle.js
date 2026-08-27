@@ -146,6 +146,7 @@ export function normalizeIdleProgress(r, stageLen) {
 }
 
 function starBadgeSpan(star) {
+  if (!star || star < 1) return '';
   const fid = frameIdFromStar(star);
   return `<span class="star tier-${fid}">${escHtml(starTierLabel(star))}</span>`;
 }
@@ -229,7 +230,7 @@ export function portraitHtml(c, cls, assets) {
   if (url) {
     return `<div class="${cls} has-img ${frameCls}"${idAttr}><div class="card-art">${portraitMediaInner(c)}</div>${overlay}${badge}<span class="nm">${escHtml(name)}</span></div>`;
   }
-  const tone = (c && c.faction) === 'dark' ? 'dark' : 'light';
+  const tone = ((c && c.faction) || (c && c.elem)) === 'dark' ? 'dark' : 'light';
   return `<div class="${cls} tone-${tone} ${frameCls}"${idAttr}><span class="ch">${escHtml(ch)}</span>${overlay}${badge}<span class="nm">${escHtml(name)}</span></div>`;
 }
 
