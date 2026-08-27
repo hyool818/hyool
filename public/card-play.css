@@ -3,7 +3,7 @@
 #playBody{flex:1;min-height:0;overflow:hidden;position:relative;display:flex;justify-content:center;background:#080810}
 #playOverlay .battle-view{position:relative;height:100%;width:100%;max-width:420px;display:flex;flex-direction:column;gap:8px;padding:12px 10px 10px;box-sizing:border-box;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,rgba(139,123,255,.14),transparent 70%),linear-gradient(180deg,#15132a,#0c0b18)}
 #playOverlay .battle-view.portrait{padding:12px 10px 8px}
-#playOverlay .rogue-view.portrait .idle-shell{max-width:420px;margin:0 auto}
+#playOverlay .rogue-view.portrait.idle-shell,#playOverlay .battle-view.rogue-view.portrait.idle-shell{width:100%;max-width:420px;height:100%;margin:0 auto}
 #playOverlay .idle-shell{display:flex;flex-direction:column;height:100%;min-height:0;background:linear-gradient(180deg,#14121f 0%,#0c0b14 55%,#12101c 100%);padding:12px 12px 8px;box-sizing:border-box}
 #playOverlay .idle-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 #playOverlay .idle-brand{font-weight:700;font-size:15px;color:#f0e6ff}
@@ -17,7 +17,7 @@
 #playOverlay .idle-tabs{display:flex;gap:6px;margin-top:8px}
 #playOverlay .idle-tab{flex:1;border:1px solid var(--line2);background:#151320;color:var(--muted);border-radius:10px;padding:9px 6px;font-size:12px;cursor:pointer;font-family:inherit}
 #playOverlay .idle-tab.active{color:#efe8ff;border-color:rgba(180,140,255,.55);background:rgba(139,123,255,.16)}
-#playOverlay .idle-book{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;overflow:auto;flex:1;padding:4px 0 10px}
+#playOverlay .idle-book{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:flex-start;align-content:flex-start;overflow:auto;flex:1;min-height:0;padding:4px 0 8px}
 #playOverlay .idle-stage-list{display:flex;flex-direction:column;gap:8px;overflow:auto;flex:1;padding:4px 0 10px}
 #playOverlay .idle-stage-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#14121c;font-size:13px}
 #playOverlay .idle-stage-row.cur{border-color:rgba(180,140,255,.55);background:rgba(139,123,255,.12)}
@@ -31,17 +31,39 @@
 #playOverlay .gacha-chip.star3{border-color:rgba(120,200,255,.45)}
 #playOverlay .gacha-chip.star4,#playOverlay .gacha-chip.star5{border-color:rgba(255,215,106,.55);color:#ffd76a}
 #playOverlay .gacha-chip span{margin-left:4px;color:var(--muted)}
-#playOverlay .goddess-card{width:78px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161422;overflow:hidden;position:relative;text-align:center;padding:0 0 8px;color:var(--text)}
+#playOverlay .goddess-card{width:78px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161422;overflow:hidden;position:relative;text-align:center;padding:0 0 8px;color:var(--text);box-sizing:border-box;flex:0 0 auto;align-self:flex-start}
 #playOverlay .goddess-card.slot{width:86px;cursor:pointer}
 #playOverlay .goddess-card.slot.empty{cursor:pointer}
-#playOverlay .goddess-card.book{width:104px;padding-bottom:8px;cursor:pointer;border:1px solid var(--line2);background:#14121f}
+#playOverlay .goddess-card.book{width:30%;max-width:96px;min-width:76px;padding-bottom:6px;cursor:pointer;border:1px solid var(--line2);background:#14121f}
 #playOverlay .goddess-card.book.sel{border-color:rgba(180,140,255,.75);box-shadow:0 0 0 1px rgba(180,140,255,.35)}
+#playOverlay .goddess-card.book>.nm{display:none}
 #playOverlay .goddess-card.empty{border-style:dashed;opacity:.7;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:130px}
-#playOverlay .goddess-card .ch{display:flex;align-items:center;justify-content:center;aspect-ratio:9/16;min-height:96px;font-size:28px;font-weight:700}
-#playOverlay .goddess-card .nm{display:block;font-size:12px;font-weight:650;margin-top:6px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#playOverlay .goddess-card .meta{font-size:10px;color:var(--muted);margin-top:4px;padding:0 6px}
-#playOverlay .goddess-card .star{position:absolute;top:6px;right:6px;font-size:10px;background:rgba(0,0,0,.55);border-radius:999px;padding:2px 6px;color:#ffd76a}
-#playOverlay .goddess-card .card-art img,#playOverlay .goddess-card .card-art video{width:100%;aspect-ratio:9/16;object-fit:cover;object-position:center top;display:block;background:#000}
+#playOverlay .goddess-card .ch{display:flex;align-items:center;justify-content:center;aspect-ratio:9/16;min-height:72px;font-size:24px;font-weight:700}
+#playOverlay .goddess-card .nm{display:block;font-size:11px;font-weight:650;margin-top:4px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#playOverlay .goddess-card .meta{font-size:10px;color:var(--muted);margin-top:3px;padding:0 4px;line-height:1.35}
+#playOverlay .goddess-card .star{position:absolute;top:4px;right:4px;z-index:3;font-size:9px;background:rgba(0,0,0,.55);border-radius:999px;padding:2px 5px;color:#ffd76a}
+#playOverlay .goddess-card .card-art{width:100%;overflow:hidden;line-height:0;background:#1a1a28}
+#playOverlay .goddess-card .card-art img,#playOverlay .goddess-card .card-art video{width:100%;aspect-ratio:9/16;height:auto;max-width:100%;object-fit:cover;object-position:center top;display:block;background:#000}
+#playOverlay .goddess-card .card-art video.card-portrait-vid,#playOverlay .idle-detail-portrait .card-art video{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;background:#000}
+#playOverlay .goddess-card.card-frame .card-art{width:calc(100% - 6px);margin:3px auto 0;border-radius:9px 9px 0 0}
+#playOverlay .card-frame-asset{position:relative}
+#playOverlay .card-frame-asset .card-frame-img{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;object-fit:fill;z-index:3}
+#playOverlay .card-frame-asset .card-art{position:relative;z-index:1}
+#playOverlay .goddess-card.has-img img,#playOverlay .goddess-card.has-img video{cursor:zoom-in}
+#playOverlay .idle-detail{margin:4px 0 0;flex-shrink:0;max-height:42%;overflow:auto}
+#playOverlay .idle-detail-card{border:1px solid rgba(180,140,255,.28);background:rgba(30,22,50,.55);border-radius:12px;padding:10px 12px}
+#playOverlay .idle-detail-name{font-weight:700;font-size:13px;color:#efe8ff}
+#playOverlay .idle-detail-meta{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.55}
+#playOverlay .idle-detail-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+#playOverlay .idle-detail-portrait{display:flex;justify-content:center;margin-bottom:8px}
+#playOverlay .idle-detail-portrait .card-art{width:88px;max-width:34vw;aspect-ratio:9/16;overflow:hidden;border-radius:10px;border:1px solid rgba(180,140,255,.35);box-shadow:0 6px 18px rgba(0,0,0,.35);background:#1a1a28;flex-shrink:0}
+#playOverlay .idle-detail-portrait .card-art img,#playOverlay .idle-detail-portrait .card-art video{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;cursor:zoom-in}
+#playOverlay .idle-detail-desc{font-size:12px;color:#cfc8e8;line-height:1.7;margin:8px 0 4px;white-space:pre-wrap}
+#playOverlay .idle-detail-skills{display:flex;flex-direction:column;gap:6px;margin:8px 0 2px}
+#playOverlay .idle-skill-chip{border:1px solid var(--line2);border-radius:8px;padding:8px 10px;background:#12121c;font-size:12px}
+#playOverlay .idle-skill-chip .nm{font-weight:650;color:#efe8ff}
+#playOverlay .idle-skill-chip .meta{font-size:10px;color:var(--muted);margin-top:2px}
+#playOverlay .idle-skill-chip .ds{font-size:11px;color:#b8b0d0;margin-top:4px;line-height:1.55}
 #playOverlay .rg-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 #playOverlay .rg-head b{font-size:14px}
 #playOverlay .rg-head span{font-size:11px;color:var(--muted)}

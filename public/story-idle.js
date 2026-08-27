@@ -534,21 +534,26 @@ function paintBook(frame, run, prog) {
   ownedIds.forEach((id) => {
     const c = ownedOf(r, id);
     if (!c) return;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'goddess-card book' + (selected.has(id) ? ' sel' : '');
     const wrap = document.createElement('div');
-    wrap.innerHTML = portraitHtml(c, 'inner', storyAssets(run));
-    if (wrap.firstChild) btn.appendChild(wrap.firstChild);
+    wrap.innerHTML = portraitHtml(
+      c,
+      'goddess-card book' + (selected.has(id) ? ' sel' : ''),
+      storyAssets(run)
+    );
+    const card = wrap.firstElementChild;
+    if (!card) return;
     const meta = document.createElement('div');
     meta.className = 'meta';
     meta.textContent = `Lv.${c.level} · 攻${c.fightAtk} 血${c.fightHp}`;
-    btn.appendChild(meta);
-    btn.addEventListener('click', () => {
+    card.appendChild(meta);
+    card.addEventListener('click', () => {
       run.idleCharId = id;
+      host.querySelectorAll('.goddess-card.book').forEach((el) => {
+        el.classList.toggle('sel', el.dataset.charId === id);
+      });
       paintDetail(frame, run, prog, id);
     });
-    host.appendChild(btn);
+    host.appendChild(card);
   });
   bindChrome(frame, run);
   bindPortraitZoom(frame, makePortraitZoomCtx(run));
