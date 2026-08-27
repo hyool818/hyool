@@ -108,7 +108,7 @@ async function partA(){
   }
 }
 
-/* ================= Part B: hub?world=id 直达世界详情 ================= */
+/* ================= Part B: /hub?world=id → 个人主页世界详情 ================= */
 async function partB(){
   const w = await fetchWorld(W1);
   await loadIframe('/hub?world=' + W1 + '&v=' + Date.now());
@@ -119,7 +119,7 @@ async function partB(){
   }, 20000, 'hub ready');
   const q = (s) => doc.querySelector(s);
   await sleep(300);
-  ok(q('#worldDetailModal') && q('#worldDetailModal').classList.contains('show'), 'B: ?world= 自动打开世界详情弹窗');
+  ok(f.contentDocument.location.pathname.startsWith('/@'), 'B: /hub?world= 重定向到个人主页', f.contentDocument.location.pathname);
   ok(q('#detailName').textContent === w.name, 'B: 详情显示世界名', q('#detailName').textContent);
   ok(q('#detailScript').textContent.includes('幕剧本'), 'B: 剧本计数已渲染(对象形态)', q('#detailScript').textContent);
   ok(q('#detailPlay').textContent.trim() === '进入工坊', 'B: 进入工坊按钮(mixed 放行)');
@@ -147,7 +147,7 @@ async function partC(){
   const hrefBefore = win.location.href;
   act.click();
   await sleep(500);
-  ok(win.location.href.indexOf('/hub?world=' + W1) >= 0, 'C: 点击跳转 /hub?world=id', hrefBefore + ' -> ' + win.location.href);
+  ok(win.location.pathname.startsWith('/@') && win.location.search.indexOf('world=' + W1) >= 0, 'C: 点击跳转个人主页 ?world=id', win.location.href);
 }
 
 /* ================= Part D: game-workshop choice 跳转 ================= */

@@ -625,13 +625,13 @@ const THREAD_BG_PRESETS = ["街边茶馆","深夜码头","山顶道观","集市�
 
 const worldId = new URLSearchParams(location.search).get("world") || "";
 
-/* 返回按钮：优先回来源页（个人主页 /@…、幻灵世界广场 /plaza），其余回我的彼岸 /hub */
+/* 返回按钮：优先回来源页（个人主页 /@…、幻灵世界广场 /plaza），其余回幻灵广场 */
 function goWorldBack() {
   // 1) 显式 from 参数（个人主页入口带 /@用户名，幻灵世界广场带 /plaza）
   try {
     const from = new URLSearchParams(location.search).get("from");
     if (from && from.charAt(0) === "/" && from.charAt(1) !== "/") {
-      if (from.startsWith("/@") || from.startsWith("/hub") || from.startsWith("/plaza")) { location.href = from; return; }
+      if (from.startsWith("/@") || from.startsWith("/plaza")) { location.href = from; return; }
     }
   } catch {}
   // 2) 同站 referrer：个人主页 / 幻灵世界广场
@@ -642,8 +642,7 @@ function goWorldBack() {
       if (u.origin === location.origin && (u.pathname.startsWith("/@") || u.pathname.startsWith("/plaza"))) { location.href = u.pathname + u.search + u.hash; return; }
     }
   } catch {}
-  // 3) 兜底：我的彼岸
-  location.href = "/hub";
+  location.href = "/plaza";
 }
 
 function castMap(){ const m={}; (S.world.cast||[]).forEach(c=>m[c.id]=c); return m; }
@@ -738,7 +737,7 @@ function bubble(m){
 
 async function loadWorld(){
   if (!worldId) {
-    $("feed").innerHTML = '<div class="narrator">缺少世界参数，<a href="/hub" style="color:#b7b7ff">返回我的彼岸</a>。</div>';
+    $("feed").innerHTML = '<div class="narrator">缺少世界参数，<a href="/plaza" style="color:#b7b7ff">返回幻灵广场</a>。</div>';
     return;
   }
   try {

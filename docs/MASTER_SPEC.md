@@ -13,7 +13,7 @@
 ```
 HYOOL
 ├── 创作作品 — 视觉小说(make：图+视频镜) · 漫画/卡牌/H5(专工)
-└── 创造世界 — 角色 · 世界 · IP → 创角 / 我的彼岸 / 广场 / 素材库
+└── 创造世界 — 角色 · 世界 · IP → 创角 / 个人主页 / 幻灵广场 / 素材库
 ```
 
 **底层五件套**（技术愿景，逐步收敛）：**作品编辑器** + **素材系统** + **世界/IP 系统** + **互动引擎** + **时间轴**。旧四世界（幻想/彼岸/无限/生命）**不删能力**，只改入口与命名；旧入口 → `make.html`。
@@ -56,7 +56,7 @@ HYOOL
 | AI 一句话 | `public/brain.html` |
 | 账号 / 主页 | `public/yonder.html` → `yonder-home.html` |
 | 去玩 | `public/plaza.html` |
-| 世界 / 角色 | `public/yonder-home.html`（`/@username` 角色库/世界库）`create.html` `world.html`；`/hub` → 重定向个人主页 |
+| 世界 / 角色 | `public/yonder-home.html`（`/@username`）`studio-world.html` `create.html` `world.html`；旧 `/hub` 仅 302 |
 | 图片工具 | `public/workspace.html` |
 
 ## 4. 核心设计原则

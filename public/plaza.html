@@ -81,7 +81,7 @@ a { color: inherit; text-decoration: none; }
   <a class="logo" href="/"><img src="/logo1.png" alt="HYOOL"></a>
   <div style="display:flex;gap:.6rem;align-items:center;">
     <a class="header-link" href="/">首页</a>
-    <a class="header-link" href="/hub">个人主页</a>
+    <a class="header-link profile-nav" href="#">个人主页</a>
   </div>
 </header>
 
@@ -178,7 +178,7 @@ async function loadPlaza() {
         </div>
       </div>`;
     }).join("");
-    $("grid").innerHTML = (worldCards + storyCards) || `<div class="empty">还没有已发布的生命世界或故事作品。<br>去 <a href="/hub" style="color:#b7b7ff">个人主页</a> 创建并发布你的第一个作品吧。</div>`;
+    $("grid").innerHTML = (worldCards + storyCards) || `<div class="empty">还没有已发布的生命世界或故事作品。<br>登录后在 <a href="/studio-world.html" style="color:#b7b7ff">创造世界</a> 创建并发布吧。</div>`;
   } catch (e) {
     $("status").style.display = "none";
     $("grid").innerHTML = `<div class="err">加载失败：${escapeHtml(e.message)}<br><a href="/">返回首页</a></div>`;
@@ -186,6 +186,10 @@ async function loadPlaza() {
 }
 
 loadPlaza();
+</script>
+<script type="module">
+import { bindProfileLinks } from "/profile-nav.js";
+bindProfileLinks(".profile-nav");
 </script>
 
 </main>

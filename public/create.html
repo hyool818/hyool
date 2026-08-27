@@ -231,7 +231,7 @@ a { color: inherit; text-decoration: none; }
 <header class="header">
   <a class="logo" href="/"><img src="/logo1.png" alt="HYOOL"></a>
   <div style="display:flex;gap:.6rem;align-items:center;">
-    <a class="header-link" href="/hub">个人主页</a>
+    <a class="header-link profile-nav" href="#">个人主页</a>
     <button class="header-link" id="logoutBtn">退出</button>
   </div>
 </header>
@@ -693,6 +693,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     showStage("Input");
   });
 });
+</script>
+<script type="module">
+import { bindProfileLinks } from "/profile-nav.js";
+bindProfileLinks(".profile-nav");
 </script>
 </body>
 </html>

@@ -547,12 +547,12 @@ const api = (p, o = {}) => {
 const $ = id => document.getElementById(id);
 const escapeHtml = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
 
-/* 返回按钮目标：优先来源页（个人主页 /@…），其余回我的彼岸 /hub */
+/* 返回按钮目标：优先来源页（个人主页 /@…），其余回幻灵广场 */
 function buddyBackTarget() {
   try {
     const from = new URLSearchParams(location.search).get("from");
     if (from && from.charAt(0) === "/" && from.charAt(1) !== "/") {
-      if (from.startsWith("/@") || from.startsWith("/hub")) return from;
+      if (from.startsWith("/@")) return from;
     }
   } catch {}
   try {
@@ -562,7 +562,7 @@ function buddyBackTarget() {
       if (u.origin === location.origin && u.pathname.startsWith("/@")) return u.pathname + u.search + u.hash;
     }
   } catch {}
-  return "/hub";
+  return "/plaza";
 }
 
 /* 沉淀为剧本 toast */
@@ -1067,7 +1067,7 @@ async function loadMessages() {
     $("app").style.display = "flex";
     scrollBottom();
   } catch (e) {
-    $("loading").innerHTML = '<div class="err-screen">加载失败：' + escapeHtml(e.message) + '<br><a href="/hub">返回我的彼岸</a></div>';
+    $("loading").innerHTML = '<div class="err-screen">加载失败：' + escapeHtml(e.message) + '<br><a href="/plaza">返回幻灵广场</a></div>';
   }
 }
 
@@ -1079,7 +1079,7 @@ async function loadVisitorCharacter() {
     if (!res.success || !res.character) throw new Error((res && res.error) || "角色不存在。");
     const c = res.character;
     if (!c.share_id) {
-      $("loading").innerHTML = '<div class="err-screen">这个角色没有公开。<br><a href="/hub">返回我的彼岸</a></div>';
+      $("loading").innerHTML = '<div class="err-screen">这个角色没有公开。<br><a href="/plaza">返回幻灵广场</a></div>';
       return;
     }
     character = c;
@@ -1089,7 +1089,7 @@ async function loadVisitorCharacter() {
     $("app").style.display = "flex";
     scrollBottom();
   } catch (e) {
-    $("loading").innerHTML = '<div class="err-screen">加载失败：' + escapeHtml(e.message) + '<br><a href="/hub">返回我的彼岸</a></div>';
+    $("loading").innerHTML = '<div class="err-screen">加载失败：' + escapeHtml(e.message) + '<br><a href="/plaza">返回幻灵广场</a></div>';
   }
 }
 
@@ -1325,7 +1325,7 @@ async function sendMessage() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   const isOwner = await checkAuth();
-  if (!getCharId()) { location.href = "/hub"; return; }
+  if (!getCharId()) { location.href = "/plaza"; return; }
 
   // 访客（未登录 / 历史游客已清理）：只读展示角色卡，隐藏仅主人功能与聊天
   if (!isOwner) {
@@ -1366,7 +1366,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       act.type = "button";
       act.style.cssText = "background:var(--accent);color:#0a0a12;border:0;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;";
       act.textContent = "去工坊看看 →";
-      act.addEventListener("click", () => { location.href = "/hub?world=" + w.id; });
+      act.addEventListener("click", async () => {
+        try {
+          const t = localStorage.getItem("hyool_token");
+          const h = t ? { Authorization: "Bearer " + t } : {};
+          const me = await fetch("/api/me", { credentials: "include", headers: h }).then(r => r.json());
+          if (me.authenticated && me.user?.username) {
+            location.href = "/@" + encodeURIComponent(me.user.username) + "?world=" + encodeURIComponent(w.id);
+            return;
+          }
+        } catch {}
+        location.href = "/plaza";
+      });
       toast("已沉淀为剧本《" + w.name + "》· " + (res.script_count || 0) + " 幕", act);
     } catch (e) {
       toast(e.message);

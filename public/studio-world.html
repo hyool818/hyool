@@ -34,7 +34,7 @@
         <div class="t">👤 创建一个角色</div>
         <div class="d">名字、性格、形象。可以聊天，也可以放进下面的世界。</div>
       </a>
-      <a href="/hub?create=world" id="createWorldLink">
+      <a href="#" id="createWorldLink">
         <div class="t">🌍 创建生命世界</div>
         <div class="d">多角色、多场景，AI 帮你推进关系和小剧情。</div>
       </a>
@@ -69,10 +69,10 @@
           location.href = "/@" + encodeURIComponent(d.user.username) + "?create=world";
           return;
         }
-        location.href = "/yonder.html?next=" + encodeURIComponent("/hub?create=world");
+        location.href = "/yonder.html?create=world";
       })
       .catch(function () {
-        location.href = "/yonder.html?next=" + encodeURIComponent("/hub?create=world");
+        location.href = "/yonder.html?create=world";
       });
   });
 })();

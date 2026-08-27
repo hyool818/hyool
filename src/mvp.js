@@ -133,7 +133,7 @@ export async function handleMvpRoutes(
             const next = encodeURIComponent("/hub" + search);
             return Response.redirect(new URL("/yonder.html?next=" + next, request.url).toString(), 302);
         }
-        return Response.redirect(new URL(`/plaza${search}`, request.url).toString(), 302);
+        return Response.redirect(new URL("/plaza", request.url).toString(), 302);
     }
 
     if (pathname.startsWith("/buddy/") && pathname.length > 7) {

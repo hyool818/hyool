@@ -118,7 +118,7 @@ function getShareId() {
 function getFromHome() {
   try {
     const f = new URLSearchParams(location.search).get("from");
-    if (f && f.charAt(0) === "/" && f.charAt(1) !== "/" && (f.startsWith("/@") || f.startsWith("/hub"))) return f;
+    if (f && f.charAt(0) === "/" && f.charAt(1) !== "/" && f.startsWith("/@")) return f;
   } catch {}
   return "";
 }
