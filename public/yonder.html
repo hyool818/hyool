@@ -1739,6 +1739,11 @@ function goToYonder(username) {
 
     }
 
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next && next.charAt(0) === "/" && next.charAt(1) !== "/") {
+        window.location.href = next;
+        return;
+    }
 
     window.location.href =
         "/@" +

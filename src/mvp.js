@@ -125,10 +125,15 @@ export async function handleMvpRoutes(
     if (pathname === "/hub" || pathname === "/hub.html") {
         const user = await getAuthenticatedUser(request, env);
         const search = new URL(request.url).search;
-        const dest = user?.username
-            ? `/@${String(user.username).trim().toLowerCase()}${search}`
-            : `/plaza${search}`;
-        return Response.redirect(new URL(dest, request.url).toString(), 302);
+        if (user?.username) {
+            const dest = `/@${String(user.username).trim().toLowerCase()}${search}`;
+            return Response.redirect(new URL(dest, request.url).toString(), 302);
+        }
+        if (search.includes("create=world") || search.includes("world=")) {
+            const next = encodeURIComponent("/hub" + search);
+            return Response.redirect(new URL("/yonder.html?next=" + next, request.url).toString(), 302);
+        }
+        return Response.redirect(new URL(`/plaza${search}`, request.url).toString(), 302);
     }
 
     if (pathname.startsWith("/buddy/") && pathname.length > 7) {
