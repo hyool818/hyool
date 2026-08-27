@@ -14,12 +14,14 @@ import {
 import {
   portraitHtml,
   portraitThumbHtml,
+  portraitKindOf,
   STAR_TIERS,
   STAR_MAX,
   starTierLabel,
   starTierFullLabel,
   normalizeCardFrame,
 } from '/story-idle.js';
+import { fetchMyVault, vaultLoggedIn } from '/my-vault-api.js';
 
 const PAGE = '/make-card.html';
 const WORK_KIND = 'gacha_rogue';
@@ -189,15 +191,16 @@ async function togglePublish() {
   toast(target ? '已发布' : '已下架');
 }
 
-async function uploadFile(file) {
-  if (!/^image\//.test(file.type)) { toast('请选图片', true); return null; }
+async function uploadPortraitFile(file) {
+  if (!/^(image\/|video\/)/.test(file.type)) { toast('请选图片或短视频', true); return null; }
   if (file.size > MAX_FILE) { toast('不能超过 5MB', true); return null; }
   const fd = new FormData();
   fd.append('file', file);
   const res = await fetch('/api/upload', { method: 'POST', credentials: 'include', headers: authHeaders(), body: fd });
   const d = await res.json();
   if (!d.success || !d.url) { toast(d.error || '上传失败', true); return null; }
-  return { url: d.url, type: 'image' };
+  const isVideo = (d.type || file.type || '').startsWith('video/');
+  return { url: d.url, type: isVideo ? 'video' : 'image' };
 }
 
 // ---------- 视图 ----------
@@ -403,28 +406,66 @@ function syncStageViews(s) {
   if (select.type === 'stage' && select.id === s.id) renderPreview();
 }
 
-function refreshPortraitPanel(charId) {
+function applyPortrait(charId, url, kind) {
   const c = liveChar(charId);
-  const sec = $('#mcPortraitField');
-  if (!sec || !c || select.type !== 'char' || select.id !== charId) return;
-  sec.innerHTML = '<label>立绘</label>';
-  if (c.portrait) {
-    sec.innerHTML += '<div class="mc-bg-preview"><img src="' + escapeHtml(c.portrait) + '" alt=""></div>';
-    const ops = document.createElement('div');
-    ops.className = 'mc-bg-ops';
-    ops.append(
-      btn('更换', () => pickPortrait(charId)),
-      btn('移除', () => clearPortrait(charId), true),
-    );
-    sec.appendChild(ops);
+  if (!c) return;
+  c.portrait = url;
+  c.portraitKind = kind || (portraitKindOf({ portrait: url, portraitKind: kind }));
+  scheduleSave();
+  renderList();
+  renderPreview();
+  refreshPortraitPanel(charId);
+}
+
+function portraitPreviewEl(c) {
+  if (!c?.portrait) return null;
+  const wrap = document.createElement('div');
+  wrap.className = 'mc-bg-preview';
+  if (portraitKindOf(c) === 'video') {
+    wrap.innerHTML = '<video src="' + escapeHtml(c.portrait) + '" autoplay loop muted playsinline disablePictureInPicture preload="metadata"></video>';
   } else {
-    const up = document.createElement('button');
-    up.type = 'button';
-    up.className = 'mc-bg-btn';
-    up.textContent = '🖼 上传立绘';
-    up.addEventListener('click', () => pickPortrait(charId));
-    sec.appendChild(up);
+    wrap.innerHTML = '<img src="' + escapeHtml(c.portrait) + '" alt="">';
   }
+  return wrap;
+}
+
+function appendPortraitPickOps(sec, charId, withRemove) {
+  const ops = document.createElement('div');
+  ops.className = 'mc-bg-ops';
+  ops.append(
+    btn('本地上传', () => pickPortraitLocal(charId)),
+    btn('素材库', () => openPortraitVault(charId)),
+  );
+  if (withRemove) ops.append(btn('移除', () => clearPortrait(charId), true));
+  sec.appendChild(ops);
+}
+
+function buildPortraitField(charId) {
+  const c = liveChar(charId);
+  const sec = document.createElement('div');
+  sec.className = 'field mc-portrait-field';
+  sec.id = 'mcPortraitField';
+  sec.innerHTML = '<label>立绘</label>';
+  if (c?.portrait) {
+    const prev = portraitPreviewEl(c);
+    if (prev) sec.appendChild(prev);
+    appendPortraitPickOps(sec, charId, true);
+  } else {
+    const row = document.createElement('div');
+    row.className = 'mc-portrait-pick';
+    row.append(
+      btn('本地上传', () => pickPortraitLocal(charId)),
+      btn('素材库', () => openPortraitVault(charId)),
+    );
+    sec.appendChild(row);
+  }
+  return sec;
+}
+
+function refreshPortraitPanel(charId) {
+  const sec = $('#mcPortraitField');
+  if (!sec || select.type !== 'char' || select.id !== charId) return;
+  sec.replaceWith(buildPortraitField(charId));
 }
 
 function clearPortrait(charId) {
@@ -668,28 +709,7 @@ function renderPanel() {
       scheduleSave();
       syncCharViews(c, { portrait: true });
     }));
-    const bgSec = document.createElement('div');
-    bgSec.className = 'field mc-portrait-field';
-    bgSec.id = 'mcPortraitField';
-    bgSec.innerHTML = '<label>立绘</label>';
-    if (c.portrait) {
-      bgSec.innerHTML += '<div class="mc-bg-preview"><img src="' + escapeHtml(c.portrait) + '" alt=""></div>';
-      const ops = document.createElement('div');
-      ops.className = 'mc-bg-ops';
-      ops.append(
-        btn('更换', () => pickPortrait(c.id)),
-        btn('移除', () => clearPortrait(c.id), true),
-      );
-      bgSec.appendChild(ops);
-    } else {
-      const up = document.createElement('button');
-      up.type = 'button';
-      up.className = 'mc-bg-btn';
-      up.textContent = '🖼 上传立绘';
-      up.addEventListener('click', () => pickPortrait(c.id));
-      bgSec.appendChild(up);
-    }
-    panel.appendChild(bgSec);
+    panel.appendChild(buildPortraitField(c.id));
     foot.append(btn('删除角色', () => removeChar(c.id), true));
     panel.appendChild(foot);
     return;
@@ -752,27 +772,72 @@ function renderPanel() {
   }
 }
 
-function pickPortrait(charId) {
+function pickPortraitLocal(charId) {
   const inp = document.createElement('input');
   inp.type = 'file';
-  inp.accept = 'image/*';
+  inp.accept = 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm';
   inp.addEventListener('change', async () => {
     const f = inp.files?.[0];
     if (!f) return;
     toast('上传中…');
-    const media = await uploadFile(f);
+    const media = await uploadPortraitFile(f);
     if (!media) return;
-    const c = liveChar(charId);
-    if (!c) { toast('角色不存在', true); return; }
-    c.portrait = media.url;
-    c.portraitKind = 'image';
-    scheduleSave();
-    renderList();
-    renderPreview();
-    refreshPortraitPanel(charId);
+    applyPortrait(charId, media.url, media.type);
     toast('立绘已更新');
   });
   inp.click();
+}
+
+async function openPortraitVault(charId) {
+  if (!vaultLoggedIn()) {
+    toast('请先登录后使用素材库', true);
+    return;
+  }
+  const modal = $('#mcVaultModal');
+  const grid = $('#mcVaultGrid');
+  if (!modal || !grid) return;
+  grid.innerHTML = '<div class="mc-vault-empty">加载中…</div>';
+  modal.classList.add('show');
+  const manage = $('#mcVaultManage');
+  if (manage) manage.href = '/my-vault?from=' + encodeURIComponent(location.pathname + location.search);
+  try {
+    const items = await fetchMyVault('all');
+    const visual = items.filter((a) => a.type === 'image' || a.type === 'video');
+    grid.innerHTML = '';
+    if (!visual.length) {
+      grid.innerHTML = '<div class="mc-vault-empty">素材库还没有图片。<br>可先本地上传，或点下方「管理素材库」添加。</div>';
+      return;
+    }
+    visual.forEach((a) => {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'mc-vault-item';
+      cell.title = a.name || a.url;
+      if (a.type === 'video') {
+        const v = document.createElement('video');
+        v.src = a.url;
+        v.muted = true;
+        v.loop = true;
+        v.playsInline = true;
+        v.preload = 'metadata';
+        cell.appendChild(v);
+      } else {
+        const img = document.createElement('img');
+        img.src = a.url;
+        img.alt = '';
+        img.loading = 'lazy';
+        cell.appendChild(img);
+      }
+      cell.addEventListener('click', () => {
+        applyPortrait(charId, a.url, a.type === 'video' ? 'video' : 'image');
+        modal.classList.remove('show');
+        toast('已选用立绘');
+      });
+      grid.appendChild(cell);
+    });
+  } catch (e) {
+    grid.innerHTML = '<div class="mc-vault-empty">' + escapeHtml(e.message || '加载失败') + '</div>';
+  }
 }
 
 function addChar() {
@@ -934,7 +999,10 @@ function bind() {
       $$('.mc-orient button').forEach((x) => x.classList.toggle('on', x.dataset.o === createOrient));
     });
   });
-  $('#mcPlayBtn').addEventListener('click', startPlay);
+  $('#mcVaultClose')?.addEventListener('click', () => $('#mcVaultModal')?.classList.remove('show'));
+  $('#mcVaultModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'mcVaultModal') e.currentTarget.classList.remove('show');
+  });
   $('#mcPubBtn').addEventListener('click', togglePublish);
   $('#mcDelBtn').addEventListener('click', deleteSelected);
   $('#mcDemoBtn').addEventListener('click', applyDemo);
