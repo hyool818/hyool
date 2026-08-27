@@ -1,6 +1,6 @@
 // 女神挂机壳：主城 / 女神册（养成）/ 召唤卡池 / 关卡。
 // 由 story-rogue.js 在 mode===idle 时调用。
-import { toast } from '/workspace/js/ui.js';
+import { toast } from '/workspace/js/ui.js?v=202608301';
 
 /** 品阶：凡→珍→绝→传→神→墟→曜；5 张同阶碎片合成升一阶 */
 export const STAR_MAX = 7;

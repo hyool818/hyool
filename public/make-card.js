@@ -1,7 +1,7 @@
 /**
  * 卡牌游戏 · 小白可视化编辑器（对齐 make.html 三栏：列表 / 预览 / 属性）
  */
-import { toast } from '/workspace/js/ui.js';
+import { toast } from '/workspace/js/ui.js?v=202608301';
 import {
   normalizeRogue,
   applyStarterPack,
@@ -15,7 +15,7 @@ import {
   stageEnemyTotal,
   STAGE_WAVE_SIZE,
   STAGE_ENEMY_MAX,
-} from '/story-rogue.js?v=202608300';
+} from '/story-rogue.js?v=202608301';
 import {
   portraitHtml,
   portraitThumbHtml,
@@ -30,7 +30,7 @@ import {
   cardFrameClass,
   frameTierLabelFromFrame,
   starOf,
-} from '/story-idle.js?v=202608300';
+} from '/story-idle.js?v=202608301';
 
 const ELEM_OPTS = [['fire', '火'], ['water', '水'], ['wood', '木'], ['light', '光'], ['dark', '暗']];
 import { fetchMyVault, vaultLoggedIn } from '/my-vault-api.js';

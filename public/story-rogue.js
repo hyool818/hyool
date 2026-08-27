@@ -1,6 +1,6 @@
 // 卡牌内核：数据表驱动（角色/关卡/羁绊），战斗是速度条自动出手。
 // 不整仓搬 GPL 游戏；表结构参考常见 MIT 自动战斗原型（单位+关卡+加成）。
-import { toast } from '/workspace/js/ui.js';
+import { toast } from '/workspace/js/ui.js?v=202608301';
 import {
   paintIdleShell,
   normalizeIdleProgress,
