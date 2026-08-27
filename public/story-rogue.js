@@ -773,10 +773,28 @@ function skillOf(id) {
   return run.rogue.skills.find(s => s.id === id) || { name: '普攻', kind: 'atk', power: 100, elem: '' };
 }
 function nextSkill(m) {
-  if (!m.cards || !m.cards.length) return { name: '普攻', kind: 'atk', power: 90, elem: m.elem };
-  const id = m.cards[m.next % m.cards.length];
+  const fallback = { name: '普攻', kind: 'atk', power: 90, elem: m.elem };
+  if (!m.cards || !m.cards.length) return fallback;
+  const foesAlive = (run.battle.enemies || []).some((e) => e.hp > 0);
+  const needHeal = run.team.some((x) => {
+    if (x.hp <= 0) return false;
+    const max = x.maxHpBattle || x.maxHp || 1;
+    return x.hp / max < 0.65;
+  });
+  const items = m.cards.map((id) => ({ id, sk: skillOf(id) }));
+  const kindOf = (sk) => (sk && sk.kind) || 'atk';
+  let pool = items;
+  if (foesAlive) {
+    const atks = items.filter((p) => kindOf(p.sk) === 'atk');
+    const heals = items.filter((p) => kindOf(p.sk) === 'heal');
+    if (needHeal && heals.length) pool = heals;
+    else if (atks.length) pool = atks;
+    else pool = items.filter((p) => kindOf(p.sk) !== 'heal');
+  }
+  if (!pool.length) pool = items;
+  const chosen = pool[m.next % pool.length];
   m.next = (m.next + 1) % Math.max(1, m.cards.length);
-  return skillOf(id);
+  return (chosen && chosen.sk) || fallback;
 }
 function posTakenMul(m) { return m.front ? 1.15 : 0.85; }
 function posAtkMul(m) { return m.front ? 1.05 : 0.95; }
@@ -866,7 +884,21 @@ function resolveAct(who, isEnemy, mods) {
     run.battle.actFx = fx;
     return;
   }
-  const sk = nextSkill(who);
+  // 勿改 skillOf 返回的目录对象，用本地副本决定本回合行为
+  const sk = { ...nextSkill(who) };
+  const needHeal = party.some((x) => x.hp / (x.maxHpBattle || x.maxHp || 1) < 0.65);
+  // 场上还有敌人时：不白嫖治疗/空蓄力，优先打人
+  if (sk.kind === 'heal' && foes.length && !needHeal) {
+    sk.kind = 'atk';
+    sk.name = sk.name || '普攻';
+    sk.power = sk.power || 90;
+  }
+  if (sk.kind === 'buff' && foes.length) {
+    sk.kind = 'atk';
+    sk.name = '普攻';
+    sk.power = 90;
+    sk.elem = who.elem;
+  }
   if (sk.kind === 'heal') {
     const t = party.slice().sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
     const heal = Math.max(1, Math.round((who.atk * (sk.power / 100)) * 0.8));
@@ -891,9 +923,9 @@ function resolveAct(who, isEnemy, mods) {
   const elem = sk.elem || who.elem;
   let mul = elemMul(elem, t.elem) + (mods.elem || 0);
   if (who.buff > 0) { mul *= 1.35; who.buff -= 1; }
-  const dmg = Math.max(1, Math.round(who.atk * posAtkMul(who) * mods.atk * (sk.power / 100) * mul));
+  const dmg = Math.max(1, Math.round(who.atk * posAtkMul(who) * mods.atk * ((sk.power || 100) / 100) * mul));
   t.hp = Math.max(0, t.hp - dmg);
-  run.battle.log.push(`${who.name}「${sk.name}」→ ${t.name} ${dmg}`);
+  run.battle.log.push(`${who.name}「${sk.name || '普攻'}」→ ${t.name} ${dmg}`);
   fx.targetIds = [t.id];
   fx.kind = 'atk';
   fx.elem = elem || who.elem || 'fire';
@@ -1074,11 +1106,13 @@ function patchBattleFrame(frame) {
     btn.classList.toggle('primary', Number(btn.dataset.sp) === run.speed);
   });
   (b.enemies || []).forEach((e) => {
-    const el = frame.querySelector('.bt-enemy[data-enemy-id="' + CSS.escape(e.id) + '"]');
+    const sel = '.bt-enemy[data-enemy-id="' + String(e.id).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]';
+    const el = frame.querySelector(sel);
     syncBattleUnitEl(el, e, ready, fx);
   });
   (run.team || []).forEach((m) => {
-    const el = frame.querySelector('.bt-member[data-char-id="' + CSS.escape(m.id) + '"]');
+    const sel = '.bt-member[data-char-id="' + String(m.id).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]';
+    const el = frame.querySelector(sel);
     syncBattleUnitEl(el, m, ready, fx);
   });
   const logEl = frame.querySelector('.bt-log');
@@ -1175,7 +1209,7 @@ function paintBattle(frame) {
         <div class="bt-camp-label">敌方</div>
         <div class="bt-enemies">${foes || '<div class="bt-camp-empty">—</div>'}</div>
       </div>
-      <div class="bt-river"><span>楚河</span><span class="bt-river-hint">速度条先满先出手</span><span>汉界</span></div>
+      <div class="bt-river"><span class="bt-river-hint">速度条先满先出手</span></div>
       <div class="bt-camp bt-camp-party">
         <div class="bt-camp-label">我方</div>
         <div class="bt-party">${party || '<div class="bt-camp-empty">—</div>'}</div>
