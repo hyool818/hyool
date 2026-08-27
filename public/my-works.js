@@ -3,6 +3,7 @@ import { $, toast } from '/workspace/js/ui.js';
 const TOKEN_KEY = 'hyool_token';
 const KIND = {
   story: { label: '📖 互动小说', edit: (id) => '/make.html?story=' + encodeURIComponent(id) },
+  interactive_video: { label: '🎬 互动视频', edit: (id) => '/make-video.html?story=' + encodeURIComponent(id) },
   comic: { label: '📚 漫画', edit: (id) => '/story-editor.html?story=' + encodeURIComponent(id) },
   gacha_rogue: { label: '🂠 卡牌', edit: (id) => '/story-editor.html?story=' + encodeURIComponent(id) },
   card_rpg: { label: '⚔️ 卡牌RPG', edit: (id) => '/story-editor.html?story=' + encodeURIComponent(id) },
@@ -19,6 +20,7 @@ function authHeaders() {
 function playUrl(w) {
   if (w.kind === 'h5_game') return '/h5-play.html?story=' + encodeURIComponent(w.id) + '&from=/make.html';
   if (w.kind === 'story') return '/make.html?story=' + encodeURIComponent(w.id) + '&play=1';
+  if (w.kind === 'interactive_video') return '/make-video.html?story=' + encodeURIComponent(w.id) + '&play=1';
   return '/story-editor.html?pro=1&story=' + encodeURIComponent(w.id) + '&play=1&from=/make.html';
 }
 

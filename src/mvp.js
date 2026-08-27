@@ -4355,7 +4355,7 @@ function isMissingTableError(error) {
 
 /** 作品类型：互动小说 / 卡牌RPG / 肉鸽卡牌 / 漫画 / H5网页游戏（共享 stories 表） */
 function workKind(kind) {
-    if (kind === "card_rpg" || kind === "gacha_rogue" || kind === "comic" || kind === "h5_game") return kind;
+    if (kind === "card_rpg" || kind === "gacha_rogue" || kind === "comic" || kind === "h5_game" || kind === "interactive_video") return kind;
     return "story";
 }
 

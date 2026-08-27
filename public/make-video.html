@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<title>创作 · HYOOL</title>
+<title>互动视频 · HYOOL</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Liu+Jian+Mao+Cao&family=Long+Cang&family=LXGW+WenKai&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;700&family=Noto+Serif+SC:wght@400;700&family=Yuji+Syuku&family=Zen+Antique&family=Zen+Kurenaido&family=ZCOOL+KuaiLe&family=ZCOOL+QingKe+HuangYou&family=ZCOOL+XiaoWei&family=Zhi+Mang+Xing&display=swap" rel="stylesheet">
@@ -12,8 +12,6 @@
 html,body{height:100%;overflow:hidden}
 .app{display:flex;flex-direction:column;height:100%}
 .app-main{flex:1;min-height:0;overflow:auto}
-
-/* ---------- 首页 ---------- */
 .mk-home{max-width:920px;margin:0 auto;padding:12px 16px 56px}
 .mk-hero{margin:8px 0 20px}
 .mk-hero h1{font-size:clamp(22px,4vw,28px);font-weight:700;line-height:1.35;margin-bottom:8px}
@@ -34,19 +32,13 @@ html,body{height:100%;overflow:hidden}
 .mk-card .ops .btn{padding:5px 10px;font-size:11px}
 .mk-more{margin-top:28px;padding-top:16px;border-top:1px solid var(--line)}
 .mk-more h3{font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:600;letter-spacing:.06em}
-.mk-more-links{display:flex;flex-wrap:wrap;gap:8px}
-.mk-more-links a{font-size:12px;color:var(--muted);text-decoration:none;padding:8px 12px;border:1px solid var(--line2);border-radius:8px}
-.mk-more-links a:hover{color:var(--accent2);border-color:rgba(95,200,255,.4)}
 .mk-more-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px}
 .mk-more-card{display:block;padding:14px 16px;border:1px solid var(--line2);border-radius:12px;background:#12121c;text-decoration:none;color:inherit;transition:.15s}
 .mk-more-card:hover{border-color:rgba(139,123,255,.45);transform:translateY(-1px)}
 .mk-more-card strong{display:block;font-size:13px;margin-bottom:4px}
 .mk-more-card span{font-size:11px;color:var(--muted);line-height:1.5}
-.mk-more-card.soon{opacity:.72;cursor:default;pointer-events:none}
 .mk-login{text-align:center;padding:48px 16px;color:var(--muted);line-height:1.85}
 .mk-login a{color:var(--accent2)}
-
-/* ---------- 编辑器 ---------- */
 .mk-edit{display:none;flex-direction:column;height:100%}
 .mk-edit.show{display:flex}
 .mk-steps{display:flex;gap:6px;padding:8px 16px;border-bottom:1px solid var(--line);background:var(--bg2);flex:0 0 auto}
@@ -71,7 +63,6 @@ html,body{height:100%;overflow:hidden}
 .mk-stage.portrait{aspect-ratio:9/16;max-width:320px}
 .mk-stage .bg{position:absolute;inset:0;object-fit:cover;width:100%;height:100%}
 .mk-stage .bg-vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-/* 统一字幕：场景 / 对白 / 未来动态文字 */
 .hy-caption{pointer-events:none;z-index:2;box-sizing:border-box}
 .hy-caption-label{font-weight:600;color:var(--accent2);margin-bottom:6px;line-height:1.35}
 .hy-caption-line{color:#fff;line-height:1.55;word-break:break-word}
@@ -115,8 +106,6 @@ html,body{height:100%;overflow:hidden}
 .mk-choice-row input{flex:1}
 .mk-choice-row button{flex:0 0 auto;padding:6px 8px;font-size:11px}
 .mk-panel-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px}
-
-/* ---------- 播放层 ---------- */
 #playOverlay{position:fixed;inset:0;z-index:100;background:#000;display:none;flex-direction:column}
 #playOverlay.show{display:flex}
 #playTop{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(0,0,0,.85);border-bottom:1px solid var(--line)}
@@ -128,7 +117,6 @@ html,body{height:100%;overflow:hidden}
 .play-media-bg img,.play-media-bg video{width:100%;height:100%;object-fit:cover}
 .play-fore{position:absolute;inset:0;cursor:pointer;z-index:3}
 .play-fore.dlg-fore{cursor:pointer}
-/* 试玩层复用 .hy-caption 样式 */
 .play-frame .hy-caption{z-index:2}
 .play-frame .hy-caption.mode-fullscreen{z-index:2;pointer-events:none}
 .play-choice{position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:min(92%,420px);background:rgba(0,0,0,.82);border:1px solid var(--line2);border-radius:12px;padding:14px;pointer-events:auto}
@@ -136,8 +124,6 @@ html,body{height:100%;overflow:hidden}
 .pc-opts{display:flex;flex-direction:column;gap:8px}
 .pc-opt{padding:12px 14px;border-radius:8px;border:1px solid var(--line2);background:rgba(255,255,255,.06);color:#fff;font-size:14px;cursor:pointer;text-align:left;font-family:inherit}
 .pc-opt:hover{border-color:var(--accent);background:rgba(139,123,255,.15)}
-
-/* ---------- 弹窗 ---------- */
 .mk-modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:16px}
 .mk-modal.show{display:flex}
 .mk-modal-box{width:100%;max-width:400px;background:var(--bg3);border:1px solid var(--line2);border-radius:14px;padding:20px}
@@ -146,7 +132,6 @@ html,body{height:100%;overflow:hidden}
 .mk-orient{display:flex;gap:8px;margin-top:8px}
 .mk-orient button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--muted);cursor:pointer;font-family:inherit;font-size:12px}
 .mk-orient button.on{border-color:var(--accent);color:#cfc8ff;background:rgba(139,123,255,.12)}
-/* ---------- 裁剪弹窗 ---------- */
 #cropBackdrop{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;padding:16px}
 #cropBackdrop.show{display:flex}
 .mk-crop-box{width:100%;max-width:520px;background:var(--bg3);border:1px solid var(--line2);border-radius:14px;padding:18px}
@@ -168,8 +153,8 @@ html,body{height:100%;overflow:hidden}
   <header class="topbar" id="mkTopbar">
     <a class="back" href="/" id="mkBack">← 首页</a>
     <div class="brand">
-      <span class="brand-name" id="mkBrand">创作作品</span>
-      <span class="brand-sub" id="mkBrandSub">MAKE</span>
+      <span class="brand-name" id="mkBrand">互动视频</span>
+      <span class="brand-sub" id="mkBrandSub">VIDEO</span>
     </div>
     <div class="topbar-right">
       <span id="mkSave" style="font-size:11px;color:var(--muted)"></span>
@@ -182,37 +167,28 @@ html,body{height:100%;overflow:hidden}
   <main class="app-main" id="viewHome">
     <div class="mk-home">
       <section class="mk-hero">
-        <h1>写故事，加图片，点试玩</h1>
-        <p>像做 PPT 一样做视觉小说：左边是镜头顺序，中间实时预览，右边改字加图。改完立刻试玩，满意再发布。</p>
+        <h1>拍视频，加字幕，点试玩</h1>
+        <p>与视觉小说同款流程：每镜上传 MP4，叠加对白与选项，试玩后发布到广场。</p>
       </section>
-      <div id="mkLogin" class="mk-login hidden">请先 <a href="/yonder.html?next=/make.html">登录</a>，才能创建和保存作品。</div>
+      <div id="mkLogin" class="mk-login hidden">请先 <a href="/yonder.html?next=/make-video.html">登录</a>，才能创建和保存作品。</div>
       <div id="mkApp" class="hidden">
         <div class="mk-actions">
-          <button type="button" class="btn primary" id="mkNewBtn">＋ 新建故事</button>
-          <a class="btn" href="/brain.html" style="text-decoration:none">◎ AI 帮我想</a>
+          <button type="button" class="btn primary" id="mkNewBtn">＋ 新建互动视频</button>
+          <a class="btn" href="/make.html" style="text-decoration:none">📖 视觉小说</a>
           <a class="btn" href="/plaza.html" style="text-decoration:none">去玩</a>
         </div>
         <div id="mkGrid" class="mk-grid"></div>
-        <p id="mkEmpty" class="mk-login hidden" style="padding:24px">还没有作品。点上方「新建故事」开始，或让 AI 帮你想大纲。</p>
+        <p id="mkEmpty" class="mk-login hidden" style="padding:24px">还没有互动视频。点上方新建开始。</p>
         <div class="mk-more">
           <h3>其他类型</h3>
-          <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:4px">视觉小说在上面创建；下面这些走专用工具，一样能试玩发布。</p>
           <div class="mk-more-grid">
-            <a class="mk-more-card" href="/make-video.html">
-              <strong>🎬 互动视频</strong>
-              <span>每镜上传 MP4，叠加对白与选项</span>
+            <a class="mk-more-card" href="/make.html">
+              <strong>📖 视觉小说</strong>
+              <span>图片 + 对白 + 选项</span>
             </a>
             <a class="mk-more-card" href="/h5-game.html">
               <strong>🎮 H5 网页游戏</strong>
-              <span>粘贴游戏链接，站内 iframe 试玩</span>
-            </a>
-            <a class="mk-more-card" href="/story-editor.html?pro=1&new=comic">
-              <strong>📚 漫画分格</strong>
-              <span>一格一格填图 + 对白气泡</span>
-            </a>
-            <a class="mk-more-card" href="/story-editor.html?pro=1&new=card">
-              <strong>🂠 卡牌游戏</strong>
-              <span>角色表 + 自动战斗 / 挂机</span>
+              <span>粘贴游戏链接试玩</span>
             </a>
           </div>
         </div>
@@ -223,7 +199,7 @@ html,body{height:100%;overflow:hidden}
   <div class="mk-edit" id="viewEdit">
     <div class="mk-steps" id="mkSteps">
       <span class="mk-step on" data-step="write">① 写</span>
-      <span class="mk-step" data-step="pic">② 图</span>
+      <span class="mk-step" data-step="pic">② 视频</span>
       <span class="mk-step" data-step="play">③ 试玩</span>
     </div>
     <div class="mk-workspace">
@@ -263,9 +239,9 @@ html,body{height:100%;overflow:hidden}
 
 <div class="mk-modal" id="mkModal">
   <div class="mk-modal-box">
-    <h2>新建故事</h2>
+    <h2>新建互动视频</h2>
     <label class="field"><span>作品名称</span>
-      <input type="text" id="mkNewTitle" placeholder="例如：雨夜教室" maxlength="40">
+      <input type="text" id="mkNewTitle" placeholder="例如：雨夜追车" maxlength="40">
     </label>
     <label class="field" style="margin-top:12px"><span>画面方向</span></label>
     <div class="mk-orient">
