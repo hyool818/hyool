@@ -1022,6 +1022,9 @@ function renderPanel() {
     return;
   }
   panel.innerHTML = '';
+  const panelBody = document.createElement('div');
+  panelBody.className = 'mk-panel-body';
+  panel.appendChild(panelBody);
 
   if (editBranch) {
     const parent = parentChoiceBlock();
@@ -1032,7 +1035,7 @@ function renderPanel() {
       ? '← 返回选项（失败结局镜）'
       : '← 返回「' + (opt?.label || '选项') + '」';
     crumb.addEventListener('click', () => { editBranch = null; renderEdit(); });
-    panel.appendChild(crumb);
+    panelBody.appendChild(crumb);
   }
 
   const typeRow = document.createElement('div');
@@ -1057,15 +1060,15 @@ function renderPanel() {
     renderEdit();
   });
   typeRow.appendChild(sel);
-  panel.appendChild(typeRow);
+  panelBody.appendChild(typeRow);
 
   if (b.type === 'dialogue') {
     const sp = field('角色名', 'text', b.speaker || DEFAULT_SPEAKER, (v) => { b.speaker = v; scheduleSave(); renderPreview(); updateSteps(); });
-    panel.appendChild(sp);
+    panelBody.appendChild(sp);
   }
 
   const contentLabel = b.type === 'scene' ? '字幕内容' : b.type === 'choice' ? '选项提示' : '对白内容';
-  panel.appendChild(field(contentLabel, 'textarea', b.content || '', (v) => {
+  panelBody.appendChild(field(contentLabel, 'textarea', b.content || '', (v) => {
     b.content = v;
     scheduleSave();
     renderPreview();
@@ -1074,14 +1077,14 @@ function renderPanel() {
   }));
 
   if ((b.type === 'scene' || b.type === 'dialogue') && !editBranch) {
-    panel.appendChild(textStylePanel(b));
-    panel.appendChild(afterJumpPanel(b));
+    panelBody.appendChild(textStylePanel(b));
+    panelBody.appendChild(afterJumpPanel(b));
   } else if (b.type === 'scene' || b.type === 'dialogue') {
-    panel.appendChild(textStylePanel(b));
+    panelBody.appendChild(textStylePanel(b));
   }
 
   if (b.type === 'choice' && !editBranch) {
-    panel.appendChild(choiceEditor(b));
+    panelBody.appendChild(choiceEditor(b));
   }
 
   const bgSec = document.createElement('div');
@@ -1128,7 +1131,7 @@ function renderPanel() {
     btn.addEventListener('click', () => pickMedia(b));
     bgSec.appendChild(btn);
   }
-  panel.appendChild(bgSec);
+  panelBody.appendChild(bgSec);
 
   if (b.type === 'dialogue') {
     const voiceSec = document.createElement('div');
@@ -1180,7 +1183,7 @@ function renderPanel() {
       });
       voiceSec.appendChild(btn);
     }
-    panel.appendChild(voiceSec);
+    panelBody.appendChild(voiceSec);
   }
 
   const foot = document.createElement('div');
@@ -1531,6 +1534,38 @@ function moveBranchBlock(choiceBlockId, choiceId, blockId, dir) {
   renderEdit();
 }
 
+function deleteSelectedShot() {
+  const b = selectedBlock();
+  if (!b) return;
+  if (editBranch?.isEndShot) {
+    removeEndShot(editBranch.choiceBlockId, editBranch.choiceId);
+    return;
+  }
+  if (editBranch) {
+    removeBranchBlock(editBranch.choiceBlockId, editBranch.choiceId, b.id);
+    return;
+  }
+  removeBlock(b.id);
+}
+
+function branchShotRow({ num, preview, on, extraClass, onSelect, onDelete }) {
+  const row = document.createElement('div');
+  row.className = 'mk-branch-shot-row';
+  const shot = document.createElement('button');
+  shot.type = 'button';
+  shot.className = 'mk-branch-shot' + (extraClass ? ' ' + extraClass : '') + (on ? ' on' : '');
+  shot.innerHTML = '<span class="n">' + num + '</span><span class="t">' + escapeHtml(preview || '（空）') + '</span>';
+  shot.addEventListener('click', onSelect);
+  const rm = document.createElement('button');
+  rm.type = 'button';
+  rm.className = 'btn danger mk-branch-shot-del';
+  rm.title = '删除镜头';
+  rm.textContent = '×';
+  rm.addEventListener('click', (e) => { e.stopPropagation(); onDelete(); });
+  row.append(shot, rm);
+  return row;
+}
+
 function afterJumpPanel(b) {
   const wrap = document.createElement('div');
   wrap.className = 'field mk-after-jump';
@@ -1586,20 +1621,21 @@ function choiceEditor(b) {
     const shots = document.createElement('div');
     shots.className = 'mk-branch-shots';
     c.branch.forEach((sub, si) => {
-      const shot = document.createElement('button');
-      shot.type = 'button';
-      const on = editBranch?.choiceBlockId === b.id && editBranch?.choiceId === c.id && !editBranch.isEndShot && editBranch?.blockId === sub.id;
-      shot.className = 'mk-branch-shot' + (on ? ' on' : '');
       const preview = sub.type === 'dialogue'
         ? (sub.speaker + '：' + (sub.content || '')).slice(0, 36)
         : (sub.content || TYPE_LABEL[sub.type] || '').slice(0, 36);
-      shot.innerHTML = '<span class="n">' + (si + 1) + '</span><span class="t">' + escapeHtml(preview || '（空）') + '</span>';
-      shot.addEventListener('click', () => {
-        selectedId = b.id;
-        editBranch = { choiceBlockId: b.id, choiceId: c.id, blockId: sub.id };
-        renderEdit();
-      });
-      shots.appendChild(shot);
+      const on = editBranch?.choiceBlockId === b.id && editBranch?.choiceId === c.id && !editBranch.isEndShot && editBranch?.blockId === sub.id;
+      shots.appendChild(branchShotRow({
+        num: si + 1,
+        preview,
+        on,
+        onSelect: () => {
+          selectedId = b.id;
+          editBranch = { choiceBlockId: b.id, choiceId: c.id, blockId: sub.id };
+          renderEdit();
+        },
+        onDelete: () => removeBranchBlock(b.id, c.id, sub.id),
+      }));
     });
     branchSec.appendChild(shots);
     const addRow = document.createElement('div');
@@ -1618,16 +1654,18 @@ function choiceEditor(b) {
     const endShots = document.createElement('div');
     endShots.className = 'mk-branch-shots';
     if (c.endShot) {
-      const shot = document.createElement('button');
-      shot.type = 'button';
-      const onEnd = editBranch?.choiceBlockId === b.id && editBranch?.choiceId === c.id && editBranch.isEndShot;
-      shot.className = 'mk-branch-shot fail' + (onEnd ? ' on' : '');
       const preview = c.endShot.type === 'dialogue'
         ? (c.endShot.speaker + '：' + (c.endShot.content || '')).slice(0, 36)
         : (c.endShot.content || TYPE_LABEL[c.endShot.type] || '').slice(0, 36);
-      shot.innerHTML = '<span class="n">✦</span><span class="t">' + escapeHtml(preview || '（空）') + '</span>';
-      shot.addEventListener('click', () => selectEndShot(b, c.id));
-      endShots.appendChild(shot);
+      const onEnd = editBranch?.choiceBlockId === b.id && editBranch?.choiceId === c.id && editBranch.isEndShot;
+      endShots.appendChild(branchShotRow({
+        num: '✦',
+        preview,
+        on: onEnd,
+        extraClass: 'fail',
+        onSelect: () => selectEndShot(b, c.id),
+        onDelete: () => removeEndShot(b.id, c.id),
+      }));
     }
     branchSec.appendChild(endShots);
     const endShotAdd = document.createElement('div');
@@ -2392,7 +2430,8 @@ function bind() {
   $('#mkPlayBtn').addEventListener('click', startPlay);
   $('#mkPubBtn').addEventListener('click', togglePublish);
   $('#mkDelBtn').addEventListener('click', () => {
-    if (work) deleteWorkById(work.id, work.title || '未命名');
+    if (!work || !selectedBlock()) return;
+    deleteSelectedShot();
   });
   $('#playClose').addEventListener('click', stopPlay);
   $('#playPrev').addEventListener('click', playPrev);
