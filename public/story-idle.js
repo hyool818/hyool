@@ -335,7 +335,8 @@ function skillListHtml(skills) {
 }
 
 export function openCharSheet(sheet) {
-  if (!sheet || !sheet.name) return;
+  if (!sheet || (!sheet.name && !sheet.url)) return;
+  const title = sheet.name || '立绘';
   const prev = document.getElementById('portraitLightbox');
   if (prev) prev.remove();
   const el = document.createElement('div');
@@ -344,17 +345,19 @@ export function openCharSheet(sheet) {
   const imgBlock = sheet.url
     ? (sheet.portraitKind === 'video'
       ? `<video class="sheet-portrait-vid" src="${escAttr(sheet.url)}" autoplay loop muted playsinline disablePictureInPicture preload="metadata"></video>`
-      : `<img src="${escAttr(sheet.url)}" alt="${escAttr(sheet.name)}"/>`)
-    : `<div class="sheet-placeholder">${escHtml((sheet.name || '?').slice(0, 1))}</div>`;
+      : `<img src="${escAttr(sheet.url)}" alt="${escAttr(title)}"/>`)
+    : `<div class="sheet-placeholder">${escHtml(title.slice(0, 1))}</div>`;
+  const skillsHtml = sheet.name
+    ? `<div class="sheet-skills-title">技能</div><div class="sheet-skills">${skillListHtml(sheet.skills)}</div>`
+    : '';
   el.innerHTML = `<div class="portrait-lightbox-inner sheet">
     <div class="sheet-visual">${imgBlock}</div>
     <div class="sheet-info">
-      <div class="cap">${escHtml(sheet.name)}</div>
+      <div class="cap">${escHtml(title)}</div>
       ${sheet.subtitle ? `<div class="sheet-sub">${escHtml(sheet.subtitle)}</div>` : ''}
       ${sheet.stats ? `<div class="sheet-stats">${escHtml(sheet.stats)}</div>` : ''}
       ${sheet.desc ? `<div class="sheet-desc">${escHtml(sheet.desc)}</div>` : ''}
-      <div class="sheet-skills-title">技能</div>
-      <div class="sheet-skills">${skillListHtml(sheet.skills)}</div>
+      ${skillsHtml}
     </div>
   </div>`;
   const close = () => {

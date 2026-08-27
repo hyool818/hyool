@@ -116,3 +116,26 @@
 #playOverlay .bt-result-title{font-size:18px;font-weight:700;margin-bottom:8px}
 #playOverlay .bt-result-text{font-size:13px;color:var(--muted);line-height:1.7;max-width:320px;margin-bottom:16px}
 #playOverlay .bt-result-ops{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+
+/* 立绘放大（挂到 body，不在 #playOverlay 内） */
+.portrait-lightbox{position:fixed;inset:0;z-index:12000;background:rgba(4,4,12,.9);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px 16px;cursor:zoom-out;overflow:auto}
+.portrait-lightbox-inner{display:flex;flex-direction:column;align-items:center;gap:10px;max-width:min(480px,94vw)}
+.portrait-lightbox-inner.sheet{align-items:stretch;max-width:min(720px,96vw);background:rgba(18,14,32,.92);border:1px solid rgba(180,140,255,.28);border-radius:16px;padding:14px;cursor:default}
+.portrait-lightbox-inner.sheet .sheet-visual{display:flex;justify-content:center;flex-shrink:0}
+.portrait-lightbox-inner.sheet .sheet-info{flex:1;min-width:0}
+.portrait-lightbox img,.portrait-lightbox .sheet-visual img,.portrait-lightbox .sheet-visual video{max-width:min(280px,42vw);max-height:62vh;width:auto;height:auto;object-fit:contain;border-radius:14px;box-shadow:0 12px 48px rgba(0,0,0,.55);cursor:default;background:#000}
+.portrait-lightbox .sheet-placeholder{width:min(220px,42vw);aspect-ratio:9/16;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:800;color:#efe8ff;background:linear-gradient(180deg,#3a3358,#1c1830)}
+.portrait-lightbox .cap{font-size:18px;font-weight:700;color:#efe8ff}
+.portrait-lightbox .sheet-sub{font-size:12px;color:#b8aed8;margin-top:4px}
+.portrait-lightbox .sheet-stats{font-size:12px;color:#9a92b8;margin-top:6px}
+.portrait-lightbox .sheet-desc{font-size:13px;color:#cfc8e8;line-height:1.7;margin-top:8px;white-space:pre-wrap}
+.portrait-lightbox .sheet-skills-title{font-size:12px;color:#d4c4ff;margin:12px 0 6px;letter-spacing:.06em}
+.portrait-lightbox .sheet-skills{display:flex;flex-direction:column;gap:6px}
+.portrait-lightbox .skill-chip{border:1px solid rgba(180,140,255,.22);border-radius:10px;padding:8px 10px;background:rgba(10,8,20,.55)}
+.portrait-lightbox .skill-chip .nm{font-weight:650;font-size:13px;color:#efe8ff}
+.portrait-lightbox .skill-chip .meta{font-size:11px;color:#9a92b8;margin-top:2px}
+.portrait-lightbox .skill-chip .desc{font-size:11px;color:#cfc8e8;margin-top:4px;line-height:1.5}
+@media (min-width:560px){
+  .portrait-lightbox-inner.sheet{flex-direction:row;align-items:flex-start;gap:16px}
+  .portrait-lightbox img,.portrait-lightbox .sheet-visual img,.portrait-lightbox .sheet-visual video{max-width:min(300px,34vw)}
+}
