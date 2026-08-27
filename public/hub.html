@@ -2,32 +2,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>跳转中…</title>
-<script>
-(function () {
-  function mergeQuery(basePath) {
-    var dest = new URL(basePath, location.origin);
-    location.search.replace(/^\?/, '').split('&').filter(Boolean).forEach(function (pair) {
-      var i = pair.indexOf('=');
-      if (i < 0) dest.searchParams.set(pair, '');
-      else dest.searchParams.set(pair.slice(0, i), decodeURIComponent(pair.slice(i + 1)));
-    });
-    return dest.pathname + dest.search;
-  }
-  fetch('/api/me', { credentials: 'include', cache: 'no-store' })
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      if (d.authenticated && d.user && d.user.username) {
-        location.replace(mergeQuery('/@' + d.user.username));
-        return;
-      }
-      location.replace('/plaza' + location.search);
-    })
-    .catch(function () { location.replace('/plaza' + location.search); });
-})();
-</script>
+<meta http-equiv="refresh" content="0;url=/plaza">
+<title>HYOOL</title>
 </head>
-<body>
-<p>正在跳转到个人主页…</p>
-</body>
+<body></body>
 </html>

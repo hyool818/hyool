@@ -122,7 +122,12 @@ export async function handleMvpRoutes(
     }
 
     if (pathname === "/hub" || pathname === "/hub.html") {
-        return serveHtml("hub.html");
+        const user = await getAuthenticatedUser(request, env);
+        const search = new URL(request.url).search;
+        const dest = user?.username
+            ? `/@${String(user.username).trim().toLowerCase()}${search}`
+            : `/plaza${search}`;
+        return Response.redirect(new URL(dest, request.url).toString(), 302);
     }
 
     if (pathname.startsWith("/buddy/") && pathname.length > 7) {
