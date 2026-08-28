@@ -33,7 +33,7 @@ import {
   portraitMediaInner,
   starOf,
   closePortraitLightbox,
-} from '/story-idle.js';
+} from '/story-idle.js?v=20260828fx2';
 
 export const ROGUE_KIND = 'gacha_rogue';
 export const STAGE_WAVE_SIZE = 6;
