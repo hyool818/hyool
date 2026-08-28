@@ -182,6 +182,10 @@ html,body{height:100%;overflow:hidden}
 .mk-orient{display:flex;gap:8px;margin-top:8px}
 .mk-orient button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--muted);cursor:pointer;font-family:inherit;font-size:12px}
 .mk-orient button.on{border-color:var(--accent);color:#cfc8ff;background:rgba(139,123,255,.12)}
+.mk-seg{display:flex;gap:8px}
+.mk-seg button{flex:1;padding:10px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--muted);cursor:pointer;font-family:inherit;font-size:12px}
+.mk-seg button.on{border-color:var(--accent);color:#cfc8ff;background:rgba(139,123,255,.12)}
+.mk-seg button:not(.on):hover{border-color:var(--line);color:var(--text)}
 .mk-kind{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
 .mk-kind button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 14px;border-radius:10px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);cursor:pointer;font-family:inherit;text-align:left}
 .mk-kind button span{font-size:11px;color:var(--muted);font-weight:400;line-height:1.45}
@@ -313,7 +317,7 @@ html,body{height:100%;overflow:hidden}
         <input type="text" id="mkNewTitle" placeholder="例如：雨夜教室" maxlength="40">
       </label>
       <label class="field" style="margin-top:12px"><span>画面方向</span></label>
-      <div class="mk-orient">
+      <div class="mk-orient" id="mkCreateOrient">
         <button type="button" data-o="landscape" class="on">🖥 横屏 16:9</button>
         <button type="button" data-o="portrait">📱 竖屏 9:16</button>
       </div>
@@ -340,7 +344,7 @@ html,body{height:100%;overflow:hidden}
     <h2>AI 写小说 / 提取镜头</h2>
     <p style="font-size:12px;color:var(--muted);line-height:1.65;margin:0 0 12px">写小说，或<strong style="color:var(--text);font-weight:600">选中一段原文</strong>压成少量短旁白/对白（保留意思，不整章切碎）。</p>
     <p id="mkNovelProvider" style="font-size:11px;color:var(--muted);margin:0 0 10px"></p>
-    <div class="mk-orient" id="mkNovelTabs" style="margin-bottom:12px">
+    <div class="mk-seg" id="mkNovelTabs" style="margin-bottom:12px">
       <button type="button" data-tab="gen" class="on">① 写小说</button>
       <button type="button" data-tab="ext">② 选段压缩成镜头</button>
     </div>
@@ -414,6 +418,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260828compress1"></script>
+<script type="module" src="/make.js?v=20260828compress2"></script>
 </body>
 </html>

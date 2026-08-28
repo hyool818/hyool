@@ -2597,7 +2597,7 @@ function openCreateModal() {
   createOrient = 'landscape';
   createKind = 'story';
   createStep = 1;
-  $$('.mk-orient button').forEach((b) => b.classList.toggle('on', b.dataset.o === createOrient));
+  $$('#mkCreateOrient button').forEach((b) => b.classList.toggle('on', b.dataset.o === createOrient));
   $$('.mk-kind button').forEach((b) => b.classList.toggle('on', b.dataset.k === createKind));
   setCreateStep(1);
   $('#mkModal').classList.add('show');
@@ -2929,10 +2929,10 @@ function bind() {
       else confirmCreate();
     }
   });
-  $$('.mk-orient button').forEach((b) => {
+  $$('#mkCreateOrient button').forEach((b) => {
     b.addEventListener('click', () => {
-      createOrient = b.dataset.o;
-      $$('.mk-orient button').forEach((x) => x.classList.toggle('on', x.dataset.o === createOrient));
+      createOrient = b.dataset.o === 'portrait' ? 'portrait' : 'landscape';
+      $$('#mkCreateOrient button').forEach((x) => x.classList.toggle('on', x.dataset.o === createOrient));
     });
   });
   $$('.mk-kind button').forEach((b) => {
