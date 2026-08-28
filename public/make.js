@@ -1261,9 +1261,18 @@ function field(label, tag, value, onInput) {
 function imagePromptPanel(b) {
   const wrap = document.createElement('div');
   wrap.className = 'field';
+  const empty = !String(b.imagePrompt || '').trim() && !String(b.imagePromptZh || '').trim();
+
   const lab = document.createElement('label');
   lab.textContent = '生图提示词（画面，不是字幕）';
   wrap.appendChild(lab);
+
+  const hint = document.createElement('p');
+  hint.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.55;margin:4px 0 8px';
+  hint.textContent = empty
+    ? '手动加的镜头不会自动带提示词。写好字幕后点「AI 生成提示词」，会出中英两版（不照抄原句）。'
+    : '已有提示词时可手改，或点「AI 重新改写」。也可用左侧「✦ 补提示词」批量补全。';
+  wrap.appendChild(hint);
 
   const zhLab = document.createElement('div');
   zhLab.style.cssText = 'font-size:11px;color:var(--muted);margin:6px 0 4px';
@@ -1293,13 +1302,37 @@ function imagePromptPanel(b) {
   ops.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
   const rewrite = document.createElement('button');
   rewrite.type = 'button';
-  rewrite.className = 'btn';
-  rewrite.textContent = 'AI 改写提示词';
-  rewrite.title = '把字幕改成真正的画面描写（中英），禁止照抄原句';
+  rewrite.className = empty ? 'btn primary' : 'btn';
+  rewrite.textContent = empty ? 'AI 生成提示词' : 'AI 重新改写';
+  rewrite.title = '根据当前字幕生成中英画面提示词，禁止照抄原句';
   rewrite.addEventListener('click', () => rewriteBlockImagePrompts(b, rewrite, zhTa, enTa));
+
+  const inherit = document.createElement('button');
+  inherit.type = 'button';
+  inherit.className = 'btn';
+  inherit.textContent = '用上一镜提示词';
+  inherit.title = '复制上一镜头的中英生图词';
+  inherit.addEventListener('click', () => {
+    const bs = blocks();
+    const idx = bs.findIndex((x) => x.id === b.id);
+    let prev = null;
+    for (let i = idx - 1; i >= 0; i--) {
+      const p = bs[i];
+      if (p && (p.imagePrompt || p.imagePromptZh)) { prev = p; break; }
+    }
+    if (!prev) { toast('前面没有可用的提示词', true); return; }
+    b.imagePrompt = prev.imagePrompt || '';
+    b.imagePromptZh = prev.imagePromptZh || '';
+    zhTa.value = b.imagePromptZh;
+    enTa.value = b.imagePrompt;
+    scheduleSave();
+    toast('已复制上一镜提示词');
+    renderEdit();
+  });
+
   const gen = document.createElement('button');
   gen.type = 'button';
-  gen.className = 'btn primary';
+  gen.className = empty ? 'btn' : 'btn primary';
   gen.textContent = '用英文生图';
   gen.addEventListener('click', () => genBlockBackground(b, gen, 'en'));
   const genZh = document.createElement('button');
@@ -1323,16 +1356,19 @@ function imagePromptPanel(b) {
       toast('复制失败，请手动选中', true);
     }
   });
-  ops.append(rewrite, gen, genZh, copy);
+  ops.append(rewrite, inherit, gen, genZh, copy);
   wrap.append(zhLab, zhTa, enLab, enTa, ops);
   return wrap;
 }
 
 async function rewriteBlockImagePrompts(b, btn, zhTa, enTa) {
   const content = String(b.content || '').trim();
-  if (!content) { toast('请先写字幕内容', true); return; }
+  if (!content || content === '新场景……' || content === '在这里写下对白……') {
+    toast('请先写好字幕内容，再生成提示词', true);
+    return;
+  }
   const old = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = '改写中…'; }
+  if (btn) { btn.disabled = true; btn.textContent = '生成中…'; }
   try {
     const res = await fetch('/api/hub/novel-prompt-rewrite', {
       method: 'POST',
@@ -1341,7 +1377,7 @@ async function rewriteBlockImagePrompts(b, btn, zhTa, enTa) {
       body: JSON.stringify({ content }),
     });
     const d = await res.json().catch(() => ({}));
-    if (!res.ok || !d.success) throw new Error(d.error || '改写失败');
+    if (!res.ok || !d.success) throw new Error(d.error || '生成失败');
     const row = (d.items && d.items[0]) || {};
     if (row.imagePromptZh) {
       b.imagePromptZh = String(row.imagePromptZh).slice(0, 400);
@@ -1352,11 +1388,75 @@ async function rewriteBlockImagePrompts(b, btn, zhTa, enTa) {
       if (enTa) enTa.value = b.imagePrompt;
     }
     scheduleSave();
-    toast(d.provider === 'deepseek' ? '已用 DeepSeek 改写' : '已用规则改写');
+    toast(d.provider === 'deepseek' ? '提示词已生成（DeepSeek）' : '提示词已生成');
+    renderEdit();
+    renderShots();
   } catch (e) {
-    toast((e && e.message) || '改写失败', true);
+    toast((e && e.message) || '生成失败', true);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = old || 'AI 改写提示词'; }
+    if (btn) { btn.disabled = false; btn.textContent = old || 'AI 生成提示词'; }
+  }
+}
+
+/** 批量为缺少提示词的场景生成中英 Prompt */
+async function genMissingScenePrompts() {
+  if (!work || !loggedIn) { toast('请先登录并打开作品', true); return; }
+  const need = blocks().filter((b) => {
+    if (b.type !== 'scene') return false;
+    const c = String(b.content || '').trim();
+    if (!c || c === '新场景……') return false;
+    return !String(b.imagePrompt || '').trim() || !String(b.imagePromptZh || '').trim();
+  });
+  if (!need.length) {
+    toast('没有需要补提示词的场景（对白可用「用上一镜提示词」）');
+    return;
+  }
+  const btn = $('#mkGenPromptsBtn');
+  const old = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '生成中…'; }
+  toast('正在为 ' + need.length + ' 个场景生成提示词…');
+  try {
+    const res = await fetch('/api/hub/novel-prompt-rewrite', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({
+        items: need.map((b) => ({ id: b.id, content: b.content })),
+      }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.success) throw new Error(d.error || '批量生成失败');
+    const byId = new Map((d.items || []).map((row) => [String(row.id), row]));
+    let n = 0;
+    need.forEach((b) => {
+      const row = byId.get(String(b.id));
+      if (!row) return;
+      if (row.imagePrompt) b.imagePrompt = String(row.imagePrompt).slice(0, 700);
+      if (row.imagePromptZh) b.imagePromptZh = String(row.imagePromptZh).slice(0, 400);
+      n++;
+    });
+    // 对白若空则继承最近场景提示词
+    let lastEn = '';
+    let lastZh = '';
+    blocks().forEach((b) => {
+      if (b.type === 'scene') {
+        if (b.imagePrompt) lastEn = b.imagePrompt;
+        if (b.imagePromptZh) lastZh = b.imagePromptZh;
+        return;
+      }
+      if (b.type === 'dialogue') {
+        if (!String(b.imagePrompt || '').trim() && lastEn) b.imagePrompt = lastEn;
+        if (!String(b.imagePromptZh || '').trim() && lastZh) b.imagePromptZh = lastZh;
+      }
+    });
+    scheduleSave();
+    renderEdit();
+    renderShots();
+    toast('已为 ' + n + ' 个场景补上提示词');
+  } catch (e) {
+    toast((e && e.message) || '批量生成失败', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old || '✦ 补提示词'; }
   }
 }
 
@@ -2136,6 +2236,9 @@ function addBlock(type) {
   selectedId = block.id;
   scheduleSave();
   renderEdit();
+  if (type === 'scene' || type === 'dialogue') {
+    toast('写好字幕后，在下方点「AI 生成提示词」');
+  }
 }
 
 function removeBlock(id) {
@@ -2764,6 +2867,8 @@ function bind() {
     const el = document.getElementById(id);
     if (el) el.addEventListener('click', openAddPicker);
   });
+  const genPromptsBtn = document.getElementById('mkGenPromptsBtn');
+  if (genPromptsBtn) genPromptsBtn.addEventListener('click', genMissingScenePrompts);
   $('#mkPlayBtn').addEventListener('click', startPlay);
   $('#mkPubBtn').addEventListener('click', togglePublish);
   $('#mkDelBtn').addEventListener('click', () => {
