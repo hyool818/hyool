@@ -2518,7 +2518,7 @@ async function runNovelExtract() {
   novelBusy = true;
   const btn = $('#mkNovelExtBtn');
   if (btn) { btn.disabled = true; btn.textContent = '提取中…'; }
-  setNovelStatus('正在切成镜头（场景 / 对白 / 选项）…');
+  setNovelStatus('正在分段提取短镜头（覆盖全文，长文约需半分钟）…');
   try {
     const res = await fetch('/api/hub/novel-extract', {
       method: 'POST',
@@ -2532,6 +2532,7 @@ async function runNovelExtract() {
     });
     const d = await res.json().catch(() => ({}));
     if (!res.ok || !d.success || !d.work) throw new Error(d.error || '提取失败');
+    if (d.warning) toast(d.warning, true);
     const draft = normalizeWork({ ...d.work, kind: WORK_KIND });
     const title = (draft.title || '互动改编').slice(0, 40);
     const created = await fetch('/api/stories', {

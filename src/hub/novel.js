@@ -14,6 +14,76 @@ function clampText(s, n) {
   return String(s || "").trim().slice(0, n);
 }
 
+/** 按标点拆成多句短镜头，避免半截截断、字幕占满屏 */
+function splitSpeech(text, maxLen) {
+  const s = String(text || "").replace(/\s+/g, " ").trim();
+  if (!s) return [];
+  if (s.length <= maxLen) return [s];
+  const parts = [];
+  const tokens = s.split(/(?<=[。！？；…\n])/);
+  let buf = "";
+  const flush = () => {
+    const t = buf.trim();
+    if (t) parts.push(t);
+    buf = "";
+  };
+  for (const tok of tokens) {
+    const t = tok.trim();
+    if (!t) continue;
+    if (!buf) {
+      if (t.length <= maxLen) {
+        buf = t;
+      } else {
+        for (let i = 0; i < t.length; i += maxLen) parts.push(t.slice(i, i + maxLen));
+      }
+      continue;
+    }
+    if ((buf + t).length <= maxLen) {
+      buf += t;
+    } else {
+      flush();
+      if (t.length <= maxLen) buf = t;
+      else {
+        for (let i = 0; i < t.length; i += maxLen) parts.push(t.slice(i, i + maxLen));
+      }
+    }
+  }
+  flush();
+  return parts.length ? parts : [s.slice(0, maxLen)];
+}
+
+/** 正文按段落打包，便于分段提取、覆盖全章 */
+function packTextChunks(text, target = 1600, maxChunks = 5) {
+  const cleaned = String(text || "").replace(/\r/g, "").trim();
+  if (!cleaned) return [];
+  if (cleaned.length <= target) return [cleaned];
+
+  const chunks = [];
+  let i = 0;
+  while (i < cleaned.length && chunks.length < maxChunks) {
+    const remaining = cleaned.length - i;
+    const isLastSlot = chunks.length === maxChunks - 1;
+    let take = isLastSlot ? remaining : Math.min(target, remaining);
+    if (!isLastSlot && remaining > target) {
+      // 尽量在句号/换行处切开，避免半句
+      const window = cleaned.slice(i, i + target + 80);
+      let cut = -1;
+      for (const re of [/\n\n/g, /\n/g, /[。！？]/g]) {
+        let m;
+        while ((m = re.exec(window))) {
+          if (m.index >= Math.floor(target * 0.55)) cut = m.index + m[0].length;
+        }
+        if (cut > 0) break;
+      }
+      if (cut > 0) take = cut;
+    }
+    const piece = cleaned.slice(i, i + take).trim();
+    if (piece) chunks.push(piece);
+    i += take;
+  }
+  return chunks.length ? chunks : [cleaned.slice(0, target)];
+}
+
 /** POST /api/hub/novel-generate */
 export async function generateNovel(body, env) {
   const premise = clampText(body.premise || body.request || "", 1200);
@@ -84,43 +154,60 @@ export async function generateNovel(body, env) {
 /**
  * 将模型块规范成 make 可用的 blocks
  * choice: content + choices[{label, jump, branch, branchEnd, endShot?}]
+ * 长句拆成多镜，单镜控制在字幕可读长度，避免占满屏 / 半截截断。
  */
-function normalizeMakeBlocks(rawBlocks) {
+function normalizeMakeBlocks(rawBlocks, opts = {}) {
   const out = [];
+  const maxBlocks = Math.max(8, Math.min(80, Number(opts.maxBlocks) || 60));
+  const sceneMax = Math.max(24, Math.min(72, Number(opts.sceneMax) || 42));
+  const dialogueMax = Math.max(20, Math.min(56, Number(opts.dialogueMax) || 32));
   const list = Array.isArray(rawBlocks) ? rawBlocks : [];
-  for (const raw of list.slice(0, 24)) {
+
+  for (const raw of list) {
+    if (out.length >= maxBlocks) break;
     if (!raw || typeof raw !== "object") continue;
     let type = String(raw.type || "").toLowerCase();
     if (type !== "scene" && type !== "dialogue" && type !== "choice") {
       type = raw.speaker ? "dialogue" : "scene";
     }
-    const id = uid("b");
+
     if (type === "scene") {
-      out.push({ id, type: "scene", content: clampText(raw.content || raw.text || "……", 200) });
+      const pieces = splitSpeech(raw.content || raw.text || "……", sceneMax);
+      for (const content of pieces) {
+        if (out.length >= maxBlocks) break;
+        out.push({ id: uid("b"), type: "scene", content });
+      }
       continue;
     }
+
     if (type === "dialogue") {
-      out.push({
-        id,
-        type: "dialogue",
-        speaker: clampText(raw.speaker || "旁白", 24) || "旁白",
-        content: clampText(raw.content || raw.text || "……", 160),
-      });
+      const speaker = clampText(raw.speaker || "旁白", 24) || "旁白";
+      const pieces = splitSpeech(raw.content || raw.text || "……", dialogueMax);
+      for (const content of pieces) {
+        if (out.length >= maxBlocks) break;
+        out.push({ id: uid("b"), type: "dialogue", speaker, content });
+      }
       continue;
     }
-    const opts = Array.isArray(raw.choices)
+
+    // choice：只保留一个，放在末尾附近处理时再保证
+    const optsChoices = Array.isArray(raw.choices)
       ? raw.choices
       : Array.isArray(raw.options)
         ? raw.options
         : [];
-    const choices = opts.slice(0, 4).map((o) => {
-      const label = clampText(o.label || o.text || "继续", 40) || "继续";
-      const branchText = clampText(o.branch || o.reply || o.result || "", 160);
+    const choices = optsChoices.slice(0, 4).map((o) => {
+      const label = clampText(o.label || o.text || "继续", 24) || "继续";
+      const branchPieces = splitSpeech(o.branch || o.reply || o.result || "", dialogueMax);
       const endBad = !!(o.end || o.ending || o.jump === "end");
-      const branch = branchText
-        ? [{ id: uid("br"), type: "dialogue", speaker: clampText(o.speaker || "你", 24), content: branchText }]
-        : [];
+      const branch = branchPieces.slice(0, 3).map((content) => ({
+        id: uid("br"),
+        type: "dialogue",
+        speaker: clampText(o.speaker || "你", 24),
+        content,
+      }));
       if (endBad) {
+        const endPieces = splitSpeech(o.endText || o.ending || "故事在此告一段落。", sceneMax);
         return {
           id: uid("c"),
           label,
@@ -130,7 +217,7 @@ function normalizeMakeBlocks(rawBlocks) {
           endShot: {
             id: uid("end"),
             type: "scene",
-            content: clampText(o.endText || o.ending || "故事在此告一段落。", 120),
+            content: endPieces[0] || "故事在此告一段落。",
           },
         };
       }
@@ -156,20 +243,41 @@ function normalizeMakeBlocks(rawBlocks) {
           : undefined,
       });
     }
+    // 去掉已有 choice，稍后只在合适位置插一个
     out.push({
-      id,
+      id: uid("b"),
       type: "choice",
-      content: clampText(raw.content || raw.prompt || "你要怎么做？", 80),
+      content: clampText(raw.content || raw.prompt || "你要怎么做？", 36),
       choices,
     });
   }
+
+  // 只保留最后一个 choice，其余 choice 降级为旁白提示，避免中途卡死
+  const choiceIdxs = [];
+  out.forEach((b, i) => {
+    if (b.type === "choice") choiceIdxs.push(i);
+  });
+  if (choiceIdxs.length > 1) {
+    for (let k = 0; k < choiceIdxs.length - 1; k++) {
+      const i = choiceIdxs[k];
+      const c = out[i];
+      out[i] = {
+        id: c.id || uid("b"),
+        type: "dialogue",
+        speaker: "旁白",
+        content: clampText(c.content || "你犹豫了一下。", dialogueMax),
+      };
+    }
+  }
+
   if (!out.length) {
     out.push({ id: uid("b"), type: "scene", content: "故事从这里开始。" });
     out.push({ id: uid("b"), type: "dialogue", speaker: "旁白", content: "（请在编辑器里继续完善）" });
   }
-  // 保证至少有一个 choice，方便互动感
+
   if (!out.some((b) => b.type === "choice")) {
-    out.splice(Math.min(3, out.length), 0, {
+    const insertAt = Math.min(Math.max(4, Math.floor(out.length * 0.55)), out.length);
+    out.splice(insertAt, 0, {
       id: uid("b"),
       type: "choice",
       content: "你要怎么做？",
@@ -192,7 +300,8 @@ function normalizeMakeBlocks(rawBlocks) {
       ],
     });
   }
-  return out;
+
+  return out.slice(0, maxBlocks);
 }
 
 function buildCastFromBlocks(blocks, castNames) {
@@ -294,10 +403,7 @@ function extractBalancedArray(src) {
 }
 
 /**
- * 规则兜底：不依赖模型也能产出可玩镜头
- * - 引号对白 → dialogue
- * - 其余段落 → scene
- * - 中段插入 choice
+ * 规则兜底：不依赖模型也能产出可玩镜头（短句多镜，尽量覆盖正文）
  */
 function fallbackExtractFromText(text, titleHint) {
   const cleaned = String(text || "")
@@ -307,54 +413,50 @@ function fallbackExtractFromText(text, titleHint) {
   const paras = cleaned
     .split(/\n{2,}|\n/)
     .map((p) => p.trim())
-    .filter((p) => p.length >= 8)
-    .slice(0, 20);
+    .filter((p) => p.length >= 4)
+    .slice(0, 80);
 
   const blocks = [];
-  const dialogueRe = /^(?:([\u4e00-\u9fffA-Za-z·]{1,12})[：:]\s*)?[「\"“]([^」\"”]{2,80})[」\"”]/;
+  const dialogueRe = /^(?:([\u4e00-\u9fffA-Za-z·]{1,12})[：:]\s*)?[「\"“]([^」\"”]{1,120})[」\"”]/;
   const colonRe = /^([\u4e00-\u9fffA-Za-z·]{1,12})[：:](.+)$/;
 
   paras.forEach((p) => {
+    if (blocks.length >= 70) return;
     const dm = p.match(dialogueRe);
     if (dm) {
-      blocks.push({
-        type: "dialogue",
-        speaker: clampText(dm[1] || "旁白", 24) || "旁白",
-        content: clampText(dm[2], 120),
+      splitSpeech(dm[2], 32).forEach((content) => {
+        if (blocks.length >= 70) return;
+        blocks.push({
+          type: "dialogue",
+          speaker: clampText(dm[1] || "旁白", 24) || "旁白",
+          content,
+        });
       });
       return;
     }
     const cm = p.match(colonRe);
-    if (cm && cm[2].trim().length >= 4 && cm[2].trim().length <= 80) {
-      blocks.push({
-        type: "dialogue",
-        speaker: clampText(cm[1], 24),
-        content: clampText(cm[2].trim(), 120),
+    if (cm && cm[2].trim().length >= 2) {
+      splitSpeech(cm[2].trim(), 32).forEach((content) => {
+        if (blocks.length >= 70) return;
+        blocks.push({
+          type: "dialogue",
+          speaker: clampText(cm[1], 24),
+          content,
+        });
       });
       return;
     }
-    // 长段拆短
-    const chunk = clampText(p, 90);
-    blocks.push({ type: "scene", content: chunk });
+    splitSpeech(p, 42).forEach((content) => {
+      if (blocks.length >= 70) return;
+      blocks.push({ type: "scene", content });
+    });
   });
 
-  if (blocks.length < 3) {
-    const plain = clampText(cleaned.replace(/\s+/g, " "), 600);
-    for (let i = 0; i < plain.length; i += 70) {
-      blocks.push({ type: "scene", content: plain.slice(i, i + 70) });
-      if (blocks.length >= 8) break;
-    }
+  if (blocks.length < 4) {
+    splitSpeech(cleaned.replace(/\s+/g, " "), 42).slice(0, 40).forEach((content) => {
+      blocks.push({ type: "scene", content });
+    });
   }
-
-  const mid = Math.min(Math.max(2, Math.floor(blocks.length / 2)), blocks.length);
-  blocks.splice(mid, 0, {
-    type: "choice",
-    content: "此刻你要怎么做？",
-    choices: [
-      { label: "继续往下走", branch: "你深吸一口气，决定继续。", end: false },
-      { label: "先离开这里", branch: "你转身离开。", end: true, endText: "你离开了这里。故事暂时落下帷幕。" },
-    ],
-  });
 
   const title =
     titleHint ||
@@ -365,37 +467,42 @@ function fallbackExtractFromText(text, titleHint) {
   return {
     title,
     cast: [],
-    blocks: blocks.slice(0, 16),
+    blocks,
     fallback: true,
   };
 }
 
-/** POST /api/hub/novel-extract */
-export async function extractNovelToMake(body, env) {
-  const text = clampText(body.text || "", 14000);
-  if (text.length < 80) throw new Error("正文太短，请粘贴至少一小段完整情节。");
-  const titleHint = clampText(body.title || "", 60);
-  const orientation = body.orientation === "portrait" ? "portrait" : "landscape";
-  const modelRef = resolveNovelModelRef(env);
-  const provider = modelRef ? "deepseek" : "workers-ai";
-  // DeepSeek 可喂更长；Workers AI 对超长上下文 + 大 JSON 不稳定
-  const maxExcerpt = modelRef ? 9000 : 3200;
-  const keep = modelRef ? 8500 : 2800;
-  const excerpt = text.length > maxExcerpt
-    ? text.slice(0, keep) + "\n……（后文已省略，请根据以上情节改编）"
-    : text;
-
-  const system =
-    "你是视觉小说镜头提取器。把小说改成短镜头表。只输出一行 JSON 对象，不要代码块，不要解释。" +
+function buildExtractSystem({ minShots, maxShots, withChoice, partHint }) {
+  return (
+    "你是视觉小说镜头提取器。按时间顺序把小说改成短镜头表。只输出 JSON 对象，不要 markdown，不要解释。" +
     "字段：title(string), cast(string[]), blocks(array)。" +
     "blocks 每项 type 只能是 scene|dialogue|choice。" +
     "scene:{type,content} dialogue:{type,speaker,content} " +
     "choice:{type,content,choices:[{label,branch,end,endText?}]}。" +
-    "只要 6 到 10 个镜头，必须含 1 个 choice（2 个选项，其中一个 end:true）。" +
-    "content/台词尽量短（不超过 40 字）。";
+    (partHint || "") +
+    `要求：${minShots}~${maxShots} 个镜头；严格覆盖本段情节，不要跳过关键转折与对话；` +
+    "每条 content 不超过 28 个汉字；长段落必须拆成多条 scene/dialogue；" +
+    (withChoice
+      ? "本段末尾必须含 1 个 choice（2 个选项，其中一个 end:true）。"
+      : "本段不要输出 choice，只输出 scene 与 dialogue。")
+  );
+}
+
+async function llmExtractSegment(env, modelRef, excerpt, opts) {
+  const {
+    titleHint = "",
+    withChoice = true,
+    minShots = 10,
+    maxShots = 22,
+    partHint = "",
+    maxTokens = 3500,
+  } = opts || {};
 
   const messages = [
-    { role: "system", content: system },
+    {
+      role: "system",
+      content: buildExtractSystem({ minShots, maxShots, withChoice, partHint }),
+    },
     {
       role: "user",
       content:
@@ -407,46 +514,102 @@ export async function extractNovelToMake(body, env) {
   ];
 
   let lastErr = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const raw = await chatCompletions(env, messages, modelRef, 0.2, modelRef ? 2800 : 1800, 45000);
-      const parsed = parseExtractPayload(raw);
-      if (!parsed || !Array.isArray(parsed.blocks) || !parsed.blocks.length) {
-        lastErr = "模型未返回镜头 JSON";
-        messages.push({
-          role: "assistant",
-          content: String(raw || "").slice(0, 500),
-        });
-        messages.push({
-          role: "user",
-          content:
-            "无效。请重新输出完整 JSON，以 { 开头以 } 结尾，且包含非空 blocks 数组。示例：" +
-            '{"title":"落霞镇","cast":["吴银"],"blocks":[{"type":"scene","content":"落霞镇雨巷"},{"type":"dialogue","speaker":"掌柜","content":"银子呢？"},{"type":"choice","content":"你怎么回应？","choices":[{"label":"先答应","branch":"好，我今晚就还。","end":false},{"label":"转身就走","branch":"……","end":true,"endText":"你没还上债。"}]}]}',
-        });
-        continue;
-      }
-      const blocks = normalizeMakeBlocks(parsed.blocks);
-      return wrapMakeWork(
-        parsed.title || titleHint || "互动改编",
-        orientation,
-        blocks,
-        parsed.cast,
-        { attempts: attempt, source: "llm", provider }
-      );
-    } catch (e) {
-      lastErr = e.message || String(e);
-      console.error("NOVEL EXTRACT attempt", attempt, e);
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const raw = await chatCompletions(env, messages, modelRef, 0.15, maxTokens, 60000);
+    const parsed = parseExtractPayload(raw);
+    if (!parsed || !Array.isArray(parsed.blocks) || !parsed.blocks.length) {
+      lastErr = "模型未返回镜头 JSON";
+      messages.push({ role: "assistant", content: String(raw || "").slice(0, 400) });
+      messages.push({
+        role: "user",
+        content:
+          "无效。请重新输出完整 JSON（含非空 blocks）。每条台词≤28字，按情节顺序多拆镜头。",
+      });
+      continue;
     }
+    return { parsed, attempts: attempt };
   }
+  throw new Error(lastErr || "分段提取失败");
+}
 
-  // 兜底：规则切分，保证用户总能打开可玩草稿
-  console.warn("NOVEL EXTRACT fallback:", lastErr);
-  const fb = fallbackExtractFromText(text, titleHint);
-  const blocks = normalizeMakeBlocks(fb.blocks);
-  return wrapMakeWork(fb.title, orientation, blocks, fb.cast, {
-    attempts: 3,
-    source: "fallback",
-    provider,
-    warning: "AI 提取不稳定，已用规则切成镜头，可在编辑器里改。",
-  });
+/** POST /api/hub/novel-extract */
+export async function extractNovelToMake(body, env) {
+  const text = clampText(body.text || "", 14000);
+  if (text.length < 80) throw new Error("正文太短，请粘贴至少一小段完整情节。");
+  const titleHint = clampText(body.title || "", 60);
+  const orientation = body.orientation === "portrait" ? "portrait" : "landscape";
+  const modelRef = resolveNovelModelRef(env);
+  const provider = modelRef ? "deepseek" : "workers-ai";
+
+  try {
+    // DeepSeek：分段提取，覆盖整章；Workers AI：单段短摘
+    if (modelRef) {
+      const chunks = packTextChunks(text, 2000, 5);
+      const merged = [];
+      let title = titleHint || "互动改编";
+      let cast = [];
+      let attempts = 0;
+
+      for (let i = 0; i < chunks.length; i++) {
+        const isLast = i === chunks.length - 1;
+        const { parsed, attempts: a } = await llmExtractSegment(env, modelRef, chunks[i], {
+          titleHint: i === 0 ? titleHint : "",
+          withChoice: isLast,
+          minShots: chunks.length === 1 ? 14 : 10,
+          maxShots: chunks.length === 1 ? 36 : 20,
+          partHint: `这是第${i + 1}/${chunks.length}段正文；`,
+          maxTokens: 4500,
+        });
+        attempts += a;
+        if (parsed.title && i === 0) title = clampText(parsed.title, 60) || title;
+        if (Array.isArray(parsed.cast) && parsed.cast.length) cast = parsed.cast;
+        const partBlocks = (parsed.blocks || []).filter((b) => {
+          if (!b) return false;
+          if (!isLast && String(b.type).toLowerCase() === "choice") return false;
+          return true;
+        });
+        merged.push(...partBlocks);
+      }
+
+      const blocks = normalizeMakeBlocks(merged, { maxBlocks: 72, sceneMax: 42, dialogueMax: 32 });
+      return wrapMakeWork(title, orientation, blocks, cast, {
+        attempts,
+        source: "llm",
+        provider,
+        chunks: chunks.length,
+        coveredChars: chunks.reduce((n, c) => n + c.length, 0),
+      });
+    }
+
+    // Workers AI：短摘 + 少镜头
+    const excerpt =
+      text.length > 3200
+        ? text.slice(0, 2800) + "\n……（后文已省略，请根据以上情节改编）"
+        : text;
+    const { parsed, attempts } = await llmExtractSegment(env, null, excerpt, {
+      titleHint,
+      withChoice: true,
+      minShots: 10,
+      maxShots: 18,
+      maxTokens: 2200,
+    });
+    const blocks = normalizeMakeBlocks(parsed.blocks, { maxBlocks: 36, sceneMax: 42, dialogueMax: 32 });
+    return wrapMakeWork(
+      parsed.title || titleHint || "互动改编",
+      orientation,
+      blocks,
+      parsed.cast,
+      { attempts, source: "llm", provider }
+    );
+  } catch (e) {
+    console.warn("NOVEL EXTRACT fallback:", e.message || e);
+    const fb = fallbackExtractFromText(text, titleHint);
+    const blocks = normalizeMakeBlocks(fb.blocks, { maxBlocks: 72, sceneMax: 42, dialogueMax: 32 });
+    return wrapMakeWork(fb.title, orientation, blocks, fb.cast, {
+      attempts: 0,
+      source: "fallback",
+      provider,
+      warning: "AI 提取不稳定，已用规则切成短镜头，可在编辑器里改。",
+    });
+  }
 }

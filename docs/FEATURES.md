@@ -103,7 +103,7 @@
 | 功能 | 页面 | API | 后端 |
 |---|---|---|---|
 | 中枢页 | `public/brain.html` `public/brain.js` | `/api/hub/meta` `/api/hub/plan` `/api/hub/run` `/api/hub/live-line` | `src/hub/*` |
-| 小说生成 / 剧情提取 | `public/make.html` `public/make.js` | `POST /api/hub/novel-generate` `POST /api/hub/novel-extract` | `src/hub/novel.js`；有 `DEEPSEEK_API_KEY`（Secret / `.dev.vars`，不进 Git）则走 DeepSeek，否则 Workers AI |
+| 小说生成 / 剧情提取 | `public/make.html` `public/make.js` | `POST /api/hub/novel-generate` `POST /api/hub/novel-extract` | `src/hub/novel.js`；DeepSeek 分段短镜头覆盖全文；无 Key 则 Workers AI |
 | 幻想入口 | `public/fantasy.html` | — | 卡片链到 brain |
 
 规划/DAG/工具细节：`docs/hyool-brain-architecture.md`。  
