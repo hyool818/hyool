@@ -1291,6 +1291,12 @@ function imagePromptPanel(b) {
 
   const ops = document.createElement('div');
   ops.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
+  const rewrite = document.createElement('button');
+  rewrite.type = 'button';
+  rewrite.className = 'btn';
+  rewrite.textContent = 'AI 改写提示词';
+  rewrite.title = '把字幕改成真正的画面描写（中英），禁止照抄原句';
+  rewrite.addEventListener('click', () => rewriteBlockImagePrompts(b, rewrite, zhTa, enTa));
   const gen = document.createElement('button');
   gen.type = 'button';
   gen.className = 'btn primary';
@@ -1317,9 +1323,41 @@ function imagePromptPanel(b) {
       toast('复制失败，请手动选中', true);
     }
   });
-  ops.append(gen, genZh, copy);
+  ops.append(rewrite, gen, genZh, copy);
   wrap.append(zhLab, zhTa, enLab, enTa, ops);
   return wrap;
+}
+
+async function rewriteBlockImagePrompts(b, btn, zhTa, enTa) {
+  const content = String(b.content || '').trim();
+  if (!content) { toast('请先写字幕内容', true); return; }
+  const old = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '改写中…'; }
+  try {
+    const res = await fetch('/api/hub/novel-prompt-rewrite', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ content }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.success) throw new Error(d.error || '改写失败');
+    const row = (d.items && d.items[0]) || {};
+    if (row.imagePromptZh) {
+      b.imagePromptZh = String(row.imagePromptZh).slice(0, 400);
+      if (zhTa) zhTa.value = b.imagePromptZh;
+    }
+    if (row.imagePrompt) {
+      b.imagePrompt = String(row.imagePrompt).slice(0, 700);
+      if (enTa) enTa.value = b.imagePrompt;
+    }
+    scheduleSave();
+    toast(d.provider === 'deepseek' ? '已用 DeepSeek 改写' : '已用规则改写');
+  } catch (e) {
+    toast((e && e.message) || '改写失败', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old || 'AI 改写提示词'; }
+  }
 }
 
 async function genBlockBackground(b, btn, lang) {

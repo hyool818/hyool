@@ -151,18 +151,58 @@ export async function generateNovel(body, env) {
   throw new Error(lastErr || "小说生成失败");
 }
 
-/** 缺省时从字幕兜底可投喂 Comfy / Pollinations 的中英提示词 */
+/** 从字幕抽地点/氛围，绝不整句照抄字幕 */
 function synthesizeImagePrompts(content) {
-  const detail = clampText(String(content || "").replace(/[「」『』""]/g, ""), 90);
-  const en =
-    "visual novel background, " +
-    (detail || "atmospheric scene") +
-    ", cinematic lighting, detailed environment, anime illustration, no text, no watermark, no UI";
+  const raw = String(content || "")
+    .replace(/[「」『』""]/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+  const placeMatch = raw.match(
+    /([\u4e00-\u9fffA-Za-z·]{2,12}(?:岭|山|峰|崖|谷|渊|漠|泽|林|原|关|渡|城|镇|村|寺|庙|宫|府|街|巷|桥|港|湾|岛|塔|殿|院|门|楼|穴|洞|湖|海|河|江|堡|寨|坡|岗|滩|野|墓|坟|骨))/
+  );
+  const place = (placeMatch && placeMatch[1]) || "";
+  const gloomy = /不|没|阴|恐|荒|死|枯|禁|险|惧|冷|黑|血|尸|骨|想进去|可怕|无人/.test(raw);
+
+  let zhCore;
+  if (place && gloomy) {
+    zhCore = `${place}，荒凉险峻，乱石枯木，冷风低云，无人通行，阴森压抑`;
+  } else if (place) {
+    zhCore = `${place}，环境开阔，光影层次，氛围沉静`;
+  } else if (gloomy) {
+    zhCore = "荒凉险地，枯木乱石，冷风低云，无人，阴森压抑";
+  } else {
+    zhCore = "空镜氛围场景，环境层次，光影分明";
+  }
   const zh =
-    "视觉小说背景，" +
-    (detail || "氛围场景") +
-    "，电影感光影，环境细节，动漫插画风，无文字，无水印，无界面";
-  return { imagePrompt: en, imagePromptZh: zh };
+    zhCore + "，电影感宽景，暗黑奇幻视觉小说背景，动漫插画风，无文字，无水印，无界面";
+
+  const enFocus = place || "desolate highland pass";
+  const en = gloomy
+    ? `ominous ${enFocus}, barren rocky terrain, sparse dead trees, cold wind under low clouds, deserted path, oppressive gloomy atmosphere, cinematic wide shot, dark fantasy visual novel background, anime illustration style, no text, no watermark, no UI`
+    : `scenic ${enFocus}, clear atmosphere, layered environment, cinematic lighting, visual novel background, anime illustration style, no text, no watermark, no UI`;
+
+  return { imagePrompt: clampText(en, 700), imagePromptZh: clampText(zh, 400) };
+}
+
+function normalizePromptCmp(s) {
+  return String(s || "")
+    .replace(/\s+/g, "")
+    .replace(/[。！？，、；：""''…\.\!\?\,\;\:]/g, "");
+}
+
+/** 把字幕原句套进模板 / 过短 / 几乎照抄 → 弱提示，需要改写 */
+function isWeakImagePrompt(prompt, content) {
+  const p = normalizePromptCmp(prompt);
+  const c = normalizePromptCmp(content);
+  if (!p || p.length < 24) return true;
+  if (c.length >= 6 && p.includes(c)) return true;
+  if (c.length >= 8) {
+    const core = c.slice(0, Math.min(14, c.length));
+    if (core.length >= 6 && p.includes(core)) return true;
+  }
+  if (/^visualnovelbackground/i.test(p) && c.length >= 6 && p.includes(c.slice(0, 8))) return true;
+  if (p.startsWith("视觉小说背景") && c.length >= 6 && p.includes(c.slice(0, 8))) return true;
+  return false;
 }
 
 function pickImagePrompts(raw, content) {
@@ -176,9 +216,137 @@ function pickImagePrompts(raw, content) {
   );
   const fallback = synthesizeImagePrompts(content);
   return {
-    imagePrompt: en.length >= 16 ? en : fallback.imagePrompt,
-    imagePromptZh: zh.length >= 8 ? zh : fallback.imagePromptZh,
+    imagePrompt: !isWeakImagePrompt(en, content) ? en : fallback.imagePrompt,
+    imagePromptZh: !isWeakImagePrompt(zh, content) ? zh : fallback.imagePromptZh,
   };
+}
+
+/**
+ * DeepSeek/LLM：把字幕改写成中英生图词（禁止照抄）
+ * items: [{ id?, content }]
+ */
+export async function rewriteCaptionPrompts(items, env, modelRef) {
+  const list = (Array.isArray(items) ? items : [])
+    .map((it, i) => ({
+      id: String(it.id || i),
+      content: clampText(it.content || "", 80),
+    }))
+    .filter((it) => it.content);
+  if (!list.length) return [];
+
+  const outMap = new Map();
+  const batchSize = 10;
+  for (let start = 0; start < list.length; start += batchSize) {
+    const batch = list.slice(start, start + batchSize);
+    const messages = [
+      {
+        role: "system",
+        content:
+          "你是视觉小说文生图提示词专家。把每条「字幕」改写成可直接投喂文生图的画面描写。" +
+          "只输出 JSON：{\"items\":[{\"id\":\"...\",\"imagePrompt\":\"英文\",\"imagePromptZh\":\"中文\"}]}" +
+          "硬性规则：禁止照抄或夹带字幕原句；写地点/地貌/天气/时间/光影/氛围/构图/画风；" +
+          "中文 40~120 字，英文 40~110 词；不要人名对白、不要文字/UI/水印。" +
+          "示例：字幕「枯骨岭不是一个让人想进去的地方。」→" +
+          "imagePromptZh「枯骨嶙峋的荒岭关隘，黄昏冷风，枯树稀疏，无人通行，阴森压抑，电影感宽景，暗黑奇幻视觉小说背景，无文字」；" +
+          "imagePrompt「ominous bone-strewn mountain ridge pass at dusk, cold wind, sparse dead trees, deserted path, gloomy oppressive atmosphere, cinematic wide shot, dark fantasy visual novel background, no text」。",
+      },
+      {
+        role: "user",
+        content: "请改写：\n" + JSON.stringify({ items: batch }),
+      },
+    ];
+    try {
+      const raw = await chatCompletions(env, messages, modelRef, 0.35, 3500, 55000);
+      const parsed = parseJSON(String(raw || ""));
+      const rows = Array.isArray(parsed?.items) ? parsed.items : Array.isArray(parsed) ? parsed : [];
+      rows.forEach((row) => {
+        if (!row) return;
+        const id = String(row.id ?? "");
+        const src = batch.find((b) => b.id === id);
+        const content = src?.content || "";
+        const picked = pickImagePrompts(row, content);
+        const fb = synthesizeImagePrompts(content);
+        const en = isWeakImagePrompt(picked.imagePrompt, content) ? fb.imagePrompt : picked.imagePrompt;
+        const zh = isWeakImagePrompt(picked.imagePromptZh, content) ? fb.imagePromptZh : picked.imagePromptZh;
+        if (id) outMap.set(id, { imagePrompt: en, imagePromptZh: zh });
+      });
+    } catch (e) {
+      console.warn("rewriteCaptionPrompts batch failed:", e.message || e);
+    }
+    batch.forEach((b) => {
+      if (!outMap.has(b.id)) outMap.set(b.id, synthesizeImagePrompts(b.content));
+    });
+  }
+
+  return list.map((it) => ({ id: it.id, content: it.content, ...outMap.get(it.id) }));
+}
+
+/** 有 DeepSeek 时：给每条 scene 专改中英生图词（禁止照抄字幕） */
+async function enrichBlocksImagePrompts(env, modelRef, blocks) {
+  if (!Array.isArray(blocks) || !blocks.length) return { rewritten: 0 };
+
+  if (!modelRef) {
+    fillInheritedImagePrompts(blocks);
+    return { rewritten: 0 };
+  }
+
+  const jobs = [];
+  const keyToIdx = new Map();
+  blocks.forEach((b, i) => {
+    if (!b || b.type !== "scene") return;
+    const key = normalizePromptCmp(b.content) || "scene_" + i;
+    if (!keyToIdx.has(key)) {
+      keyToIdx.set(key, []);
+      jobs.push({ id: String(jobs.length), content: b.content, key });
+    }
+    keyToIdx.get(key).push(i);
+  });
+
+  if (!jobs.length) {
+    fillInheritedImagePrompts(blocks);
+    return { rewritten: 0 };
+  }
+
+  const rewritten = await rewriteCaptionPrompts(
+    jobs.map((j) => ({ id: j.id, content: j.content })),
+    env,
+    modelRef
+  );
+  rewritten.forEach((row) => {
+    const job = jobs.find((j) => j.id === row.id);
+    if (!job) return;
+    (keyToIdx.get(job.key) || []).forEach((idx) => {
+      blocks[idx].imagePrompt = row.imagePrompt;
+      blocks[idx].imagePromptZh = row.imagePromptZh;
+    });
+  });
+
+  fillInheritedImagePrompts(blocks);
+  return { rewritten: jobs.length };
+}
+
+function fillInheritedImagePrompts(blocks) {
+  let lastEn = "";
+  let lastZh = "";
+  for (const b of blocks) {
+    if (!b || b.type === "choice") continue;
+    if (b.type === "scene") {
+      if (isWeakImagePrompt(b.imagePrompt, b.content) || isWeakImagePrompt(b.imagePromptZh, b.content)) {
+        const imgs = synthesizeImagePrompts(b.content);
+        if (isWeakImagePrompt(b.imagePrompt, b.content)) b.imagePrompt = imgs.imagePrompt;
+        if (isWeakImagePrompt(b.imagePromptZh, b.content)) b.imagePromptZh = imgs.imagePromptZh;
+      }
+      lastEn = b.imagePrompt || lastEn;
+      lastZh = b.imagePromptZh || lastZh;
+      continue;
+    }
+    if (b.type === "dialogue") {
+      if (!b.imagePrompt && lastEn) b.imagePrompt = lastEn;
+      if (!b.imagePromptZh && lastZh) b.imagePromptZh = lastZh;
+      if (b.content && isWeakImagePrompt(b.imagePrompt, b.content) && lastEn) b.imagePrompt = lastEn;
+      if (b.content && isWeakImagePrompt(b.imagePromptZh, b.content) && lastZh) b.imagePromptZh = lastZh;
+    }
+  }
 }
 
 /**
@@ -365,35 +533,7 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
     });
   }
 
-  // 场景必有中英生图词；对白继承上一镜，方便一键生图
-  let lastEn = "";
-  let lastZh = "";
-  for (const b of out) {
-    if (b.type === "choice") continue;
-    if (b.imagePrompt && String(b.imagePrompt).trim().length >= 16) {
-      lastEn = String(b.imagePrompt).trim();
-      if (b.imagePromptZh && String(b.imagePromptZh).trim().length >= 8) {
-        lastZh = String(b.imagePromptZh).trim();
-      } else if (!b.imagePromptZh && lastZh) {
-        b.imagePromptZh = lastZh;
-      } else if (!b.imagePromptZh) {
-        b.imagePromptZh = synthesizeImagePrompts(b.content).imagePromptZh;
-        lastZh = b.imagePromptZh;
-      }
-      continue;
-    }
-    if (b.type === "scene") {
-      const imgs = synthesizeImagePrompts(b.content);
-      b.imagePrompt = imgs.imagePrompt;
-      b.imagePromptZh = imgs.imagePromptZh;
-      lastEn = b.imagePrompt;
-      lastZh = b.imagePromptZh;
-    } else if (b.type === "dialogue" && lastEn) {
-      b.imagePrompt = lastEn;
-      if (lastZh) b.imagePromptZh = lastZh;
-    }
-  }
-
+  fillInheritedImagePrompts(out);
   return out.slice(0, maxBlocks);
 }
 
@@ -671,12 +811,14 @@ export async function extractNovelToMake(body, env) {
       }
 
       const blocks = normalizeMakeBlocks(merged, { maxBlocks: 72, sceneMax: 42, dialogueMax: 32 });
+      const enrich = await enrichBlocksImagePrompts(env, modelRef, blocks);
       return wrapMakeWork(title, orientation, blocks, cast, {
         attempts,
         source: "llm",
         provider,
         chunks: chunks.length,
         coveredChars: chunks.reduce((n, c) => n + c.length, 0),
+        promptsRewritten: enrich.rewritten,
       });
     }
 
@@ -693,6 +835,7 @@ export async function extractNovelToMake(body, env) {
       maxTokens: 2200,
     });
     const blocks = normalizeMakeBlocks(parsed.blocks, { maxBlocks: 36, sceneMax: 42, dialogueMax: 32 });
+    await enrichBlocksImagePrompts(env, null, blocks);
     return wrapMakeWork(
       parsed.title || titleHint || "互动改编",
       orientation,
@@ -704,11 +847,18 @@ export async function extractNovelToMake(body, env) {
     console.warn("NOVEL EXTRACT fallback:", e.message || e);
     const fb = fallbackExtractFromText(text, titleHint);
     const blocks = normalizeMakeBlocks(fb.blocks, { maxBlocks: 72, sceneMax: 42, dialogueMax: 32 });
+    // 兜底路径若有 DeepSeek，仍专改生图词
+    let promptsRewritten = 0;
+    try {
+      const enrich = await enrichBlocksImagePrompts(env, modelRef, blocks);
+      promptsRewritten = enrich.rewritten;
+    } catch (_) { /* ignore */ }
     return wrapMakeWork(fb.title, orientation, blocks, fb.cast, {
       attempts: 0,
       source: "fallback",
       provider,
-      warning: "AI 提取不稳定，已用规则切成短镜头，可在编辑器里改。",
+      promptsRewritten,
+      warning: "AI 提取不稳定，已用规则切成短镜头；生图词已尽量改写，可在编辑器里再改。",
     });
   }
 }

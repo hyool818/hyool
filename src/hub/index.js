@@ -17,7 +17,8 @@ import { deriveAssets, normalizeBlueprint, validateBlueprint, STYLE_PRESETS, IMG
 import { TTS_VOICES } from "../tts.js";
 import { chatCompletions } from "../ai/gateway.js";
 import { isDeepseekConfigured } from "../ai/models.js";
-import { generateNovel, extractNovelToMake } from "./novel.js";
+import { generateNovel, extractNovelToMake, rewriteCaptionPrompts } from "./novel.js";
+import { resolveNovelModelRef } from "../ai/models.js";
 
 export async function handleHubRoutes(request, env, pathname, method, helpers) {
     // 只接管 /api/hub/* 子路径（meta/plan/run）；精确路径 /api/hub 是 MVP 的
@@ -121,6 +122,30 @@ export async function handleHubRoutes(request, env, pathname, method, helpers) {
         } catch (e) {
             console.error("HUB NOVEL-EXTRACT ERROR:", e);
             return json({ success: false, error: e.message || "剧情提取失败。" }, 500);
+        }
+    }
+
+    // 单条/批量：字幕 → 中英生图词（禁止照抄）
+    if (pathname === "/api/hub/novel-prompt-rewrite" && method === "POST") {
+        try {
+            const body = await request.json().catch(() => ({}));
+            const modelRef = resolveNovelModelRef(env);
+            let items = Array.isArray(body.items) ? body.items : null;
+            if (!items && body.content) {
+                items = [{ id: "0", content: body.content }];
+            }
+            if (!items || !items.length) {
+                return json({ success: false, error: "缺少字幕 content / items。" }, 400);
+            }
+            const rewritten = await rewriteCaptionPrompts(items, env, modelRef);
+            return json({
+                success: true,
+                provider: modelRef ? "deepseek" : "heuristic",
+                items: rewritten,
+            });
+        } catch (e) {
+            console.error("HUB NOVEL-PROMPT-REWRITE ERROR:", e);
+            return json({ success: false, error: e.message || "提示词改写失败。" }, 500);
         }
     }
 
