@@ -2551,7 +2551,11 @@ async function runNovelExtract() {
     selectedId = blocks()[0]?.id || null;
     editBranch = null;
     showEdit();
-    toast('已提取为《' + title + '》，可直接试玩');
+    if (d.warning || d.source === 'fallback') {
+      toast(d.warning || '已用规则切成镜头，可在左侧继续改');
+    } else {
+      toast('已提取为《' + title + '》，可直接试玩');
+    }
   } catch (e) {
     setNovelStatus(e.message || '提取失败', true);
     toast(e.message || '提取失败', true);
