@@ -414,8 +414,13 @@ function mountChoicePreview(stage, b) {
 function normalizeBranchBlock(bl) {
   if (!bl || typeof bl !== 'object') return { id: uid(), type: 'dialogue', speaker: DEFAULT_SPEAKER, content: '' };
   if (!bl.id) bl.id = uid();
-  if (bl.type !== 'scene' && bl.type !== 'dialogue') bl.type = 'dialogue';
+  if (bl.type !== 'scene' && bl.type !== 'dialogue' && bl.type !== 'rogue') bl.type = 'dialogue';
   if (bl.type === 'dialogue' && !bl.speaker) bl.speaker = DEFAULT_SPEAKER;
+  if (bl.type === 'rogue') {
+    if (typeof bl.content !== 'string') bl.content = '遭遇战';
+    if (typeof bl.winContent !== 'string') bl.winContent = '';
+    if (typeof bl.loseContent !== 'string') bl.loseContent = '';
+  }
   return bl;
 }
 
@@ -1338,7 +1343,7 @@ function renderPanel() {
   typeRow.className = 'field';
   typeRow.innerHTML = '<label>镜头类型</label>';
   const sel = document.createElement('select');
-  const branchTypes = ['scene', 'dialogue'];
+  const branchTypes = ['scene', 'dialogue', 'rogue'];
   const typeChoices = editBranch ? branchTypes : ['scene', 'dialogue', 'choice', 'rogue'];
   typeChoices.forEach((t) => {
     const o = document.createElement('option');
@@ -1393,7 +1398,7 @@ function renderPanel() {
     panelBody.appendChild(choiceEditor(b));
   }
 
-  if (b.type === 'rogue' && !editBranch) {
+  if (b.type === 'rogue') {
     panelBody.appendChild(rogueShotPanel(b));
   }
 
@@ -2022,14 +2027,24 @@ function addBranchBlock(choiceBlock, choiceId, type) {
   const c = choiceBlock.choices.find((x) => x.id === choiceId);
   if (!c) return;
   if (!Array.isArray(c.branch)) c.branch = [];
-  const bl = { id: uid(), type, content: type === 'scene' ? '新场景……' : '在这里写下对白……' };
+  const bl = {
+    id: uid(),
+    type,
+    content: type === 'scene' ? '新场景……' : type === 'rogue' ? '一只敌人挡住了去路！' : '在这里写下对白……',
+  };
   if (type === 'dialogue') bl.speaker = DEFAULT_SPEAKER;
+  if (type === 'rogue') {
+    bl.winContent = '你赢了。';
+    bl.loseContent = '你败了，重整旗鼓再来。';
+    ensureWorkRogue({ preferQueue: true });
+  }
   c.branch.push(bl);
   if (!c.branchEnd) c.branchEnd = 'main';
   selectedId = choiceBlock.id;
   editBranch = { choiceBlockId: choiceBlock.id, choiceId: c.id, blockId: bl.id };
   scheduleSave();
   renderEdit();
+  if (type === 'rogue') toast('已加入卡牌子镜头，可在右侧打开卡牌工作室');
 }
 
 function removeEndShot(choiceBlockId, choiceId) {
@@ -2186,6 +2201,7 @@ function choiceEditor(b) {
     addRow.append(
       btn('+ 对白', () => addBranchBlock(b, c.id, 'dialogue')),
       btn('+ 场景', () => addBranchBlock(b, c.id, 'scene')),
+      btn('+ 卡牌战', () => addBranchBlock(b, c.id, 'rogue')),
     );
     branchSec.appendChild(addRow);
 
