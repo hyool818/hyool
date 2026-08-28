@@ -151,10 +151,29 @@ export async function generateNovel(body, env) {
   throw new Error(lastErr || "小说生成失败");
 }
 
+/** 缺省时从字幕兜底一条可投喂 Comfy / Pollinations 的背景提示词 */
+function synthesizeImagePrompt(content) {
+  const detail = clampText(String(content || "").replace(/[「」『』""]/g, ""), 90);
+  return (
+    "visual novel background, " +
+    (detail || "atmospheric scene") +
+    ", cinematic lighting, detailed environment, anime illustration, no text, no watermark, no UI"
+  );
+}
+
+function pickImagePrompt(raw, content) {
+  const p = clampText(
+    (raw && (raw.imagePrompt || raw.visualPrompt || raw.bgPrompt || raw.imgPrompt)) || "",
+    700
+  );
+  if (p.length >= 16) return p;
+  return synthesizeImagePrompt(content);
+}
+
 /**
  * 将模型块规范成 make 可用的 blocks
  * choice: content + choices[{label, jump, branch, branchEnd, endShot?}]
- * 长句拆成多镜，单镜控制在字幕可读长度，避免占满屏 / 半截截断。
+ * 长句拆成多镜；scene 带 imagePrompt（生图用，与字幕 content 分离）。
  */
 function normalizeMakeBlocks(rawBlocks, opts = {}) {
   const out = [];
@@ -173,9 +192,10 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
 
     if (type === "scene") {
       const pieces = splitSpeech(raw.content || raw.text || "……", sceneMax);
+      const imgPrompt = pickImagePrompt(raw, pieces[0] || "");
       for (const content of pieces) {
         if (out.length >= maxBlocks) break;
-        out.push({ id: uid("b"), type: "scene", content });
+        out.push({ id: uid("b"), type: "scene", content, imagePrompt: imgPrompt });
       }
       continue;
     }
@@ -183,9 +203,15 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
     if (type === "dialogue") {
       const speaker = clampText(raw.speaker || "旁白", 24) || "旁白";
       const pieces = splitSpeech(raw.content || raw.text || "……", dialogueMax);
+      const imgPrompt = clampText(
+        raw.imagePrompt || raw.visualPrompt || raw.bgPrompt || "",
+        700
+      );
       for (const content of pieces) {
         if (out.length >= maxBlocks) break;
-        out.push({ id: uid("b"), type: "dialogue", speaker, content });
+        const block = { id: uid("b"), type: "dialogue", speaker, content };
+        if (imgPrompt.length >= 16) block.imagePrompt = imgPrompt;
+        out.push(block);
       }
       continue;
     }
@@ -208,6 +234,7 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
       }));
       if (endBad) {
         const endPieces = splitSpeech(o.endText || o.ending || "故事在此告一段落。", sceneMax);
+        const endContent = endPieces[0] || "故事在此告一段落。";
         return {
           id: uid("c"),
           label,
@@ -217,7 +244,8 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
           endShot: {
             id: uid("end"),
             type: "scene",
-            content: endPieces[0] || "故事在此告一段落。",
+            content: endContent,
+            imagePrompt: pickImagePrompt(o, endContent),
           },
         };
       }
@@ -239,11 +267,15 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
         branchEnd: choices.length ? "shot" : "main",
         branch: [],
         endShot: choices.length
-          ? { id: uid("end"), type: "scene", content: "……你转身离开。" }
+          ? {
+              id: uid("end"),
+              type: "scene",
+              content: "……你转身离开。",
+              imagePrompt: synthesizeImagePrompt("character walking away, empty street at dusk"),
+            }
           : undefined,
       });
     }
-    // 去掉已有 choice，稍后只在合适位置插一个
     out.push({
       id: uid("b"),
       type: "choice",
@@ -271,7 +303,12 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
   }
 
   if (!out.length) {
-    out.push({ id: uid("b"), type: "scene", content: "故事从这里开始。" });
+    out.push({
+      id: uid("b"),
+      type: "scene",
+      content: "故事从这里开始。",
+      imagePrompt: synthesizeImagePrompt("story beginning, quiet atmosphere"),
+    });
     out.push({ id: uid("b"), type: "dialogue", speaker: "旁白", content: "（请在编辑器里继续完善）" });
   }
 
@@ -295,10 +332,31 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
           jump: "end",
           branchEnd: "shot",
           branch: [{ id: uid("br"), type: "dialogue", speaker: "你", content: "还是再看看。" }],
-          endShot: { id: uid("end"), type: "scene", content: "你错过了时机。故事在此告一段落。" },
+          endShot: {
+            id: uid("end"),
+            type: "scene",
+            content: "你错过了时机。故事在此告一段落。",
+            imagePrompt: synthesizeImagePrompt("empty path, missed chance, melancholic light"),
+          },
         },
       ],
     });
+  }
+
+  // 场景必有生图词；对白继承上一镜背景提示，方便一键生图
+  let lastImg = "";
+  for (const b of out) {
+    if (b.type === "choice") continue;
+    if (b.imagePrompt && String(b.imagePrompt).trim().length >= 16) {
+      lastImg = String(b.imagePrompt).trim();
+      continue;
+    }
+    if (b.type === "scene") {
+      b.imagePrompt = synthesizeImagePrompt(b.content);
+      lastImg = b.imagePrompt;
+    } else if (b.type === "dialogue" && lastImg) {
+      b.imagePrompt = lastImg;
+    }
   }
 
   return out.slice(0, maxBlocks);
@@ -448,13 +506,13 @@ function fallbackExtractFromText(text, titleHint) {
     }
     splitSpeech(p, 42).forEach((content) => {
       if (blocks.length >= 70) return;
-      blocks.push({ type: "scene", content });
+      blocks.push({ type: "scene", content, imagePrompt: synthesizeImagePrompt(content) });
     });
   });
 
   if (blocks.length < 4) {
     splitSpeech(cleaned.replace(/\s+/g, " "), 42).slice(0, 40).forEach((content) => {
-      blocks.push({ type: "scene", content });
+      blocks.push({ type: "scene", content, imagePrompt: synthesizeImagePrompt(content) });
     });
   }
 
@@ -477,11 +535,13 @@ function buildExtractSystem({ minShots, maxShots, withChoice, partHint }) {
     "你是视觉小说镜头提取器。按时间顺序把小说改成短镜头表。只输出 JSON 对象，不要 markdown，不要解释。" +
     "字段：title(string), cast(string[]), blocks(array)。" +
     "blocks 每项 type 只能是 scene|dialogue|choice。" +
-    "scene:{type,content} dialogue:{type,speaker,content} " +
+    "scene:{type,content,imagePrompt} dialogue:{type,speaker,content} " +
     "choice:{type,content,choices:[{label,branch,end,endText?}]}。" +
     (partHint || "") +
     `要求：${minShots}~${maxShots} 个镜头；严格覆盖本段情节，不要跳过关键转折与对话；` +
-    "每条 content 不超过 28 个汉字；长段落必须拆成多条 scene/dialogue；" +
+    "每条 content 不超过 28 个汉字（给玩家看的字幕，不是生图词）；长段落拆成多条；" +
+    "每个 scene 必须带 imagePrompt：英文为主的文生图提示词（环境/时间/天气/光影/构图/画风），40~110 词，" +
+    "不要抄字幕原文，不要出现任何文字/UI/水印，不要人名对白；地点未变时可复用相近 imagePrompt；" +
     (withChoice
       ? "本段末尾必须含 1 个 choice（2 个选项，其中一个 end:true）。"
       : "本段不要输出 choice，只输出 scene 与 dialogue。")
@@ -558,7 +618,7 @@ export async function extractNovelToMake(body, env) {
           minShots: chunks.length === 1 ? 14 : 10,
           maxShots: chunks.length === 1 ? 36 : 20,
           partHint: `这是第${i + 1}/${chunks.length}段正文；`,
-          maxTokens: 4500,
+          maxTokens: 5200,
         });
         attempts += a;
         if (parsed.title && i === 0) title = clampText(parsed.title, 60) || title;

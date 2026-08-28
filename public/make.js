@@ -979,7 +979,8 @@ function renderShots() {
     row.innerHTML =
       '<span class="num">' + (i + 1) + '</span>' +
       '<div class="body">' +
-        '<div class="type">' + (TYPE_LABEL[b.type] || b.type) + mediaShotTag(b) + '</div>' +
+        '<div class="type">' + (TYPE_LABEL[b.type] || b.type) + mediaShotTag(b) +
+          (b.imagePrompt && String(b.imagePrompt).trim() ? ' · 有提示词' : '') + '</div>' +
         '<div class="txt">' + escapeHtml(preview || '（空）') + '</div>' +
       '</div>';
     row.addEventListener('click', () => { editBranch = null; selectedId = b.id; renderEdit(); });
@@ -1102,6 +1103,10 @@ function renderPanel() {
     renderShots();
     updateSteps();
   }));
+
+  if (b.type === 'scene' || b.type === 'dialogue') {
+    panelBody.appendChild(imagePromptPanel(b));
+  }
 
   if ((b.type === 'scene' || b.type === 'dialogue') && !editBranch) {
     panelBody.appendChild(textStylePanel(b));
@@ -1251,6 +1256,73 @@ function field(label, tag, value, onInput) {
   el.addEventListener('input', () => onInput(el.value));
   wrap.append(lab, el);
   return wrap;
+}
+
+function imagePromptPanel(b) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  const lab = document.createElement('label');
+  lab.textContent = '生图提示词（画面，不是字幕）';
+  const ta = document.createElement('textarea');
+  ta.rows = 3;
+  ta.placeholder = '英文为主：环境 / 光影 / 构图 / 画风；勿写对白';
+  ta.value = b.imagePrompt || '';
+  ta.addEventListener('input', () => {
+    b.imagePrompt = ta.value.slice(0, 700);
+    scheduleSave();
+  });
+  const ops = document.createElement('div');
+  ops.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
+  const gen = document.createElement('button');
+  gen.type = 'button';
+  gen.className = 'btn primary';
+  gen.textContent = '用提示词生图';
+  gen.addEventListener('click', () => genBlockBackground(b, gen));
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'btn';
+  copy.textContent = '复制提示词';
+  copy.addEventListener('click', async () => {
+    const t = (b.imagePrompt || '').trim();
+    if (!t) { toast('还没有生图提示词', true); return; }
+    try {
+      await navigator.clipboard.writeText(t);
+      toast('已复制');
+    } catch (_) {
+      toast('复制失败，请手动选中', true);
+    }
+  });
+  ops.append(gen, copy);
+  wrap.append(lab, ta, ops);
+  return wrap;
+}
+
+async function genBlockBackground(b, btn) {
+  const prompt = String(b.imagePrompt || b.content || '').trim();
+  if (!prompt) { toast('请先生图提示词', true); return; }
+  const old = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '生图中…'; }
+  toast('生图中（本机 Comfy 或云端，视设置而定）…');
+  try {
+    const mod = await import('/image-provider.js');
+    const portrait = work?.orientation === 'portrait';
+    const r = await mod.generateAndResolveUrl({
+      prompt,
+      width: portrait ? 768 : 1280,
+      height: portrait ? 1280 : 720,
+    });
+    if (!r?.url) throw new Error('生图失败');
+    b.media = { url: r.url, type: 'image' };
+    scheduleSave();
+    renderEdit();
+    renderPreview();
+    renderShots();
+    toast('背景已挂上');
+  } catch (e) {
+    toast((e && e.message) || '生图失败', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old || '用提示词生图'; }
+  }
 }
 
 function videoModePanel(b) {
