@@ -477,12 +477,17 @@ export function paintIdleShell(frame, run, tab) {
   if (tab === 'stages') return paintStages(frame, run, prog);
 
   const team = prog.teamIds.map((id) => ownedOf(r, id)).filter(Boolean);
+  const size = r.teamSize || 4;
   const slots = [];
-  for (let i = 0; i < (r.teamSize || 4); i++) {
+  for (let i = 0; i < size; i++) {
     const c = team[i];
-    slots.push(c
+    const front = i === 0;
+    const card = c
       ? portraitHtml(c, 'goddess-card slot', storyAssets(run))
-      : `<div class="goddess-card slot empty"><span class="ch">+</span><span class="nm">空位</span></div>`);
+      : `<div class="goddess-card slot empty"><span class="ch">+</span><span class="nm">空位</span></div>`;
+    slots.push(`<div class="idle-party-slot${front ? ' is-front' : ''}">
+      <span class="slot-ix">${front ? '前排' : ('位' + (i + 1))}</span>${card}
+    </div>`);
   }
   const cur = stages[prog.stageIdx];
   const cleared = prog.stageIdx >= stages.length && stages.length > 0;
@@ -501,7 +506,10 @@ export function paintIdleShell(frame, run, tab) {
       <div class="idle-stage-title">${escHtml(stageLine)}</div>
       <div class="idle-stage-sub">召唤抽卡 · 5 张同阶合成升阶 · 挂机推关</div>
     </div>
-    <div class="idle-party">${slots.join('')}</div>
+    <div class="idle-party-bar">
+      <div class="idle-party-label">编队 <em>${team.length}/${size}</em></div>
+      <div class="idle-party">${slots.join('')}</div>
+    </div>
     <div class="idle-cta">
       <button type="button" class="btn primary wide" id="idlePush" ${(!stages.length || cleared || !team.length) ? 'disabled' : ''}>
         ${cleared ? '已通关' : (team.length ? '▶ 挂机推关' : '先去女神册选人')}
@@ -640,7 +648,7 @@ function paintGacha(frame, run, prog) {
       <div class="idle-stage-sub">从作品角色表抽取。重复角色变同阶碎片，5 张合成升一阶。</div>
     </div>
     <div class="gacha-pool" id="gachaPool"></div>
-    <div class="gacha-result" id="gachaResult"></div>
+    <div class="gacha-result gacha-reveal-row" id="gachaResult"></div>
     <div class="idle-cta gacha-ops">
       <button type="button" class="btn primary" id="gacha1" ${prog.gold < cost1 || !(r.roster || []).length ? 'disabled' : ''}>抽1次 (${cost1}🪙)</button>
       <button type="button" class="btn" id="gacha10" ${prog.gold < cost10 || !(r.roster || []).length ? 'disabled' : ''}>抽10次 (${cost10}🪙)</button>
@@ -661,16 +669,27 @@ function paintGacha(frame, run, prog) {
   const g10 = frame.querySelector('#gacha10');
   if (g1 && !g1.disabled) g1.addEventListener('click', () => run.ctx.onIdleGacha && run.ctx.onIdleGacha(1));
   if (g10 && !g10.disabled) g10.addEventListener('click', () => run.ctx.onIdleGacha && run.ctx.onIdleGacha(10));
-  if (run.gachaLast && run.gachaLast.length) renderGachaResult(frame, r, run.gachaLast);
+  if (run.gachaLast && run.gachaLast.length) renderGachaResult(frame, r, run.gachaLast, storyAssets(run));
 }
 
-export function renderGachaResult(frame, r, results) {
+export function renderGachaResult(frame, r, results, assets) {
   const box = frame.querySelector('#gachaResult');
   if (!box) return;
-  box.innerHTML = results.map((x) => {
-    const c = (r.roster || []).find((u) => u.id === x.id) || { name: '?', star: 1 };
-    const tag = x.dup ? '碎片+1' : 'NEW';
-    return `<div class="gacha-chip star${x.star}">${escHtml(c.name)} ${starTierLabel(x.star)} <span>${tag}</span></div>`;
+  box.classList.add('gacha-reveal-row');
+  const assetList = assets || [];
+  box.innerHTML = (results || []).map((x, i) => {
+    const c = (r.roster || []).find((u) => u.id === x.id) || { name: '?', star: 1, id: x.id };
+    const star = starOf(x.star || c.star);
+    const tag = x.dup ? '<span class="dup">碎片+1</span>' : '<span class="new">NEW</span>';
+    const delay = (i * 90) + 'ms';
+    const face = portraitHtml({ ...c, star }, 'goddess-card', assetList);
+    return `<div class="gacha-reveal star${star}" style="animation-delay:${delay}">
+      <div class="gacha-reveal-inner" style="animation-delay:${delay}">
+        <div class="gacha-reveal-back" aria-hidden="true"></div>
+        <div class="gacha-reveal-face">${face}</div>
+      </div>
+      <div class="gacha-reveal-tag">${escHtml(c.name || '?')} · ${starTierLabel(star)} ${tag}</div>
+    </div>`;
   }).join('');
 }
 

@@ -561,7 +561,7 @@ function paint() {
   if (run.phase === 'home' || run.phase === 'book' || run.phase === 'stages' || run.phase === 'gacha') {
     paintIdleShell(frame, run, run.phase === 'home' ? 'home' : run.phase);
     if (run.phase === 'gacha' && run.gachaLast && run.gachaLast.length) {
-      renderGachaResult(frame, run.rogue, run.gachaLast);
+      renderGachaResult(frame, run.rogue, run.gachaLast, (run.story && run.story.assets) || []);
     }
     return;
   }
@@ -884,6 +884,8 @@ function resolveAct(who, isEnemy, mods) {
     run.battle.log.push(`${who.name} → ${t.name} ${dmg}`);
     fx.targetIds = [t.id];
     fx.kind = 'atk';
+    fx.amount = dmg;
+    fx.label = '-' + dmg;
     run.battle.actFx = fx;
     return;
   }
@@ -901,6 +903,8 @@ function resolveAct(who, isEnemy, mods) {
     fx.targetIds = [t.id];
     fx.kind = 'heal';
     fx.elem = sk.elem || who.elem || 'wood';
+    fx.amount = heal;
+    fx.label = '+' + heal;
     run.battle.actFx = fx;
     return;
   }
@@ -909,6 +913,8 @@ function resolveAct(who, isEnemy, mods) {
     run.battle.log.push(`${who.name} 蓄力`);
     fx.targetIds = [who.id];
     fx.kind = 'buff';
+    fx.amount = 0;
+    fx.label = '▲';
     run.battle.actFx = fx;
     return;
   }
@@ -924,6 +930,8 @@ function resolveAct(who, isEnemy, mods) {
   fx.targetIds = [t.id];
   fx.kind = 'atk';
   fx.elem = elem || who.elem || 'fire';
+  fx.amount = dmg;
+  fx.label = '-' + dmg;
   run.battle.actFx = fx;
 }
 
@@ -1089,6 +1097,40 @@ function syncBattleUnitEl(el, unit, ready, fx) {
   if (spd) spd.style.width = Math.min(100, unit.gauge || 0) + '%';
 }
 
+function battleUnitSel(kind, id) {
+  const safe = String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return kind === 'enemy'
+    ? '.bt-enemy[data-enemy-id="' + safe + '"]'
+    : '.bt-member[data-char-id="' + safe + '"]';
+}
+
+function spawnBattleFloat(host, text, kind) {
+  if (!host || text == null || text === '') return;
+  const el = document.createElement('span');
+  el.className = 'bt-float bt-float-' + (kind || 'atk');
+  el.textContent = String(text);
+  el.setAttribute('aria-hidden', 'true');
+  host.appendChild(el);
+  const done = () => { try { el.remove(); } catch { /* ignore */ } };
+  el.addEventListener('animationend', done, { once: true });
+  setTimeout(done, 1100);
+}
+
+function spawnFloatsFromFx(frame, fx) {
+  if (!frame || !fx || fx._floated) return;
+  const ids = Array.isArray(fx.targetIds) ? fx.targetIds : [];
+  if (!ids.length) return;
+  fx._floated = true;
+  const kind = fx.kind || 'atk';
+  const label = fx.label || (kind === 'heal' ? '+' + (fx.amount || '') : kind === 'buff' ? '▲' : '-' + (fx.amount || ''));
+  const enemyIds = new Set((run.battle && run.battle.enemies || []).map((e) => e.id));
+  ids.forEach((id) => {
+    const sel = battleUnitSel(enemyIds.has(id) ? 'enemy' : 'party', id);
+    const host = frame.querySelector(sel);
+    spawnBattleFloat(host, label, kind);
+  });
+}
+
 /** 局部刷新：不碰立绘 img/video，动图/短视频可连续播 */
 function patchBattleFrame(frame) {
   const b = run.battle;
@@ -1101,15 +1143,14 @@ function patchBattleFrame(frame) {
     btn.classList.toggle('primary', Number(btn.dataset.sp) === run.speed);
   });
   (b.enemies || []).forEach((e) => {
-    const sel = '.bt-enemy[data-enemy-id="' + String(e.id).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]';
-    const el = frame.querySelector(sel);
+    const el = frame.querySelector(battleUnitSel('enemy', e.id));
     syncBattleUnitEl(el, e, ready, fx);
   });
   (run.team || []).forEach((m) => {
-    const sel = '.bt-member[data-char-id="' + String(m.id).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]';
-    const el = frame.querySelector(sel);
+    const el = frame.querySelector(battleUnitSel('party', m.id));
     syncBattleUnitEl(el, m, ready, fx);
   });
+  spawnFloatsFromFx(frame, fx);
   const logEl = frame.querySelector('.bt-log');
   if (logEl) {
     logEl.innerHTML = (b.log || []).slice(-8).map((l) => `<div class="bt-log-line">${esc(l)}</div>`).join('');
@@ -1212,6 +1253,7 @@ function paintBattle(frame) {
     </div>
     <div class="bt-log">${log}</div>${result}`;
   frame.dataset.btSig = battleStructKey();
+  spawnFloatsFromFx(frame, fx);
   frame.querySelectorAll('[data-sp]').forEach(btn => {
     btn.addEventListener('click', () => {
       run.speed = Number(btn.dataset.sp) || 1;
@@ -1286,7 +1328,11 @@ function takeRelic(r) {
 function paintEvent(frame) {
   const ev = run.event || { title: '路上', text: '', choices: [{ label: '继续', kind: 'none' }] };
   frame.innerHTML = `<div class="rg-head"><b>${esc(ev.title)}</b></div>
-    <div class="rg-event">${esc(ev.text || '')}</div><div class="rg-ops" id="rgCh"></div>`;
+    <div class="vn-dialog rg-event">
+      <div class="vn-dialog-name">${esc(ev.title || '事件')}</div>
+      <div class="vn-dialog-body">${esc(ev.text || '')}</div>
+    </div>
+    <div class="rg-ops" id="rgCh"></div>`;
   (ev.choices && ev.choices.length ? ev.choices : [{ label: '继续', kind: 'none' }]).forEach(c => {
     const b = document.createElement('button');
     b.className = 'btn';
@@ -1306,7 +1352,10 @@ function applyChoice(kind) {
 }
 function paintRest(frame) {
   frame.innerHTML = `<div class="rg-head"><b>歇一口气</b></div>
-    <div class="rg-event">回 40% 血，然后打最后的对手。</div>
+    <div class="vn-dialog rg-event">
+      <div class="vn-dialog-name">休整</div>
+      <div class="vn-dialog-body">回 40% 血，然后打最后的对手。</div>
+    </div>
     <div class="rg-ops"><button class="btn primary" id="rgRest">好</button></div>`;
   frame.querySelector('#rgRest').addEventListener('click', () => {
     run.team.forEach(m => { if (m.hp > 0) m.hp = Math.min(m.maxHp, m.hp + Math.round(m.maxHp * 0.4)); });
