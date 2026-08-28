@@ -1369,14 +1369,18 @@ function paintEnd(frame) {
     <div class="bt-result-title${win ? '' : ' lost'}">${win ? '打完了' : '没打过'}</div>
     <div class="bt-result-text">${win ? (run.block.winContent || (idle ? '回主城继续养成和推关。' : '可以改角色数值，或换一种玩法再试。')) : (run.block.loseContent || '把敌人生命调低，或把角色攻击调高。')}</div>
     <div class="bt-result-ops">
-      <button class="btn primary" id="rgA">${idle ? (win ? '回主城' : '回主城再试') : (win ? '回到剧情' : '再来一次')}</button>
+      <button class="btn primary" id="rgA">${idle ? (win ? '回主城' : '回主城再试') : (win ? '回到剧情' : (run.ctx.onLose ? '继续剧情' : '再来一次'))}</button>
       <button class="btn ghost" id="rgB">退出</button>
     </div></div>`;
   frame.querySelector('#rgB').addEventListener('click', run.ctx.onExit);
   frame.querySelector('#rgA').addEventListener('click', () => {
     if (idle) { goIdleHome(); return; }
     if (win) { const n = run.ctx.onWin; stopRogueRun(); if (n) n(); }
-    else startRogueRun(run.block, run.ctx);
+    else if (typeof run.ctx.onLose === 'function') {
+      const n = run.ctx.onLose;
+      stopRogueRun();
+      n();
+    } else startRogueRun(run.block, run.ctx);
   });
 }
 

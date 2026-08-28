@@ -1,6 +1,14 @@
-// make.js — HYOOL 主创作应用（视觉小说：图片镜 + 视频镜）
+// make.js — HYOOL 主创作应用（视觉小说：图片镜 + 视频镜 + 卡牌战）
 import { $, $$, toast } from '/workspace/js/ui.js';
 import { purgeLocalStory } from '/story-local-cache.js';
+import {
+  normalizeRogue,
+  applyStarterPack,
+  startRogueRun,
+  stopRogueRun,
+  openCardStudio,
+  CARD_MODES,
+} from '/story-rogue.js?v=20260828vn1';
 
 const PAGE = '/make.html';
 const WORK_KIND = 'story';
@@ -8,7 +16,7 @@ const WORK_KIND = 'story';
 const TOKEN_KEY = 'hyool_token';
 const DEFAULT_SPEAKER = '角色名';
 const MAX_FILE = 5 * 1024 * 1024;
-const TYPE_LABEL = { scene: '场景', dialogue: '对白', choice: '选项' };
+const TYPE_LABEL = { scene: '场景', dialogue: '对白', choice: '选项', rogue: '卡牌战' };
 const KIND_LABEL = {
   story: '视觉小说',
   interactive_video: '视觉小说',
@@ -102,6 +110,7 @@ const ITEM_PRESETS = [
   { id: 'gold', label: '银两' },
   { id: 'token', label: '令牌' },
   { id: 'bond', label: '好感' },
+  { id: 'battle_win', label: '战斗胜利标记' },
 ];
 const ITEM_LABEL = Object.fromEntries(ITEM_PRESETS.map((x) => [x.id, x.label]));
 const REQUIRE_OPS = ['>=', '<=', '==', '>', '<', '!='];
@@ -183,6 +192,11 @@ function normalizeWork(s) {
       if (!b.id) b.id = uid();
       if (b.type === 'dialogue' && !b.speaker) b.speaker = DEFAULT_SPEAKER;
       if (b.type === 'choice') normalizeChoice(b, c.blocks);
+      if (b.type === 'rogue') {
+        if (typeof b.content !== 'string') b.content = '遭遇战';
+        if (typeof b.winContent !== 'string') b.winContent = '';
+        if (typeof b.loseContent !== 'string') b.loseContent = '';
+      }
       if (b.media?.type === 'video') {
         ensureVideoMode(b.media);
         if (wasVideoKind) b.media.videoMode = 'clip';
@@ -190,6 +204,7 @@ function normalizeWork(s) {
     });
   });
   ensureWorkLogic(s);
+  if (s.rogue) s.rogue = normalizeRogue(s.rogue);
   s.kind = WORK_KIND;
   return s;
 }
@@ -242,7 +257,60 @@ function ensureWorkLogic(s) {
       });
     });
   });
+  if (state.battle_win == null) state.battle_win = 0;
   w.logic.state = state;
+}
+
+/** 视觉小说内嵌卡牌数据（与 make-card / story-rogue 同一套） */
+function ensureWorkRogue(opts = {}) {
+  if (!work) return null;
+  const forceStarter = !!opts.forceStarter;
+  work.rogue = normalizeRogue(work.rogue);
+  // VN 内嵌默认用「修仙自动战」：打完可回到剧情（idle 会停在主城）
+  if (!work.rogue.mode || (opts.preferQueue && work.rogue.mode === 'idle' && !work.rogue.roster?.length)) {
+    work.rogue.mode = 'queue';
+  }
+  if (forceStarter || !work.rogue.roster?.length) {
+    applyStarterPack(work, work.rogue.mode === 'idle' ? 'queue' : work.rogue.mode);
+    work.rogue = normalizeRogue(work.rogue);
+    if (work.rogue.mode === 'idle') work.rogue.mode = 'queue';
+  }
+  return work.rogue;
+}
+
+function openMakeCardStudio() {
+  if (!work) return;
+  ensureWorkRogue({ preferQueue: true });
+  openCardStudio(work, {
+    persist: () => { ensureWorkLogic(); scheduleSave(); },
+    openModal: makeOpenModal,
+    toast,
+  });
+}
+
+function makeOpenModal(title, buildBody) {
+  let modal = $('#modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal';
+    modal.className = 'modal hidden';
+    modal.innerHTML =
+      '<div class="modal-card modal-wide">' +
+      '<div class="modal-title" id="modalTitle"></div>' +
+      '<div class="modal-body" id="modalBody"></div>' +
+      '<div class="modal-actions"><button type="button" class="btn ghost" id="modalCancel">关闭</button></div>' +
+      '</div>';
+    document.body.appendChild(modal);
+    modal.querySelector('#modalCancel').addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.add('hidden');
+    });
+  }
+  $('#modalTitle').textContent = title || '卡牌工作室';
+  const body = $('#modalBody');
+  body.innerHTML = '';
+  buildBody(body);
+  modal.classList.remove('hidden');
 }
 
 function itemLabel(id) {
@@ -1154,7 +1222,13 @@ function renderPreview() {
       stage.appendChild(img);
     }
   }
-  if (hasCaption(b)) {
+  if (b.type === 'rogue') {
+    const hint = document.createElement('div');
+    hint.className = 'empty-hint';
+    hint.innerHTML = '⚔️ 卡牌战<br><span style="font-size:12px;opacity:.85">' +
+      escapeHtml((b.content || '试玩时进入自动战斗').slice(0, 48)) + '</span>';
+    stage.appendChild(hint);
+  } else if (hasCaption(b)) {
     mountCaption(stage, b, true);
   } else if (b.type === 'choice') {
     const cap = buildCaption({ ...b, type: 'dialogue', speaker: '选项', content: b.content || '请选择' }, { editing: true });
@@ -1203,7 +1277,7 @@ function renderPanel() {
   typeRow.innerHTML = '<label>镜头类型</label>';
   const sel = document.createElement('select');
   const branchTypes = ['scene', 'dialogue'];
-  const typeChoices = editBranch ? branchTypes : ['scene', 'dialogue', 'choice'];
+  const typeChoices = editBranch ? branchTypes : ['scene', 'dialogue', 'choice', 'rogue'];
   typeChoices.forEach((t) => {
     const o = document.createElement('option');
     o.value = t;
@@ -1216,6 +1290,12 @@ function renderPanel() {
     b.type = sel.value;
     if (b.type === 'dialogue' && !b.speaker) b.speaker = DEFAULT_SPEAKER;
     if (b.type === 'choice') normalizeChoice(b, blocks());
+    if (b.type === 'rogue') {
+      if (typeof b.winContent !== 'string') b.winContent = '你赢了。';
+      if (typeof b.loseContent !== 'string') b.loseContent = '你败了，重整旗鼓再来。';
+      if (!b.content) b.content = '一只敌人挡住了去路！';
+      ensureWorkRogue({ preferQueue: true });
+    }
     scheduleSave();
     renderEdit();
   });
@@ -1227,7 +1307,7 @@ function renderPanel() {
     panelBody.appendChild(sp);
   }
 
-  const contentLabel = b.type === 'scene' ? '字幕内容' : b.type === 'choice' ? '选项提示' : '对白内容';
+  const contentLabel = b.type === 'scene' ? '字幕内容' : b.type === 'choice' ? '选项提示' : b.type === 'rogue' ? '战前说明' : '对白内容';
   panelBody.appendChild(field(contentLabel, 'textarea', b.content || '', (v) => {
     b.content = v;
     scheduleSave();
@@ -1249,6 +1329,10 @@ function renderPanel() {
 
   if (b.type === 'choice' && !editBranch) {
     panelBody.appendChild(choiceEditor(b));
+  }
+
+  if (b.type === 'rogue' && !editBranch) {
+    panelBody.appendChild(rogueShotPanel(b));
   }
 
   const bgSec = document.createElement('div');
@@ -2225,6 +2309,56 @@ function choiceItemPanel(c) {
   return wrap;
 }
 
+function rogueShotPanel(b) {
+  ensureWorkRogue({ preferQueue: true });
+  const r = work.rogue;
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  const tip = document.createElement('p');
+  tip.style.cssText = 'font-size:11px;color:var(--muted);line-height:1.55;margin:0 0 10px';
+  tip.textContent = '试玩播到本镜时进入与卡牌游戏相同的自动战斗。打完可回到剧情；可用「战斗胜利标记」做后续选项条件。';
+  wrap.appendChild(tip);
+
+  const meta = document.createElement('p');
+  meta.style.cssText = 'font-size:12px;color:var(--text);margin:0 0 10px';
+  meta.textContent =
+    '玩法：' + (CARD_MODES[r.mode]?.label || r.mode) +
+    ' · 角色 ' + (r.roster?.length || 0) +
+    ' · 关卡 ' + (r.stages?.length || r.enemies?.length || 0);
+  wrap.appendChild(meta);
+
+  wrap.appendChild(field('胜利后旁白', 'textarea', b.winContent || '', (v) => {
+    b.winContent = v;
+    scheduleSave();
+  }));
+  wrap.appendChild(field('失败后旁白', 'textarea', b.loseContent || '', (v) => {
+    b.loseContent = v;
+    scheduleSave();
+  }));
+
+  const ops = document.createElement('div');
+  ops.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:10px';
+  const studio = document.createElement('button');
+  studio.type = 'button';
+  studio.className = 'btn primary';
+  studio.textContent = '卡牌工作室（角色/关卡）';
+  studio.addEventListener('click', () => openMakeCardStudio());
+  const pack = document.createElement('button');
+  pack.type = 'button';
+  pack.className = 'btn';
+  pack.textContent = '载入默认卡组';
+  pack.addEventListener('click', () => {
+    if (work.rogue?.roster?.length && !confirm('将覆盖当前卡牌配置，继续？')) return;
+    ensureWorkRogue({ forceStarter: true, preferQueue: true });
+    scheduleSave();
+    renderEdit();
+    toast('已载入默认卡组（修仙自动战）');
+  });
+  ops.append(studio, pack);
+  wrap.appendChild(ops);
+  return wrap;
+}
+
 function pickMedia(b) {
   const inp = document.createElement('input');
   inp.type = 'file';
@@ -2455,9 +2589,18 @@ function bindCrop() {
 
 function addBlock(type) {
   const ch = work.chapters[0];
-  const block = { id: uid(), type, content: type === 'scene' ? '新场景……' : type === 'choice' ? '你要怎么做？' : '在这里写下对白……' };
+  const block = {
+    id: uid(),
+    type,
+    content: type === 'scene' ? '新场景……' : type === 'choice' ? '你要怎么做？' : type === 'rogue' ? '一只敌人挡住了去路！' : '在这里写下对白……',
+  };
   if (type === 'dialogue') block.speaker = DEFAULT_SPEAKER;
   if (type === 'choice') normalizeChoice(block, blocks());
+  if (type === 'rogue') {
+    block.winContent = '你赢了。';
+    block.loseContent = '你败了，重整旗鼓再来。';
+    ensureWorkRogue({ preferQueue: true });
+  }
   ch.blocks.push(block);
   selectedId = block.id;
   scheduleSave();
@@ -2465,6 +2608,7 @@ function addBlock(type) {
   if (type === 'scene' || type === 'dialogue') {
     toast('写好字幕后，在下方点「AI 生成提示词」');
   }
+  if (type === 'rogue') toast('已加入卡牌战镜头，可在右侧打开卡牌工作室');
 }
 
 function removeBlock(id) {
@@ -2493,6 +2637,7 @@ function openAddPicker() {
     ['dialogue', '💬 对白'],
     ['scene', '🏙 场景'],
     ['choice', '🔀 选项'],
+    ['rogue', '⚔️ 卡牌战（同卡牌自动战斗）'],
   ];
   const m = document.createElement('div');
   m.className = 'mk-modal mk-picker-modal show';
@@ -2517,13 +2662,14 @@ function buildPlayFlat() {
   const flat = [];
   (work.chapters || []).forEach((ch) => {
     (ch.blocks || []).forEach((b) => {
-      if (['scene', 'dialogue', 'choice'].includes(b.type)) flat.push(b);
+      if (['scene', 'dialogue', 'choice', 'rogue'].includes(b.type)) flat.push(b);
     });
   });
   return flat;
 }
 
 function startPlay() {
+  stopRogueRun();
   playMainFlat = buildPlayFlat();
   if (!playMainFlat.length) { toast('还没有可播放的镜头，先加对白或场景', true); return; }
   playMainIdx = 0;
@@ -2551,12 +2697,15 @@ function stopPlay() {
   playBranchFlat = null;
   playBranchIdx = 0;
   playSiblingJumps = null;
+  stopRogueRun();
   stopPlayAudio();
   stopPlayBgm();
   playBgmUrl = null;
   playBgmChapter = null;
   $('#playOverlay').classList.remove('show');
   $('#playBody').innerHTML = '';
+  const nav = $('#playNav');
+  if (nav) nav.classList.remove('hidden');
   updateSteps();
   const to = playReturnTo;
   playReturnTo = null;
@@ -2605,6 +2754,42 @@ function renderPlay() {
   const b = currentPlayBlock();
   if (!b) { stopPlay(); return; }
   const idx = playCurrentIdx();
+  const nav = $('#playNav');
+
+  if (b.type === 'rogue') {
+    stopRogueRun();
+    ensureWorkRogue({ preferQueue: true });
+    if (nav) nav.classList.add('hidden');
+    startRogueRun(b, {
+      story: work,
+      playBody: body,
+      playNav: nav,
+      orientation: work.orientation,
+      onWin: () => {
+        playState.battle_win = 1;
+        updatePlayInventoryHud();
+        if (nav) nav.classList.remove('hidden');
+        toast('战斗胜利');
+        playNext();
+      },
+      onLose: () => {
+        playState.battle_win = 0;
+        updatePlayInventoryHud();
+        if (nav) nav.classList.remove('hidden');
+        toast('战斗失败，继续剧情');
+        playNext();
+      },
+      onExit: () => {
+        if (nav) nav.classList.remove('hidden');
+        stopPlay();
+      },
+      onPersist: () => { scheduleSave(); },
+    });
+    return;
+  }
+
+  if (nav) nav.classList.remove('hidden');
+  stopRogueRun();
 
   const ch = chapterForBlock(b);
   const targetBgm = b.bgmOverride || ch?.bgm || null;
