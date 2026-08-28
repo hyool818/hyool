@@ -8,9 +8,9 @@ export function toast(msg, isErr = false, ms = 2600) {
   if (!t) {
     t = document.createElement('div');
     t.id = 'toast';
-    t.className = 'toast';
     document.body.appendChild(t);
   }
+  t.classList.add('toast');
   t.textContent = msg;
   t.classList.toggle('err', !!isErr);
   t.classList.add('show');
