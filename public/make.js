@@ -376,6 +376,50 @@ function updatePlayInventoryHud() {
   el.textContent = formatPlayInventory();
 }
 
+function formatChoiceGainLine(c) {
+  const parts = [];
+  (c.effect || []).forEach((e) => {
+    if (!e || !e.var) return;
+    if (e.op === '+' || e.op === '=') {
+      parts.push('获得 ' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
+    } else if (e.op === '-' && e.val > 0) {
+      parts.push('失去 ' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
+    }
+  });
+  return parts.join(' · ');
+}
+
+function fillChoiceButton(btnEl, c) {
+  btnEl.textContent = '';
+  const lab = document.createElement('span');
+  lab.className = 'pc-opt-lab';
+  lab.textContent = c.label || '选项';
+  btnEl.appendChild(lab);
+  const gainLine = formatChoiceGainLine(c);
+  if (gainLine) {
+    const meta = document.createElement('span');
+    meta.className = 'pc-opt-gain';
+    meta.textContent = gainLine;
+    btnEl.appendChild(meta);
+  }
+}
+
+function mountChoicePreview(stage, b) {
+  const box = document.createElement('div');
+  box.className = 'play-choice mk-choice-preview';
+  box.innerHTML = '<div class="pc-prompt">' + escapeHtml(b.content || '请选择：') + '</div>';
+  const opts = document.createElement('div');
+  opts.className = 'pc-opts';
+  (b.choices || []).forEach((c) => {
+    const btnEl = document.createElement('div');
+    btnEl.className = 'pc-opt';
+    fillChoiceButton(btnEl, c);
+    opts.appendChild(btnEl);
+  });
+  box.appendChild(opts);
+  stage.appendChild(box);
+}
+
 function normalizeBranchBlock(bl) {
   if (!bl || typeof bl !== 'object') return { id: uid(), type: 'dialogue', speaker: DEFAULT_SPEAKER, content: '' };
   if (!bl.id) bl.id = uid();
@@ -1264,13 +1308,7 @@ function renderPreview() {
   } else if (hasCaption(b)) {
     mountCaption(stage, b, true);
   } else if (b.type === 'choice') {
-    const cap = buildCaption({ ...b, type: 'dialogue', speaker: '选项', content: b.content || '请选择' }, { editing: true });
-    cap.classList.remove('mode-caption');
-    cap.classList.add('mode-float');
-    cap.style.left = '50%';
-    cap.style.top = '78%';
-    cap.style.transform = 'translate(-50%,-50%)';
-    stage.appendChild(cap);
+    mountChoicePreview(stage, b);
   } else if (!b.media?.url) {
     const hint = document.createElement('div');
     hint.className = 'empty-hint';
@@ -2292,8 +2330,8 @@ function choiceItemPanel(c) {
     }
     scheduleSave();
   };
-  gainSel.addEventListener('change', syncGain);
-  gainAmt.addEventListener('change', syncGain);
+  gainSel.addEventListener('change', () => { syncGain(); renderPreview(); });
+  gainAmt.addEventListener('change', () => { syncGain(); renderPreview(); });
   row1.append(gainSel, gainAmt);
   wrap.appendChild(row1);
 
@@ -2330,15 +2368,10 @@ function choiceItemPanel(c) {
     }
     scheduleSave();
   };
-  needSel.addEventListener('change', syncNeed);
-  needAmt.addEventListener('change', syncNeed);
+  needSel.addEventListener('change', () => { syncNeed(); renderPreview(); });
+  needAmt.addEventListener('change', () => { syncNeed(); renderPreview(); });
   row2.append(needSel, needAmt);
   wrap.appendChild(row2);
-
-  const tip = document.createElement('p');
-  tip.className = 'mk-item-tip';
-  tip.textContent = '例：选项 A「捡起钥匙」→ 获得钥匙；选项 B「开门」→ 需要钥匙。';
-  wrap.appendChild(tip);
   return wrap;
 }
 
@@ -2892,10 +2925,7 @@ function renderPlay() {
       const btnEl = document.createElement('button');
       btnEl.type = 'button';
       btnEl.className = 'pc-opt';
-      let label = c.label || '选项';
-      const gain = (c.effect || []).find((e) => e.op === '+');
-      if (gain) label += ' · 获得' + itemLabel(gain.var);
-      btnEl.textContent = label;
+      fillChoiceButton(btnEl, c);
       btnEl.addEventListener('click', (e) => {
         e.stopPropagation();
         const gained = applyEffects(c.effect);

@@ -174,14 +174,16 @@ html,body{height:100%;overflow:hidden}
 .play-choice{position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:min(92%,420px);background:rgba(0,0,0,.82);border:1px solid var(--line2);border-radius:12px;padding:14px;pointer-events:auto}
 .pc-prompt{font-size:14px;margin-bottom:10px;color:#ddd}
 .pc-opts{display:flex;flex-direction:column;gap:8px}
-.pc-opt{padding:12px 14px;border-radius:8px;border:1px solid var(--line2);background:rgba(255,255,255,.06);color:#fff;font-size:14px;cursor:pointer;text-align:left;font-family:inherit}
+.pc-opt{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:12px 14px;border-radius:8px;border:1px solid var(--line2);background:rgba(255,255,255,.06);color:#fff;font-size:14px;cursor:pointer;text-align:left;font-family:inherit}
 .pc-opt:hover{border-color:var(--accent);background:rgba(139,123,255,.15)}
+.pc-opt-lab{display:block;line-height:1.4}
+.pc-opt-gain{display:block;font-size:11px;color:#a8e6a0;line-height:1.35}
+.mk-choice-preview{position:absolute;left:50%;bottom:10%;transform:translateX(-50%);pointer-events:none;z-index:4}
 .mk-item-panel{margin:8px 0 4px;padding:10px;border:1px solid var(--line);border-radius:10px;background:rgba(139,123,255,.05)}
 .mk-item-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
 .mk-item-lab{font-size:11px;color:var(--muted);min-width:56px}
 .mk-item-row select{flex:1;min-width:120px;padding:7px 8px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font:inherit;font-size:12px}
 .mk-item-row input[type=number]{width:64px;padding:7px 8px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font:inherit;font-size:12px}
-.mk-item-tip{font-size:11px;color:var(--muted);line-height:1.5;margin:0}
 
 /* ---------- 弹窗 ---------- */
 .mk-modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:16px}
@@ -461,6 +463,6 @@ video.studio-thumb{background:#000;pointer-events:none}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260828drag1"></script>
+<script type="module" src="/make.js?v=20260828optgain1"></script>
 </body>
 </html>
