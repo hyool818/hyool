@@ -358,8 +358,8 @@ function applyEffects(list) {
     else if (e.op === '-') next = cur - e.val;
     else next = e.val;
     playState[e.var] = Math.max(-9999, Math.min(9999, Math.round(next)));
-    if (e.op === '+' && e.val > 0) gained.push(itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
-    else if (e.op === '-' && e.val > 0) gained.push('失去' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
+    if (e.op === '+' && e.val > 0) gained.push('获得 ' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
+    else if (e.op === '-' && e.val > 0) gained.push('失去 ' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
   });
   return gained;
 }
@@ -376,32 +376,12 @@ function updatePlayInventoryHud() {
   el.textContent = formatPlayInventory();
 }
 
-function formatChoiceGainLine(c) {
-  const parts = [];
-  (c.effect || []).forEach((e) => {
-    if (!e || !e.var) return;
-    if (e.op === '+' || e.op === '=') {
-      parts.push('获得 ' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
-    } else if (e.op === '-' && e.val > 0) {
-      parts.push('失去 ' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
-    }
-  });
-  return parts.join(' · ');
-}
-
 function fillChoiceButton(btnEl, c) {
   btnEl.textContent = '';
   const lab = document.createElement('span');
   lab.className = 'pc-opt-lab';
   lab.textContent = c.label || '选项';
   btnEl.appendChild(lab);
-  const gainLine = formatChoiceGainLine(c);
-  if (gainLine) {
-    const meta = document.createElement('span');
-    meta.className = 'pc-opt-gain';
-    meta.textContent = gainLine;
-    btnEl.appendChild(meta);
-  }
 }
 
 function mountChoicePreview(stage, b) {
@@ -2930,7 +2910,6 @@ function renderPlay() {
         e.stopPropagation();
         const gained = applyEffects(c.effect);
         updatePlayInventoryHud();
-        if (gained.length) toast(gained.join('，'));
         if (optionUsesBranch(c)) {
           setPlayChoiceContext(b, c);
           playResumeMainIdx = resolvePlayNextIndex(playMainIdx);
@@ -2944,6 +2923,7 @@ function renderPlay() {
           setPlayChoiceContext(b, c);
           jumpPlay(c.jump || 'next');
         }
+        if (gained.length) toast(gained.join('，'));
       });
       opts.appendChild(btnEl);
     });
