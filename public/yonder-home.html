@@ -2654,8 +2654,12 @@ function setLibraryTab(id) {
         panel.style.display = "";
     });
     try {
-        const hash = id === "stories" ? "works" : id;
-        history.replaceState(null, "", "#" + hash);
+        // 默认「角色」不写 hash，避免 /@user#chars；仅世界/作品写入便于深链
+        const next = id === "chars" ? location.pathname + location.search
+            : location.pathname + location.search + "#" + (id === "stories" ? "works" : id);
+        if (location.pathname + location.search + location.hash !== next) {
+            history.replaceState(null, "", next);
+        }
     } catch (e) { /* ignore */ }
 }
 
