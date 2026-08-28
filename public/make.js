@@ -1263,42 +1263,69 @@ function imagePromptPanel(b) {
   wrap.className = 'field';
   const lab = document.createElement('label');
   lab.textContent = '生图提示词（画面，不是字幕）';
-  const ta = document.createElement('textarea');
-  ta.rows = 3;
-  ta.placeholder = '英文为主：环境 / 光影 / 构图 / 画风；勿写对白';
-  ta.value = b.imagePrompt || '';
-  ta.addEventListener('input', () => {
-    b.imagePrompt = ta.value.slice(0, 700);
+  wrap.appendChild(lab);
+
+  const zhLab = document.createElement('div');
+  zhLab.style.cssText = 'font-size:11px;color:var(--muted);margin:6px 0 4px';
+  zhLab.textContent = '中文版';
+  const zhTa = document.createElement('textarea');
+  zhTa.rows = 2;
+  zhTa.placeholder = '枯骨嶙峋的荒岭关隘，黄昏冷风，无人，阴森压抑…';
+  zhTa.value = b.imagePromptZh || '';
+  zhTa.addEventListener('input', () => {
+    b.imagePromptZh = zhTa.value.slice(0, 400);
     scheduleSave();
   });
+
+  const enLab = document.createElement('div');
+  enLab.style.cssText = 'font-size:11px;color:var(--muted);margin:8px 0 4px';
+  enLab.textContent = '英文版（默认用于生图）';
+  const enTa = document.createElement('textarea');
+  enTa.rows = 3;
+  enTa.placeholder = 'ominous bone-strewn mountain ridge at dusk, cold wind…';
+  enTa.value = b.imagePrompt || '';
+  enTa.addEventListener('input', () => {
+    b.imagePrompt = enTa.value.slice(0, 700);
+    scheduleSave();
+  });
+
   const ops = document.createElement('div');
   ops.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
   const gen = document.createElement('button');
   gen.type = 'button';
   gen.className = 'btn primary';
-  gen.textContent = '用提示词生图';
-  gen.addEventListener('click', () => genBlockBackground(b, gen));
+  gen.textContent = '用英文生图';
+  gen.addEventListener('click', () => genBlockBackground(b, gen, 'en'));
+  const genZh = document.createElement('button');
+  genZh.type = 'button';
+  genZh.className = 'btn';
+  genZh.textContent = '用中文生图';
+  genZh.addEventListener('click', () => genBlockBackground(b, genZh, 'zh'));
   const copy = document.createElement('button');
   copy.type = 'button';
   copy.className = 'btn';
-  copy.textContent = '复制提示词';
+  copy.textContent = '复制两版';
   copy.addEventListener('click', async () => {
-    const t = (b.imagePrompt || '').trim();
-    if (!t) { toast('还没有生图提示词', true); return; }
+    const zh = (b.imagePromptZh || '').trim();
+    const en = (b.imagePrompt || '').trim();
+    if (!zh && !en) { toast('还没有生图提示词', true); return; }
+    const t = (zh ? '【中文】\n' + zh + '\n\n' : '') + (en ? '【English】\n' + en : '');
     try {
       await navigator.clipboard.writeText(t);
-      toast('已复制');
+      toast('已复制中英提示词');
     } catch (_) {
       toast('复制失败，请手动选中', true);
     }
   });
-  ops.append(gen, copy);
-  wrap.append(lab, ta, ops);
+  ops.append(gen, genZh, copy);
+  wrap.append(zhLab, zhTa, enLab, enTa, ops);
   return wrap;
 }
 
-async function genBlockBackground(b, btn) {
-  const prompt = String(b.imagePrompt || b.content || '').trim();
+async function genBlockBackground(b, btn, lang) {
+  const prompt = lang === 'zh'
+    ? String(b.imagePromptZh || b.imagePrompt || b.content || '').trim()
+    : String(b.imagePrompt || b.imagePromptZh || b.content || '').trim();
   if (!prompt) { toast('请先生图提示词', true); return; }
   const old = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '生图中…'; }
@@ -1321,7 +1348,7 @@ async function genBlockBackground(b, btn) {
   } catch (e) {
     toast((e && e.message) || '生图失败', true);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = old || '用提示词生图'; }
+    if (btn) { btn.disabled = false; btn.textContent = old || '生图'; }
   }
 }
 

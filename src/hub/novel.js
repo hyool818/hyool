@@ -151,23 +151,34 @@ export async function generateNovel(body, env) {
   throw new Error(lastErr || "小说生成失败");
 }
 
-/** 缺省时从字幕兜底一条可投喂 Comfy / Pollinations 的背景提示词 */
-function synthesizeImagePrompt(content) {
+/** 缺省时从字幕兜底可投喂 Comfy / Pollinations 的中英提示词 */
+function synthesizeImagePrompts(content) {
   const detail = clampText(String(content || "").replace(/[「」『』""]/g, ""), 90);
-  return (
+  const en =
     "visual novel background, " +
     (detail || "atmospheric scene") +
-    ", cinematic lighting, detailed environment, anime illustration, no text, no watermark, no UI"
-  );
+    ", cinematic lighting, detailed environment, anime illustration, no text, no watermark, no UI";
+  const zh =
+    "视觉小说背景，" +
+    (detail || "氛围场景") +
+    "，电影感光影，环境细节，动漫插画风，无文字，无水印，无界面";
+  return { imagePrompt: en, imagePromptZh: zh };
 }
 
-function pickImagePrompt(raw, content) {
-  const p = clampText(
-    (raw && (raw.imagePrompt || raw.visualPrompt || raw.bgPrompt || raw.imgPrompt)) || "",
+function pickImagePrompts(raw, content) {
+  const en = clampText(
+    (raw && (raw.imagePrompt || raw.visualPrompt || raw.bgPrompt || raw.imgPrompt || raw.imagePromptEn)) || "",
     700
   );
-  if (p.length >= 16) return p;
-  return synthesizeImagePrompt(content);
+  const zh = clampText(
+    (raw && (raw.imagePromptZh || raw.visualPromptZh || raw.bgPromptZh || raw.imgPromptZh)) || "",
+    400
+  );
+  const fallback = synthesizeImagePrompts(content);
+  return {
+    imagePrompt: en.length >= 16 ? en : fallback.imagePrompt,
+    imagePromptZh: zh.length >= 8 ? zh : fallback.imagePromptZh,
+  };
 }
 
 /**
@@ -192,10 +203,16 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
 
     if (type === "scene") {
       const pieces = splitSpeech(raw.content || raw.text || "……", sceneMax);
-      const imgPrompt = pickImagePrompt(raw, pieces[0] || "");
+      const imgs = pickImagePrompts(raw, pieces[0] || "");
       for (const content of pieces) {
         if (out.length >= maxBlocks) break;
-        out.push({ id: uid("b"), type: "scene", content, imagePrompt: imgPrompt });
+        out.push({
+          id: uid("b"),
+          type: "scene",
+          content,
+          imagePrompt: imgs.imagePrompt,
+          imagePromptZh: imgs.imagePromptZh,
+        });
       }
       continue;
     }
@@ -203,14 +220,17 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
     if (type === "dialogue") {
       const speaker = clampText(raw.speaker || "旁白", 24) || "旁白";
       const pieces = splitSpeech(raw.content || raw.text || "……", dialogueMax);
-      const imgPrompt = clampText(
-        raw.imagePrompt || raw.visualPrompt || raw.bgPrompt || "",
-        700
-      );
+      const imgs = pickImagePrompts(raw, pieces[0] || "");
+      const hasOwn =
+        clampText(raw.imagePrompt || raw.visualPrompt || raw.bgPrompt || "", 700).length >= 16 ||
+        clampText(raw.imagePromptZh || "", 400).length >= 8;
       for (const content of pieces) {
         if (out.length >= maxBlocks) break;
         const block = { id: uid("b"), type: "dialogue", speaker, content };
-        if (imgPrompt.length >= 16) block.imagePrompt = imgPrompt;
+        if (hasOwn) {
+          block.imagePrompt = imgs.imagePrompt;
+          block.imagePromptZh = imgs.imagePromptZh;
+        }
         out.push(block);
       }
       continue;
@@ -235,6 +255,7 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
       if (endBad) {
         const endPieces = splitSpeech(o.endText || o.ending || "故事在此告一段落。", sceneMax);
         const endContent = endPieces[0] || "故事在此告一段落。";
+        const endImgs = pickImagePrompts(o, endContent);
         return {
           id: uid("c"),
           label,
@@ -245,7 +266,8 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
             id: uid("end"),
             type: "scene",
             content: endContent,
-            imagePrompt: pickImagePrompt(o, endContent),
+            imagePrompt: endImgs.imagePrompt,
+            imagePromptZh: endImgs.imagePromptZh,
           },
         };
       }
@@ -271,7 +293,7 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
               id: uid("end"),
               type: "scene",
               content: "……你转身离开。",
-              imagePrompt: synthesizeImagePrompt("character walking away, empty street at dusk"),
+              ...synthesizeImagePrompts("character walking away, empty street at dusk"),
             }
           : undefined,
       });
@@ -307,7 +329,7 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
       id: uid("b"),
       type: "scene",
       content: "故事从这里开始。",
-      imagePrompt: synthesizeImagePrompt("story beginning, quiet atmosphere"),
+      ...synthesizeImagePrompts("story beginning, quiet atmosphere"),
     });
     out.push({ id: uid("b"), type: "dialogue", speaker: "旁白", content: "（请在编辑器里继续完善）" });
   }
@@ -336,26 +358,39 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
             id: uid("end"),
             type: "scene",
             content: "你错过了时机。故事在此告一段落。",
-            imagePrompt: synthesizeImagePrompt("empty path, missed chance, melancholic light"),
+            ...synthesizeImagePrompts("empty path, missed chance, melancholic light"),
           },
         },
       ],
     });
   }
 
-  // 场景必有生图词；对白继承上一镜背景提示，方便一键生图
-  let lastImg = "";
+  // 场景必有中英生图词；对白继承上一镜，方便一键生图
+  let lastEn = "";
+  let lastZh = "";
   for (const b of out) {
     if (b.type === "choice") continue;
     if (b.imagePrompt && String(b.imagePrompt).trim().length >= 16) {
-      lastImg = String(b.imagePrompt).trim();
+      lastEn = String(b.imagePrompt).trim();
+      if (b.imagePromptZh && String(b.imagePromptZh).trim().length >= 8) {
+        lastZh = String(b.imagePromptZh).trim();
+      } else if (!b.imagePromptZh && lastZh) {
+        b.imagePromptZh = lastZh;
+      } else if (!b.imagePromptZh) {
+        b.imagePromptZh = synthesizeImagePrompts(b.content).imagePromptZh;
+        lastZh = b.imagePromptZh;
+      }
       continue;
     }
     if (b.type === "scene") {
-      b.imagePrompt = synthesizeImagePrompt(b.content);
-      lastImg = b.imagePrompt;
-    } else if (b.type === "dialogue" && lastImg) {
-      b.imagePrompt = lastImg;
+      const imgs = synthesizeImagePrompts(b.content);
+      b.imagePrompt = imgs.imagePrompt;
+      b.imagePromptZh = imgs.imagePromptZh;
+      lastEn = b.imagePrompt;
+      lastZh = b.imagePromptZh;
+    } else if (b.type === "dialogue" && lastEn) {
+      b.imagePrompt = lastEn;
+      if (lastZh) b.imagePromptZh = lastZh;
     }
   }
 
@@ -506,13 +541,13 @@ function fallbackExtractFromText(text, titleHint) {
     }
     splitSpeech(p, 42).forEach((content) => {
       if (blocks.length >= 70) return;
-      blocks.push({ type: "scene", content, imagePrompt: synthesizeImagePrompt(content) });
+      blocks.push({ type: "scene", content, ...synthesizeImagePrompts(content) });
     });
   });
 
   if (blocks.length < 4) {
     splitSpeech(cleaned.replace(/\s+/g, " "), 42).slice(0, 40).forEach((content) => {
-      blocks.push({ type: "scene", content, imagePrompt: synthesizeImagePrompt(content) });
+      blocks.push({ type: "scene", content, ...synthesizeImagePrompts(content) });
     });
   }
 
@@ -535,13 +570,17 @@ function buildExtractSystem({ minShots, maxShots, withChoice, partHint }) {
     "你是视觉小说镜头提取器。按时间顺序把小说改成短镜头表。只输出 JSON 对象，不要 markdown，不要解释。" +
     "字段：title(string), cast(string[]), blocks(array)。" +
     "blocks 每项 type 只能是 scene|dialogue|choice。" +
-    "scene:{type,content,imagePrompt} dialogue:{type,speaker,content} " +
+    "scene:{type,content,imagePrompt,imagePromptZh} dialogue:{type,speaker,content} " +
     "choice:{type,content,choices:[{label,branch,end,endText?}]}。" +
     (partHint || "") +
     `要求：${minShots}~${maxShots} 个镜头；严格覆盖本段情节，不要跳过关键转折与对话；` +
     "每条 content 不超过 28 个汉字（给玩家看的字幕，不是生图词）；长段落拆成多条；" +
-    "每个 scene 必须带 imagePrompt：英文为主的文生图提示词（环境/时间/天气/光影/构图/画风），40~110 词，" +
-    "不要抄字幕原文，不要出现任何文字/UI/水印，不要人名对白；地点未变时可复用相近 imagePrompt；" +
+    "每个 scene 必须同时给两版生图词：" +
+    "imagePrompt=英文文生图提示（40~110词），imagePromptZh=中文文生图提示（40~120字）；" +
+    "两版都写画面（地点/地貌/天气/时间/光影/氛围/构图/画风），禁止照抄字幕原句，禁止出现文字/UI/水印/对白人名；" +
+    "例：字幕「枯骨岭不是一个让人想进去的地方。」→ imagePromptZh「枯骨嶙峋的荒岭关隘，黄昏冷风，枯树稀疏，无人，阴森压抑，电影感宽景，暗黑奇幻视觉小说背景，无文字」" +
+    "→ imagePrompt「ominous bone-strewn mountain ridge pass at dusk, cold wind, sparse dead trees, no people, gloomy dark fantasy VN background, cinematic wide shot, no text」；" +
+    "地点未变时可复用相近提示词；" +
     (withChoice
       ? "本段末尾必须含 1 个 choice（2 个选项，其中一个 end:true）。"
       : "本段不要输出 choice，只输出 scene 与 dialogue。")
