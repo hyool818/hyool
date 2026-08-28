@@ -92,6 +92,20 @@ let playAudio = null;
 let playBgm = null;
 let playBgmUrl = null;
 let playBgmChapter = null;
+/** 试玩剧情变量 / 物品数量（开局从 work.logic.state 拷贝） */
+let playState = {};
+
+const ITEM_PRESETS = [
+  { id: 'key', label: '钥匙' },
+  { id: 'herb', label: '草药' },
+  { id: 'letter', label: '信件' },
+  { id: 'gold', label: '银两' },
+  { id: 'token', label: '令牌' },
+  { id: 'bond', label: '好感' },
+];
+const ITEM_LABEL = Object.fromEntries(ITEM_PRESETS.map((x) => [x.id, x.label]));
+const REQUIRE_OPS = ['>=', '<=', '==', '>', '<', '!='];
+const EFFECT_OPS = ['+', '-', '='];
 
 let cropState = { img: null, baseScale: 1, zoom: 1, offsetX: 0, offsetY: 0, viewW: 480, viewH: 270, outW: 1280, outH: 720, drag: false, dragStartX: 0, dragStartY: 0 };
 let cropTargetBlock = null;
@@ -175,8 +189,123 @@ function normalizeWork(s) {
       }
     });
   });
+  ensureWorkLogic(s);
   s.kind = WORK_KIND;
   return s;
+}
+
+function normalizeVarName(name) {
+  let s = String(name || '').trim().toLowerCase();
+  const cnMap = {
+    '钥匙': 'key', '草药': 'herb', '信件': 'letter', '银两': 'gold', '令牌': 'token', '好感': 'bond',
+    '金钱': 'gold', '金币': 'gold',
+  };
+  if (cnMap[String(name || '').trim()]) return cnMap[String(name || '').trim()];
+  s = s.replace(/[^a-z0-9_]/g, '_').replace(/^_+|_+$/g, '');
+  if (!/^[a-z][a-z0-9_]{0,23}$/.test(s)) return '';
+  return s;
+}
+
+function normalizeCondList(list, ops) {
+  if (!Array.isArray(list)) return [];
+  return list.map((x) => {
+    if (!x || typeof x !== 'object') return null;
+    const v = normalizeVarName(x.var);
+    const op = ops.includes(x.op) ? x.op : '';
+    const val = Number(x.val);
+    if (!v || !op || !Number.isFinite(val)) return null;
+    return { var: v, op, val: Math.max(-9999, Math.min(9999, Math.round(val))) };
+  }).filter(Boolean).slice(0, 3);
+}
+
+function ensureWorkLogic(s) {
+  const w = s || work;
+  if (!w) return;
+  if (!w.logic || typeof w.logic !== 'object') w.logic = { state: {} };
+  if (!w.logic.state || typeof w.logic.state !== 'object') w.logic.state = {};
+  const state = {};
+  Object.keys(w.logic.state).forEach((k) => {
+    const key = normalizeVarName(k);
+    if (!key) return;
+    const n = Number(w.logic.state[k]);
+    state[key] = Number.isFinite(n) ? Math.max(-9999, Math.min(9999, Math.round(n))) : 0;
+  });
+  // 从选项里登记用到的变量，缺省 0
+  (w.chapters || []).forEach((ch) => {
+    (ch.blocks || []).forEach((b) => {
+      if (b.type !== 'choice') return;
+      (b.choices || []).forEach((c) => {
+        [...(c.effect || []), ...(c.require || [])].forEach((row) => {
+          const key = normalizeVarName(row?.var);
+          if (key && state[key] == null) state[key] = 0;
+        });
+      });
+    });
+  });
+  w.logic.state = state;
+}
+
+function itemLabel(id) {
+  const k = normalizeVarName(id);
+  return ITEM_LABEL[k] || k || id;
+}
+
+function resetPlayState() {
+  ensureWorkLogic();
+  playState = {};
+  const base = work?.logic?.state || {};
+  Object.keys(base).forEach((k) => {
+    playState[k] = Number(base[k]) || 0;
+  });
+}
+
+function getPlayVar(name) {
+  const k = normalizeVarName(name);
+  if (!k) return 0;
+  const n = Number(playState[k]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function evalRequire(list) {
+  const reqs = normalizeCondList(list, REQUIRE_OPS);
+  if (!reqs.length) return true;
+  return reqs.every((r) => {
+    const cur = getPlayVar(r.var);
+    if (r.op === '>=') return cur >= r.val;
+    if (r.op === '<=') return cur <= r.val;
+    if (r.op === '>') return cur > r.val;
+    if (r.op === '<') return cur < r.val;
+    if (r.op === '!=') return cur !== r.val;
+    return cur === r.val;
+  });
+}
+
+function applyEffects(list) {
+  const effects = normalizeCondList(list, EFFECT_OPS);
+  const gained = [];
+  effects.forEach((e) => {
+    const cur = getPlayVar(e.var);
+    let next = cur;
+    if (e.op === '+') next = cur + e.val;
+    else if (e.op === '-') next = cur - e.val;
+    else next = e.val;
+    playState[e.var] = Math.max(-9999, Math.min(9999, Math.round(next)));
+    if (e.op === '+' && e.val > 0) gained.push(itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
+    else if (e.op === '-' && e.val > 0) gained.push('失去' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
+  });
+  return gained;
+}
+
+function formatPlayInventory() {
+  const keys = Object.keys(playState).filter((k) => !String(k).startsWith('v_') && getPlayVar(k) !== 0);
+  if (!keys.length) return '背包：空';
+  return '背包：' + keys.map((k) => itemLabel(k) + '×' + getPlayVar(k)).join(' · ');
+}
+
+function updatePlayInventoryHud() {
+  const el = $('#playInv');
+  if (!el) return;
+  el.textContent = formatPlayInventory();
 }
 
 function normalizeBranchBlock(bl) {
@@ -190,8 +319,8 @@ function normalizeBranchBlock(bl) {
 function normalizeChoice(b, mainBlocks) {
   if (!Array.isArray(b.choices) || !b.choices.length) {
     b.choices = [
-      { id: uid(), label: '继续', jump: 'next', branch: [], branchEnd: 'main' },
-      { id: uid(), label: '结束', jump: 'end', branch: [], branchEnd: 'shot' },
+      { id: uid(), label: '继续', jump: 'next', branch: [], branchEnd: 'main', require: [], effect: [] },
+      { id: uid(), label: '结束', jump: 'end', branch: [], branchEnd: 'shot', require: [], effect: [] },
     ];
     return;
   }
@@ -201,6 +330,8 @@ function normalizeChoice(b, mainBlocks) {
     if (!c.jump) c.jump = 'next';
     c.branch = Array.isArray(c.branch) ? c.branch.map(normalizeBranchBlock) : [];
     if (c.endShot) c.endShot = normalizeBranchBlock(c.endShot);
+    c.require = normalizeCondList(c.require, REQUIRE_OPS);
+    c.effect = normalizeCondList(c.effect, EFFECT_OPS);
 
     if (c.branchEndJump && !c.endShot && Array.isArray(mainBlocks)) {
       const src = mainBlocks.find((x) => x.id === c.branchEndJump);
@@ -551,6 +682,7 @@ function scheduleSave() {
 async function saveWork() {
   if (!work || !loggedIn) return;
   work.kind = WORK_KIND;
+  ensureWorkLogic();
   try {
     const res = await fetch('/api/stories/' + encodeURIComponent(work.id), {
       method: 'PUT',
@@ -1874,6 +2006,7 @@ function choiceEditor(b) {
     });
     row.append(inp, rm);
     card.appendChild(row);
+    card.appendChild(choiceItemPanel(c));
 
     const branchSec = document.createElement('div');
     branchSec.className = 'mk-branch';
@@ -1991,11 +2124,104 @@ function choiceEditor(b) {
   add.style.marginTop = '6px';
   add.textContent = '＋ 加选项';
   add.addEventListener('click', () => {
-    b.choices.push({ id: uid(), label: '新选项', jump: 'next', branch: [], branchEnd: 'main' });
+    b.choices.push({ id: uid(), label: '新选项', jump: 'next', branch: [], branchEnd: 'main', require: [], effect: [] });
     scheduleSave();
     renderEdit();
   });
   wrap.appendChild(add);
+  return wrap;
+}
+
+/** 选项：获得 / 需要物品（写入 effect / require，与专业编辑器兼容） */
+function choiceItemPanel(c) {
+  if (!Array.isArray(c.effect)) c.effect = [];
+  if (!Array.isArray(c.require)) c.require = [];
+  const wrap = document.createElement('div');
+  wrap.className = 'mk-item-panel';
+
+  const gain = (c.effect || []).find((e) => e.op === '+' || e.op === '=') || null;
+  const need = (c.require || []).find((r) => r.op === '>=' || r.op === '>') || null;
+
+  const row1 = document.createElement('div');
+  row1.className = 'mk-item-row';
+  row1.innerHTML = '<span class="mk-item-lab">获得物品</span>';
+  const gainSel = document.createElement('select');
+  const none1 = document.createElement('option');
+  none1.value = '';
+  none1.textContent = '无';
+  gainSel.appendChild(none1);
+  ITEM_PRESETS.forEach((it) => {
+    const o = document.createElement('option');
+    o.value = it.id;
+    o.textContent = it.label;
+    if (gain && gain.var === it.id) o.selected = true;
+    gainSel.appendChild(o);
+  });
+  const gainAmt = document.createElement('input');
+  gainAmt.type = 'number';
+  gainAmt.min = '1';
+  gainAmt.max = '99';
+  gainAmt.value = String(gain && gain.val > 0 ? gain.val : 1);
+  gainAmt.title = '数量';
+  const syncGain = () => {
+    const id = gainSel.value;
+    const n = Math.max(1, Math.min(99, Math.round(Number(gainAmt.value) || 1)));
+    gainAmt.value = String(n);
+    c.effect = (c.effect || []).filter((e) => !(e.op === '+' || e.op === '='));
+    if (id) {
+      c.effect.push({ var: id, op: '+', val: n });
+      ensureWorkLogic();
+      if (work.logic.state[id] == null) work.logic.state[id] = 0;
+    }
+    scheduleSave();
+  };
+  gainSel.addEventListener('change', syncGain);
+  gainAmt.addEventListener('change', syncGain);
+  row1.append(gainSel, gainAmt);
+  wrap.appendChild(row1);
+
+  const row2 = document.createElement('div');
+  row2.className = 'mk-item-row';
+  row2.innerHTML = '<span class="mk-item-lab">需要物品</span>';
+  const needSel = document.createElement('select');
+  const none2 = document.createElement('option');
+  none2.value = '';
+  none2.textContent = '无（始终显示）';
+  needSel.appendChild(none2);
+  ITEM_PRESETS.forEach((it) => {
+    const o = document.createElement('option');
+    o.value = it.id;
+    o.textContent = '有「' + it.label + '」才显示';
+    if (need && need.var === it.id) o.selected = true;
+    needSel.appendChild(o);
+  });
+  const needAmt = document.createElement('input');
+  needAmt.type = 'number';
+  needAmt.min = '1';
+  needAmt.max = '99';
+  needAmt.value = String(need && need.val > 0 ? need.val : 1);
+  needAmt.title = '至少拥有';
+  const syncNeed = () => {
+    const id = needSel.value;
+    const n = Math.max(1, Math.min(99, Math.round(Number(needAmt.value) || 1)));
+    needAmt.value = String(n);
+    c.require = (c.require || []).filter((r) => !(r.op === '>=' || r.op === '>'));
+    if (id) {
+      c.require.push({ var: id, op: '>=', val: n });
+      ensureWorkLogic();
+      if (work.logic.state[id] == null) work.logic.state[id] = 0;
+    }
+    scheduleSave();
+  };
+  needSel.addEventListener('change', syncNeed);
+  needAmt.addEventListener('change', syncNeed);
+  row2.append(needSel, needAmt);
+  wrap.appendChild(row2);
+
+  const tip = document.createElement('p');
+  tip.className = 'mk-item-tip';
+  tip.textContent = '例：选项 A「捡起钥匙」→ 获得钥匙；选项 B「开门」→ 需要钥匙。';
+  wrap.appendChild(tip);
   return wrap;
 }
 
@@ -2308,9 +2534,11 @@ function startPlay() {
   playTakenChoiceId = null;
   playResumeMainIdx = 0;
   playSiblingJumps = null;
+  resetPlayState();
   playing = true;
   $('#playOverlay').classList.add('show');
   $('#playTitle').textContent = work.title || '';
+  updatePlayInventoryHud();
   const ov = $('#playOverlay');
   ov.classList.toggle('orient-portrait', work.orientation === 'portrait');
   ov.classList.toggle('orient-landscape', work.orientation !== 'portrait');
@@ -2429,13 +2657,27 @@ function renderPlay() {
     box.innerHTML = '<div class="pc-prompt">' + escapeHtml(b.content || '请选择：') + '</div>';
     const opts = document.createElement('div');
     opts.className = 'pc-opts';
-    (b.choices || []).forEach((c) => {
+    const visible = (b.choices || []).filter((c) => evalRequire(c.require));
+    if (!visible.length) {
+      const empty = document.createElement('div');
+      empty.className = 'pc-opt';
+      empty.style.opacity = '0.65';
+      empty.textContent = '（没有可选项——可能缺少物品）';
+      opts.appendChild(empty);
+    }
+    visible.forEach((c) => {
       const btnEl = document.createElement('button');
       btnEl.type = 'button';
       btnEl.className = 'pc-opt';
-      btnEl.textContent = c.label || '选项';
+      let label = c.label || '选项';
+      const gain = (c.effect || []).find((e) => e.op === '+');
+      if (gain) label += ' · 获得' + itemLabel(gain.var);
+      btnEl.textContent = label;
       btnEl.addEventListener('click', (e) => {
         e.stopPropagation();
+        const gained = applyEffects(c.effect);
+        updatePlayInventoryHud();
+        if (gained.length) toast(gained.join('，'));
         if (optionUsesBranch(c)) {
           setPlayChoiceContext(b, c);
           playResumeMainIdx = resolvePlayNextIndex(playMainIdx);

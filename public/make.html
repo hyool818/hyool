@@ -171,6 +171,12 @@ html,body{height:100%;overflow:hidden}
 .pc-opts{display:flex;flex-direction:column;gap:8px}
 .pc-opt{padding:12px 14px;border-radius:8px;border:1px solid var(--line2);background:rgba(255,255,255,.06);color:#fff;font-size:14px;cursor:pointer;text-align:left;font-family:inherit}
 .pc-opt:hover{border-color:var(--accent);background:rgba(139,123,255,.15)}
+.mk-item-panel{margin:8px 0 4px;padding:10px;border:1px solid var(--line);border-radius:10px;background:rgba(139,123,255,.05)}
+.mk-item-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.mk-item-lab{font-size:11px;color:var(--muted);min-width:56px}
+.mk-item-row select{flex:1;min-width:120px;padding:7px 8px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font:inherit;font-size:12px}
+.mk-item-row input[type=number]{width:64px;padding:7px 8px;border-radius:8px;border:1px solid var(--line2);background:#0a0a12;color:var(--text);font:inherit;font-size:12px}
+.mk-item-tip{font-size:11px;color:var(--muted);line-height:1.5;margin:0}
 
 /* ---------- 弹窗 ---------- */
 .mk-modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:16px}
@@ -301,6 +307,7 @@ html,body{height:100%;overflow:hidden}
   <div id="playTop">
     <button type="button" class="btn" id="playClose">✕ 退出</button>
     <span id="playTitle" style="font-size:13px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    <span id="playInv" style="font-size:11px;color:var(--accent2);max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="剧情物品 / 变量">背包：空</span>
   </div>
   <div id="playBody"></div>
   <div id="playNav">
@@ -418,6 +425,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260828compress2"></script>
+<script type="module" src="/make.js?v=20260828items1"></script>
 </body>
 </html>
