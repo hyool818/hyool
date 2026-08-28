@@ -16,6 +16,7 @@ import { runWorkflow, serializeResult } from "./engine.js";
 import { deriveAssets, normalizeBlueprint, validateBlueprint, STYLE_PRESETS, IMG_SIZE } from "./blueprint.js";
 import { TTS_VOICES } from "../tts.js";
 import { chatCompletions } from "../ai/gateway.js";
+import { isDeepseekConfigured } from "../ai/models.js";
 import { generateNovel, extractNovelToMake } from "./novel.js";
 
 export async function handleHubRoutes(request, env, pathname, method, helpers) {
@@ -33,7 +34,8 @@ export async function handleHubRoutes(request, env, pathname, method, helpers) {
         return json({
             success: true,
             styles: Object.values(STYLE_PRESETS).map((s) => ({ id: s.id, label: s.label })),
-            voices: TTS_VOICES
+            voices: TTS_VOICES,
+            deepseekConfigured: isDeepseekConfigured(env)
         });
     }
 

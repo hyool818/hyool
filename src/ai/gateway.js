@@ -6,8 +6,12 @@
  * No API key needed.
  *
  * Env overrides (optional):
- *   AI_CHAT_MODEL    override chat model id
- *   AI_CREATE_MODEL  override character generation model id
+ *   AI_CHAT_MODEL       override chat model id
+ *   AI_CREATE_MODEL     override character generation model id
+ *   DEEPSEEK_API_KEY    DeepSeek 官方 Key（Secret / .dev.vars，勿提交仓库）
+ *   DEEPSEEK_BASE_URL   默认 https://api.deepseek.com
+ *   DEEPSEEK_MODEL      默认 deepseek-chat
+ *   GPU_BASE_URL / GPU_API_KEY  自建 OpenAI 兼容后端
  */
 
 import {
@@ -264,10 +268,10 @@ const DEFAULT_CREATE_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 /**
  * LLM 统一调用入口（支持模型路由）。
  * modelOverride 可以是：
- *   - 注册表模型 id（llama3-70b / dsv4pro / xverse-ent-25b / qwen3-27b-instruct）
+ *   - 注册表模型 id（llama3-70b / deepseek-chat / dsv4pro / …）
  *   - 原始 workers-ai 模型 id（以 @ 开头）
  *   - 空 → 默认注册模型（llama3-70b）
- * provider 为 gpu 且未配置 GPU_BASE_URL 时自动回退 Workers AI 默认模型。
+ * deepseek 未配 DEEPSEEK_API_KEY、gpu 未配 GPU_BASE_URL 时回退 Workers AI。
  */
 async function chatCompletions(env, messages, modelOverride, temperature = 0.9, max_tokens = 150, timeoutMs = 25000) {
     let target = resolveChatTarget(modelOverride);
@@ -277,8 +281,16 @@ async function chatCompletions(env, messages, modelOverride, temperature = 0.9, 
         target = resolveChatTarget(env.AI_CHAT_MODEL);
     }
 
-    // GPU 后端未配置 → 回退 Workers AI 默认模型
+    // DeepSeek：未配置 Key 则回退 Workers AI
     let usedFallback = false;
+    if (target.provider === "deepseek" && !String(env.DEEPSEEK_API_KEY || "").trim()) {
+        usedFallback = true;
+        console.warn(`MODEL ROUTE: deepseek 未配置 DEEPSEEK_API_KEY，回退 ${DEFAULT_MODEL_ID}。`);
+        const fallback = resolveModel(DEFAULT_MODEL_ID);
+        target = { provider: "workers-ai", modelId: fallback.modelId };
+    }
+
+    // GPU 后端未配置 → 回退 Workers AI 默认模型
     if (target.provider === "gpu" && !env.GPU_BASE_URL) {
         usedFallback = true;
         console.warn(`MODEL ROUTE: ${target.modelId} (gpu) 未配置 GPU_BASE_URL，回退 ${DEFAULT_MODEL_ID}。`);
@@ -291,7 +303,16 @@ async function chatCompletions(env, messages, modelOverride, temperature = 0.9, 
 
     for (let attempt = 0; attempt < 3; attempt++) {
         try {
-            if (target.provider === "gpu") {
+            if (target.provider === "deepseek") {
+                response = await callDeepseekChat(
+                    env,
+                    target.modelId,
+                    messages,
+                    temperature,
+                    max_tokens,
+                    timeoutMs
+                );
+            } else if (target.provider === "gpu") {
                 response = await callGpuChat(
                     env,
                     target.modelId,
@@ -321,9 +342,7 @@ async function chatCompletions(env, messages, modelOverride, temperature = 0.9, 
                         "");
 
             if (text) {
-                return usedFallback
-                    ? String(text).trim()
-                    : String(text).trim();
+                return String(text).trim();
             }
 
             return "（我一时不知该说什么……）";
@@ -345,7 +364,44 @@ async function chatCompletions(env, messages, modelOverride, temperature = 0.9, 
 /** 统一 LLM 入口导出（HYOOL 中枢规划器等跨模块复用；历史调用方不受影响） */
 export { chatCompletions };
 
-/** OpenAI 兼容 /chat/completions 调用（后端 GPU，待上线；配置 GPU_BASE_URL + GPU_API_KEY 即启用） */
+/** DeepSeek 官方 OpenAI 兼容接口（Key 仅来自 env Secret） */
+async function callDeepseekChat(env, modelId, messages, temperature, maxTokens, timeoutMs = 60000) {
+    const apiKey = String(env.DEEPSEEK_API_KEY || "").trim();
+    if (!apiKey) throw new Error("DEEPSEEK_API_KEY 未配置。");
+
+    const baseUrl = String(env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/+$/, "");
+    const model = String(env.DEEPSEEK_MODEL || modelId || "deepseek-chat").trim() || "deepseek-chat";
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(15000, timeoutMs || 60000));
+
+    try {
+        const res = await fetch(baseUrl + "/chat/completions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + apiKey
+            },
+            body: JSON.stringify({
+                model,
+                messages,
+                temperature,
+                max_tokens: maxTokens,
+                stream: false
+            }),
+            signal: controller.signal
+        });
+
+        if (!res.ok) {
+            throw new Error(`DeepSeek HTTP ${res.status}: ${(await res.text()).slice(0, 240)}`);
+        }
+        return await res.json();
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/** OpenAI 兼容 /chat/completions 调用（后端 GPU；配置 GPU_BASE_URL + GPU_API_KEY 即启用） */
 async function callGpuChat(env, modelId, messages, temperature, maxTokens) {
     const baseUrl = String(env.GPU_BASE_URL || "").replace(/\/+$/, "");
     const apiKey = env.GPU_API_KEY || "";

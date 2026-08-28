@@ -67,7 +67,7 @@ async function partA(){
   } catch(e) {}
 
   const models = await api('/api/models');
-  ok(models.models && models.models.length === 4, 'A: /api/models 返回 4 个模型', models.models ? models.models.map(m=>m.id).join(',') : '');
+  ok(models.models && models.models.length >= 4, 'A: /api/models 返回模型列表', models.models ? models.models.map(m=>m.id).join(',') : '');
   ok(models.models[0].advice && models.models[0].advice.length > 4, 'A: 模型带擅长领域建议');
 
   // 创建生命世界

@@ -63,7 +63,30 @@ wrangler dev
 wrangler deploy
 ```
 
-本地 secrets 可写入 `.dev.vars`（已被 gitignore，不会提交）。
+本地 secrets 可写入 `.dev.vars`（已被 gitignore，不会提交）。示例见 `.dev.vars.example`。
+
+### DeepSeek（小说生成 / 镜头提取）
+
+Key **不要**写进仓库、不要发到聊天里。线上用 Cloudflare Secret：
+
+```bash
+npx wrangler secret put DEEPSEEK_API_KEY
+```
+
+（终端提示后粘贴 Key，回车。）可选：
+
+```bash
+npx wrangler secret put DEEPSEEK_BASE_URL   # 默认 https://api.deepseek.com
+npx wrangler secret put DEEPSEEK_MODEL      # 默认 deepseek-chat
+```
+
+本地开发在 `.dev.vars` 写：
+
+```
+DEEPSEEK_API_KEY=sk-你的密钥
+```
+
+配置后，`make` 页「AI 写小说 / 提取镜头」会优先走 DeepSeek；未配置则回退 Workers AI。
 
 ## 推送到 GitHub
 

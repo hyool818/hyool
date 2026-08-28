@@ -1,17 +1,15 @@
 /**
  * HYOOL 模型注册表与路由
  *
- * 四个可选「对话模型」（角色对话 / 生命世界多角色对话均使用同一个选择器）：
- *  - llama3.3-70B        现网可用（Cloudflare Workers AI）
- *  - DSV4 Pro            后端 GPU 待上线（OpenAI 兼容接口，配置即用）
- *  - XVERSE-Ent-25B      后端 GPU 待上线
- *  - Qwen3-27B-Instruct  后端 GPU 待上线
+ * 可选对话模型：
+ *  - llama3.3-70B        Cloudflare Workers AI（默认）
+ *  - deepseek-chat       DeepSeek 官方 API（配置 DEEPSEEK_API_KEY 后启用）
+ *  - DSV4 Pro / XVERSE / Qwen3  自建 GPU（GPU_BASE_URL + GPU_API_KEY）
  *
- * provider 说明：
- *  - "workers-ai"：直接走 env.AI.run(modelId, {...})，无需额外配置
- *  - "gpu"：OpenAI 兼容 /chat/completions。设置 env.GPU_BASE_URL（如
- *    https://your-backend.example.com/v1）与 env.GPU_API_KEY 即可启用；
- *    未配置时由网关自动回退到 Workers AI 默认模型（llama3.3-70B）。
+ * provider：
+ *  - "workers-ai"：env.AI.run
+ *  - "deepseek"：OpenAI 兼容；密钥用 Cloudflare Secret / .dev.vars 的 DEEPSEEK_API_KEY（勿写入仓库）
+ *  - "gpu"：自建 OpenAI 兼容后端
  */
 
 export const MODEL_REGISTRY = [
@@ -24,6 +22,16 @@ export const MODEL_REGISTRY = [
         advice: "综合对话能力均衡，中英文稳定，响应快、现网可用；适合日常聊天与大多数场景。",
         temperature: 0.9,
         maxTokens: 300
+    },
+    {
+        id: "deepseek-chat",
+        label: "DeepSeek Chat",
+        provider: "deepseek",
+        modelId: "deepseek-chat",
+        status: "online",
+        advice: "中文写作与 JSON 提取更稳；需配置 Secret DEEPSEEK_API_KEY（不进 Git）。",
+        temperature: 0.7,
+        maxTokens: 4096
     },
     {
         id: "dsv4pro",
@@ -60,6 +68,12 @@ export const MODEL_REGISTRY = [
 const REGISTRY_BY_ID = new Map(MODEL_REGISTRY.map((m) => [m.id, m]));
 
 export const DEFAULT_MODEL_ID = "llama3-70b";
+export const DEEPSEEK_MODEL_ID = "deepseek-chat";
+
+/** 是否已配置 DeepSeek（仅检查 env，不暴露 Key） */
+export function isDeepseekConfigured(env) {
+    return !!(env && String(env.DEEPSEEK_API_KEY || "").trim());
+}
 
 /** 按注册表 id 解析模型；未知 id 回退默认模型 */
 export function resolveModel(id) {
@@ -82,22 +96,37 @@ export function getModelInfo(id) {
     };
 }
 
-export function listModelInfos() {
-    return MODEL_REGISTRY.map((m) => ({
-        id: m.id,
-        label: m.label,
-        provider: m.provider,
-        status: m.status,
-        advice: m.advice
-    }));
+/** @param {object} [env] 传入时按密钥/GPU 配置标注 status */
+export function listModelInfos(env) {
+    return MODEL_REGISTRY.map((m) => {
+        let status = m.status;
+        if (m.provider === "deepseek") {
+            status = isDeepseekConfigured(env) ? "online" : "need_key";
+        } else if (m.provider === "gpu") {
+            status = env && String(env.GPU_BASE_URL || "").trim() ? "online" : "coming";
+        }
+        return {
+            id: m.id,
+            label: m.label,
+            provider: m.provider,
+            status,
+            advice: m.advice
+        };
+    });
+}
+
+/**
+ * 小说/提取：有 DEEPSEEK_API_KEY 则优先 DeepSeek，否则 null（走默认 Workers AI）
+ */
+export function resolveNovelModelRef(env) {
+    return isDeepseekConfigured(env) ? DEEPSEEK_MODEL_ID : null;
 }
 
 /**
  * 把任意模型引用解析为「可直接调用」的模型：
- *   - 注册表 id（llama3-70b / dsv4pro / ...）→ 解析注册项
- *   - 原始 workers-ai 模型 id（以 @ 开头）→ 视为 workers-ai provider
- *   - 空 / 未定义 → 默认注册项
- * 返回 { provider, modelId, status, usedFallback }
+ *   - 注册表 id → 解析注册项
+ *   - 原始 workers-ai 模型 id（以 @ 开头）→ workers-ai
+ *   - 空 → 默认
  */
 export function resolveChatTarget(modelRef) {
     if (isRegistryId(modelRef)) {

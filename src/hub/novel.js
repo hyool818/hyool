@@ -3,6 +3,7 @@
  * LLM 只产文本；分支结构由提取结果给出，运行时仍不由 AI 选路。
  */
 import { chatCompletions } from "../ai/gateway.js";
+import { resolveNovelModelRef } from "../ai/models.js";
 import { parseJSON } from "./planner.js";
 
 function uid(prefix = "b") {
@@ -44,9 +45,11 @@ export async function generateNovel(body, env) {
     },
   ];
 
+  const modelRef = resolveNovelModelRef(env);
+  const provider = modelRef ? "deepseek" : "workers-ai";
   let lastErr = null;
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const raw = await chatCompletions(env, messages, null, 0.75, 4200, 55000);
+    const raw = await chatCompletions(env, messages, modelRef, 0.75, 4200, 55000);
     const parsed = parseJSON(String(raw || ""));
     if (!parsed || !Array.isArray(parsed.chapters) || !parsed.chapters.length) {
       lastErr = "模型未返回合格章节 JSON";
@@ -72,6 +75,7 @@ export async function generateNovel(body, env) {
       chapters,
       text,
       attempts: attempt,
+      provider,
     };
   }
   throw new Error(lastErr || "小说生成失败");
@@ -372,9 +376,13 @@ export async function extractNovelToMake(body, env) {
   if (text.length < 80) throw new Error("正文太短，请粘贴至少一小段完整情节。");
   const titleHint = clampText(body.title || "", 60);
   const orientation = body.orientation === "portrait" ? "portrait" : "landscape";
-  // Workers AI 对超长上下文 + 大 JSON 不稳定，只喂前段精华
-  const excerpt = text.length > 3200
-    ? text.slice(0, 2800) + "\n……（后文已省略，请根据以上情节改编）"
+  const modelRef = resolveNovelModelRef(env);
+  const provider = modelRef ? "deepseek" : "workers-ai";
+  // DeepSeek 可喂更长；Workers AI 对超长上下文 + 大 JSON 不稳定
+  const maxExcerpt = modelRef ? 9000 : 3200;
+  const keep = modelRef ? 8500 : 2800;
+  const excerpt = text.length > maxExcerpt
+    ? text.slice(0, keep) + "\n……（后文已省略，请根据以上情节改编）"
     : text;
 
   const system =
@@ -401,7 +409,7 @@ export async function extractNovelToMake(body, env) {
   let lastErr = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const raw = await chatCompletions(env, messages, null, 0.2, 1800, 45000);
+      const raw = await chatCompletions(env, messages, modelRef, 0.2, modelRef ? 2800 : 1800, 45000);
       const parsed = parseExtractPayload(raw);
       if (!parsed || !Array.isArray(parsed.blocks) || !parsed.blocks.length) {
         lastErr = "模型未返回镜头 JSON";
@@ -423,7 +431,7 @@ export async function extractNovelToMake(body, env) {
         orientation,
         blocks,
         parsed.cast,
-        { attempts: attempt, source: "llm" }
+        { attempts: attempt, source: "llm", provider }
       );
     } catch (e) {
       lastErr = e.message || String(e);
@@ -438,6 +446,7 @@ export async function extractNovelToMake(body, env) {
   return wrapMakeWork(fb.title, orientation, blocks, fb.cast, {
     attempts: 3,
     source: "fallback",
+    provider,
     warning: "AI 提取不稳定，已用规则切成镜头，可在编辑器里改。",
   });
 }

@@ -653,7 +653,7 @@ export async function handleMvpRoutes(
     /* ----- WORLDS (自定义世界) ----- */
 
     if (pathname === "/api/models" && method === "GET") {
-        return json({ success: true, models: listModelInfos() });
+        return json({ success: true, models: listModelInfos(env) });
     }
 
     if (pathname === "/api/worlds" && method === "GET") {

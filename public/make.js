@@ -2448,11 +2448,25 @@ function openNovelModal(tab) {
   if (!modal) return;
   setNovelTab(tab === 'ext' ? 'ext' : 'gen');
   setNovelStatus('');
+  refreshNovelProviderHint();
   modal.classList.add('show');
   setTimeout(() => {
     const focus = tab === 'ext' ? $('#mkNovelText') : $('#mkNovelPremise');
     if (focus) focus.focus();
   }, 80);
+}
+
+async function refreshNovelProviderHint() {
+  const el = $('#mkNovelProvider');
+  if (!el) return;
+  el.textContent = '模型：Workers AI（默认）';
+  try {
+    const res = await fetch('/api/hub/meta', { credentials: 'include', headers: { ...authHeaders() } });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.deepseekConfigured) {
+      el.textContent = '模型：DeepSeek（已接入，Key 仅存 Cloudflare Secret）';
+    }
+  } catch (_) { /* ignore */ }
 }
 
 function setNovelTab(tab) {
@@ -2485,7 +2499,8 @@ async function runNovelGenerate() {
     if ($('#mkNovelText')) $('#mkNovelText').value = d.text || '';
     if ($('#mkNovelTitle') && d.title) $('#mkNovelTitle').value = d.title;
     setNovelTab('ext');
-    setNovelStatus('已生成《' + (d.title || '未命名') + '》。可改字后点「提取为互动镜头」。');
+    const via = d.provider === 'deepseek' ? '（DeepSeek）' : '';
+    setNovelStatus('已生成《' + (d.title || '未命名') + '》' + via + '。可改字后点「提取为互动镜头」。');
     toast('小说已生成');
   } catch (e) {
     setNovelStatus(e.message || '生成失败', true);
