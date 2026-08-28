@@ -102,6 +102,8 @@ let playBgmUrl = null;
 let playBgmChapter = null;
 /** 试玩剧情变量 / 物品数量（开局从 work.logic.state 拷贝） */
 let playState = {};
+/** 本局已结算过效果的选项 id，防止后退/重选反复获得物品 */
+let playEffectGranted = new Set();
 
 const ITEM_PRESETS = [
   { id: 'key', label: '钥匙' },
@@ -360,8 +362,17 @@ function applyEffects(list) {
     playState[e.var] = Math.max(-9999, Math.min(9999, Math.round(next)));
     if (e.op === '+' && e.val > 0) gained.push('获得 ' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
     else if (e.op === '-' && e.val > 0) gained.push('失去 ' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
+    else if (e.op === '=' && e.val > 0) gained.push('获得 ' + itemLabel(e.var) + (e.val > 1 ? ' ×' + e.val : ''));
   });
   return gained;
+}
+
+/** 同一选项本局只结算一次物品效果 */
+function grantChoiceEffectsOnce(choiceBlockId, option) {
+  const key = String(choiceBlockId || '') + ':' + String(option?.id || '');
+  if (!option?.id || playEffectGranted.has(key)) return [];
+  playEffectGranted.add(key);
+  return applyEffects(option.effect);
 }
 
 function formatPlayInventory() {
@@ -2731,6 +2742,7 @@ function startPlay() {
   playTakenChoiceId = null;
   playResumeMainIdx = 0;
   playSiblingJumps = null;
+  playEffectGranted = new Set();
   resetPlayState();
   playing = true;
   $('#playOverlay').classList.add('show');
@@ -2908,7 +2920,7 @@ function renderPlay() {
       fillChoiceButton(btnEl, c);
       btnEl.addEventListener('click', (e) => {
         e.stopPropagation();
-        const gained = applyEffects(c.effect);
+        const gained = grantChoiceEffectsOnce(b.id, c);
         updatePlayInventoryHud();
         if (optionUsesBranch(c)) {
           setPlayChoiceContext(b, c);
