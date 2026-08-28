@@ -7,7 +7,7 @@
 | 功能 | 页面 | 说明 |
 |---|---|---|
 | 首页双核心 | `public/index.html` | 创建作品 / 创造世界；底部 HYOOL 标语 |
-| **主创作应用 · 视觉小说** | `public/make.html` `public/make.js` | 镜头 + 预览 + 试玩 + 发布；图片/视频镜；BGM/配音；选项**获得/需要物品**；**卡牌战镜头**（`rogue` → `story-rogue.js`，胜负写 `battle_win`） |
+| **主创作应用 · 视觉小说** | `public/make.html` `public/make.js` | 镜头 + 预览 + 试玩 + 发布；图片/视频镜；BGM/配音；选项物品；卡牌战镜头；镜头列表**拖动手柄排序** |
 | 旧互动视频入口 | `public/make-video.html` | 重定向 → `make.html`（`?hint=video`） |
 | 世界/IP | `public/studio-world.html` `public/create-life-world.html` | 创造世界入口；生命世界 5 步全页向导 |
 | 旧入口重定向 | `public/studio.html` `public/my-works.html` `public/fantasy.html` | → `/make.html` |

@@ -1168,15 +1168,19 @@ function renderShots() {
   list.innerHTML = '';
   const bs = blocks();
   $('#mkShotCount').textContent = bs.length ? bs.length + ' 镜' : '';
+  let dragFrom = -1;
   bs.forEach((b, i) => {
     const row = document.createElement('div');
     const onMain = b.id === selectedId && (!editBranch || editBranch.choiceBlockId === b.id);
     row.className = 'mk-shot' + (onMain ? ' on' : '');
+    row.dataset.i = String(i);
+    row.dataset.id = b.id;
     if (b.type === 'choice' && (b.choices || []).some(optionUsesBranch)) row.classList.add('has-branch');
     const preview = b.type === 'dialogue'
       ? (b.speaker + '：' + (b.content || '')).slice(0, 40)
       : (b.content || TYPE_LABEL[b.type] || '').slice(0, 40);
     row.innerHTML =
+      '<span class="handle" title="拖动排序">⋮⋮</span>' +
       '<span class="num">' + (i + 1) + '</span>' +
       '<div class="body">' +
         '<div class="type">' + (TYPE_LABEL[b.type] || b.type) + mediaShotTag(b) +
@@ -1184,6 +1188,35 @@ function renderShots() {
         '<div class="txt">' + escapeHtml(preview || '（空）') + '</div>' +
       '</div>';
     row.addEventListener('click', () => { editBranch = null; selectedId = b.id; renderEdit(); });
+    const handle = row.querySelector('.handle');
+    handle.draggable = true;
+    handle.addEventListener('dragstart', (e) => {
+      dragFrom = i;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', b.id);
+      e.stopPropagation();
+    });
+    handle.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      dragFrom = -1;
+      list.querySelectorAll('.mk-shot.drag-over').forEach((el) => el.classList.remove('drag-over'));
+    });
+    handle.addEventListener('click', (e) => e.stopPropagation());
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      row.classList.remove('drag-over');
+      const to = Number(row.dataset.i);
+      if (dragFrom < 0 || to < 0 || dragFrom === to) return;
+      moveBlockTo(dragFrom, to);
+    });
     list.appendChild(row);
   });
 }
@@ -2623,11 +2656,16 @@ function removeBlock(id) {
 function moveBlock(id, dir) {
   const ch = work.chapters[0];
   const i = ch.blocks.findIndex((b) => b.id === id);
-  const j = i + dir;
-  if (i < 0 || j < 0 || j >= ch.blocks.length) return;
-  const tmp = ch.blocks[i];
-  ch.blocks[i] = ch.blocks[j];
-  ch.blocks[j] = tmp;
+  if (i < 0) return;
+  moveBlockTo(i, i + dir);
+}
+
+function moveBlockTo(from, to) {
+  const ch = work.chapters[0];
+  const arr = ch.blocks;
+  if (from < 0 || to < 0 || from >= arr.length || to >= arr.length || from === to) return;
+  const [item] = arr.splice(from, 1);
+  arr.splice(to, 0, item);
   scheduleSave();
   renderEdit();
 }
