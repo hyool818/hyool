@@ -231,7 +231,7 @@ html,body{height:100%;overflow:hidden}
       <div id="mkApp" class="hidden">
         <div class="mk-actions">
           <button type="button" class="btn primary" id="mkNewBtn">＋ 新建作品</button>
-          <button type="button" class="btn" id="mkNovelBtn">✦ AI 写小说 / 提取镜头</button>
+          <button type="button" class="btn" id="mkNovelBtn">✦ AI 写小说 / 选段压缩</button>
           <a class="btn" href="/brain.html" style="text-decoration:none">◎ AI 帮我想</a>
           <a class="btn" href="/plaza.html" style="text-decoration:none">去玩</a>
         </div>
@@ -338,11 +338,11 @@ html,body{height:100%;overflow:hidden}
 <div class="mk-modal" id="mkNovelModal">
   <div class="mk-modal-box" style="max-width:560px">
     <h2>AI 写小说 / 提取镜头</h2>
-    <p style="font-size:12px;color:var(--muted);line-height:1.65;margin:0 0 12px">生成短篇正文，或把已有小说提取成可试玩镜头（短字幕 + 生图提示词）。提取后可在镜头里一键生图。</p>
+    <p style="font-size:12px;color:var(--muted);line-height:1.65;margin:0 0 12px">写小说，或<strong style="color:var(--text);font-weight:600">选中一段原文</strong>压成少量短旁白/对白（保留意思，不整章切碎）。</p>
     <p id="mkNovelProvider" style="font-size:11px;color:var(--muted);margin:0 0 10px"></p>
     <div class="mk-orient" id="mkNovelTabs" style="margin-bottom:12px">
       <button type="button" data-tab="gen" class="on">① 写小说</button>
-      <button type="button" data-tab="ext">② 提取镜头</button>
+      <button type="button" data-tab="ext">② 选段压缩成镜头</button>
     </div>
     <div id="mkNovelGenPane">
       <label class="field"><span>故事想法</span>
@@ -371,8 +371,17 @@ html,body{height:100%;overflow:hidden}
         <button type="button" data-o="landscape" class="on">横屏</button>
         <button type="button" data-o="portrait">竖屏</button>
       </div>
-      <p style="font-size:11px;color:var(--muted);margin:10px 0 6px">可粘贴自己的小说，或用上方生成结果。</p>
-      <button type="button" class="btn primary" id="mkNovelExtBtn" style="width:100%">提取为互动镜头并打开</button>
+      <p style="font-size:11px;color:var(--muted);margin:10px 0 6px;line-height:1.55">在下方正文里<strong>拖选一段</strong>（约 100～800 字）再点压缩；未选中则用全文（超过约 1200 字请先选段）。</p>
+      <label class="field" style="display:flex;align-items:center;gap:8px;margin:8px 0;font-size:12px;color:var(--muted)">
+        <input type="checkbox" id="mkNovelAppend" style="width:auto">
+        <span>追加到当前正在编辑的作品（不新建）</span>
+      </label>
+      <label class="field" style="display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:12px;color:var(--muted)">
+        <input type="checkbox" id="mkNovelWithChoice" checked style="width:auto">
+        <span>末尾加一个选项分叉</span>
+      </label>
+      <p id="mkNovelSelHint" style="font-size:11px;color:var(--accent2,#8b7bff);margin:0 0 8px;min-height:1.2em"></p>
+      <button type="button" class="btn primary" id="mkNovelExtBtn" style="width:100%">压缩所选为镜头</button>
     </div>
     <label class="field" style="margin-top:14px"><span>小说正文</span>
       <textarea id="mkNovelText" rows="10" placeholder="生成后出现在这里；也可直接粘贴要提取的小说……" maxlength="14000" style="width:100%;resize:vertical;min-height:180px;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line2);background:var(--bg3);color:var(--text);line-height:1.65"></textarea>
@@ -405,6 +414,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260828imgprompt4"></script>
+<script type="module" src="/make.js?v=20260828compress1"></script>
 </body>
 </html>

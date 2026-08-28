@@ -2689,6 +2689,7 @@ function openNovelModal(tab) {
   setNovelTab(tab === 'ext' ? 'ext' : 'gen');
   setNovelStatus('');
   refreshNovelProviderHint();
+  updateNovelSelHint();
   modal.classList.add('show');
   setTimeout(() => {
     const focus = tab === 'ext' ? $('#mkNovelText') : $('#mkNovelPremise');
@@ -2751,14 +2752,61 @@ async function runNovelGenerate() {
   }
 }
 
+function getNovelExtractText() {
+  const ta = $('#mkNovelText');
+  if (!ta) return { text: '', selected: false, fullLen: 0 };
+  const full = String(ta.value || '');
+  const a = ta.selectionStart|0;
+  const b = ta.selectionEnd|0;
+  const selected = a !== b ? full.slice(Math.min(a, b), Math.max(a, b)).trim() : '';
+  if (selected.length >= 40) {
+    return { text: selected, selected: true, fullLen: full.trim().length, selLen: selected.length };
+  }
+  return { text: full.trim(), selected: false, fullLen: full.trim().length, selLen: 0 };
+}
+
+function updateNovelSelHint() {
+  const el = $('#mkNovelSelHint');
+  if (!el) return;
+  const info = getNovelExtractText();
+  if (info.selected) {
+    el.textContent = '已选中 ' + info.selLen + ' 字，将只压缩这一段。';
+  } else if (info.fullLen > 1200) {
+    el.textContent = '未选中；全文 ' + info.fullLen + ' 字偏长，建议先拖选一段再压缩。';
+  } else if (info.fullLen >= 40) {
+    el.textContent = '未选中，将压缩全文（' + info.fullLen + ' 字）。';
+  } else {
+    el.textContent = '';
+  }
+  const ap = $('#mkNovelAppend');
+  if (ap) {
+    ap.disabled = !work;
+    if (!work) ap.checked = false;
+  }
+}
+
 async function runNovelExtract() {
   if (novelBusy) return;
-  const text = ($('#mkNovelText')?.value || '').trim();
-  if (text.length < 80) { toast('正文太短，请先生成或粘贴小说', true); return; }
+  const info = getNovelExtractText();
+  const text = info.text;
+  if (text.length < 40) {
+    toast('请先选中或粘贴一段要改编的文字（至少约 40 字）', true);
+    return;
+  }
+  if (!info.selected && text.length > 1200) {
+    toast('请先在正文里拖选一段（约 100～800 字），不要整章硬压', true);
+    updateNovelSelHint();
+    return;
+  }
+  const append = !!(work && $('#mkNovelAppend')?.checked);
+  const withChoice = !!$('#mkNovelWithChoice')?.checked;
   novelBusy = true;
   const btn = $('#mkNovelExtBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '提取中…'; }
-  setNovelStatus('正在分段提取短镜头（覆盖全文，长文约需半分钟）…');
+  if (btn) { btn.disabled = true; btn.textContent = '压缩中…'; }
+  setNovelStatus(
+    (info.selected ? '正在压缩所选 ' + info.selLen + ' 字' : '正在压缩全文 ' + text.length + ' 字') +
+      ' → 少量短旁白/对白…'
+  );
   try {
     const res = await fetch('/api/hub/novel-extract', {
       method: 'POST',
@@ -2766,13 +2814,38 @@ async function runNovelExtract() {
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         text,
-        title: ($('#mkNovelTitle')?.value || '').trim(),
+        mode: 'compress',
+        withChoice,
+        title: ($('#mkNovelTitle')?.value || '').trim() || (work && work.title) || '',
         orientation: novelOrient,
       }),
     });
     const d = await res.json().catch(() => ({}));
-    if (!res.ok || !d.success || !d.work) throw new Error(d.error || '提取失败');
+    if (!res.ok || !d.success || !d.work) throw new Error(d.error || '压缩失败');
     if (d.warning) toast(d.warning, true);
+
+    const draftBlocks = normalizeWork({ ...d.work, kind: WORK_KIND })?.chapters?.[0]?.blocks || [];
+    if (!draftBlocks.length) throw new Error('没有生成镜头');
+
+    if (append && work) {
+      if (!work.chapters?.[0]) {
+        work.chapters = [{ id: 'ch_' + uid().slice(2), title: '第一章', blocks: [] }];
+      }
+      const ch = work.chapters[0];
+      if (!Array.isArray(ch.blocks)) ch.blocks = [];
+      draftBlocks.forEach((b) => {
+        if (!b.id) b.id = uid();
+        ch.blocks.push(b);
+      });
+      selectedId = draftBlocks[0].id;
+      editBranch = null;
+      scheduleSave();
+      $('#mkNovelModal')?.classList.remove('show');
+      showEdit();
+      toast('已追加 ' + draftBlocks.length + ' 个压缩镜头');
+      return;
+    }
+
     const draft = normalizeWork({ ...d.work, kind: WORK_KIND });
     const title = (draft.title || '互动改编').slice(0, 40);
     const created = await fetch('/api/stories', {
@@ -2807,17 +2880,13 @@ async function runNovelExtract() {
     selectedId = blocks()[0]?.id || null;
     editBranch = null;
     showEdit();
-    if (d.warning || d.source === 'fallback') {
-      toast(d.warning || '已用规则切成镜头，可在左侧继续改');
-    } else {
-      toast('已提取为《' + title + '》，可直接试玩');
-    }
+    toast('已压缩为《' + title + '》· ' + draftBlocks.length + ' 镜');
   } catch (e) {
-    setNovelStatus(e.message || '提取失败', true);
-    toast(e.message || '提取失败', true);
+    setNovelStatus(e.message || '压缩失败', true);
+    toast(e.message || '压缩失败', true);
   } finally {
     novelBusy = false;
-    if (btn) { btn.disabled = false; btn.textContent = '提取为互动镜头并打开'; }
+    if (btn) { btn.disabled = false; btn.textContent = '压缩所选为镜头'; }
   }
 }
 
@@ -2827,8 +2896,17 @@ function bindNovelUi() {
   $('#mkNovelClose')?.addEventListener('click', () => $('#mkNovelModal')?.classList.remove('show'));
   $('#mkNovelGenBtn')?.addEventListener('click', runNovelGenerate);
   $('#mkNovelExtBtn')?.addEventListener('click', runNovelExtract);
+  const novelTa = $('#mkNovelText');
+  if (novelTa) {
+    novelTa.addEventListener('mouseup', updateNovelSelHint);
+    novelTa.addEventListener('keyup', updateNovelSelHint);
+    novelTa.addEventListener('select', updateNovelSelHint);
+  }
   $$('#mkNovelTabs button').forEach((b) => {
-    b.addEventListener('click', () => setNovelTab(b.dataset.tab));
+    b.addEventListener('click', () => {
+      setNovelTab(b.dataset.tab);
+      if (b.dataset.tab === 'ext') updateNovelSelHint();
+    });
   });
   $$('#mkNovelOrient button').forEach((b) => {
     b.addEventListener('click', () => {

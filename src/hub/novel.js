@@ -356,9 +356,10 @@ function fillInheritedImagePrompts(blocks) {
  */
 function normalizeMakeBlocks(rawBlocks, opts = {}) {
   const out = [];
-  const maxBlocks = Math.max(8, Math.min(80, Number(opts.maxBlocks) || 60));
+  const maxBlocks = Math.min(80, Math.max(2, Number(opts.maxBlocks) || 60));
   const sceneMax = Math.max(24, Math.min(72, Number(opts.sceneMax) || 42));
   const dialogueMax = Math.max(20, Math.min(56, Number(opts.dialogueMax) || 32));
+  const ensureChoice = opts.ensureChoice !== false;
   const list = Array.isArray(rawBlocks) ? rawBlocks : [];
 
   for (const raw of list) {
@@ -502,7 +503,7 @@ function normalizeMakeBlocks(rawBlocks, opts = {}) {
     out.push({ id: uid("b"), type: "dialogue", speaker: "旁白", content: "（请在编辑器里继续完善）" });
   }
 
-  if (!out.some((b) => b.type === "choice")) {
+  if (ensureChoice && !out.some((b) => b.type === "choice")) {
     const insertAt = Math.min(Math.max(4, Math.floor(out.length * 0.55)), out.length);
     out.splice(insertAt, 0, {
       id: uid("b"),
@@ -771,17 +772,194 @@ async function llmExtractSegment(env, modelRef, excerpt, opts) {
   throw new Error(lastErr || "分段提取失败");
 }
 
-/** POST /api/hub/novel-extract */
+function buildCompressSystem({ minShots, maxShots, withChoice }) {
+  return (
+    "你是视觉小说压缩编剧。用户给出一段「选中的小说原文」，请在保留核心意思的前提下压缩成少量短镜头。" +
+    "硬性禁止：逐句切碎、复述每一句原文、把长段拆成十几条碎镜头。" +
+    "只输出 JSON：{\"title\":\"...\",\"cast\":[\"角色名\"],\"blocks\":[...]}。" +
+    "blocks 仅 scene|dialogue|choice。" +
+    "scene:{type,content,imagePrompt,imagePromptZh} dialogue:{type,speaker,content} " +
+    "choice:{type,content,choices:[{label,branch,end,endText?}] }。" +
+    `镜头数量 ${minShots}~${maxShots}（宜少不宜多）；` +
+    "content 是压缩后的旁白或对白，≤28 个汉字，是改写不是摘抄；对白保留关键说话人与语气；" +
+    "旁白只交代必要场景/动作/情绪，删掉铺陈与重复；" +
+    "每个 scene 必须带 imagePrompt（英文画面词）与 imagePromptZh（中文画面词），禁止照抄 content；" +
+    (withChoice
+      ? "末尾可加 1 个 choice（2 选项，其中一个 end:true）；若选段没有抉择点也可不加 choice。"
+      : "不要输出 choice。")
+  );
+}
+
+function compressShotBudget(len) {
+  if (len < 180) return { minShots: 2, maxShots: 4 };
+  if (len < 500) return { minShots: 3, maxShots: 6 };
+  if (len < 1200) return { minShots: 4, maxShots: 8 };
+  return { minShots: 5, maxShots: 10 };
+}
+
+async function llmCompressPassage(env, modelRef, excerpt, opts) {
+  const {
+    titleHint = "",
+    withChoice = true,
+    minShots = 3,
+    maxShots = 8,
+    maxTokens = 2800,
+  } = opts || {};
+
+  const messages = [
+    {
+      role: "system",
+      content: buildCompressSystem({ minShots, maxShots, withChoice }),
+    },
+    {
+      role: "user",
+      content:
+        (titleHint ? `标题建议：${titleHint}\n` : "") +
+        "请压缩下面这段选中原文（保留意思，改成短旁白/对白镜头）：\n\n" +
+        excerpt +
+        "\n\n只输出 JSON。",
+    },
+  ];
+
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const raw = await chatCompletions(env, messages, modelRef, 0.25, maxTokens, 60000);
+    const parsed = parseExtractPayload(raw);
+    if (!parsed || !Array.isArray(parsed.blocks) || !parsed.blocks.length) {
+      lastErr = "模型未返回镜头 JSON";
+      messages.push({ role: "assistant", content: String(raw || "").slice(0, 400) });
+      messages.push({
+        role: "user",
+        content:
+          "无效。请重新输出 JSON。记住：少量镜头、压缩改写、每条 content≤28 字，不要逐句切碎。",
+      });
+      continue;
+    }
+    return { parsed, attempts: attempt };
+  }
+  throw new Error(lastErr || "压缩提取失败");
+}
+
+/** 选段压缩兜底：少镜头，不整章切碎 */
+function fallbackCompressFromText(text, titleHint) {
+  const cleaned = String(text || "").replace(/\r/g, "").trim();
+  const chunks = cleaned
+    .split(/\n{2,}|(?<=[。！？])/)
+    .map((p) => p.trim())
+    .filter((p) => p.length >= 8)
+    .slice(0, 6);
+
+  const blocks = [];
+  const dialogueRe = /^(?:([\u4e00-\u9fffA-Za-z·]{1,12})[：:]\s*)?[「\"“]([^」\"”]{1,80})[」\"”]/;
+  chunks.forEach((p) => {
+    if (blocks.length >= 8) return;
+    const dm = p.match(dialogueRe);
+    if (dm) {
+      blocks.push({
+        type: "dialogue",
+        speaker: clampText(dm[1] || "旁白", 24) || "旁白",
+        content: clampText(dm[2], 28),
+      });
+      return;
+    }
+    // 压缩感：取关键语义短句，不整段照搬
+    let short = p.replace(/\s+/g, "");
+    if (short.length > 28) {
+      const cut = short.slice(0, 28);
+      const punct = Math.max(cut.lastIndexOf("，"), cut.lastIndexOf("。"), cut.lastIndexOf("；"));
+      short = punct >= 12 ? cut.slice(0, punct) : cut;
+    }
+    blocks.push({ type: "scene", content: short || "……", ...synthesizeImagePrompts(short) });
+  });
+
+  if (blocks.length < 2) {
+    const one = clampText(cleaned.replace(/\s+/g, ""), 28) || "故事继续。";
+    blocks.push({ type: "scene", content: one, ...synthesizeImagePrompts(one) });
+  }
+
+  return {
+    title: titleHint || clampText(cleaned.slice(0, 12).replace(/\s/g, ""), 20) || "互动改编",
+    cast: [],
+    blocks,
+    fallback: true,
+  };
+}
+
+/** POST /api/hub/novel-extract — 默认 compress：选段压缩成短旁白/对白 */
 export async function extractNovelToMake(body, env) {
-  const text = clampText(body.text || "", 14000);
-  if (text.length < 80) throw new Error("正文太短，请粘贴至少一小段完整情节。");
+  const mode = body.mode === "cover" ? "cover" : "compress";
+  const rawText = String(body.text || "");
+  const text =
+    mode === "compress"
+      ? clampText(rawText, 2500)
+      : clampText(rawText, 14000);
+
+  if (mode === "compress") {
+    if (text.length < 40) throw new Error("请先选中或粘贴一段要改编的文字（至少约 40 字）。");
+  } else if (text.length < 80) {
+    throw new Error("正文太短，请粘贴至少一小段完整情节。");
+  }
+
   const titleHint = clampText(body.title || "", 60);
   const orientation = body.orientation === "portrait" ? "portrait" : "landscape";
+  const withChoice = body.withChoice !== false && body.withChoice !== 0;
   const modelRef = resolveNovelModelRef(env);
   const provider = modelRef ? "deepseek" : "workers-ai";
 
+  if (mode === "compress") {
+    const budget = compressShotBudget(text.length);
+    try {
+      const { parsed, attempts } = await llmCompressPassage(env, modelRef, text, {
+        titleHint,
+        withChoice,
+        ...budget,
+        maxTokens: modelRef ? 3200 : 2200,
+      });
+      let rawBlocks = Array.isArray(parsed.blocks) ? parsed.blocks : [];
+      if (!withChoice) rawBlocks = rawBlocks.filter((b) => String(b?.type || "").toLowerCase() !== "choice");
+      const blocks = normalizeMakeBlocks(rawBlocks, {
+        maxBlocks: budget.maxShots + (withChoice ? 2 : 0),
+        sceneMax: 32,
+        dialogueMax: 28,
+        ensureChoice: withChoice,
+      });
+      const enrich = await enrichBlocksImagePrompts(env, modelRef, blocks);
+      return wrapMakeWork(
+        parsed.title || titleHint || "互动改编",
+        orientation,
+        blocks,
+        parsed.cast,
+        {
+          attempts,
+          source: "llm",
+          provider,
+          mode: "compress",
+          selectedChars: text.length,
+          promptsRewritten: enrich.rewritten,
+        }
+      );
+    } catch (e) {
+      console.warn("NOVEL COMPRESS fallback:", e.message || e);
+      const fb = fallbackCompressFromText(text, titleHint);
+      const blocks = normalizeMakeBlocks(fb.blocks, { maxBlocks: 12, sceneMax: 32, dialogueMax: 28 });
+      let promptsRewritten = 0;
+      try {
+        const enrich = await enrichBlocksImagePrompts(env, modelRef, blocks);
+        promptsRewritten = enrich.rewritten;
+      } catch (_) { /* ignore */ }
+      return wrapMakeWork(fb.title, orientation, blocks, fb.cast, {
+        attempts: 0,
+        source: "fallback",
+        provider,
+        mode: "compress",
+        promptsRewritten,
+        warning: "AI 压缩不稳定，已用简规则压成短镜头，可在编辑器里改。",
+      });
+    }
+  }
+
+  // mode=cover：旧「尽量覆盖全文」路径（一般不用）
   try {
-    // DeepSeek：分段提取，覆盖整章；Workers AI：单段短摘
     if (modelRef) {
       const chunks = packTextChunks(text, 2000, 5);
       const merged = [];
@@ -816,13 +994,13 @@ export async function extractNovelToMake(body, env) {
         attempts,
         source: "llm",
         provider,
+        mode: "cover",
         chunks: chunks.length,
         coveredChars: chunks.reduce((n, c) => n + c.length, 0),
         promptsRewritten: enrich.rewritten,
       });
     }
 
-    // Workers AI：短摘 + 少镜头
     const excerpt =
       text.length > 3200
         ? text.slice(0, 2800) + "\n……（后文已省略，请根据以上情节改编）"
@@ -841,13 +1019,12 @@ export async function extractNovelToMake(body, env) {
       orientation,
       blocks,
       parsed.cast,
-      { attempts, source: "llm", provider }
+      { attempts, source: "llm", provider, mode: "cover" }
     );
   } catch (e) {
     console.warn("NOVEL EXTRACT fallback:", e.message || e);
     const fb = fallbackExtractFromText(text, titleHint);
     const blocks = normalizeMakeBlocks(fb.blocks, { maxBlocks: 72, sceneMax: 42, dialogueMax: 32 });
-    // 兜底路径若有 DeepSeek，仍专改生图词
     let promptsRewritten = 0;
     try {
       const enrich = await enrichBlocksImagePrompts(env, modelRef, blocks);
@@ -857,6 +1034,7 @@ export async function extractNovelToMake(body, env) {
       attempts: 0,
       source: "fallback",
       provider,
+      mode: "cover",
       promptsRewritten,
       warning: "AI 提取不稳定，已用规则切成短镜头；生图词已尽量改写，可在编辑器里再改。",
     });
