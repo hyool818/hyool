@@ -2431,7 +2431,155 @@ async function route() {
   renderHome();
 }
 
+// ---------- AI 小说 / 提取镜头 ----------
+let novelOrient = 'landscape';
+let novelBusy = false;
+
+function setNovelStatus(msg, isErr) {
+  const el = $('#mkNovelStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.color = isErr ? '#ff8a7a' : 'var(--muted)';
+}
+
+function openNovelModal(tab) {
+  if (!loggedIn) { toast('请先登录', true); return; }
+  const modal = $('#mkNovelModal');
+  if (!modal) return;
+  setNovelTab(tab === 'ext' ? 'ext' : 'gen');
+  setNovelStatus('');
+  modal.classList.add('show');
+  setTimeout(() => {
+    const focus = tab === 'ext' ? $('#mkNovelText') : $('#mkNovelPremise');
+    if (focus) focus.focus();
+  }, 80);
+}
+
+function setNovelTab(tab) {
+  $$('#mkNovelTabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  $('#mkNovelGenPane')?.classList.toggle('hidden', tab !== 'gen');
+  $('#mkNovelExtPane')?.classList.toggle('hidden', tab !== 'ext');
+}
+
+async function runNovelGenerate() {
+  if (novelBusy) return;
+  const premise = ($('#mkNovelPremise')?.value || '').trim();
+  if (!premise) { toast('请先写故事想法', true); return; }
+  novelBusy = true;
+  const btn = $('#mkNovelGenBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '生成中…'; }
+  setNovelStatus('正在写小说，约需十几秒…');
+  try {
+    const res = await fetch('/api/hub/novel-generate', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({
+        premise,
+        genre: ($('#mkNovelGenre')?.value || '都市奇幻').trim(),
+        chapterCount: Number($('#mkNovelChCount')?.value || 2),
+      }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.success) throw new Error(d.error || '生成失败');
+    if ($('#mkNovelText')) $('#mkNovelText').value = d.text || '';
+    if ($('#mkNovelTitle') && d.title) $('#mkNovelTitle').value = d.title;
+    setNovelTab('ext');
+    setNovelStatus('已生成《' + (d.title || '未命名') + '》。可改字后点「提取为互动镜头」。');
+    toast('小说已生成');
+  } catch (e) {
+    setNovelStatus(e.message || '生成失败', true);
+    toast(e.message || '生成失败', true);
+  } finally {
+    novelBusy = false;
+    if (btn) { btn.disabled = false; btn.textContent = '生成小说'; }
+  }
+}
+
+async function runNovelExtract() {
+  if (novelBusy) return;
+  const text = ($('#mkNovelText')?.value || '').trim();
+  if (text.length < 80) { toast('正文太短，请先生成或粘贴小说', true); return; }
+  novelBusy = true;
+  const btn = $('#mkNovelExtBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '提取中…'; }
+  setNovelStatus('正在切成镜头（场景 / 对白 / 选项）…');
+  try {
+    const res = await fetch('/api/hub/novel-extract', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({
+        text,
+        title: ($('#mkNovelTitle')?.value || '').trim(),
+        orientation: novelOrient,
+      }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.success || !d.work) throw new Error(d.error || '提取失败');
+    const draft = normalizeWork({ ...d.work, kind: WORK_KIND });
+    const title = (draft.title || '互动改编').slice(0, 40);
+    const created = await fetch('/api/stories', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({
+        title,
+        orientation: draft.orientation || novelOrient,
+        imgQuality: 'standard',
+        kind: WORK_KIND,
+      }),
+    });
+    const cd = await created.json().catch(() => ({}));
+    if (!created.ok || !cd.success || !cd.story) throw new Error(cd.error || '创建作品失败');
+    draft.id = cd.story.id;
+    draft.title = title;
+    draft.status = cd.story.status || 'draft';
+    if (!draft.chapters?.[0]) {
+      draft.chapters = [{ id: 'ch_' + uid().slice(2), title: '第一章', blocks: [] }];
+    }
+    const put = await fetch('/api/stories/' + encodeURIComponent(draft.id), {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ data: draft }),
+    });
+    const pd = await put.json().catch(() => ({}));
+    if (!put.ok || !pd.success) throw new Error(pd.error || '保存镜头失败');
+    $('#mkNovelModal')?.classList.remove('show');
+    work = normalizeWork(draft);
+    selectedId = blocks()[0]?.id || null;
+    editBranch = null;
+    showEdit();
+    toast('已提取为《' + title + '》，可直接试玩');
+  } catch (e) {
+    setNovelStatus(e.message || '提取失败', true);
+    toast(e.message || '提取失败', true);
+  } finally {
+    novelBusy = false;
+    if (btn) { btn.disabled = false; btn.textContent = '提取为互动镜头并打开'; }
+  }
+}
+
+function bindNovelUi() {
+  const openBtn = $('#mkNovelBtn');
+  if (openBtn) openBtn.addEventListener('click', () => openNovelModal('gen'));
+  $('#mkNovelClose')?.addEventListener('click', () => $('#mkNovelModal')?.classList.remove('show'));
+  $('#mkNovelGenBtn')?.addEventListener('click', runNovelGenerate);
+  $('#mkNovelExtBtn')?.addEventListener('click', runNovelExtract);
+  $$('#mkNovelTabs button').forEach((b) => {
+    b.addEventListener('click', () => setNovelTab(b.dataset.tab));
+  });
+  $$('#mkNovelOrient button').forEach((b) => {
+    b.addEventListener('click', () => {
+      novelOrient = b.dataset.o === 'portrait' ? 'portrait' : 'landscape';
+      $$('#mkNovelOrient button').forEach((x) => x.classList.toggle('on', x.dataset.o === novelOrient));
+    });
+  });
+}
+
 function bind() {
+  bindNovelUi();
   $('#mkNewBtn').addEventListener('click', openCreateModal);
   $('#mkModalCancel').addEventListener('click', () => $('#mkModal').classList.remove('show'));
   $('#mkModalBack').addEventListener('click', () => setCreateStep(1));

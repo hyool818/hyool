@@ -231,11 +231,12 @@ html,body{height:100%;overflow:hidden}
       <div id="mkApp" class="hidden">
         <div class="mk-actions">
           <button type="button" class="btn primary" id="mkNewBtn">＋ 新建作品</button>
+          <button type="button" class="btn" id="mkNovelBtn">✦ AI 写小说 / 提取镜头</button>
           <a class="btn" href="/brain.html" style="text-decoration:none">◎ AI 帮我想</a>
           <a class="btn" href="/plaza.html" style="text-decoration:none">去玩</a>
         </div>
         <div id="mkGrid" class="mk-grid"></div>
-        <p id="mkEmpty" class="mk-login hidden" style="padding:24px">还没有作品。点上方「新建作品」开始，或让 AI 帮你想大纲。</p>
+        <p id="mkEmpty" class="mk-login hidden" style="padding:24px">还没有作品。点「新建作品」，或用「AI 写小说 / 提取镜头」一键出可玩草稿。</p>
         <div class="mk-more">
           <h3>其他类型</h3>
           <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:4px">视觉小说支持图片 + 视频混排；漫画 / 卡牌 / H5 走下方专用工具。</p>
@@ -333,6 +334,54 @@ html,body{height:100%;overflow:hidden}
   </div>
 </div>
 
+<div class="mk-modal" id="mkNovelModal">
+  <div class="mk-modal-box" style="max-width:560px">
+    <h2>AI 写小说 / 提取镜头</h2>
+    <p style="font-size:12px;color:var(--muted);line-height:1.65;margin:0 0 12px">生成短篇正文，或把已有小说提取成可试玩的视觉小说镜头（场景 / 对白 / 选项）。</p>
+    <div class="mk-orient" id="mkNovelTabs" style="margin-bottom:12px">
+      <button type="button" data-tab="gen" class="on">① 写小说</button>
+      <button type="button" data-tab="ext">② 提取镜头</button>
+    </div>
+    <div id="mkNovelGenPane">
+      <label class="field"><span>故事想法</span>
+        <textarea id="mkNovelPremise" rows="3" placeholder="例如：转学生在雨夜教室遇见不存在的同学……" maxlength="800" style="width:100%;resize:vertical;min-height:72px;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line2);background:var(--bg3);color:var(--text)"></textarea>
+      </label>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <label class="field" style="flex:1;min-width:120px"><span>题材</span>
+          <input type="text" id="mkNovelGenre" value="都市奇幻" maxlength="20" style="width:100%">
+        </label>
+        <label class="field" style="width:110px"><span>章数</span>
+          <select id="mkNovelChCount" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--line2);background:var(--bg3);color:var(--text);font:inherit">
+            <option value="1">1 章</option>
+            <option value="2" selected>2 章</option>
+            <option value="3">3 章</option>
+          </select>
+        </label>
+      </div>
+      <button type="button" class="btn primary" id="mkNovelGenBtn" style="width:100%;margin-top:12px">生成小说</button>
+    </div>
+    <div id="mkNovelExtPane" class="hidden">
+      <label class="field"><span>作品标题（可选）</span>
+        <input type="text" id="mkNovelTitle" maxlength="40" placeholder="默认用提取结果" style="width:100%">
+      </label>
+      <label class="field" style="margin-top:10px"><span>画面</span></label>
+      <div class="mk-orient" id="mkNovelOrient">
+        <button type="button" data-o="landscape" class="on">横屏</button>
+        <button type="button" data-o="portrait">竖屏</button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin:10px 0 6px">可粘贴自己的小说，或用上方生成结果。</p>
+      <button type="button" class="btn primary" id="mkNovelExtBtn" style="width:100%">提取为互动镜头并打开</button>
+    </div>
+    <label class="field" style="margin-top:14px"><span>小说正文</span>
+      <textarea id="mkNovelText" rows="10" placeholder="生成后出现在这里；也可直接粘贴要提取的小说……" maxlength="14000" style="width:100%;resize:vertical;min-height:180px;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line2);background:var(--bg3);color:var(--text);line-height:1.65"></textarea>
+    </label>
+    <p id="mkNovelStatus" style="font-size:12px;color:var(--muted);margin:8px 0 0;min-height:1.2em"></p>
+    <div class="row" style="margin-top:14px">
+      <button type="button" class="btn" id="mkNovelClose" style="flex:1">关闭</button>
+    </div>
+  </div>
+</div>
+
 <div id="cropBackdrop">
   <div class="mk-crop-box">
     <div class="mk-crop-head">
@@ -354,6 +403,6 @@ html,body{height:100%;overflow:hidden}
 </div>
 
 <div id="toast"></div>
-<script type="module" src="/make.js?v=20260828n"></script>
+<script type="module" src="/make.js?v=20260828novel1"></script>
 </body>
 </html>

@@ -5,6 +5,8 @@
  *   POST /api/hub/plan          { request } → { blueprint, assets, attempts }
  *   POST /api/hub/run           { blueprint, dryRun? } → { report, story, assetMap }
  *   POST /api/hub/live-line     表现层临场一句（不改剧情；失败由前端回退预设）
+ *   POST /api/hub/novel-generate  { premise, genre?, chapterCount? } → 小说正文
+ *   POST /api/hub/novel-extract   { text, title?, orientation? } → make 镜头作品 JSON
  *
  * 约定与 handleMvpRoutes 一致：helpers 注入 { json, getAuthenticatedUser }；
  * 所有接口需要登录；本模块不直接持有业务表逻辑，全部走 hub 内部模块。
@@ -14,6 +16,7 @@ import { runWorkflow, serializeResult } from "./engine.js";
 import { deriveAssets, normalizeBlueprint, validateBlueprint, STYLE_PRESETS, IMG_SIZE } from "./blueprint.js";
 import { TTS_VOICES } from "../tts.js";
 import { chatCompletions } from "../ai/gateway.js";
+import { generateNovel, extractNovelToMake } from "./novel.js";
 
 export async function handleHubRoutes(request, env, pathname, method, helpers) {
     // 只接管 /api/hub/* 子路径（meta/plan/run）；精确路径 /api/hub 是 MVP 的
@@ -94,6 +97,28 @@ export async function handleHubRoutes(request, env, pathname, method, helpers) {
         } catch (e) {
             console.error("HUB PLAN ERROR:", e);
             return json({ success: false, error: e.message || "规划失败。" }, 500);
+        }
+    }
+
+    if (pathname === "/api/hub/novel-generate" && method === "POST") {
+        try {
+            const body = await request.json().catch(() => ({}));
+            const result = await generateNovel(body, env);
+            return json({ success: true, ...result });
+        } catch (e) {
+            console.error("HUB NOVEL-GENERATE ERROR:", e);
+            return json({ success: false, error: e.message || "小说生成失败。" }, 500);
+        }
+    }
+
+    if (pathname === "/api/hub/novel-extract" && method === "POST") {
+        try {
+            const body = await request.json().catch(() => ({}));
+            const result = await extractNovelToMake(body, env);
+            return json({ success: true, ...result });
+        } catch (e) {
+            console.error("HUB NOVEL-EXTRACT ERROR:", e);
+            return json({ success: false, error: e.message || "剧情提取失败。" }, 500);
         }
     }
 
