@@ -1407,11 +1407,32 @@ body{
     ></div>
 
 
+    <!-- ===================================================
+         INFINITE · 图片/工具箱
+    ==================================================== -->
+
     <div
         class="light infinite"
         data-world="infinite"
-        aria-hidden="true"
-    ></div>
+    >
+
+        <div class="light-label">
+
+            <div class="light-name">
+                无限
+            </div>
+
+            <div class="light-meaning">
+                图片编辑 · 本地工具箱。
+            </div>
+
+            <div class="light-tags">
+                FastEdit · 压缩 · 抠图 · 音频 · 批量
+            </div>
+
+        </div>
+
+    </div>
 
 
     <!-- ===================================================
@@ -1451,11 +1472,13 @@ body{
         <div class="core-cn">
             <span class="core-entry" data-world="create">创建作品</span>
             <span class="core-sep">×</span>
+            <span class="core-entry" data-world="infinite">无限</span>
+            <span class="core-sep">×</span>
             <span class="core-entry" data-world="world">创造世界</span>
         </div>
 
         <div class="core-en">
-            Create Works · Create World
+            Create Works · Infinite · Create World
         </div>
 
     </div>
@@ -1811,7 +1834,8 @@ document.querySelectorAll(".light[data-world]").forEach(
 
                 const w = el.dataset.world;
 
-                if (w === "yonder" || w === "infinite") return;
+                /* 彼岸仍走底栏/账号入口；无限恢复可点 */
+                if (w === "yonder") return;
 
                 goWorld(w);
 
