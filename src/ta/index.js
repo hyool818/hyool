@@ -480,11 +480,13 @@ export async function handleTaRoutes(request, env, pathname, method) {
 
         return json({ success: false, code: "NOT_FOUND", error: "没有这个 TA 接口。" }, 404, cors);
     } catch (e) {
-        console.error("TA ROUTE ERROR:", safeError(e));
+        const detail = safeError(e);
+        console.error("TA ROUTE ERROR:", detail);
         return json({
             success: false,
             code: "INTERNAL",
-            error: "我这边卡了一下，你先说，我本机接着记。"
+            error: "我这边卡了一下，你先说，我本机接着记。",
+            detail: detail
         }, 500, cors);
     }
 }
