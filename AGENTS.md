@@ -4,5 +4,5 @@
 
 ## 先说清是哪边（用户只给两个词）
 
-- 看到 **「改TA」/「TA」/「AI 伴侣」** → 只读 `docs/TA.md` + `public/ta.html`；不读 MASTER_SPEC / FEATURES，不碰 `src/`。
+- 看到 **「改TA」/「TA」/「AI 伴侣」** → 只读 `docs/TA.md` + `public/ta.html` + `src/ta/`（TA 自有后端）；不读 MASTER_SPEC / FEATURES，不碰 `src/` 的其它文件（唯一例外：`src/tts.js` 的音色与合成实现，TA 语音复用它）。
 - 没提 TA → 走 HYOOL 主站流程（上面那两份）。

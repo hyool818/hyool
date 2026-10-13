@@ -7,7 +7,7 @@ alwaysApply: true
 
 开工：读 `docs/MASTER_SPEC.md`，再读 `docs/FEATURES.md` 里**当前任务那一行**的文件。不要通读 `src/`、`public/`、`CONTEXT.md` 全文。
 
-- **分流**：用户说「改TA」「TA」「AI 伴侣」= 另一个独立原型 → 只读 `docs/TA.md` + `public/ta.html`，不读 MASTER_SPEC / FEATURES，不碰 `src/`、不调 `/api/*`。没说 TA 才走上面的 HYOOL 流程。
+- **分流**：用户说「改TA」「TA」「AI 伴侣」= 独立产品线 → 只读 `docs/TA.md` + `public/ta.html` + `src/ta/`，不读 MASTER_SPEC / FEATURES，不碰 `src/` 的其它文件（唯一例外 `src/tts.js` 的音色/合成）；TA 只允许调自己的 `/api/ta/*`，不调主站 `/api/*`。没说 TA 才走上面的 HYOOL 流程。
 
 - 改代码前必须 Grep/打开清单中的文件并读通局部逻辑；找不到就停，问用户。
 - 局部修改；不重构、不删功能、不改无关视觉。

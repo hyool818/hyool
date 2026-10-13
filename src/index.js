@@ -1,6 +1,7 @@
 import { handleMvpRoutes, handleWorldCron } from "./mvp.js";
 import { handleTtsRequest, TTS_VOICES } from "./tts.js";
 import { handleHubRoutes } from "./hub/index.js";
+import { handleTaRoutes } from "./ta/index.js";
 import {
     backfillChunksToR2,
     bytesToBase64,
@@ -1684,6 +1685,25 @@ export default {
                 }, 500);
             }
         }
+
+
+        /* =====================================================
+           TA（AI 伴侣）：独立接口 /api/ta/*（免登录 + 独立限流）
+           实现、模型注册表、人设预设都在 src/ta/ 内，
+           与主站账号体系（D1 / 会话 / 邀请码）无关
+        ===================================================== */
+
+        const taResponse = await handleTaRoutes(
+            request,
+            env,
+            pathname,
+            request.method
+        );
+
+        if (taResponse) {
+            return taResponse;
+        }
+
 
 
         /* =====================================================
