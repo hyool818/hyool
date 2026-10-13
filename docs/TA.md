@@ -111,15 +111,15 @@ Select-String -Path public\ta.html -Pattern 'fetch|XMLHttpRequest|WebSocket|<a |
 | 日期 | 变更 |
 |---|---|
 | 2026-10-14 | 初版落地：`public/companion.html` → 定名 **TA**，文件改名 `public/ta.html`，标题/文案/存储键（`hyool-ai-companion-v1` → `hyool-ta-v1`）同步；push 到 `main` 经 CI 上线 `https://hyool.com/ta`（提交 `feat(ta): add standalone TA companion chat page`）。 |
+| 2026-10-14 | 补路由：把**「改TA / TA / AI 伴侣」触发词**写进 `AGENTS.md` 与 `.cursor/rules/hyool-agent.mdc`；§9 简化为触发词表。 |
 
 **命名由来**：候选「小满 / 树洞 / 夜灯 / 回声 / TA / 陪伴」，最终选 **TA** —— 最短、性别中性、最贴"AI 伴侣"本意；页内默认角色名仍是「小满」（用户在设置页可改）。
 
-## 9. 怎么让 AI（或新同事）不搞混
+## 9. 触发词（用户只会说这两个）
 
-开工时明确说一句即可：
+| 用户说 | Agent 该做什么 |
+|---|---|
+| **「改TA」/「TA」/「AI 伴侣」** | 读本文件 + `public/ta.html` 后动手；不读 MASTER_SPEC / FEATURES，不碰 `src/` |
+| 其他任何说法 | 默认 HYOOL 主站（读 MASTER_SPEC + FEATURES），忽略本文件 |
 
-> 这次只改 AI 伴侣（TA）：先读 `docs/TA.md`，只动 `public/ta.html`，**不要碰** `src/` 和 `docs/FEATURES.md`。
-
-改 HYOOL 时反过来：
-
-> 这次是 HYOOL 主站需求：读 `docs/MASTER_SPEC.md` + `docs/FEATURES.md` 对应条目，**忽略** `docs/TA.md` 与 `public/ta.html`。
+该分流已写入 `AGENTS.md` 与 `.cursor/rules/hyool-agent.mdc`，每次开工自动可见，用户无需另行交代路径。
