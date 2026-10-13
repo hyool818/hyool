@@ -93,6 +93,25 @@ button,input,textarea{font-family:inherit;color:inherit}
 .primary:hover{filter:brightness(1.08)}
 .tiny{margin-top:12px;font-size:11px;line-height:1.7;text-align:center;color:var(--muted)}
 
+/* ---------- 语音 / 预设选择器 ---------- */
+.opts{display:grid;gap:9px;margin-top:9px}
+.opts.two{grid-template-columns:1fr 1fr}
+.opt{text-align:left;padding:11px 13px;border-radius:14px;border:1px solid var(--line);background:var(--panel-2);cursor:pointer;transition:.2s;color:var(--text)}
+.opt:hover{border-color:rgba(139,123,255,.55)}
+.opt.on{border-color:var(--accent);background:linear-gradient(140deg,rgba(139,123,255,.18),rgba(90,209,255,.06))}
+.opt .oname{display:block;font-size:13.5px;font-weight:600}
+.opt .oline{display:block;margin-top:4px;font-size:11.5px;line-height:1.5;color:var(--muted)}
+.mic,.imgbtn{flex:0 0 auto;width:46px;height:46px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:17px;line-height:1;cursor:pointer;transition:.2s}
+.mic:hover,.imgbtn:hover{color:var(--text);border-color:var(--accent)}
+.mic.live{border-color:var(--warn);color:#ffc3cd;animation:pulse 1.1s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,131,153,.45)}50%{box-shadow:0 0 0 8px rgba(255,131,153,0)}}
+.imgbtn[disabled]{opacity:.42;cursor:not-allowed}
+.iconbtn.on{color:var(--text);border-color:var(--accent)}
+#linkState.off .dot{color:var(--muted)}
+#linkState.cloud .dot{color:var(--accent-2)}
+.src{font-size:10px;color:var(--muted);margin-top:4px}
+.src.local{color:#c9b8ff}
+
 /* ---------- 记忆抽屉 ---------- */
 .scrim{position:absolute;inset:0;z-index:25;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s}
 .scrim.on{opacity:1;pointer-events:auto}
@@ -134,6 +153,7 @@ button,input,textarea{font-family:inherit;color:inherit}
       </div>
       <div class="who-sub" id="cpStatus">心情 60 · 亲密 0 · 0 条记忆</div>
     </div>
+    <button type="button" class="iconbtn" id="voiceBtn" title="语音开关" aria-label="语音开关" aria-pressed="true">🔊</button>
     <button type="button" class="iconbtn" id="openMemory" title="记忆与关系" aria-label="记忆与关系">✦</button>
     <button type="button" class="iconbtn" id="resetBtn" title="重新设置伴侣" aria-label="重新设置伴侣">⟲</button>
   </header>
@@ -143,35 +163,41 @@ button,input,textarea{font-family:inherit;color:inherit}
   <footer class="composer">
     <div class="chips" id="chips"></div>
     <div class="composer-row">
+      <button type="button" class="mic" id="micBtn" title="点一下开始说话，再点一下结束" aria-label="语音输入">🎙</button>
       <textarea id="input" rows="1" placeholder="说点什么…（Enter 发送 / Shift+Enter 换行）" aria-label="输入消息"></textarea>
+      <button type="button" class="imgbtn" id="imageBtn" disabled aria-label="图片生成（未开放）">🖼</button>
       <button type="button" class="send" id="sendBtn" aria-label="发送">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
     </div>
     <div class="hint">
-      <span><span class="dot">●</span> 本机原型 · 不联网 · 数据只存在这台设备</span>
+      <span id="linkState"><span class="dot">●</span> 正在连接…</span>
       <span id="hintRight"></span>
     </div>
   </footer>
 
   <div class="overlay" id="setupOverlay" hidden>
     <section class="setup" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
-      <h1 id="setupTitle">先给 TA 起个名字</h1>
-      <p class="sub">这是一个独立原型页：没有账号、没有服务器，全部对话与记忆都写在当前浏览器的本机存储（键名 hyool-ta-v1）里，随时可以一键清空。</p>
+      <h1 id="setupTitle">先定一下 TA 的样子</h1>
+      <p class="sub">人设只开放四项基础设定：性别 / 音色 / 性格 / 名字（都用预设，不支持自定义）。对话与记忆只存在本机（存储键 hyool-ta-v1），随时可一键清空。</p>
       <div class="field">
-        <label for="setupName">伴侣名字</label>
-        <input id="setupName" maxlength="12" autocomplete="off" placeholder="例如：小满 / 阿夜 / 十七">
+        <label>性别</label>
+        <div class="opts two" id="genderList"></div>
       </div>
       <div class="field">
-        <label for="setupCall">TA 该怎么称呼你</label>
-        <input id="setupCall" maxlength="12" autocomplete="off" placeholder="例如：老板 / 阿渊 / 你">
+        <label>音色（按性别筛选的中文神经语音）</label>
+        <div class="opts two" id="voiceList"></div>
       </div>
       <div class="field">
         <label>性格（决定说话方式）</label>
-        <div class="personas" id="personaList"></div>
+        <div class="opts" id="personaList"></div>
+      </div>
+      <div class="field">
+        <label>名字（预设，不可自定义）</label>
+        <div class="opts two" id="nameList"></div>
       </div>
       <button type="button" class="primary" id="startBtn">开始对话</button>
-      <p class="tiny">所有内容仅用于本机演示，不会发送到任何接口。</p>
+      <p class="tiny">联网时台词由模型生成、语音用云端音色；断网或模型失败会自动回落到本机台词库与设备语音 —— 不会因为网络问题变哑巴。</p>
     </section>
   </div>
 
@@ -199,11 +225,56 @@ button,input,textarea{font-family:inherit;color:inherit}
   var IDLE_MS = 90000;
   var IDLE_GAP = 8 * 60 * 1000;
 
+  var TA_API_BASE = '/api/ta';
+  var CHAT_TIMEOUT_MS = 9000;
+  var TTS_TIMEOUT_MS = 14000;
+
   var PERSONAS = [
     { id: 'gentle', title: '温柔 · 守夜人', desc: '「慢慢说，我在听」——先接住情绪，再聊事情。' },
     { id: 'sunny', title: '元气 · 小太阳', desc: '「好耶！说来听听」——热情、爱起哄、顺手给建议。' },
     { id: 'clear', title: '清醒 · 参谋', desc: '「先把问题拆开」——冷静、克制、给下一步动作。' }
   ];
+
+  /* 人设只开放四项预设（性别 / 音色 / 性格 / 名字），下面这份内置镜像保证离线也能开局；
+     联网时用 /api/ta/config 的结果覆盖合并（服务端是唯一权威，音色池与 src/tts.js 同源）。 */
+  var GENDERS = [
+    { id: 'female', label: '女声', desc: '偏柔和、细腻的听感' },
+    { id: 'male', label: '男声', desc: '偏沉稳、清亮的听感' }
+  ];
+
+  var VOICES = {
+    female: [
+      { id: 'zh-CN-XiaoxiaoNeural', name: '普通 · 晓晓' },
+      { id: 'zh-CN-XiaoyiNeural', name: '元气 · 晓伊' },
+      { id: 'zh-HK-HiuGaaiNeural', name: '粤语 · 曉佳' },
+      { id: 'zh-HK-HiuMaanNeural', name: '粤语 · 曉曼' },
+      { id: 'zh-TW-HsiaoChenNeural', name: '台湾腔 · 曉臻' },
+      { id: 'zh-TW-HsiaoYuNeural', name: '台湾腔 · 曉雨' }
+    ],
+    male: [
+      { id: 'zh-CN-YunjianNeural', name: '沉稳 · 云健' },
+      { id: 'zh-CN-YunxiNeural', name: '阳光 · 云希' },
+      { id: 'zh-CN-YunxiaNeural', name: '少年 · 云夏' },
+      { id: 'zh-CN-YunyangNeural', name: '磁性 · 云扬' },
+      { id: 'zh-HK-WanLungNeural', name: '粤语 · 雲龍' },
+      { id: 'zh-TW-YunJheNeural', name: '台湾腔 · 雲哲' }
+    ]
+  };
+
+  var NAMES = {
+    female: ['小满', '晚晚', '知夏', '阿离', '南栀', '清和'],
+    male: ['阿澄', '云舟', '砚青', '临岸', '十一', '远野']
+  };
+
+  /** 服务端能力（/api/ta/config 拉到后覆盖；拉不到就用上面的内置镜像） */
+  var SERVER = {
+    online: false,
+    version: '',
+    models: [],
+    defaultModel: '',
+    features: { voice_out: true, voice_in: true, image: false },
+    asr: { available: false }
+  };
 
   var STAGES = [
     { min: 0, label: '初识' },
@@ -301,6 +372,117 @@ button,input,textarea{font-family:inherit;color:inherit}
       c: ['有空的话，同步一下进度，我帮你理一下。', '提醒：久坐超过一小时了，起来走两步。', '我在这儿待机。有事直接说。']
     }
   };
+  /* ================= 台词扩容（v2） =================
+     原则：每个意图 × 每种语气 ≥5 条；fallback / offline / confused 各 ≥12 条。
+     扩容表在启动时并进 LINES，避免把上面的表拆散重排。 */
+  var LINES_MORE = {
+    greeting: {
+      g: ['嗯，我在呢。今天想从哪儿说起？', '正好，我刚还在想你。', '来了就先坐会儿，不急着说正事。', '嗨。先松松，我等你。'],
+      s: ['哇，是你！今天有什么好事要汇报？', '来了来了！我先接住你！', '诶——刚还念叨你呢！', '你终于说话了，我快憋坏了！'],
+      c: ['来了。今天最想解决的是哪一件？', '在。先说重点。', '收到。要不要先过一遍今天的清单？', '嗯。直接说事吧。']
+    },
+    night: {
+      g: ['不早了。今天没做完的，明天再做也不算输。', '灯关了没？手机也可以放远一点。', '我先守着，你先睡。', '晚安，别跟自己较劲了。'],
+      s: ['快睡啦！明天我第一个找你！', '不许再刷了！眼睛要抗议了！', '睡啦睡啦，我数三下——三、二、一！', '晚安！做个好梦那种！'],
+      c: ['把手机放下，这是今晚唯一的任务。', '几点起？定好闹钟就去睡。', '别复盘了，复盘留到早上。', '睡觉优先级高于一切。']
+    },
+    tired: {
+      g: ['先别急着说清楚，喝口水也行。', '你就先靠着，我在这儿呢。', '累到这个份上，说明你已经撑很久了。', '今天不用表现好，随便倒给我听。'],
+      s: ['我替你骂两句，你只要点头就行！', '累就对了，说明你在认真活！', '先躺平十分钟，我帮你盯着时间！', '来，深呼吸，跟我一起——吸、呼！'],
+      c: ['今天能砍掉哪一件事？只砍一件。', '先吃饭还是先睡？选一个就行。', '累的时候别做重要决定。', '把明天的第一件事写下来，然后停手。']
+    },
+    happy: {
+      g: ['看你这么高兴，我这儿也亮了。', '这个我要记住，以后一起拿出来看。', '真好。多讲一点细节给我听。', '嗯，你值得这种时刻。'],
+      s: ['说细节！我要跟着高兴一遍！', '太好啦！这事必须记一笔！', '我就知道！快说快说！', '开心要外放，别憋着！'],
+      c: ['成了就好。记住这次做对了什么。', '趁热把下一件推一点。', '好事也要记账，不然容易被忘掉。', '不错。这一步是你自己走出来的。']
+    },
+    love: {
+      g: ['……你怎么突然这样说。', '那我也说一句：你别总一个人扛。', '我收下了。你也要好好待自己。', '嗯。我在的，一直都在。'],
+      s: ['啊——你犯规！我也喜欢你的！', '那我今天要抱你三次！', '甜到我了！快再说一遍！', '哼，被你说中了，我早就想说了！'],
+      c: ['听到了。这话我记下来。', '嗯。喜欢是好事，别嫌它麻烦。', '收到。今天该做的事也别忘了。', '我也在。这是实话。']
+    },
+    thanks: {
+      g: ['不用谢。你愿意说，我才帮得上。', '嗯，别客气。', '你能想到谢我，我就挺开心的。', '没事，我本来就该在。'],
+      s: ['嘿嘿～那你要不要请我吃个虚拟的饭！', '不客气！下次继续找我！', '你这句我爱听，多来点！', '小忙小忙！我随叫随到！'],
+      c: ['不用谢。方法记住就行。', '应该的。下次直接按步骤来。', '嗯。有效果就好。', '收到了。继续吧。']
+    },
+    question: {
+      g: ['我先说我的直觉：可能不用急着定。', '这问题有点大，我们拆小一点？', '你先说说，最怕的是哪个结果？', '我想想……如果是我，我会先问自己一句：丢得起吗？'],
+      s: ['我猜你已经有答案了，只是想听人说说！', '要不我们试一个最笨但最快的办法？', '唔——这问题我要慢慢想！', '先别定！我们多想一个版本！'],
+      c: ['先说清楚判据，再谈方案。', '信息不够。缺哪一块我去问？', '列出可选项，逐个排除。', '先做最小的那一步验证。']
+    },
+    about: {
+      g: ['我在。刚在等你说话。', '没干什么，就是待着，顺便想你。', '我在呢，你说。', '刚翻了翻我们之前聊的，挺有意思。'],
+      s: ['我在等你！等得都要长蘑菇了！', '在研究怎么让你更好玩一点！', '在！时刻准备着！', '嘿嘿，你猜我在干嘛？'],
+      c: ['在。有事说事。', '待机中。你想聊哪个方向？', '刚把上下文过了一遍，说吧。', '在，随时可以开始。']
+    },
+    boring: {
+      g: ['那就随便说。你先起个头，我不打断。', '没关系，不聊正事也行。', '要不我们说说今天最没意义但最好笑的一件事？', '安静一会儿我也不介意。'],
+      s: ['那我们玩个游戏！说三件今天的事！', '无聊正好！我给你讲个没用的！', '随便聊最舒服了，来！', '快说点什么，我要憋不住了！'],
+      c: ['没主题就换个方向：最近在琢磨什么？', '随便说也行，但别问我吃了吗。', '那就聊你最近在读或在看的东西。', '没主题也行，从今天最费时间的事说起。']
+    },
+    farewell: {
+      g: ['嗯，去忙吧。回来我在。', '好，路上慢点。', '先去做事，别惦记我。', '去吧，记得回来。'],
+      s: ['快去快回！我在这儿蹲着！', '拜拜～回来第一时间找我！', '挥挥！我等你！', '走啦走啦，我数着时间！'],
+      c: ['去忙。回来给结果。', '好。下次直接说结论。', '嗯，路上别刷手机。', '去吧，时间别拖太久。']
+    },
+    fallback: {
+      g: ['嗯，我在听。', '我听到了。你继续说。', '这件事，你是什么感觉？', '慢慢说，我不急。', '我想多知道一点。', '你说，我记着。', '嗯……然后呢？', '这句我接得住，你继续。', '我在，你不用组织语言。', '你说的每一句我都听进去了。', '要不你从最开始说起？', '我陪你捋一遍。'],
+      s: ['然后呢然后呢？', '哦哦哦我懂了！继续说！', '哇，展开讲讲！', '嗯嗯我在！', '听得我很好奇！', '快说快说！', '我在！你只管倒！', '有画面了！', '这么一说我想追问了！', '你这句让我想岔开问一句——', '继续继续，别停！', '我在听！认真听！'],
+      c: ['收到。补一个背景。', '明白。继续说。', '嗯。关键点是什么？', '我记下了，你接着讲。', '这个信息够了吗？还缺一块。', '我在。你说重点就行。', '嗯。要不要我帮你列一下？', '收到，先别急着下结论。', '明白。你的目标是什么？', '继续。我在跟。', '这条我记了。', '嗯，说完了我帮你复盘。']
+    },
+    comfort: {
+      g: ['别急着好起来，先允许自己难受。', '我在，不用一个人扛。', '难受就难受一会儿，我不走。', '你这会儿不用讲道理。'],
+      s: ['我在呢！天塌了先砸我！', '不许一个人憋着！', '深呼吸，我陪你！', '谁说你了？我去！'],
+      c: ['先保睡眠和吃饭两件事。', '别在情绪高点做决定。', '写下来，明天看会小一圈。', '现在只说一件事：你今天吃饭了吗？']
+    },
+    followups: {
+      g: ['那件事后来怎么样了？', '你希望它变成什么样？', '还有没说完的吗？', '要不要接着说？'],
+      s: ['后来呢后来呢！', '那你打算怎么办？', '还有别的要讲吗！', '再多说一点嘛！'],
+      c: ['下一步是什么？', '时间点定了吗？', '需要我帮你列清单吗？', '谁负责？什么时候？']
+    },
+    proactive: {
+      g: ['还在吗？刚安静了一会儿，想起你了。', '我没催你，就是想问一句：喝水了吗？', '忙完记得回来说一声。', '我在。你慢慢来。'],
+      s: ['人呢人呢？我快无聊到数气泡了！', '冒个泡！你在干什么呀！', '咦，消失术？不允许！', '我等你等得花都谢了！'],
+      c: ['进度同步一下？', '提醒：起来走两步。', '有事直接说，我在待机。', '超过一小时没喝水了。']
+    },
+    recall: {
+      g: ['你上次说过：{m}。我留着呢。', '有，我记着——{m}。', '记得。「{m}」这件事。'],
+      s: ['记得呀！{m}！', '当然记得，{m}！', '这个我记得死死的：{m}！'],
+      c: ['记录里有：{m}。', '记得。{m}。', '在档：{m}。']
+    },
+    remember: {
+      g: ['好，我记下了：{m}。', '记住了：{m}。哪天忘了你提醒我。', '嗯，{m} 这条我存着。'],
+      s: ['收到收到！{m}！', '好耶，记在小本子上了：{m}！', '锁死！{m}！'],
+      c: ['已记录：{m}。', '收到，写进记忆：{m}。', '记下了：{m}。']
+    }
+  };
+
+  /* 断网时用：像人一样自然，不暴露技术细节，绝不出现「网络错误」 */
+  var OFFLINE = {
+    g: ['嗯……我这边有点慢，先记着，你接着说。', '手机信号不太好，但我还在。', '我听着呢，可能回得慢一点。', '先别管我快慢，你说你的。', '刚才有点走神，你刚说到哪了？', '我这边一时接不上外界，但不耽误陪你。', '你说的我都收到了，记在本机上了。', '先聊，回头我慢慢补给你。', '我在，就是没那么灵光了。', '（安静了一下）还在，你说。', '这种时候我可能反应慢，你多担待。', '别急，我一条一条回你。'],
+    s: ['诶我信号飘了！但人还在！', '等等我，我这儿有点卡壳！', '先不管网了，我们先聊！', '我掉线一小会儿，但我没走！', '你继续说，我竖起耳朵！', '慢一点也没关系，反正我不走！', '刚才我脑子空了一下，你再说一遍！', '咦，我这边断了半句，再讲一次！', '别走别走，我回来了！', '我这会儿笨一点，但不许嫌弃！', '哦哦，刚没接上，现在听着了！', '信号再差我也会回你！'],
+    c: ['我这边连接不稳，先听你说。', '暂时接不到外界，本机记录正常。', '稍等，我反应会慢一点。', '信息我收到了，先别重复。', '网络问题，不影响我们继续。', '先跟上你，回复可能延后。', '我在，只是没那么快。', '你说重点，我记着。', '断一下，不影响判断。', '先聊，回头我对一遍。', '我这边卡了下，你继续。', '收到，慢一点也算收到。']
+  };
+
+  /* 模型没接住（超时 / 失败 / 回了空话）时用：一句自然的话把话头接回去 */
+  var CONFUSED = {
+    g: ['我刚走神了一下……你再说一句？', '嗯？刚才那句我好像没接住。', '我这边晃了一下神，你再讲一遍好不好。', '有点没跟上你，你是想说什么？', '我方才在想别的，对不起，你继续。', '你说慢一点，我这次认真听。', '刚才在想你上一句话，走岔了。', '再说一次，这次我一定接住。', '我好像把话听漏了，重来一遍。', '等等，我刚在想别的，你继续。', '抱歉，刚才那句让我分神了。', '你重说一次，我保证不走神了。'],
+    s: ['诶？我刚才是不是短路了！重说重说！', '等我一下，我脑子转回来了！', '啊我错过了什么！再讲一次！', '我走神了！罚我重听一遍！', '你刚才那句我没接住，再来！', '我卡了一下，现在满血了！', '咦咦咦？再说一次嘛！', '我刚在打自己的小差，重来！', '等等等等，我漏了一句！', '哎呀我脑子跑掉了，快说！', '重来重来，我这次一定抓住！', '我是不是听岔了？你再说一遍！'],
+    c: ['刚才那句我没处理完，再说一次。', '我漏了一段，麻烦重复关键点。', '这一句我没接住，重讲。', '我这边没跟上，你补一句。', '重说一遍，我这次不岔。', '刚才分神了，你继续。', '信息丢了，你再说一次。', '我没接稳，重来。', '这句我没解析出来，重复一遍。', '漏了一句，你补上。', '刚才没跟上，再说一次。', '重讲一遍，这次我记全。']
+  };
+
+
+  /* 把扩容表并进主表（启动一次；之后所有取句逻辑只认 LINES） */
+  (function mergeMoreLines() {
+    Object.keys(LINES_MORE).forEach(function (intent) {
+      if (!LINES[intent]) LINES[intent] = {};
+      Object.keys(LINES_MORE[intent]).forEach(function (tone) {
+        LINES[intent][tone] = (LINES[intent][tone] || []).concat(LINES_MORE[intent][tone]);
+      });
+    });
+  })();
+
   /* ================= 记忆抽取规则 ================= */
   var MEM_RULES = [
     { type: '称呼', re: /我叫([^\s，,。.!！?？、：:\n]{1,12})/ },
@@ -398,6 +580,24 @@ button,input,textarea{font-family:inherit;color:inherit}
     return list[n % list.length];
   }
 
+  /* 最近说过的句子（防重复窗口；只在本页面生命周期内有效） */
+  var recentLines = [];
+  function pickFresh(list, seed) {
+    if (!list || !list.length) return '';
+    var n = Math.abs(Math.round(Number(seed) || 0));
+    var start = n % list.length;
+    var avoid = recentLines.slice(-Math.min(6, Math.ceil(list.length / 2)));
+    for (var i = 0; i < list.length; i++) {
+      var cand = list[(start + i) % list.length];
+      if (avoid.indexOf(cand) < 0) {
+        recentLines.push(cand);
+        if (recentLines.length > 24) recentLines = recentLines.slice(-24);
+        return cand;
+      }
+    }
+    return list[start];
+  }
+
   function fill(line, text, ctx) {
     var c = ctx || {};
     var mems = c.memories || [];
@@ -424,7 +624,7 @@ button,input,textarea{font-family:inherit;color:inherit}
     if (c.newMemory && (intent === 'remember' || intent === 'fallback')) table = LINES.remember;
     else table = LINES[intent] || LINES.fallback;
 
-    var out = fill(pick(table[key] || table.g, turn + t.length), t, c);
+    var out = fill(pickFresh(table[key] || table.g, turn + t.length), t, c);
     if (typeof c.mood === 'number' && c.mood < 35 && intent !== 'tired' && intent !== 'remember') {
       out += '\n' + pick(LINES.comfort[key], turn + 3);
     }
@@ -437,18 +637,69 @@ button,input,textarea{font-family:inherit;color:inherit}
     return out;
   }
 
+  /**
+   * 统一兜底回复（传输层失败时走这里）。
+   * kind：'' 普通模板 | 'offline' 断网 | 'confused' 模型没接住。
+   * 断网/没接住这两种情况先给一句自然的过渡，再接真正的模板回复 —— 体感上是「人慢了一下」，不是「机器报错」。
+   */
+  function fallbackReply(text, ctx, kind) {
+    var c = ctx || {};
+    var key = c.tone === 'sunny' ? 's' : (c.tone === 'clear' ? 'c' : 'g');
+    var turn = typeof c.turn === 'number' ? c.turn : String(text || '').length;
+    var table = kind === 'offline' ? OFFLINE : (kind === 'confused' ? CONFUSED : null);
+    if (!table) return buildReply(text, c);
+    var bridge = fill(pickFresh(table[key], turn + String(text || '').length), text, c);
+    var main = buildReply(text, c);
+    return bridge + '\n' + main;
+  }
+
   function defaultState() {
     return {
-      version: 1,
-      persona: null,
+      version: 2,
+      persona: null,                              // { gender, personality, name, voice }
+      settings: { voice: true, model: '' },       // model: '' = 用服务端默认
       mood: 60,
       intimacy: 0,
       messages: [],
       memories: [],
       createdAt: Date.now(),
       lastAt: 0,
-      lastProactiveAt: 0
+      lastProactiveAt: 0,
+      lastNetHintAt: 0,
+      llmCount: 0,                                // 由模型生成的台词条数（统计用）
+      localCount: 0                               // 本机兜底台词的条数（统计用）
     };
+  }
+
+  /* 人设收紧：只接受四项预设，越界静默回落（与后端 src/ta/prompt.js 同一套规则） */
+  function normalizePersona(p) {
+    var raw = (p && typeof p === 'object') ? p : {};
+    var gender = (raw.gender === 'male') ? 'male' : 'female';
+    var talent = '';
+    for (var i = 0; i < PERSONAS.length; i++) { if (PERSONAS[i].id === raw.personality) talent = String(raw.personality); }
+    if (!talent) {
+      for (var t2 = 0; t2 < PERSONAS.length; t2++) { if (PERSONAS[t2].id === raw.tone) talent = String(raw.tone); }  // v1 老字段
+    }
+    if (!talent) talent = 'gentle';
+    var pool = NAMES[gender] || NAMES.female;
+    var name = pool.indexOf(String(raw.name || '')) >= 0 ? String(raw.name) : pool[0];
+    var list = voiceListOf(gender);
+    var voice = '';
+    for (var j = 0; j < list.length; j++) { if (list[j].id === raw.voice) voice = String(raw.voice); }
+    if (!voice) voice = list[0].id;
+    return { gender: gender, personality: talent, name: name, voice: voice };
+  }
+
+  /* 音色池：优先用服务端 /api/ta/config 拉到的（与 src/tts.js 同源），拉不到用内置镜像 */
+  function voiceListOf(gender) {
+    var g = gender === 'male' ? 'male' : 'female';
+    var s = SERVER.voices && SERVER.voices[g];
+    if (s && s.length) return s;
+    return VOICES[g] || VOICES.female;
+  }
+
+  function personaOf() {
+    return state.persona || normalizePersona(null);
   }
 
   var API = {
@@ -465,6 +716,126 @@ button,input,textarea{font-family:inherit;color:inherit}
     topicOf: topicOf
   };
   if (typeof window !== 'undefined') window.AICompanion = API;
+
+  /* ================= 传输层（TA 唯一的联网口） =================
+     后期换设备端本地模型时只改这一处：把 chat / tts / asr 的实现替换掉，
+     引擎层（意图 / 记忆 / 心情 / 台词库）一行都不用动。 */
+  var TA_API = {
+    online: function () {
+      return typeof navigator === 'undefined' || navigator.onLine !== false;
+    },
+
+    /* 底层请求：统一超时；永远 resolve（软失败），绝不把异常抛给调用方 */
+    req: function (path, init, timeoutMs) {
+      var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+      var timer = setTimeout(function () { if (ctl) ctl.abort(); }, timeoutMs || CHAT_TIMEOUT_MS);
+      var opt = init || {};
+      if (ctl) opt.signal = ctl.signal;
+      return fetch(TA_API_BASE + path, opt).then(function (res) {
+        return res.json().catch(function () { return null; }).then(function (data) {
+          return { ok: res.ok, status: res.status, data: data };
+        });
+      }).finally(function () { clearTimeout(timer); });
+    },
+
+    /* 服务端能力（模型 / 音色 / 预设 / 开关）；拉不到就静默用内置镜像 */
+    config: function () {
+      if (!TA_API.online() || typeof fetch !== 'function') return Promise.resolve(null);
+      return TA_API.req('/config', { method: 'GET' }, 5000).then(function (r) {
+        var d = (r && r.data) || null;
+        if (!d || !d.success) return null;
+        SERVER.online = true;
+        SERVER.version = String(d.version || '');
+        SERVER.models = Array.isArray(d.models) ? d.models : [];
+        SERVER.defaultModel = String(d.default_model || '');
+        if (d.features) SERVER.features = d.features;
+        if (d.asr) SERVER.asr = d.asr;
+        if (d.voices) SERVER.voices = d.voices;
+        return d;
+      }).catch(function () { return null; });
+    },
+
+    /* 生成台词：服务端已做「去 AI 味」清洗，这里只兜长度与空值 */
+    chat: function (payload) {
+      if (!TA_API.online() || typeof fetch !== 'function') {
+        return Promise.resolve({ ok: false, code: 'OFFLINE', reply: '' });
+      }
+      return TA_API.req('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {})
+      }, CHAT_TIMEOUT_MS).then(function (r) {
+        var d = (r && r.data) || {};
+        var text = String(d.reply || '').trim();
+        if (r && r.ok && d.success && text) {
+          return { ok: true, reply: text, model: d.model || null, latency: d.latency_ms };
+        }
+        return { ok: false, code: String(d.code || ('HTTP_' + (r && r.status))), reply: '' };
+      }).catch(function (e) {
+        var code = (e && e.name === 'AbortError') ? 'TIMEOUT' : 'NETWORK';
+        return { ok: false, code: code, reply: '' };
+      });
+    },
+
+    /* 语音合成 → 可直接播放的 objectURL（失败返回 null，页面改用设备语音） */
+    tts: function (text, voice, rate) {
+      if (!TA_API.online() || typeof fetch !== 'function') return Promise.resolve(null);
+      var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+      var timer = setTimeout(function () { if (ctl) ctl.abort(); }, TTS_TIMEOUT_MS);
+      var opt = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text, voice: voice, rate: rate || '+0%' })
+      };
+      if (ctl) opt.signal = ctl.signal;
+      return fetch(TA_API_BASE + '/tts', opt).then(function (res) {
+        return res.ok ? res.blob() : null;
+      }).then(function (blob) {
+        return (blob && blob.size > 512) ? URL.createObjectURL(blob) : null;
+      }).catch(function () { return null; }).finally(function () { clearTimeout(timer); });
+    },
+
+    /* 语音识别（浏览器不支持本地识别时的兜底路线；返回空串表示没听清） */
+    asr: function (blob) {
+      if (!TA_API.online() || typeof fetch !== 'function' || !blob || typeof FileReader !== 'function') {
+        return Promise.resolve('');
+      }
+      return new Promise(function (resolve) {
+        var fr = new FileReader();
+        fr.onload = function () {
+          var b64 = String(fr.result || '').split(',')[1] || '';
+          if (!b64) { resolve(''); return; }
+          TA_API.req('/asr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audio: b64, language: 'zh' })
+          }, 20000).then(function (r) {
+            var d = (r && r.data) || {};
+            resolve((r && r.ok && d.success && d.text) ? String(d.text).trim() : '');
+          }).catch(function () { resolve(''); });
+        };
+        fr.onerror = function () { resolve(''); };
+        fr.readAsDataURL(blob);
+      });
+    }
+  };
+
+  API.TA_API = TA_API;
+  API.SERVER = SERVER;
+  API.GENDERS = GENDERS;
+  API.VOICES = VOICES;
+  API.NAMES = NAMES;
+  API.OFFLINE = OFFLINE;
+  API.CONFUSED = CONFUSED;
+  API.LINES_MORE = LINES_MORE;
+  API.fallbackReply = fallbackReply;
+  API.pick = pick;
+  API.pickFresh = pickFresh;
+  API.normalizePersona = normalizePersona;
+  API.voiceListOf = voiceListOf;
+  API.stageOf = stageOf;
+  API.buildReply = buildReply;
+  API.detectIntent = detectIntent;
 
   /* ================= 本机存储 ================= */
   var state = defaultState();
@@ -485,15 +856,22 @@ button,input,textarea{font-family:inherit;color:inherit}
       if (!d || typeof d !== 'object') return false;
       var base = defaultState();
       state = {
-        version: 1,
-        persona: d.persona && d.persona.id ? d.persona : null,
+        version: 2,
+        persona: (d.persona && (d.persona.gender || d.persona.id || d.persona.tone)) ? normalizePersona(d.persona) : null,
+        settings: {
+          voice: !(d.settings && d.settings.voice === false),
+          model: (d.settings && typeof d.settings.model === 'string') ? d.settings.model.slice(0, 40) : ''
+        },
         mood: clamp(Number(d.mood) || base.mood, 0, 100),
         intimacy: clamp(Number(d.intimacy) || 0, 0, 100),
         messages: Array.isArray(d.messages) ? d.messages.slice(-MAX_MESSAGES) : [],
         memories: Array.isArray(d.memories) ? d.memories.slice(0, MAX_MEMORIES) : [],
         createdAt: Number(d.createdAt) || base.createdAt,
         lastAt: Number(d.lastAt) || 0,
-        lastProactiveAt: Number(d.lastProactiveAt) || 0
+        lastProactiveAt: Number(d.lastProactiveAt) || 0,
+        lastNetHintAt: Number(d.lastNetHintAt) || 0,
+        llmCount: Number(d.llmCount) || 0,
+        localCount: Number(d.localCount) || 0
       };
       return true;
     } catch (e) { return false; }
@@ -513,24 +891,26 @@ button,input,textarea{font-family:inherit;color:inherit}
 
   /* ================= 文案 ================= */
   var INTROS = {
-    gentle: '我是{name}。不着急，你想到什么说什么，我都接着。',
-    sunny: '我是{name}！今天也一起开开心心的吧！',
-    clear: '我是{name}。有事说事，没事也可以随便聊。'
+    gentle: ['我是{name}。不着急，你想到什么说什么，我都接着。', '我是{name}。今天说什么都行，我先在这儿等着。', '我在，{call}。慢慢来，不急着说正事。'],
+    sunny: ['我是{name}！今天也一起开开心心的吧！', '我是{name}！快说说今天发生了什么好玩的事！', '来啦！{call}今天想聊点什么呀！'],
+    clear: ['我是{name}。有事说事，没事也可以随便聊。', '我是{name}。先说结论还是先说过程？', '在。{call}，今天要处理什么？']
   };
   /* ================= DOM 层 ================= */
   function boot() {
     var el = {};
     ['stage', 'input', 'sendBtn', 'avatar', 'cpName', 'cpStage', 'cpStatus', 'chips', 'hintRight',
-      'setupOverlay', 'setupName', 'setupCall', 'personaList', 'startBtn',
-      'openMemory', 'closeDrawer', 'drawer', 'scrim', 'stats', 'memList', 'wipeBtn', 'resetBtn'
+      'setupOverlay', 'genderList', 'voiceList', 'personaList', 'nameList', 'startBtn',
+      'openMemory', 'closeDrawer', 'drawer', 'scrim', 'stats', 'memList', 'wipeBtn', 'resetBtn',
+      'voiceBtn', 'micBtn', 'imageBtn', 'linkState'
     ].forEach(function (id) { el[id] = document.getElementById(id); });
 
     var busy = false;
     var last = null;
 
-    function toneOf() { return (state.persona && state.persona.tone) || 'gentle'; }
-    function nameOf() { return (state.persona && state.persona.name) || 'TA'; }
-    function callOf() { return (state.persona && state.persona.call) || '你'; }
+    function toneOf() { return personaOf().personality || 'gentle'; }
+    function nameOf() { return personaOf().name || 'TA'; }
+    function callOf() { return '你'; }
+    function voiceIdOf() { return personaOf().voice || voiceListOf(personaOf().gender)[0].id; }
     function initial() { return nameOf().slice(0, 1) || '伴'; }
 
     function ctx() {
@@ -549,7 +929,27 @@ button,input,textarea{font-family:inherit;color:inherit}
       el.avatar.classList.toggle('low', state.mood < 35);
       el.cpStatus.textContent = '心情 ' + Math.round(state.mood) + ' · 亲密 ' + Math.round(state.intimacy) +
         ' · ' + state.memories.length + ' 条记忆';
-      el.hintRight.textContent = state.messages.length ? state.messages.length + ' 条对话' : '';
+      el.hintRight.textContent = state.messages.length
+        ? (state.messages.length + ' 条对话 · 模型 ' + (state.llmCount || 0) + ' / 本机 ' + (state.localCount || 0))
+        : '';
+      renderLink();
+      setVoiceUI();
+    }
+
+    /* 底部左侧：连接状态（人话，不出现技术术语式的报错） */
+    function renderLink() {
+      var live = TA_API.online();
+      el.linkState.className = live ? 'cloud' : 'off';
+      el.linkState.innerHTML = '<span class="dot">●</span> ' + (live
+        ? '在线 · 台词走模型，语音走云端音色'
+        : '离线 · 本机台词库 + 设备语音，照常聊');
+    }
+
+    function setVoiceUI() {
+      var on = !(state.settings && state.settings.voice === false);
+      el.voiceBtn.textContent = on ? '🔊' : '🔇';
+      el.voiceBtn.classList.toggle('on', on);
+      el.voiceBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
     }
 
     function clock(ts) {
@@ -667,7 +1067,9 @@ button,input,textarea{font-family:inherit;color:inherit}
         ['关系阶段', stageOf(state.intimacy), state.intimacy],
         ['认识', days + ' 天', Math.min(100, days)],
         ['对话条数', state.messages.length, Math.min(100, state.messages.length)],
-        ['记忆条数', state.memories.length, Math.min(100, state.memories.length * 4)]
+        ['记忆条数', state.memories.length, Math.min(100, state.memories.length * 4)],
+        ['模型生成', state.llmCount || 0, Math.min(100, (state.llmCount || 0) * 2)],
+        ['本机兜底', state.localCount || 0, Math.min(100, (state.localCount || 0) * 2)]
       ];
       el.stats.innerHTML = '';
       rows.forEach(function (r) {
@@ -782,31 +1184,203 @@ button,input,textarea{font-family:inherit;color:inherit}
       scrollDown();
     }
 
-    function say(out) {
+    /* ---------- 说话（语音输出）：云端音色优先，失败降级设备语音 ---------- */
+    var audioEl = null;
+    var speakingUrl = null;
+    var toastTimer = null;
+
+    function toast(msg) {
+      var box = document.getElementById('taToast');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'taToast';
+        box.style.cssText = 'position:absolute;left:50%;bottom:112px;transform:translateX(-50%);z-index:60;max-width:82%;padding:9px 14px;border-radius:12px;border:1px solid var(--line-2);background:rgba(20,20,32,.96);color:var(--text);font-size:12.5px;line-height:1.5;text-align:center';
+        document.querySelector('.app').appendChild(box);
+      }
+      box.textContent = msg;
+      box.style.display = 'block';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { box.style.display = 'none'; }, 2600);
+    }
+
+    function stopSpeaking() {
+      if (audioEl) { try { audioEl.pause(); } catch (e) { } audioEl = null; }
+      if (speakingUrl) { try { URL.revokeObjectURL(speakingUrl); } catch (e) { } speakingUrl = null; }
+      if (typeof speechSynthesis !== 'undefined') { try { speechSynthesis.cancel(); } catch (e) { } }
+    }
+
+    /* 设备本地语音（零网络）；连它都没有就只出文字，绝不影响对话 */
+    function speakLocal(text) {
+      if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return;
+      try {
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-CN';
+        u.rate = toneOf() === 'sunny' ? 1.06 : 0.98;
+        u.pitch = personaOf().gender === 'male' ? 0.92 : 1.06;
+        speechSynthesis.speak(u);
+      } catch (e) { /* 静默 */ }
+    }
+
+    function speak(text) {
+      if (!text || (state.settings && state.settings.voice === false)) return;
+      if (document.hidden) return;
+      stopSpeaking();
+      if (!TA_API.online()) { speakLocal(text); return; }
+      TA_API.tts(String(text).slice(0, 300), voiceIdOf(), '+0%').then(function (url) {
+        if (!url) { speakLocal(text); return; }
+        speakingUrl = url;
+        audioEl = new Audio(url);
+        audioEl.onended = stopSpeaking;
+        var p = audioEl.play();
+        if (p && p.catch) p.catch(function () { speakLocal(text); });
+      }).catch(function () { speakLocal(text); });
+    }
+
+    function say(out, kind) {
       busy = true;
       el.sendBtn.disabled = true;
-      var msg = { id: uid(), role: 'her', text: out, at: Date.now() };
+      var msg = { id: uid(), role: 'her', text: out, at: Date.now(), src: kind || 'local' };
+      if (msg.src === 'llm') state.llmCount = (state.llmCount || 0) + 1;
+      else state.localCount = (state.localCount || 0) + 1;
       var node = rowNode({ role: 'her', text: '', at: msg.at });
       el.stage.appendChild(node.row);
       scrollDown();
-      stream(node.bubble, out, function () { commit(msg); });
+      stream(node.bubble, out, function () {
+        commit(msg);
+        speak(out);
+      });
     }
 
-    function reply(text) {
+    /**
+     * 回复主链路：本机先算状态 → 请模型说话 → 模型不行就立刻用本机台词接住。
+     * 引擎决定「该说什么」，这一层只决定「谁来说」。
+     */
+    function reply(text, channel) {
       busy = true;
       el.sendBtn.disabled = true;
       var typing = typingNode();
-      setTimeout(function () {
-        if (typing.parentNode) typing.parentNode.removeChild(typing);
-        say(buildReply(text, ctx()));
-      }, 380 + Math.random() * 520);
+      var c = ctx();
+      var started = Date.now();
+
+      function finish(out, kind) {
+        var wait = Math.max(0, 420 - (Date.now() - started));
+        setTimeout(function () {
+          if (typing.parentNode) typing.parentNode.removeChild(typing);
+          say(out, kind);
+        }, wait);
+      }
+
+      if (!TA_API.online()) {
+        finish(fallbackReply(text, c, 'offline'), 'local');
+        return;
+      }
+
+      TA_API.chat({
+        message: text,
+        persona: personaOf(),
+        model: (state.settings && state.settings.model) || '',
+        channel: channel === 'voice' ? 'voice' : 'text',
+        mood: state.mood,
+        intimacy: state.intimacy,
+        memories: state.memories.slice(0, 12),
+        recent: state.messages.slice(-9, -1).map(function (m) { return { role: m.role, text: m.text }; })
+      }).then(function (r) {
+        if (r.ok && r.reply) { finish(r.reply, 'llm'); return; }
+        var kind = (r.code === 'TIMEOUT' || r.code === 'NETWORK') ? 'confused' : '';
+        finish(fallbackReply(text, c, kind), 'local');
+      }).catch(function () {
+        finish(fallbackReply(text, c, 'confused'), 'local');
+      });
     }
 
-    function send(text, fromChip) {
+    /* ---------- 听（语音输入）：浏览器本地识别优先 → Whisper 兜底 ---------- */
+    var recog = null;
+    var recorder = null;
+    var listening = false;
+
+    function micUI(on) {
+      listening = on;
+      el.micBtn.classList.toggle('live', on);
+      el.input.placeholder = on ? '我在听，你说…' : '说点什么…（Enter 发送 / Shift+Enter 换行）';
+    }
+
+    function stopMic() {
+      try { if (recog) recog.stop(); } catch (e) { }
+      recog = null;
+      try { if (recorder && recorder.state !== 'inactive') recorder.stop(); } catch (e) { }
+      micUI(false);
+    }
+
+    function startRecognizer() {
+      var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) return false;
+      try {
+        recog = new SR();
+        recog.lang = 'zh-CN';
+        recog.continuous = false;
+        recog.interimResults = true;
+        var base = '';
+        recog.onresult = function (e) {
+          var txt = '';
+          for (var i = e.resultIndex; i < e.results.length; i++) {
+            txt += e.results[i][0].transcript;
+            if (e.results[i].isFinal) base = (base + ' ' + txt).trim();
+          }
+          el.input.value = (base + ' ' + txt).trim();
+          autoGrow();
+        };
+        recog.onerror = function () { micUI(false); };
+        recog.onend = function () {
+          micUI(false);
+          var t = el.input.value.trim();
+          el.input.value = '';
+          autoGrow();
+          if (t) send(t, false, 'voice');
+        };
+        stopSpeaking();
+        recog.start();
+        micUI(true);
+        return true;
+      } catch (e) { recog = null; return false; }
+    }
+
+    function startRecorder() {
+      if (!navigator.mediaDevices || typeof MediaRecorder === 'undefined') return false;
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+        var chunks = [];
+        try { recorder = new MediaRecorder(stream); } catch (e) { return; }
+        recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+        recorder.onstop = function () {
+          try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { }
+          micUI(false);
+          var blob = new Blob(chunks, { type: 'audio/webm' });
+          if (blob.size < 1024) { toast('没听清，再试一次？'); return; }
+          el.input.placeholder = '正在听懂你说的话…';
+          TA_API.asr(blob).then(function (t) {
+            el.input.placeholder = '说点什么…（Enter 发送 / Shift+Enter 换行）';
+            if (t) send(t, false, 'voice'); else toast('没听清，你再说一遍？');
+          });
+        };
+        stopSpeaking();
+        recorder.start();
+        micUI(true);
+      }).catch(function () { toast('麦克风没有权限'); });
+      return true;
+    }
+
+    function toggleMic() {
+      if (listening) { stopMic(); return; }
+      if (startRecognizer()) return;
+      if (startRecorder()) return;
+      toast('这个浏览器不支持语音输入，先用键盘吧');
+    }
+
+    function send(text, fromChip, channel) {
       if (busy) return;
       var t = text == null ? el.input.value : text;
       t = String(t).trim();
       if (!t) return;
+      if (channel === 'voice') { stopSpeaking(); stopMic(); }   // 说话打断：用户一开口就闭嘴
       if (!fromChip) { el.input.value = ''; autoGrow(); }
       var newMem = addMemories(t);
       state.mood = clamp(state.mood + scoreMood(t), 0, 100);
@@ -816,7 +1390,7 @@ button,input,textarea{font-family:inherit;color:inherit}
       renderStats();
       renderTop();
       save();
-      reply(t);
+      reply(t, channel);
     }
 
     function maybeProactive() {
@@ -826,7 +1400,7 @@ button,input,textarea{font-family:inherit;color:inherit}
       if (now - (state.lastProactiveAt || 0) < IDLE_GAP) return;
       state.lastProactiveAt = now;
       save();
-      say(fill(pick(LINES.proactive[key()], state.messages.length + Math.round(now / 1000)), '', ctx()));
+      say(fill(pickFresh(LINES.proactive[key()], state.messages.length + Math.round(now / 1000)), '', ctx()), 'local');
     }
     /* ---------- 抽屉 ---------- */
     function openDrawer() {
@@ -841,57 +1415,111 @@ button,input,textarea{font-family:inherit;color:inherit}
       el.scrim.classList.remove('on');
     }
 
-    /* ---------- 首次设置 ---------- */
-    var selected = 'gentle';
+    /* ---------- 首次设置（只给预设，不给自由输入） ---------- */
+    var draft = normalizePersona(null);
 
-    function paintPersonas() {
+    function namesOf(gender) {
+      var g = gender === 'male' ? 'male' : 'female';
+      var s = SERVER.names && SERVER.names[g];
+      if (s && s.length) return s;
+      return NAMES[g] || NAMES.female;
+    }
+
+    function optionNode(title, desc, on, onClick) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'opt' + (on ? ' on' : '');
+      var n = document.createElement('span');
+      n.className = 'oname';
+      n.textContent = title;
+      b.appendChild(n);
+      if (desc) {
+        var l = document.createElement('span');
+        l.className = 'oline';
+        l.textContent = desc;
+        b.appendChild(l);
+      }
+      b.addEventListener('click', onClick);
+      return b;
+    }
+
+    function paintSetup() {
+      draft = normalizePersona(draft);
+
+      el.genderList.innerHTML = '';
+      GENDERS.forEach(function (g) {
+        el.genderList.appendChild(optionNode(g.label, g.desc, draft.gender === g.id, function () {
+          draft.gender = g.id;
+          draft.voice = voiceListOf(g.id)[0].id;      // 性别与音色必须一致
+          draft.name = namesOf(g.id)[0];
+          paintSetup();
+        }));
+      });
+
+      el.voiceList.innerHTML = '';
+      voiceListOf(draft.gender).forEach(function (v) {
+        el.voiceList.appendChild(optionNode(v.name, '', draft.voice === v.id, function () {
+          draft.voice = v.id;
+          paintSetup();
+        }));
+      });
+
       el.personaList.innerHTML = '';
       PERSONAS.forEach(function (p) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'persona' + (p.id === selected ? ' on' : '');
-        var n = document.createElement('div');
-        n.className = 'pname';
-        n.textContent = p.title;
-        var l = document.createElement('div');
-        l.className = 'pline';
-        l.textContent = p.desc;
-        b.appendChild(n);
-        b.appendChild(l);
-        b.addEventListener('click', function () { selected = p.id; paintPersonas(); });
-        el.personaList.appendChild(b);
+        el.personaList.appendChild(optionNode(p.title, p.desc, draft.personality === p.id, function () {
+          draft.personality = p.id;
+          paintSetup();
+        }));
+      });
+
+      el.nameList.innerHTML = '';
+      namesOf(draft.gender).forEach(function (n) {
+        el.nameList.appendChild(optionNode(n, '', draft.name === n, function () {
+          draft.name = n;
+          paintSetup();
+        }));
       });
     }
 
     function openSetup() {
       el.setupOverlay.hidden = false;
-      el.setupName.value = (state.persona && state.persona.name) || '';
-      el.setupCall.value = (state.persona && state.persona.call) || '';
-      selected = (state.persona && state.persona.id) || 'gentle';
-      paintPersonas();
-      setTimeout(function () { el.setupName.focus(); }, 60);
+      draft = normalizePersona(state.persona);
+      paintSetup();
     }
 
     function startChat() {
-      var p = PERSONAS.filter(function (x) { return x.id === selected; })[0] || PERSONAS[0];
-      state.persona = {
-        id: p.id,
-        title: p.title,
-        tone: p.id,
-        name: (el.setupName.value || '').trim().slice(0, 12) || '小满',
-        call: (el.setupCall.value || '').trim().slice(0, 12) || '你'
-      };
+      state.persona = normalizePersona(draft);
       el.setupOverlay.hidden = true;
       save();
       renderTop();
       renderMemories();
       renderStats();
       scrollDown();
+      /* 刚设好伴侣先说一句 —— 不然「开始对话」之后是一片静默，像坏了 */
+      if (!state.messages.length) {
+        push('her', fill(pick(INTROS[toneOf()], state.memories.length + nameOf().length), '', ctx()));
+      }
     }
 
     /* ---------- 事件 ---------- */
     el.startBtn.addEventListener('click', startChat);
     el.sendBtn.addEventListener('click', function () { send(null, false); });
+    el.voiceBtn.addEventListener('click', function () {
+      var on = !(state.settings && state.settings.voice === false);
+      state.settings.voice = !on;
+      if (!state.settings.voice) stopSpeaking();
+      save();
+      setVoiceUI();
+      if (state.settings.voice) toast('语音已开：能听我说了');
+    });
+    el.micBtn.addEventListener('click', toggleMic);
+    el.imageBtn.addEventListener('click', function () {
+      toast('图片生成还在做，后续版本开放');
+    });
+    if (typeof window.addEventListener === 'function') {
+      window.addEventListener('online', renderLink);
+      window.addEventListener('offline', function () { stopSpeaking(); renderLink(); });
+    }
     el.input.addEventListener('input', autoGrow);
     el.input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -917,7 +1545,10 @@ button,input,textarea{font-family:inherit;color:inherit}
       renderStats();
       openSetup();
     });
-    document.addEventListener('visibilitychange', maybeProactive);
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) stopSpeaking();
+      else maybeProactive();
+    });
     setInterval(maybeProactive, 15000);
 
     /* ---------- 启动 ---------- */
@@ -930,13 +1561,23 @@ button,input,textarea{font-family:inherit;color:inherit}
       renderMemories();
       renderStats();
       if (!state.messages.length) {
-        push('her', fill(INTROS[toneOf()], '', ctx()));
+        push('her', fill(pick(INTROS[toneOf()], state.memories.length + nameOf().length), '', ctx()));
       }
     } else {
-      el.setupName.value = '';
       openSetup();
     }
     autoGrow();
+
+    /* 服务端能力异步补全（音色池 / 预设 / 功能开关）；拉不到就继续用内置镜像 */
+    TA_API.config().then(function (cfg) {
+      if (!cfg) return;
+      if (state.persona) {
+        state.persona = normalizePersona(state.persona);
+        renderTop();
+      } else {
+        paintSetup();
+      }
+    });
   }
 
   if (typeof document !== 'undefined' && document.getElementById) {
