@@ -1,7 +1,7 @@
 /**
  * TA（AI 伴侣）· 后端接口（/api/ta/*）
  *
- * TA 唯一的联网口。挂在 HYOOL 的 Worker 上（复用同一个 env.AI 和同一份 Edge TTS 实现），
+ * TA 唯一的联网口。挂在 HYOOL 的 Worker 上（复用同一个 env.AI），
  * 但刻意与主站账号体系无关：
  *   - 不要求登录（TA 没有账号概念）→ 改为「按 IP 的轻量限流 + 硬额度」
  *   - 不写 D1 / R2 / Vectorize，不读主站任何表；对话与记忆仍然只存在设备上
@@ -11,7 +11,7 @@
  * 接口：
  *   GET  /api/ta/config   能力清单（可选模型 / 音色 / 预设 / 功能开关 / 限额）
  *   POST /api/ta/chat     { message, persona, recent[], memories[], mood, intimacy, model?, channel? } → { reply }
- *   POST /api/ta/tts      { text, voice?, rate?, pitch?, volume? } → audio/mpeg（复用 src/tts.js 的 Edge TTS）
+ *   POST /api/ta/tts      { text, voice?, rate?, pitch?, volume? } → audio/*（自建 GPT-SoVITS → Workers AI MeloTTS，来源见响应头 X-TA-TTS-Provider）
  *   POST /api/ta/asr      { audio(base64), mime?, language? } → { text }（Workers AI Whisper）
  *   POST /api/ta/image    预留：图片生成（当前未开放 → 501）
  *
@@ -19,6 +19,12 @@
  *   TA_DISABLED=1     紧急关闭开关：所有 /api/ta/* 直接 503
  *   TA_MODEL          默认模型 id（cf-llama / ds-chat / extra…）
  *   TA_ASR_MODEL      Whisper 模型 id 覆盖
+ *   TA_TTS_MODEL      站内合成层模型（默认 @cf/myshell-ai/melotts）
+ *   TA_TTS_LOCAL_URL  自建 GPT-SoVITS 地址（不填 = 该层不参与链）
+ *   TA_TTS_LOCAL_REF  默认参考音频（机器上的本地路径）
+ *   TA_TTS_LOCAL_VOICES  JSON：音色 id → { ref, prompt, prompt_lang }
+ *   TA_TTS_LOCAL_PROMPT_TEXT / TA_TTS_LOCAL_PROMPT_LANG / TA_TTS_LOCAL_TEXT_LANG
+ *   TA_TTS_LOCAL_MEDIA / TA_TTS_LOCAL_TOKEN
  *   TA_EXTRA_*        扩展模型接入口（详见 src/ta/models.js）
  *   DEEPSEEK_API_KEY  复用 HYOOL 同一份 Secret（见 .dev.vars.example）
  */
@@ -33,7 +39,7 @@ import {
     buildTaSystemPrompt,
     humanizeTaReply
 } from "./prompt.js";
-import { synthesizeEdgeTts, TTS_VOICES } from "../tts.js";
+import { TTS_VOICES } from "../tts.js";
 
 export const TA_API_VERSION = "2.0.0";
 
@@ -164,9 +170,14 @@ export function taConfig(env) {
             all: TTS_VOICES.map((v) => ({ id: v.id, name: v.name, gender: v.gender }))
         },
         features: {
-            voice_out: true,   // 语音合成（Edge TTS，联网时用）
+            voice_out: true,   // 语音合成（服务端链：自建 GPT-SoVITS → 站内 MeloTTS；都不可用时页面走设备语音）
             voice_in: true,    // 语音输入（浏览器本地识别 / Whisper）
             image: false       // 图片生成：后期待开放
+        },
+        tts: {
+            chain: ttsChain(env),                    // 实际启用的合成层（按优先级）
+            local: !!(env && trim(env.TA_TTS_LOCAL_URL, 300)),
+            local_voices: ttsLocalVoiceIds(env)      // GPT-SoVITS 已配参考音频的音色 id
         },
         asr: {
             available: !!(env && env.AI),
@@ -318,13 +329,191 @@ async function handleChat(request, env, cors) {
 }
 
 /* =========================================================
-   语音：合成（复用 HYOOL 的 Edge TTS）/ 识别（Workers AI Whisper）
+   语音：合成（自建 GPT-SoVITS → Workers AI MeloTTS）/ 识别（Workers AI Whisper）
 ========================================================= */
 
 const KNOWN_VOICE_IDS = new Set(TTS_VOICES.map((v) => v.id));
 const DEFAULT_TA_VOICE = (TTS_VOICES[0] && TTS_VOICES[0].id) || "zh-CN-XiaoxiaoNeural";
 
-/** POST /api/ta/tts → audio/mpeg（参数校验口径与主站 /api/tts 保持一致） */
+/** base64 → 字节（Workers 里的 atob 分块解，避免大字符串爆栈） */
+function base64ToBytes(b64) {
+    const clean = String(b64 || "").replace(/[^A-Za-z0-9+/=]/g, "");
+    if (!clean) return null;
+    try {
+        const bin = atob(clean);
+        const out = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+        return out.length ? out : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * 语音合成降级链（页面侧还有「设备本地语音」兜底，见 docs/TA.md §7）：
+ *   1) 自建 GPT-SoVITS —— 中文听感最好、音色就是你自己的参考音频；但跑在你自己机器上，
+ *      Worker 必须能通过 Cloudflare Tunnel / 公网反代访问（`127.0.0.1` 从 Worker 里够不着）。
+ *      配了 TA_TTS_LOCAL_URL + 参考音频才启用。
+ *   2) Workers AI MeloTTS —— 站内推理、无外网握手、零配置；单一音色，lang=zh。
+ * 任一层成功即返回，实际来源写在响应头 X-TA-TTS-Provider 上。
+ *
+ * Edge 神经语音已从 TA 这条链里移除：免费 readaloud 端点只给 24kHz/48kbps 单档、
+ * 用不了 <mstts:express-as> 情感风格（见 src/tts.js 顶部实测结论），线上还会被 403。
+ * `src/tts.js` 继续服务主站 /api/tts，TA 不再引用它的合成函数（只借音色表 TTS_VOICES）。
+ */
+
+/** "+10%" → 1.1（GPT-SoVITS 只认 speed_factor，不认识 SSML 的 rate 百分比） */
+function rateToSpeedFactor(rate) {
+    const m = /^([+-])(\d+)%$/.exec(String(rate || ""));
+    if (!m) return 1;
+    const v = 1 + (m[1] === "-" ? -1 : 1) * (parseInt(m[2], 10) / 100);
+    return Math.min(2, Math.max(0.5, Math.round(v * 100) / 100));
+}
+
+/**
+ * TA_TTS_LOCAL_VOICES（JSON）解析：把音色池 id 映射到各自的 GPT-SoVITS 参考音频，例如
+ *   {"zh-CN-XiaoxiaoNeural":{"ref":"voices/xiaoxiao.wav","prompt":"今天天气不错"},"zh-CN-YunxiNeural":{"ref":"voices/yunxi.wav"}}
+ * 写坏了（不是合法 JSON）当成没配 —— 不影响对话。
+ */
+function localVoiceMap(env) {
+    const raw = trim(env && env.TA_TTS_LOCAL_VOICES, 8000);
+    if (!raw) return null;
+    try {
+        const map = JSON.parse(raw);
+        return map && typeof map === "object" ? map : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+/** 映射表里真正带参考音频的音色 id（只认音色池内的 id，防止乱填） */
+function ttsLocalVoiceIds(env) {
+    const map = localVoiceMap(env);
+    if (!map) return [];
+    return Object.keys(map).filter((id) => KNOWN_VOICE_IDS.has(id) && map[id] && trim(map[id].ref, 300));
+}
+
+/** 取某个音色对应的 GPT-SoVITS 参考音频；没配 / 该音色不在表里 → 用默认那份 TA_TTS_LOCAL_REF */
+function localVoiceProfile(env, voice) {
+    const map = localVoiceMap(env);
+    const hit = map ? map[voice] : null;
+    if (hit && typeof hit === "object" && trim(hit.ref, 300)) {
+        return {
+            key: voice,
+            ref: trim(hit.ref, 300),
+            prompt: trim(hit.prompt, 500),
+            promptLang: trim(hit.prompt_lang, 10) || "zh"
+        };
+    }
+    const ref = trim(env && env.TA_TTS_LOCAL_REF, 300);
+    if (!ref) return null;
+    return {
+        key: "local-default",
+        ref: ref,
+        prompt: trim(env.TA_TTS_LOCAL_PROMPT_TEXT, 500),
+        promptLang: trim(env.TA_TTS_LOCAL_PROMPT_LANG, 10) || "zh"
+    };
+}
+
+/** 自建 GPT-SoVITS（官方 api_v2.py）：POST /tts 成功直接回音频流，失败回 400 + JSON */
+async function synthLocalTts({ env, text, voice, rate }) {
+    const url = trim(env && env.TA_TTS_LOCAL_URL, 300);
+    if (!url) return { skip: "未配置 TA_TTS_LOCAL_URL" };
+    const profile = localVoiceProfile(env, voice);
+    if (!profile) return { skip: "未配置 TA_TTS_LOCAL_REF / TA_TTS_LOCAL_VOICES" };
+
+    const rawMedia = trim(env.TA_TTS_LOCAL_MEDIA, 8);
+    const media = /^(wav|mp3|ogg|aac)$/.test(rawMedia) ? rawMedia : "wav";
+    const headers = { "Content-Type": "application/json" };
+    const token = trim(env.TA_TTS_LOCAL_TOKEN, 200);
+    if (token) headers.Authorization = "Bearer " + token;
+
+    const res = await withTimeout(fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({
+            text: text,
+            text_lang: trim(env.TA_TTS_LOCAL_TEXT_LANG, 10) || "zh",
+            ref_audio_path: profile.ref,
+            prompt_text: profile.prompt,
+            prompt_lang: profile.promptLang,
+            text_split_method: "cut5",
+            batch_size: 1,
+            media_type: media,
+            streaming_mode: false,
+            speed_factor: rateToSpeedFactor(rate),
+            seed: -1
+        })
+    }), 30000, "自建语音合成");
+
+    if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error("HTTP " + res.status + (detail ? " " + detail.slice(0, 120) : ""));
+    }
+    const audio = new Uint8Array(await res.arrayBuffer());
+    if (!audio.length) throw new Error("空音频");
+    const contentType = (res.headers.get("Content-Type") || "").split(";")[0].trim();
+    return {
+        audio: audio,
+        contentType: contentType || (media === "mp3" ? "audio/mpeg" : "audio/wav"),
+        voiceLabel: profile.key
+    };
+}
+
+/** Workers AI MeloTTS（站内推理，无外网握手；单一音色） */
+async function synthMeloTts({ env, text }) {
+    if (!env.AI) return { skip: "无 AI binding" };
+    const model = trim(env.TA_TTS_MODEL, 80) || "@cf/myshell-ai/melotts";
+    const res = await withTimeout(
+        env.AI.run(model, { prompt: text, lang: "zh" }),
+        30000,
+        "云端语音合成"
+    );
+    const audio = base64ToBytes(res && (res.audio || (res.result && res.result.audio)));
+    if (!audio) throw new Error("空音频");
+    return { audio: audio, contentType: "audio/mpeg", voiceLabel: "melotts-default" };
+}
+
+/** 当前实际启用的合成层（按优先级），供 /api/ta/config 与日志用 */
+export function ttsChain(env) {
+    const chain = [];
+    const hasLocal = !!trim(env && env.TA_TTS_LOCAL_URL, 300) &&
+        (ttsLocalVoiceIds(env).length > 0 || !!trim(env && env.TA_TTS_LOCAL_REF, 300));
+    if (hasLocal) chain.push("gptsovits");
+    if (env && env.AI) chain.push("melotts");
+    return chain;
+}
+
+/** 链式合成：自建 GPT-SoVITS → Workers AI MeloTTS；全挂返回 audio:null，页面走设备语音 */
+async function synthTts({ env, text, voice, rate }) {
+    const attempts = [];
+    const tiers = [
+        { id: "gptsovits", run: () => synthLocalTts({ env: env, text: text, voice: voice, rate: rate }) },
+        { id: "melotts", run: () => synthMeloTts({ env: env, text: text }) }
+    ];
+
+    for (const tier of tiers) {
+        try {
+            const out = await tier.run();
+            if (out && out.audio && out.audio.length) {
+                return {
+                    audio: out.audio,
+                    contentType: out.contentType || "audio/mpeg",
+                    provider: tier.id,
+                    voiceLabel: out.voiceLabel || tier.id,
+                    attempts: attempts
+                };
+            }
+            attempts.push({ provider: tier.id, error: (out && out.skip) || "空音频" });
+        } catch (e) {
+            attempts.push({ provider: tier.id, error: safeError(e) });
+        }
+    }
+
+    return { audio: null, contentType: null, provider: null, voiceLabel: null, attempts: attempts };
+}
+
+/** POST /api/ta/tts → audio/*（参数校验口径与主站 /api/tts 保持一致；实际音色由服务端链决定） */
 async function handleTts(request, env, cors) {
     const body = await request.json().catch(() => ({}));
     const text = trim(body.text, LIMITS.ttsChars + 1);
@@ -340,26 +529,36 @@ async function handleTts(request, env, cors) {
     if (voice && !KNOWN_VOICE_IDS.has(voice)) {
         return json({ success: false, code: "BAD_VOICE", error: "不支持的音色。" }, 400, cors);
     }
+    // pitch / volume 只有 Edge 那类支持 SSML prosody 的引擎能用，现在链上是 GPT-SoVITS（speed_factor）
+    // 与 MeloTTS（无参数）；为了不破坏前端契约仍然接收并校验格式，只是不再改变合成结果。
     if (!/^[+-]\d+%$/.test(rate) || !/^[+-]\d+%$/.test(volume) || !/^[+-]\d+Hz$/.test(pitch)) {
         return json({ success: false, code: "BAD_PARAM", error: "语速/音量/音调参数格式错误。" }, 400, cors);
     }
 
-    const audio = await withTimeout(
-        synthesizeEdgeTts({ text, voice: voice || DEFAULT_TA_VOICE, rate, pitch, volume }),
-        30000,
-        "语音合成"
-    );
+    const result = await synthTts({
+        env: env,
+        text: text,
+        voice: voice || DEFAULT_TA_VOICE,
+        rate: rate
+    });
 
-    if (!audio || !audio.length) {
-        return json({ success: false, code: "TTS_EMPTY", error: "语音合成失败。" }, 502, cors);
+    if (!result.audio || !result.audio.length) {
+        return json({
+            success: false,
+            code: "TTS_UNAVAILABLE",
+            error: "我这边嗓子有点哑，先用本机声音念给你听。",
+            attempts: result.attempts
+        }, 502, cors);
     }
 
-    return new Response(audio, {
+    return new Response(result.audio, {
         status: 200,
         headers: {
-            "Content-Type": "audio/mpeg",
+            "Content-Type": result.contentType || "audio/mpeg",
             "Cache-Control": "no-store",
-            "Content-Length": String(audio.length),
+            "Content-Length": String(result.audio.length),
+            "X-TA-TTS-Provider": result.provider,
+            "X-TA-TTS-Voice": result.voiceLabel || voice || DEFAULT_TA_VOICE,
             ...cors
         }
     });

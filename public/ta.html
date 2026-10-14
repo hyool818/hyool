@@ -106,6 +106,9 @@ button,input,textarea{font-family:inherit;color:inherit}
 .mic.live{border-color:var(--warn);color:#ffc3cd;animation:pulse 1.1s infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,131,153,.45)}50%{box-shadow:0 0 0 8px rgba(255,131,153,0)}}
 .imgbtn[disabled]{opacity:.42;cursor:not-allowed}
+.setting{margin-top:12px;padding:12px 13px;border-radius:13px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);font-size:12.5px;line-height:1.6;text-align:left;cursor:pointer;transition:.2s}
+.setting:hover{border-color:var(--accent)}
+.setting b{color:var(--accent-2);font-weight:600}
 .iconbtn.on{color:var(--text);border-color:var(--accent)}
 #linkState.off .dot{color:var(--muted)}
 #linkState.cloud .dot{color:var(--accent-2)}
@@ -210,6 +213,7 @@ button,input,textarea{font-family:inherit;color:inherit}
     <div class="drawer-body">
       <div class="stats" id="stats"></div>
       <div id="memList" style="display:flex;flex-direction:column;gap:10px"></div>
+      <button type="button" class="setting" id="voiceSrcBtn">音色来源：本机语音</button>
       <button type="button" class="danger" id="wipeBtn">清空全部本机数据</button>
     </div>
   </aside>
@@ -273,7 +277,16 @@ button,input,textarea{font-family:inherit;color:inherit}
     models: [],
     defaultModel: '',
     features: { voice_out: true, voice_in: true, image: false },
-    asr: { available: false }
+    asr: { available: false },
+    tts: { chain: [], local: false, local_voices: [] },  // 服务端合成的实际层（自建 GPT-SoVITS → 站内 MeloTTS）
+    ttsProvider: '',   // 上一次成功合成用的层（读 X-TA-TTS-Provider）
+    ttsVoice: ''       // 上一次成功合成用的音色（读 X-TA-TTS-Voice）
+  };
+
+  /** 合成层 → 给人看的名字（状态栏用，不出现内部 id 以外的技术词） */
+  var TTS_PROVIDER_LABEL = {
+    gptsovits: '本地 GPT-SoVITS',
+    melotts: '站内音色'
   };
 
   var STAGES = [
@@ -657,7 +670,7 @@ button,input,textarea{font-family:inherit;color:inherit}
     return {
       version: 2,
       persona: null,                              // { gender, personality, name, voice }
-      settings: { voice: true, model: '' },       // model: '' = 用服务端默认
+      settings: { voice: true, cloudVoice: false, model: '' },  // cloudVoice=false → 用设备本地音色
       mood: 60,
       intimacy: 0,
       messages: [],
@@ -751,6 +764,7 @@ button,input,textarea{font-family:inherit;color:inherit}
         if (d.features) SERVER.features = d.features;
         if (d.asr) SERVER.asr = d.asr;
         if (d.voices) SERVER.voices = d.voices;
+        if (d.tts) SERVER.tts = d.tts;
         return d;
       }).catch(function () { return null; });
     },
@@ -789,7 +803,13 @@ button,input,textarea{font-family:inherit;color:inherit}
       };
       if (ctl) opt.signal = ctl.signal;
       return fetch(TA_API_BASE + '/tts', opt).then(function (res) {
-        return res.ok ? res.blob() : null;
+        if (!res.ok) return null;
+        // 服务端链决定实际用哪一层（本地 GPT-SoVITS / 站内 MeloTTS），记下来给状态栏用
+        try {
+          SERVER.ttsProvider = String(res.headers.get('X-TA-TTS-Provider') || '');
+          SERVER.ttsVoice = String(res.headers.get('X-TA-TTS-Voice') || '');
+        } catch (e) { /* 头读不到不影响播放 */ }
+        return res.blob();
       }).then(function (blob) {
         return (blob && blob.size > 512) ? URL.createObjectURL(blob) : null;
       }).catch(function () { return null; }).finally(function () { clearTimeout(timer); });
@@ -860,6 +880,7 @@ button,input,textarea{font-family:inherit;color:inherit}
         persona: (d.persona && (d.persona.gender || d.persona.id || d.persona.tone)) ? normalizePersona(d.persona) : null,
         settings: {
           voice: !(d.settings && d.settings.voice === false),
+          cloudVoice: !!(d.settings && d.settings.cloudVoice),
           model: (d.settings && typeof d.settings.model === 'string') ? d.settings.model.slice(0, 40) : ''
         },
         mood: clamp(Number(d.mood) || base.mood, 0, 100),
@@ -901,6 +922,7 @@ button,input,textarea{font-family:inherit;color:inherit}
     ['stage', 'input', 'sendBtn', 'avatar', 'cpName', 'cpStage', 'cpStatus', 'chips', 'hintRight',
       'setupOverlay', 'genderList', 'voiceList', 'personaList', 'nameList', 'startBtn',
       'openMemory', 'closeDrawer', 'drawer', 'scrim', 'stats', 'memList', 'wipeBtn', 'resetBtn',
+      'voiceSrcBtn',
       'voiceBtn', 'micBtn', 'imageBtn', 'linkState'
     ].forEach(function (id) { el[id] = document.getElementById(id); });
 
@@ -939,10 +961,20 @@ button,input,textarea{font-family:inherit;color:inherit}
     /* 底部左侧：连接状态（人话，不出现技术术语式的报错） */
     function renderLink() {
       var live = TA_API.online();
+      var on = !(state.settings && state.settings.voice === false);
+      var cloud = !!(state.settings && state.settings.cloudVoice);
+      var used = TTS_PROVIDER_LABEL[SERVER.ttsProvider] || '';
+      var src = cloud ? ('服务端音色' + (used ? '（' + used + '）' : '')) : '本机音色';
       el.linkState.className = live ? 'cloud' : 'off';
-      el.linkState.innerHTML = '<span class="dot">●</span> ' + (live
-        ? '在线 · 台词走模型，语音走云端音色'
-        : '离线 · 本机台词库 + 设备语音，照常聊');
+      el.linkState.innerHTML = '<span class="dot">●</span> ' + (!on
+        ? '已静音 · 只打字'
+        : (live ? '在线 · 台词走模型 · 语音用' + src : '离线 · 本机台词库 + 设备语音，照常聊'));
+    }
+
+    function setVoiceSrcUI() {
+      var cloud = !!(state.settings && state.settings.cloudVoice);
+      var note = (SERVER.tts && SERVER.tts.local) ? '：本地 GPT-SoVITS 优先' : '';
+      el.voiceSrcBtn.innerHTML = '音色来源：<b>' + (cloud ? '云端（服务端合成' + note + '）' : '本机语音（快、离线可用）') + '</b>　点这里切换';
     }
 
     function setVoiceUI() {
@@ -950,6 +982,7 @@ button,input,textarea{font-family:inherit;color:inherit}
       el.voiceBtn.textContent = on ? '🔊' : '🔇';
       el.voiceBtn.classList.toggle('on', on);
       el.voiceBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      setVoiceSrcUI();
     }
 
     function clock(ts) {
@@ -1209,31 +1242,66 @@ button,input,textarea{font-family:inherit;color:inherit}
       if (typeof speechSynthesis !== 'undefined') { try { speechSynthesis.cancel(); } catch (e) { } }
     }
 
-    /* 设备本地语音（零网络）；连它都没有就只出文字，绝不影响对话 */
-    function speakLocal(text) {
-      if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return;
-      try {
-        var u = new SpeechSynthesisUtterance(text);
-        u.lang = 'zh-CN';
-        u.rate = toneOf() === 'sunny' ? 1.06 : 0.98;
-        u.pitch = personaOf().gender === 'male' ? 0.92 : 1.06;
-        speechSynthesis.speak(u);
-      } catch (e) { /* 静默 */ }
+    /* 设备本地音色优选：在系统语音里挑跟人设性别/听感最接近的中文音色 */
+    var DEVICE_HINTS = {
+      female: ['Xiaoxiao', 'Xiaoyi', 'HsiaoChen', 'HsiaoYu', 'HiuGaai', 'HiuMaan', '晓晓', '晓伊', '晓雨', '晓臻',
+        'Tingting', '婷婷', 'Meijia', '美佳', 'Xiaomo', 'Yaoyao', 'Sinji', 'female'],
+      male: ['Yunjian', 'Yunxi', 'Yunxia', 'Yunyang', 'WanLung', 'YunJhe', '云健', '云希', '云扬', '云龙',
+        'Kangkang', 'Liang', 'Yun', 'male']
+    };
+
+    function pickDeviceVoice() {
+      if (typeof speechSynthesis === 'undefined' || !speechSynthesis.getVoices) return null;
+      var all = [];
+      try { all = speechSynthesis.getVoices() || []; } catch (e) { return null; }
+      if (!all.length) return null;
+      var zh = all.filter(function (v) { return /^zh/i.test(v.lang || ''); });
+      var pool = zh.length ? zh : all;
+      var hints = DEVICE_HINTS[personaOf().gender === 'male' ? 'male' : 'female'];
+      for (var i = 0; i < hints.length; i++) {
+        for (var j = 0; j < pool.length; j++) {
+          var n = ((pool[j].name || '') + ' ' + (pool[j].voiceURI || '')).toLowerCase();
+          if (n.indexOf(hints[i].toLowerCase()) >= 0) return pool[j];
+        }
+      }
+      return pool[0] || null;
     }
 
+    /* 设备本地语音（零网络、零延迟）；连它都没有就别硬放，只出文字 */
+    function speakLocal(text) {
+      if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return null;
+      try {
+        var u = new SpeechSynthesisUtterance(text);
+        var v = pickDeviceVoice();
+        if (v) { u.voice = v; u.lang = v.lang || 'zh-CN'; } else { u.lang = 'zh-CN'; }
+        u.rate = toneOf() === 'sunny' ? 1.06 : 0.98;
+        u.pitch = personaOf().gender === 'male' ? 0.92 : 1.06;
+        speechSynthesis.cancel();
+        speechSynthesis.speak(u);
+        return v;
+      } catch (e) { return null; }
+    }
+
+    /**
+     * 说话：默认走设备本地音色（快、离线、按性别挑音色）；
+     * 开了「云端音色」或设备没有可用中文音色时，才去要 /api/ta/tts。
+     */
     function speak(text) {
       if (!text || (state.settings && state.settings.voice === false)) return;
       if (document.hidden) return;
       stopSpeaking();
-      if (!TA_API.online()) { speakLocal(text); return; }
+      var device = pickDeviceVoice();
+      var preferCloud = !!(state.settings && state.settings.cloudVoice);
+      if (!TA_API.online() || (!preferCloud && device)) { speakLocal(text); return; }
       TA_API.tts(String(text).slice(0, 300), voiceIdOf(), '+0%').then(function (url) {
         if (!url) { speakLocal(text); return; }
         speakingUrl = url;
+        renderLink();   // 状态栏显示这次实际用的是哪一层（本地 GPT-SoVITS / 站内音色）
         audioEl = new Audio(url);
         audioEl.onended = stopSpeaking;
         var p = audioEl.play();
         if (p && p.catch) p.catch(function () { speakLocal(text); });
-      }).catch(function () { speakLocal(text); });
+      })['catch'](function () { speakLocal(text); });
     }
 
     function say(out, kind) {
@@ -1513,6 +1581,13 @@ button,input,textarea{font-family:inherit;color:inherit}
       if (state.settings.voice) toast('语音已开：能听我说了');
     });
     el.micBtn.addEventListener('click', toggleMic);
+    el.voiceSrcBtn.addEventListener('click', function () {
+      state.settings.cloudVoice = !state.settings.cloudVoice;
+      save();
+      setVoiceSrcUI();
+      renderLink();
+      toast(state.settings.cloudVoice ? '音色来源：云端（服务端合成，不行会自动回本机）' : '音色来源：本机语音');
+    });
     el.imageBtn.addEventListener('click', function () {
       toast('图片生成还在做，后续版本开放');
     });
