@@ -415,9 +415,17 @@ function localVoiceProfile(env, voice) {
     };
 }
 
+/** 自建层端点：文档承诺「只填域名，/tts 由代码补」，同时兼容直接填完整端点 */
+export function localTtsEndpoint(env) {
+    const raw = trim(env && env.TA_TTS_LOCAL_URL, 300);
+    if (!raw) return "";
+    const base = raw.replace(/\/+$/, "");
+    return /\/tts$/i.test(base) ? base : base + "/tts";
+}
+
 /** 自建 GPT-SoVITS（官方 api_v2.py）：POST /tts 成功直接回音频流，失败回 400 + JSON */
 async function synthLocalTts({ env, text, voice, rate }) {
-    const url = trim(env && env.TA_TTS_LOCAL_URL, 300);
+    const url = localTtsEndpoint(env);
     if (!url) return { skip: "未配置 TA_TTS_LOCAL_URL" };
     const profile = localVoiceProfile(env, voice);
     if (!profile) return { skip: "未配置 TA_TTS_LOCAL_REF / TA_TTS_LOCAL_VOICES" };

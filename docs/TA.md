@@ -103,7 +103,7 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 | `TA_TTS_LOCAL_PROMPT_TEXT` / `TA_TTS_LOCAL_PROMPT_LANG` | 默认参考音频对应的文本 / 语种（默认 `zh`） |
 | `TA_TTS_LOCAL_TEXT_LANG` | 要合成的文本语种（默认 `zh`） |
 | `TA_TTS_LOCAL_MEDIA` | 自建层返回格式 `wav` / `mp3` / `ogg` / `aac`（默认 `wav`） |
-| `TA_TTS_LOCAL_TOKEN` | 自建层若开了鉴权，填这里 → 请求带 `Authorization: Bearer` |
+| `TA_TTS_LOCAL_TOKEN` | 自建**网关**（§7）的 token：填了自建层就带 `Authorization: Bearer`。注意 `api_v2.py` 本身不认这个头 —— 真正挡住白嫖的是网关，不配 token 网关一律回 401 |
 | `TA_EXTRA_MODELS` / `TA_EXTRA_BASE_URL` / `TA_EXTRA_API_KEY` | **后期加模型的接入口**（见 §8） |
 | `TA_DISABLED=1` | 紧急熔断：所有 `/api/ta/*` 直接 503 |
 
@@ -134,15 +134,20 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 
 **自建 GPT-SoVITS 接法（要音质就这么接）**：
 
-1. 装机：按上游 README 起 `api_v2.py`（`POST /tts`，默认监听 `0.0.0.0:9880`，**默认无鉴权**；成功返回音频流，失败返回 400 JSON —— 这也是代码里的判定口径）。
+1. 装机：按上游 README 起 `api_v2.py`（`POST /tts`）。**它默认没有鉴权** —— 全部参数只有 `-a` / `-p` / `-c`，没有 key 选项，所以别把它裸开公网（见第 3 步）。成功返回音频流、失败返回 400 JSON，这就是代码的判定口径。本机自测：`curl -s -o t.wav -w '%{http_code}' -X POST http://127.0.0.1:9880/tts -H 'Content-Type: application/json' --data-binary @body.json`。
 2. 参考音频：准备 3~10 秒干净人声（就是这个人设的语气样本），路径填 `TA_TTS_LOCAL_REF`（自建机器上的本地路径）。要一人一音色就用 `TA_TTS_LOCAL_VOICES`：
 
    ```json
    {"zh-CN-XiaoxiaoNeural":{"ref":"/opt/gptsovits/refs/xiaoman.wav","prompt":"今天有点累，早点休息。","prompt_lang":"zh"}}
    ```
 
-3. 让 Worker 连得上：家里机器没公网 IP 就开隧道（`cloudflared tunnel --url http://127.0.0.1:9880`），把 https 地址填 `TA_TTS_LOCAL_URL`（**只填域名**，`/tts` 由代码补）。隧道挂了不影响 TA：自动落到 MeloTTS。
-4. 开好了怎么确认：`/api/ta/config` 的 `tts.chain` 会变成 `["gptsovits","melotts"]`、`tts.local = true`、`tts.local_voices` 列出已配参考音频的音色 id；页面「音色来源 = 云端」时状态栏会显示实际命中的层。
+3. **加一层鉴权网关**（必做）：`powershell -ExecutionPolicy Bypass -File .\scripts\start-ta-tts-proxy.ps1`
+
+   - 网关监听 `127.0.0.1:9881`，只放行 `POST /tts`（其余 404 / 405，请求体上限 64 KiB），校验 `Authorization: Bearer <token>`，不对就 **401**；token 走常量时间比较，日志只记状态 / 耗时 / 大小（不记文本、不记 token）。
+   - token 首次由脚本生成到 `scripts/.tools/ta-tts-token.txt`（已 gitignore），之后复用同一份；也可用环境变量 `TA_TTS_PROXY_TOKEN` 覆盖。
+   - 自测口径：带 token 打 `http://127.0.0.1:9881/tts` → 200 + `audio/wav`；不带 token → 401。
+4. 让 Worker 连得上：家里机器没公网 IP 就开隧道，**指向网关的 9881（不是裸 9880）**：`cloudflared tunnel --url http://127.0.0.1:9881` → 拿到 `https://xxxx.trycloudflare.com`，填 `TA_TTS_LOCAL_URL`（**只填域名**，`/tts` 由代码补；填完整端点也兼容），再 `npx wrangler secret put TA_TTS_LOCAL_TOKEN`（粘贴上面那串 token）。网关 / 隧道 / 本机任一环挂了都不影响 TA：自动落到 MeloTTS。
+5. 开好了怎么确认：`/api/ta/config` 的 `tts.chain` 会变成 `["gptsovits","melotts"]`、`tts.local = true`、`tts.local_voices` 列出已配参考音频的音色 id；实测口径是 `POST /api/ta/tts` 的响应头 `X-TA-TTS-Provider: gptsovits`（没接通就是 `melotts`）。页面「音色来源 = 云端」时状态栏会显示实际命中的层。
 
 **参数口径**：`rate`（`+20%` / `-60%`）会换算成自建层的 `speed_factor`（clamp 0.5~2）；`pitch` / `volume` 仍然接收并校验格式（前端契约不变），但当前链上没有支持 SSML prosody 的引擎，**不再改变合成结果**。
 
@@ -226,7 +231,7 @@ powershell -NoProfile -File .\run-browser-test.ps1 -Url 'http://127.0.0.1:8123/s
 
 - **后端**：`src/ta/models.js`（Workers AI + DeepSeek 固定两家、`openai-compatible` 接入口、容灾链）、`src/ta/prompt.js`（四项人设预设、去 AI 味提示词、输出清洗）、`src/ta/index.js`（`/api/ta/config|chat|tts|asr|image`，免登录、按 IP 限流、`TA_DISABLED` 熔断、日志密钥打码），挂载进 `src/index.js`（约 20 行，主站逻辑零改动）。TTS 只从 `src/tts.js` 借音色表 `TTS_VOICES`，**不再复用它的 Edge 实现**（Edge 已从 TA 链上下线，主站 `/api/tts` 照旧）。
 - **页面**：设置页改为四项预设选择器（性别 / 音色 / 性格 / 预设名，**取消自由输入**）；回复链路「LLM 优先 → 超时/失败/断网立刻回落本机模板」；语音输出三层（云端链「自建 GPT-SoVITS → 站内 MeloTTS」→ 设备 `speechSynthesis`，来源与命中层在状态栏可见）；语音输入两条路（浏览器本地识别 → `MediaRecorder` + Whisper）；说话打断（用户一开口就停播）；图片按钮锁定态 + 人话提示；台词库扩容（每意图每语气 ≥5 条，`fallback` / `offline` / `confused` 各 ≥12 条）+ 防复读窗口；底部状态栏用人话显示在线/离线。
-- **测试**：后端 52 项、页面 45 项、真实浏览器冒烟 26 项，全绿。
+- **测试**：后端 54 项、页面 45 项、真实浏览器冒烟 26 项，全绿。
 
 **未做（按需再做，勿默认动手）**
 
@@ -245,6 +250,7 @@ powershell -NoProfile -File .\run-browser-test.ps1 -Url 'http://127.0.0.1:8123/s
 | 2026-10-14 | **v2 后端**：新增 `src/ta/`（模型注册表 / 人设预设与「去 AI 味」/ `/api/ta/*` 路由），挂载进 `src/index.js`；TTS 复用 `src/tts.js`；图片生成以 `COMING_SOON` 占位；43 项自测全绿。**隔离状态变更**：TA 从「零接口」变为「只连自己的 `/api/ta/*`」，本文件为该破例的唯一记录处。 |
 | 2026-10-14 | **v2 页面**：`public/ta.html` 升级 —— 人设四项预设选择器（取消自由输入）、LLM 优先 + 模板兜底链路、语音输出/输入双层、说话打断、图片锁定态、台词库扩容（防复读窗口）、在线/离线人话状态栏、v1 存档自动迁移（同键 `hyool-ta-v1`）。页面 41 项沙箱 + 24 项浏览器冒烟全绿；顺手修掉「全新用户点开始对话后不开场」的静默缺陷。 |
 | 2026-10-14 | **TTS 换链（弃用 Edge）**：TA 的合成不再走 Edge（免费 readaloud 只有单档 24kHz/48kbps、无 `<mstts:express-as>` 情感风格、CF 出口实测 403），改为「**自建 GPT-SoVITS → 站内 Workers AI MeloTTS → 设备语音**」；`/api/ta/tts` 返回真实 `Content-Type`（wav/mp3）+ 响应头 `X-TA-TTS-Provider` / `X-TA-TTS-Voice`，两层都失败才 502 `TTS_UNAVAILABLE`（`attempts[]` 带每层原因）；`rate` 换算成自建层 `speed_factor`，`pitch`/`volume` 仍校验但不再影响输出；`/api/ta/config` 新增 `tts.{chain,local,local_voices}`；新增 `TA_TTS_LOCAL_*` 一组环境变量（§5/§7）。文档 §7 补 GPT-SoVITS 装机 + 隧道接法。后端 52 项 / 页面 45 项 / 冒烟 26 项全绿。 |
+| 2026-10-14 | **自建 GPT-SoVITS 落地 + 鉴权网关**：`api_v2.py` 端到端实测打通 —— Worker 的请求体原样可用（v2 底模 32 kHz / v2Pro 32 kHz / v4 48 kHz 三档都出音频，单句 1.4~2.7 s，`/set_gpt_weights` + `/set_sovits_weights` 可热切权重）；新增 `scripts/ta-tts-proxy.mjs` + `scripts/start-ta-tts-proxy.ps1`（token 校验反代：只放行 `POST /tts`、体上限 64 KiB、401 兜底，隧道指向网关而不是裸 9880）；修掉 `TA_TTS_LOCAL_URL`「只填域名」时代码没补 `/tts` 的文档/实现不一致（新增 `localTtsEndpoint()`，域名与完整端点都收，后端 52 → 54 项）。 |
 
 ## 15. 触发词（用户只会说这几个词）
 

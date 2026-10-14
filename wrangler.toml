@@ -10,6 +10,14 @@ binding = "ASSETS"
 [ai]
 binding = "AI"
 
+[vars]
+# TA 自建语音层（GPT-SoVITS）参考音色：稳定配置放这里；易变的 URL / token 用 wrangler secret（见 docs/TA.md §7）
+TA_TTS_LOCAL_REF = 'D:\ai\tmp\dataset_demo\seg_0003.wav'
+TA_TTS_LOCAL_PROMPT_TEXT = '这件事我想了很久，还是决定告诉你。'
+TA_TTS_LOCAL_PROMPT_LANG = 'zh'
+TA_TTS_LOCAL_TEXT_LANG = 'zh'
+TA_TTS_LOCAL_MEDIA = 'wav'
+
 [[d1_databases]]
 binding = "DB"
 database_name = "hyool-db"

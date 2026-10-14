@@ -10,7 +10,8 @@ DEEPSEEK_API_KEY=
 # GPU_API_KEY=
 
 # TA（AI 伴侣）语音合成 · 自建 GPT-SoVITS（可选；不配 = 只用站内 MeloTTS，见 docs/TA.md §7）
-# 只填域名，/tts 路径由代码补；线上换成 wrangler secret / [vars]，本地预览才用本文件
+# 只填域名，/tts 路径由代码补（填完整端点也兼容）；线上换成 wrangler secret / [vars]，本地预览才用本文件
+# 别把 9880 裸开公网：先跑 scripts\start-ta-tts-proxy.ps1（token 网关，监听 9881），隧道指向 9881
 # TA_TTS_LOCAL_URL=https://xxxx.trycloudflare.com
 # TA_TTS_LOCAL_REF=C:\gptsovits\refs\default.wav
 # TA_TTS_LOCAL_VOICES={"zh-CN-XiaoxiaoNeural":{"ref":"C:\\gptsovits\\refs\\xiaoman.wav","prompt":"今天有点累，早点休息。","prompt_lang":"zh"}}
