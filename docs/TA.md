@@ -106,8 +106,10 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 | `TA_ASR_MODEL` | Whisper 模型覆盖（默认 `@cf/openai/whisper-large-v3-turbo` → 回退 `@cf/openai/whisper`） |
 | `TA_TTS_MODEL` | 站内合成层模型（默认 `@cf/myshell-ai/melotts`） |
 | `TA_TTS_LOCAL_URL` | **自建 GPT-SoVITS** 的地址（只填域名，`/tts` 路径由代码补）。不填 = 该层不参与链（见 §7） |
-| `TA_TTS_LOCAL_REF` | 默认参考音频路径（**自建机器上的本地路径**，不是 URL）：没配 `TA_TTS_LOCAL_VOICES` 时所有音色共用它 |
-| `TA_TTS_LOCAL_VOICES` | JSON：音色 id → `{ref, prompt, prompt_lang}`，给每个音色配各自的参考音频（写坏 = 当没配处理，不报错） |
+| `TA_TTS_LOCAL_REF` | **兜底**参考音频路径（**自建机器上的本地路径**，不是 URL）：逐音色表与性别档都没命中时用它（一份素材兜所有音色，女男会同一把嗓子） |
+| `TA_TTS_LOCAL_FEMALE_REF` / `TA_TTS_LOCAL_MALE_REF` | **按性别兜底的参考音频**（推荐主力口径：女声 6 个共用一份、男声 6 个共用一份）。优先级低于逐音色映射、高于全局默认；**只配了女声档时男声不会偷用女声**（该层跳过 → MeloTTS / 设备语音） |
+| `TA_TTS_LOCAL_FEMALE_PROMPT_TEXT` / `TA_TTS_LOCAL_MALE_PROMPT_TEXT` | 上面两条音频各自对应的原文（不填则回落 `TA_TTS_LOCAL_PROMPT_TEXT`；原文与音频不一致会带口音） |
+| `TA_TTS_LOCAL_VOICES` | JSON：音色 id → `{ref, prompt, prompt_lang}`，给每个音色配各自的参考音频（最高优先；写坏 = 当没配处理，不报错） |
 | `TA_TTS_LOCAL_PROMPT_TEXT` / `TA_TTS_LOCAL_PROMPT_LANG` | 默认参考音频对应的文本 / 语种（默认 `zh`） |
 | `TA_TTS_LOCAL_TEXT_LANG` | 要合成的文本语种（默认 `zh`） |
 | `TA_TTS_LOCAL_MEDIA` | 自建层返回格式 `wav` / `mp3` / `ogg` / `aac`（默认 `wav`） |
@@ -143,10 +145,37 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 **自建 GPT-SoVITS 接法（要音质就这么接）**：
 
 1. 装机：按上游 README 起 `api_v2.py`（`POST /tts`）。**它默认没有鉴权** —— 全部参数只有 `-a` / `-p` / `-c`，没有 key 选项，所以别把它裸开公网（见第 3 步）。成功返回音频流、失败返回 400 JSON，这就是代码的判定口径。本机自测：`curl -s -o t.wav -w '%{http_code}' -X POST http://127.0.0.1:9880/tts -H 'Content-Type: application/json' --data-binary @body.json`。
-2. 参考音频：准备 3~10 秒干净人声（就是这个人设的语气样本），路径填 `TA_TTS_LOCAL_REF`（自建机器上的本地路径）。要一人一音色就用 `TA_TTS_LOCAL_VOICES`：
+
+   Windows 整合包（本机实测口径，v2Pro 包自带 `runtime`，不用装 Python）：
+
+   ```powershell
+   cd D:\AI\GPT-SoVITS-v2pro-20250604-nvidia50
+   $env:PATH = "$PWD\runtime;$env:PATH"   # 让 runtime 里的 ffmpeg 可被找到（mp3/m4a 参考音频要用）
+   .\runtime\python.exe api_v2.py -a 127.0.0.1 -p 9880
+   # 就绪口径：GET /openapi.json → 200；日志里出现 "Loading VITS weights from ... <All keys matched successfully>"
+   ```
+
+   默认配置走 `tts_infer.yaml` 的 `custom` 档 = **v4 + cuda + is_half**（48 kHz，音质最好那档）。**显存要腾出来**：16 GB 卡上同时挂 35B 大模型（llama-server ≈ 8.9 GB）+ ComfyUI（≈ 13 GB）时它会加载成功但合成被挤到 CUDA 争用；实测先关掉 ComfyUI（`Stop-Process -Id <comfyui-pid>`）再起，单句稳态 **2.7~3.0 s**。
+
+2. 参考音频（**这一步决定「她」的声音**）：3~10 秒、单人、无背景音乐、不削波，**再配一句与音频逐字一致的原文**。路径填自建机器上的本地路径。三级优先（写坏的那级直接跳过，不报错）：
+
+   | 优先级 | 变量 | 覆盖范围 | 什么时候用 |
+   |---|---|---|---|
+   | 1 | `TA_TTS_LOCAL_VOICES`（JSON） | 单个音色 | 有 12 份素材、真要做到一人一音色 |
+   | 2 | `TA_TTS_LOCAL_FEMALE_REF` / `TA_TTS_LOCAL_MALE_REF` | 女声 6 / 男声 6 | **推荐**：两份素材就能让音色池分男女 |
+   | 3 | `TA_TTS_LOCAL_REF` | 全部音色 | 只有一份素材时的兜底（女男同一把嗓子） |
+
+   ```powershell
+   # 先体检素材（时长 / 声道 / 采样率 / 削波 / 音量），不通过就别往上填
+   node scripts\ta-tts-ref-check.mjs "D:\AI\refs\xiaoman.wav"
+   ```
+
+   为什么非要第 2 级：音色池是 6 女 6 男，只配一份默认参考音频时，用户把音色从「晓晓」换成「云希」听到的还是同一把嗓子 —— 人设直接塌掉；而要求 12 份素材对普通人过度。**只配了女声档时男声不会偷用女声**（该层跳过 → MeloTTS / 设备语音），宁可降级也不假装换过音色。
+
+   要一人一音色就用 `TA_TTS_LOCAL_VOICES`：
 
    ```json
-   {"zh-CN-XiaoxiaoNeural":{"ref":"/opt/gptsovits/refs/xiaoman.wav","prompt":"今天有点累，早点休息。","prompt_lang":"zh"}}
+   {"zh-CN-XiaoxiaoNeural":{"ref":"D:\\AI\\refs\\xiaoman.wav","prompt":"今天有点累，早点休息。","prompt_lang":"zh"}}
    ```
 
 3. **加一层鉴权网关**（必做）：`powershell -ExecutionPolicy Bypass -File .\scripts\start-ta-tts-proxy.ps1`
@@ -155,7 +184,13 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
    - token 首次由脚本生成到 `scripts/.tools/ta-tts-token.txt`（已 gitignore），之后复用同一份；也可用环境变量 `TA_TTS_PROXY_TOKEN` 覆盖。
    - 自测口径：带 token 打 `http://127.0.0.1:9881/tts` → 200 + `audio/wav`；不带 token → 401。
 4. 让 Worker 连得上：家里机器没公网 IP 就开隧道，**指向网关的 9881（不是裸 9880）**：`cloudflared tunnel --url http://127.0.0.1:9881` → 拿到 `https://xxxx.trycloudflare.com`，填 `TA_TTS_LOCAL_URL`（**只填域名**，`/tts` 由代码补；填完整端点也兼容），再 `npx wrangler secret put TA_TTS_LOCAL_TOKEN`（粘贴上面那串 token）。网关 / 隧道 / 本机任一环挂了都不影响 TA：自动落到 MeloTTS。
-5. 开好了怎么确认：`/api/ta/config` 的 `tts.chain` 会变成 `["gptsovits","melotts"]`、`tts.local = true`、`tts.local_voices` 列出已配参考音频的音色 id；实测口径是 `POST /api/ta/tts` 的响应头 `X-TA-TTS-Provider: gptsovits`（没接通就是 `melotts`）。页面「音色来源 = 云端」时状态栏会显示实际命中的层；`tts.local = false` 时按钮上会直接写「自建 GPT-SoVITS 未接」，**不让人靠听感猜**。
+
+   - **临时域名每次重启就变**（`trycloudflare.com`），变一次就要重设一次 `TA_TTS_LOCAL_URL`。要长期用就建固定隧道（需一次浏览器登录）：`cloudflared tunnel login` → `cloudflared tunnel create ta-tts` → `cloudflared tunnel route dns ta-tts tts.hyool.com` → `cloudflared tunnel run --url http://127.0.0.1:9881 ta-tts`，之后 Secret 只设一次。
+   - 三个 Secret 的口径：`TA_TTS_LOCAL_URL`（隧道域名）、`TA_TTS_LOCAL_TOKEN`（网关 token）、`TA_TTS_LOCAL_FEMALE_REF` / `TA_TTS_LOCAL_MALE_REF` + 对应 `*_PROMPT_TEXT`（**你机器上的本地路径与原文**，合成发生在你机器上，所以路径由你机器解析）。参考音频这类稳定配置也可以写进 `wrangler.toml` 的 `[vars]`（易变的 URL / token 才用 Secret）。
+5. 开好了怎么确认：`/api/ta/config` 的 `tts.chain` 会变成 `["gptsovits","melotts"]`、`tts.local = true`、`tts.local_voices` 列出已配逐音色映射的 id、`tts.refs` 给出 `{by_voice,female,male,fallback}`（一眼看出「男声是不是还在共用兜底那份」）；实测口径是 `POST /api/ta/tts` 的响应头 `X-TA-TTS-Provider: gptsovits` + `X-TA-TTS-Voice: female-default`（没接通就是 `melotts`）。页面「音色来源 = 云端」时状态栏会显示实际命中的层；`tts.local = false` 时按钮上会直接写「自建 GPT-SoVITS 未接」，**不让人靠听感猜**。
+
+   **本机实测（RTX 5060 Ti 16 GB / v4 档 / 关掉 ComfyUI）**：直连 `:9880` 单句 2.7~3.0 s；过网关 `:9881` 2.9 s 左右；过公网隧道 4.3~4.6 s（Worker 侧一次实测 5.1 s）。自建层单次超时是 **6 s**，隧道一跳就占了 1.5 s 左右 —— 换更慢的机器/更长的句子前先量一遍，不然会稳定超时降级到 MeloTTS。
+
 
 **参数口径**：`rate`（`+20%` / `-60%`）会换算成自建层的 `speed_factor`（clamp 0.5~2）；`pitch` / `volume` 仍然接收并校验格式（前端契约不变），但当前链上没有支持 SSML prosody 的引擎，**不再改变合成结果**。
 
@@ -319,6 +354,8 @@ powershell -NoProfile -File .\run-browser-test.ps1 -Url 'http://127.0.0.1:8123/s
 | 2026-10-14 | **自建 GPT-SoVITS 落地 + 鉴权网关**：`api_v2.py` 端到端实测打通 —— Worker 的请求体原样可用（v2 底模 32 kHz / v2Pro 32 kHz / v4 48 kHz 三档都出音频，单句 1.4~2.7 s，`/set_gpt_weights` + `/set_sovits_weights` 可热切权重）；新增 `scripts/ta-tts-proxy.mjs` + `scripts/start-ta-tts-proxy.ps1`（token 校验反代：只放行 `POST /tts`、体上限 64 KiB、401 兜底，隧道指向网关而不是裸 9880）；修掉 `TA_TTS_LOCAL_URL`「只填域名」时代码没补 `/tts` 的文档/实现不一致（新增 `localTtsEndpoint()`，域名与完整端点都收，后端 52 → 54 项）。 |
 | 2026-10-15 | **语音稳定性加固（线上实测驱动）**：实测定位到「第一次好、后面变机械」的根因有两层 —— ① 线上 `/api/ta/config` 的 `tts.chain` 只有 `["melotts"]`、`local:false`（`TA_TTS_LOCAL_URL` Secret 为空，**自建层根本没启用**，听到的就是站内 MeloTTS）；② 代码里页面 `TTS_TIMEOUT_MS`(14s) 小于后端自建层超时(30s)，且页面合成请求从不中断/去重 —— 一次抖动就永久掉兜底音。修法：后端自建层单次超时 30s → **6s**、**快速失败（<2.5s）才同层重试一次**（4xx 不重试）、整条链预算 **20s**、每层失败写 `console.warn`（`wrangler tail` 可见）、降级时回 ASCII 头 `X-TA-TTS-Attempts`（`gptsovits=timeout` / `=net` / `=http401` / `=unconfigured`，502 也带），devCors 补 `Access-Control-Expose-Headers`（本地预览才读得到来源头）；页面 `TTS_TIMEOUT_MS` → **22s**、合成**单飞 + 可中断**（新台词/说话打断/静音/切后台/断网都 `abort()`，迟到响应按序号作废）、降级时给一句人话（每会话一次）、`tts.local=false` 时「音色来源」按钮直说「自建 GPT-SoVITS 未接」、状态栏悬停可看降级原因。文档 §7 补「稳定性口径」表 + 「变机械了怎么查」三步排查。后端 59 项 / 页面 48 项 / 冒烟 26 项全绿。**遗留：线上自建层仍未接（需先起 `api_v2.py` + 网关 + 隧道，再 `wrangler secret put TA_TTS_LOCAL_URL`）。** |
 | 2026-10-21 | **本机模型接入（qwen3.6）**：新增注册项 `local-qwen`（provider `local`）+ `TA_LOCAL_LLM_URL/MODEL/KEY/TEMPERATURE/MAX_TOKENS`；Worker 到不了 `127.0.0.1`，因此「本机模型」由**页面直连**（`TA_API.localChat`：探活 `/v1/models` → 取提示词 → `/chat/completions` → 回服务端擦 AI 腔），服务端链路在配了隧道地址时也会把本机模型排到最前。新增 `POST /api/ta/prompt`（只出提示词）与 `POST /api/ta/polish`（只做去 AI 味），提示词与清洗保持单一实现；`/config` 新增 `llm` 提示（不含密钥）。页面新增「台词模型」按钮（自动 / 只用云端 / 只用本机，双击改地址与模型名）、状态栏如实显示台词由谁生成、系统提示词缓存在同一 `hyool-ta-v1` 里以支持离线本机对话。新增 `scripts/ta-local-llm-check.mjs`（24 项，含真机调用）全绿。 |
+| 2026-10-22 | **自建语音真机打通 + 参考音频分性别**：本机 v2Pro 整合包（`tts_infer.yaml` 的 `custom` 档 = v4 + cuda）实测全链路 200 `audio/wav` —— 直连 `:9880` 单句 2.7~3.0 s、过网关 2.9 s、过公网隧道 4.3~4.6 s（自建层 6 s 预算内）；记录口径：**16 GB 卡上必须先把 ComfyUI 关掉**，否则 CUDA 争用让首句 8.6 s。参考音频改为**三级优先**：`TA_TTS_LOCAL_VOICES[voice]` → `TA_TTS_LOCAL_FEMALE_REF`/`TA_TTS_LOCAL_MALE_REF`（新增，两份素材即可让 6 女 6 男分嗓子）→ `TA_TTS_LOCAL_REF`（兜底）；**只配女声档时男声不偷用女声**（该层跳过 → MeloTTS / 设备语音），`X-TA-TTS-Voice` 会写明命中哪一级（`female-default` / `male-default` / `local-default` / 音色 id）。`/config` 的 `tts` 新增 `refs.{by_voice,female,male,fallback}`（只给布尔/计数，不泄露机器路径）。新增 `scripts/ta-tts-ref-check.mjs`（参考音频体检：时长/声道/采样率/削波/音量 + ffmpeg 规整命令）与 `scripts/ta-tts-local-check.mjs`（29 项离线断言：三级优先、请求体契约、400 不重试、空音频判失败、抖动重试一次、config 口径），页面 48 项与本机模型 22 项仍全绿。文档 §7 补 Windows 起法、显存口径、固定隧道与实测耗时。 |
+
 
 ## 15. 触发词（用户只会说这几个词）
 

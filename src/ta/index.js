@@ -27,6 +27,8 @@
  *   TA_TTS_MODEL      站内合成层模型（默认 @cf/myshell-ai/melotts）
  *   TA_TTS_LOCAL_URL  自建 GPT-SoVITS 地址（不填 = 该层不参与链）
  *   TA_TTS_LOCAL_REF  默认参考音频（机器上的本地路径）
+ *   TA_TTS_LOCAL_FEMALE_REF / TA_TTS_LOCAL_MALE_REF  按性别兜底的参考音频（女声 6 / 男声 6 各一把嗓子）
+ *   TA_TTS_LOCAL_FEMALE_PROMPT_TEXT / TA_TTS_LOCAL_MALE_PROMPT_TEXT  上面两条音频对应的原文
  *   TA_TTS_LOCAL_VOICES  JSON：音色 id → { ref, prompt, prompt_lang }
  *   TA_TTS_LOCAL_PROMPT_TEXT / TA_TTS_LOCAL_PROMPT_LANG / TA_TTS_LOCAL_TEXT_LANG
  *   TA_TTS_LOCAL_MEDIA / TA_TTS_LOCAL_TOKEN
@@ -188,7 +190,14 @@ export function taConfig(env) {
         tts: {
             chain: ttsChain(env),                    // 实际启用的合成层（按优先级）
             local: !!(env && trim(env.TA_TTS_LOCAL_URL, 300)),
-            local_voices: ttsLocalVoiceIds(env)      // GPT-SoVITS 已配参考音频的音色 id
+            local_voices: ttsLocalVoiceIds(env),     // GPT-SoVITS 已配参考音频的音色 id（逐音色映射表里的）
+            // 参考音频覆盖到哪一级：页面/运维据此判断「男声是不是还在共用女声」，只给布尔值（路径是机器本地信息）
+            refs: {
+                by_voice: ttsLocalVoiceIds(env).length,
+                female: !!trim(env && env.TA_TTS_LOCAL_FEMALE_REF, 300),
+                male: !!trim(env && env.TA_TTS_LOCAL_MALE_REF, 300),
+                fallback: !!trim(env && env.TA_TTS_LOCAL_REF, 300)
+            }
         },
         llm: localLlmHint(env),                      // 本机模型（页面直连 / Worker 走隧道）
         asr: {
@@ -450,7 +459,22 @@ function ttsLocalVoiceIds(env) {
     return Object.keys(map).filter((id) => KNOWN_VOICE_IDS.has(id) && map[id] && trim(map[id].ref, 300));
 }
 
-/** 取某个音色对应的 GPT-SoVITS 参考音频；没配 / 该音色不在表里 → 用默认那份 TA_TTS_LOCAL_REF */
+/** 音色 id → 性别（复用 src/tts.js 的 TTS_VOICES；未知 id 返回空串，由上层回落默认） */
+function voiceGenderOf(voice) {
+    const hit = TTS_VOICES.find((v) => v.id === voice);
+    return hit ? String(hit.gender || "") : "";
+}
+
+/**
+ * 取某个音色对应的 GPT-SoVITS 参考音频。三级优先（写坏/没配的那级直接跳过，不报错）：
+ *   1) TA_TTS_LOCAL_VOICES[voice] —— 一人一音色，最精确
+ *   2) 性别档 TA_TTS_LOCAL_FEMALE_REF / TA_TTS_LOCAL_MALE_REF —— **只备两份素材就能让 12 个音色分男女**
+ *   3) TA_TTS_LOCAL_REF —— 全局默认，一份素材兜所有
+ *
+ * 为什么非要第 2 级：音色池是 6 女 6 男，只配一份默认参考音频的话，用户把「音色」从
+ * 晓晓换成云希（女声换男声）听到的还是同一把嗓子 —— 人设直接塌掉。而按音色逐条配
+ * 12 份素材对普通人是过度要求：**两份（一男一女）** 才是能落地的口径。
+ */
 function localVoiceProfile(env, voice) {
     const map = localVoiceMap(env);
     const hit = map ? map[voice] : null;
@@ -462,6 +486,23 @@ function localVoiceProfile(env, voice) {
             promptLang: trim(hit.prompt_lang, 10) || "zh"
         };
     }
+
+    const gender = voiceGenderOf(voice);
+    const genderRef = gender === "female"
+        ? trim(env && env.TA_TTS_LOCAL_FEMALE_REF, 300)
+        : (gender === "male" ? trim(env && env.TA_TTS_LOCAL_MALE_REF, 300) : "");
+    if (genderRef) {
+        return {
+            key: gender + "-default",
+            ref: genderRef,
+            // 性别档没写原文时回落全局原文：prompt_text 与音频不一致会带口音，但总好过不出声
+            prompt: trim(gender === "female"
+                ? (env && env.TA_TTS_LOCAL_FEMALE_PROMPT_TEXT)
+                : (env && env.TA_TTS_LOCAL_MALE_PROMPT_TEXT), 500) || trim(env && env.TA_TTS_LOCAL_PROMPT_TEXT, 500),
+            promptLang: trim(env && env.TA_TTS_LOCAL_PROMPT_LANG, 10) || "zh"
+        };
+    }
+
     const ref = trim(env && env.TA_TTS_LOCAL_REF, 300);
     if (!ref) return null;
     return {
@@ -485,7 +526,7 @@ async function synthLocalTts({ env, text, voice, rate }) {
     const url = localTtsEndpoint(env);
     if (!url) return { skip: "未配置 TA_TTS_LOCAL_URL" };
     const profile = localVoiceProfile(env, voice);
-    if (!profile) return { skip: "未配置 TA_TTS_LOCAL_REF / TA_TTS_LOCAL_VOICES" };
+    if (!profile) return { skip: "未配置 TA_TTS_LOCAL_REF / TA_TTS_LOCAL_FEMALE_REF / TA_TTS_LOCAL_MALE_REF / TA_TTS_LOCAL_VOICES" };
 
     const rawMedia = trim(env.TA_TTS_LOCAL_MEDIA, 8);
     const media = /^(wav|mp3|ogg|aac)$/.test(rawMedia) ? rawMedia : "wav";
@@ -542,11 +583,18 @@ async function synthMeloTts({ env, text }) {
 /** 当前实际启用的合成层（按优先级），供 /api/ta/config 与日志用 */
 export function ttsChain(env) {
     const chain = [];
-    const hasLocal = !!trim(env && env.TA_TTS_LOCAL_URL, 300) &&
-        (ttsLocalVoiceIds(env).length > 0 || !!trim(env && env.TA_TTS_LOCAL_REF, 300));
+    const hasLocal = !!trim(env && env.TA_TTS_LOCAL_URL, 300) && hasLocalRef(env);
     if (hasLocal) chain.push("gptsovits");
     if (env && env.AI) chain.push("melotts");
     return chain;
+}
+
+/** 自建层是否至少有一份参考音频可用（逐音色 / 性别档 / 全局默认，任一即可） */
+export function hasLocalRef(env) {
+    return ttsLocalVoiceIds(env).length > 0 ||
+        !!trim(env && env.TA_TTS_LOCAL_REF, 300) ||
+        !!trim(env && env.TA_TTS_LOCAL_FEMALE_REF, 300) ||
+        !!trim(env && env.TA_TTS_LOCAL_MALE_REF, 300);
 }
 
 /**
