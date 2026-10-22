@@ -180,6 +180,8 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 
 3. **加一层鉴权网关**（必做）：`powershell -ExecutionPolicy Bypass -File .\scripts\start-ta-tts-proxy.ps1`
 
+   > 懒人版：`powershell -ExecutionPolicy Bypass -File .\scripts\start-ta-tts-stack.ps1` 一条命令按顺序拉起「api_v2（缺就起，等模型加载完）→ 网关 → 临时隧道」，最后把 token、隧道域名和该设的 `wrangler secret put` 逐条打给你（`-NoTunnel` 只起本机、不建隧道）。它只补缺的，不会重复起已经在跑的那一层。
+
    - 网关监听 `127.0.0.1:9881`，只放行 `POST /tts`（其余 404 / 405，请求体上限 64 KiB），校验 `Authorization: Bearer <token>`，不对就 **401**；token 走常量时间比较，日志只记状态 / 耗时 / 大小（不记文本、不记 token）。
    - token 首次由脚本生成到 `scripts/.tools/ta-tts-token.txt`（已 gitignore），之后复用同一份；也可用环境变量 `TA_TTS_PROXY_TOKEN` 覆盖。
    - 自测口径：带 token 打 `http://127.0.0.1:9881/tts` → 200 + `audio/wav`；不带 token → 401。
