@@ -50,6 +50,11 @@ button,input,textarea{font-family:inherit;color:inherit}
 .bubble{padding:11px 14px;border-radius:16px;font-size:14.5px;line-height:1.68;white-space:pre-wrap;word-break:break-word}
 .row.her .bubble{background:var(--panel-2);border:1px solid var(--line);border-bottom-left-radius:6px}
 .row.me .bubble{background:linear-gradient(140deg,#6f5cf5,#4a37c9);border-bottom-right-radius:6px;color:#fff}
+/* 字字动画：整句先占位（不跳动），逐字淡入 + 上浮；只有 .revealing 期间才隐藏，
+   JS 半路挂掉最多是「直接显示」，不会白屏 */
+.bubble .ch{display:inline-block;max-width:100%;transition:opacity .18s ease,transform .18s ease}
+.bubble.revealing .ch{opacity:0;transform:translateY(.16em)}
+.bubble.revealing .ch.on{opacity:1;transform:none}
 .meta{margin-top:5px;font-size:10.5px;color:var(--muted);text-align:right}
 .row.her .meta{text-align:left}
 .typing{display:flex;gap:4px;align-items:center;height:14px}
@@ -749,7 +754,9 @@ button,input,textarea{font-family:inherit;color:inherit}
     stageOf: stageOf,
     buildReply: buildReply,
     defaultState: defaultState,
-    topicOf: topicOf
+    topicOf: topicOf,
+    /* 自测用：字字动画的分词 / 节奏 / 跑一遍（页面行为不依赖它） */
+    _reveal: { tokens: revealTokens, plan: revealPlan, run: stream }
   };
   if (typeof window !== 'undefined') window.AICompanion = API;
 
@@ -1199,9 +1206,126 @@ button,input,textarea{font-family:inherit;color:inherit}
     sunny: ['我是{name}！今天也一起开开心心的吧！', '我是{name}！快说说今天发生了什么好玩的事！', '来啦！{call}今天想聊点什么呀！'],
     clear: ['我是{name}。有事说事，没事也可以随便聊。', '我是{name}。先说结论还是先说过程？', '在。{call}，今天要处理什么？']
   };
+  /* ================= 字字动画 ================= */
+  /* 这里只管「文字怎么出现」，跟语音没有任何耦合：say() 里语音先起，动画自己跑完。
+     每个字（英文按词、emoji 按字）一个 span：整句先占位再逐字淡入，句子不会越写越跳；
+     标点后留一拍（句末长、逗号短），长句自动提速，整段有上限；
+     全局只有一个动画在跑：新台词立刻顶掉旧的，旧的当场补全并照旧归档（不留半句、不丢消息）；
+     收尾把 span 换回纯文本，「减少动效」偏好下直接铺全文。 */
+  var REVEAL_PAUSE_STOP = 190;   // 。！？…
+  var REVEAL_PAUSE_SOFT = 70;    // ，、；：
+  var revealTimer = 0;
+  var revealSeq = 0;
+  var revealPending = null;
+
+  /* 中文/标点逐字、英文数字连成词、空白原样留在文本节点里（不进 span，免得 pre-wrap 换行丢） */
+  function revealTokens(text) {
+    var chars = Array.from(String(text == null ? '' : text));
+    var out = [];
+    var word = '';
+    function flush() {
+      if (!word) return;
+      out.push({ t: word, word: true });
+      word = '';
+    }
+    for (var i = 0; i < chars.length; i++) {
+      var c = chars[i];
+      if (/\s/.test(c)) { flush(); out.push({ t: c, space: true }); continue; }
+      if (/[A-Za-z0-9_'’\-.@#%&+=]/.test(c)) { word += c; continue; }
+      flush();
+      out.push({ t: c });
+    }
+    flush();
+    return out;
+  }
+
+  /* 节奏口径（纯函数，方便自测）：基础间隔按字数自适应 9~40 ms，标点另加一拍 */
+  function revealPlan(text) {
+    var tokens = revealTokens(text);
+    var base = Math.min(40, Math.max(9, Math.round(1000 / Math.max(8, tokens.length))));
+    var steps = [];
+    for (var i = 0; i < tokens.length; i++) {
+      var tk = tokens[i];
+      var delay = 0;
+      if (!tk.space) {
+        delay = base;
+        if (/[。！？!?…]$|\.$/.test(tk.t)) delay += REVEAL_PAUSE_STOP;
+        else if (/[，,、；;：:]$/.test(tk.t)) delay += REVEAL_PAUSE_SOFT;
+      }
+      steps.push({ t: tk.t, space: !!tk.space, delay: delay });
+    }
+    return { base: base, steps: steps };
+  }
+
+  function avatarTalk(on) {
+    try { if (el && el.avatar && el.avatar.classList) el.avatar.classList[on ? 'add' : 'remove']('talk'); } catch (e) { }
+  }
+
+  function scrollDown() { if (el && el.stage) el.stage.scrollTop = el.stage.scrollHeight; }
+
+  /* 被顶掉的那条：当场补全 + 照旧归档（它只是文字慢，消息不能丢） */
+  function revealSettle() {
+    if (!revealPending) return;
+    var f = revealPending;
+    revealPending = null;
+    f();
+  }
+
+  function stream(node, text, done) {
+    var plain = String(text == null ? '' : text);
+    var steps = revealPlan(plain).steps;
+    revealSeq++;
+    var mySeq = revealSeq;
+    if (revealTimer) { clearTimeout(revealTimer); revealTimer = 0; }
+    revealSettle();
+
+    node.textContent = '';
+    node.classList.add('revealing');
+    var frag = document.createDocumentFragment();
+    var items = [];                          // 只有要逐字出现的才进 items
+    for (var i = 0; i < steps.length; i++) {
+      if (steps[i].space) { frag.appendChild(document.createTextNode(steps[i].t)); continue; }
+      var span = document.createElement('span');
+      span.className = 'ch';
+      span.textContent = steps[i].t;
+      frag.appendChild(span);
+      items.push({ el: span, delay: steps[i].delay });
+    }
+    node.appendChild(frag);
+
+    function settle() {
+      for (var k = 0; k < items.length; k++) items[k].el.classList.add('on');
+      node.textContent = plain;              // 收尾换成纯文本：历史里只留一份字符串
+      try { node.classList.remove('revealing'); } catch (e) { }
+      avatarTalk(false);
+      if (done) done();
+    }
+
+    var reduce = false;
+    try { reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { }
+
+    if (!items.length || reduce) { revealPending = null; settle(); return; }
+
+    revealPending = settle;
+    avatarTalk(true);
+    var idx = 0;
+    var lastScroll = 0;
+    function tick() {
+      if (mySeq !== revealSeq) return;        // 被新台词顶掉：这轮停手（settle 已由对方代跑）
+      items[idx].el.classList.add('on');
+      idx++;
+      var now = Date.now();
+      if (now - lastScroll > 140) { lastScroll = now; scrollDown(); }
+      if (idx >= items.length) { revealTimer = 0; revealPending = null; settle(); return; }
+      revealTimer = setTimeout(tick, items[idx - 1].delay);
+    }
+    tick();
+  }
+
   /* ================= DOM 层 ================= */
+  var el = {};    // boot() 里按 id 填；提到外层是为了无 DOM 环境（自测）也能安全调用
+
   function boot() {
-    var el = {};
     ['stage', 'input', 'sendBtn', 'avatar', 'cpName', 'cpStage', 'cpStatus', 'chips', 'hintRight',
       'setupOverlay', 'genderList', 'voiceList', 'personaList', 'nameList', 'startBtn',
       'openMemory', 'closeDrawer', 'drawer', 'scrim', 'stats', 'memList', 'wipeBtn', 'resetBtn',
@@ -1325,7 +1449,7 @@ button,input,textarea{font-family:inherit;color:inherit}
       return dayKey(ts) === new Date().toDateString() ? '今天' : (new Date(ts).getMonth() + 1) + '月' + new Date(ts).getDate() + '日';
     }
 
-    function scrollDown() { el.stage.scrollTop = el.stage.scrollHeight; }
+    /* scrollDown() 在 IIFE 顶层（字字动画也要用） */
 
     function rowNode(msg) {
       var row = document.createElement('div');
@@ -1386,23 +1510,8 @@ button,input,textarea{font-family:inherit;color:inherit}
       return msg;
     }
 
-    function stream(node, text, done) {
-      var i = 0;
-      el.avatar.classList.add('talk');
-      var step = Math.max(12, Math.min(26, Math.round(700 / Math.max(12, text.length))));
-      var timer = setInterval(function () {
-        i += 2;
-        node.textContent = text.slice(0, i);
-        scrollDown();
-        if (i >= text.length) {
-          clearInterval(timer);
-          node.textContent = text;
-          el.avatar.classList.remove('talk');
-          scrollDown();
-          if (done) done();
-        }
-      }, step);
-    }
+    /* 字字动画整段在 IIFE 顶层（见「DOM 层」前的 stream 一节）：
+       这样它不依赖 boot()，无 DOM 环境也能单测，API 也能安全地把它挂出去。 */
 
     function typingNode() {
       var row = document.createElement('div');
@@ -1668,9 +1777,12 @@ button,input,textarea{font-family:inherit;color:inherit}
       });
     }
 
+    /**
+     * 出一句台词：**先出声，再逐字显示**。
+     * 语音和字字动画互不等待 —— 声音不该被字幕拖住（以前是动画播完才开口）；
+     * 动画被下一句顶掉时当场补全并照旧归档，消息不会丢。
+     */
     function say(out, kind) {
-      busy = true;
-      el.sendBtn.disabled = true;
       var msg = { id: uid(), role: 'her', text: out, at: Date.now(), src: kind || 'local' };
       if (msg.src === 'llm') state.llmCount = (state.llmCount || 0) + 1;
       else state.localCount = (state.localCount || 0) + 1;
@@ -1678,10 +1790,10 @@ button,input,textarea{font-family:inherit;color:inherit}
       var node = rowNode({ role: 'her', text: '', at: msg.at });
       el.stage.appendChild(node.row);
       scrollDown();
-      stream(node.bubble, out, function () {
-        commit(msg);
-        speak(out);
-      });
+      speak(out);                                   // 语音先起，不等字幕
+      stream(node.bubble, out, function () { commit(msg); });
+      busy = true;
+      if (el.sendBtn) el.sendBtn.disabled = true;
     }
 
     /**

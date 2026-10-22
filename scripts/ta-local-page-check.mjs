@@ -92,6 +92,27 @@ async function fakeFetch(url, opt = {}) {
     return jsonRes({ success: false, code: "NOT_FOUND" }, 404);
 }
 
+/* 只给「字字动画」用的极简 DOM：文本节点 + span + class，够 stream() 真跑一遍。
+   故意不提供 getElementById —— boot() 仍然跳过，前面的用例不受影响。 */
+function fakeNode(tag) {
+    const n = { tag, children: [], text: "", classes: [] };
+    Object.defineProperty(n, "className", {
+        get: () => n.classes.join(" "),
+        set: (v) => { n.classes = String(v).split(/\s+/).filter(Boolean); }
+    });
+    Object.defineProperty(n, "textContent", {
+        get: () => (n.children.length ? n.children.map((c) => c.textContent).join("") : n.text),
+        set: (v) => { n.text = String(v); n.children.length = 0; }
+    });
+    n.classList = {
+        add: (c) => { if (!n.classes.includes(c)) n.classes.push(c); },
+        remove: (c) => { n.classes = n.classes.filter((x) => x !== c); },
+        contains: (c) => n.classes.includes(c)
+    };
+    n.appendChild = (c) => { n.children.push(c); return c; };
+    return n;
+}
+
 const sandbox = {
     console,
     setTimeout,
@@ -102,7 +123,13 @@ const sandbox = {
     localStorage,
     window: {},
     // 没有 getElementById → 页面自己会跳过 boot()，只留下引擎层与传输层
-    document: { readyState: "loading", addEventListener: () => { } },
+    document: {
+        readyState: "loading",
+        addEventListener: () => { },
+        createElement: (tag) => fakeNode(tag),
+        createTextNode: (t) => { const n = fakeNode("#text"); n.text = String(t); return n; },
+        createDocumentFragment: () => fakeNode("#fragment")
+    },
     location: { href: "http://127.0.0.1:8123/ta.html" }
 };
 vm.createContext(sandbox);
@@ -209,6 +236,70 @@ r = await TA.chat(basePayload());
 check("本机 + 云端都挂 → ok:false（页面用模板接住，不抛异常）", r && r.ok === false, JSON.stringify(r));
 world.cloudUp = true;
 world.localUp = true;
+
+/* ---------------- 9. 字字动画：真逐字、可打断、与语音解耦 ---------------- */
+
+const RV = sandbox.window.AICompanion && sandbox.window.AICompanion._reveal;
+check("页面导出字字动画口径（tokens / plan / run）", !!(RV && RV.tokens && RV.plan && RV.run));
+
+const tokens = RV.tokens("好呀 hello 世界😀").map((t) => t.t);
+check("分词：中文逐字、英文按词、空白单独留、emoji 不拆",
+    JSON.stringify(tokens) === JSON.stringify(["好", "呀", " ", "hello", " ", "世", "界", "😀"]), JSON.stringify(tokens));
+
+const plan = RV.plan("嗯。好，走");
+check("节奏：句末停 190 ms、逗号停 70 ms、普通字走基础间隔",
+    plan.steps[1].delay === plan.base + 190 && plan.steps[3].delay === plan.base + 70 && plan.steps[0].delay === plan.base,
+    JSON.stringify({ base: plan.base, delays: plan.steps.map((s) => s.delay) }));
+check("节奏有上限：短句每字 ≤40 ms、长句自动提速到 9 ms",
+    plan.base <= 40 && plan.base >= 9 && RV.plan("字".repeat(300)).base === 9, String(plan.base));
+
+const waitFor = async (cond, ms) => {
+    const t0 = Date.now();
+    while (!cond()) {
+        if (Date.now() - t0 > ms) return false;
+        await new Promise((r) => setTimeout(r, 10));
+    }
+    return true;
+};
+
+const liveNode = fakeNode("div");
+let liveDone = 0;
+RV.run(liveNode, "嗯。我在", () => { liveDone++; });
+check("开场：整句先占位进 DOM（字幕不跳行），但还没吐完",
+    liveNode.textContent === "嗯。我在" && liveNode.children.length > 0 && liveNode.classes.includes("revealing"),
+    liveNode.textContent);
+check("逐字跑完：收尾换回纯文本、去掉 revealing、归档只回调一次",
+    await waitFor(() => liveDone === 1, 4000) && liveNode.children.length === 0 &&
+    liveNode.textContent === "嗯。我在" && !liveNode.classes.includes("revealing"),
+    JSON.stringify({ done: liveDone, kids: liveNode.children.length }));
+
+/* 新台词顶掉旧动画：旧的当场补全 + 照旧归档，不能丢消息 */
+const oldNode = fakeNode("div");
+let oldDone = 0;
+RV.run(oldNode, "第一句台词写长一点才好打断", () => { oldDone++; });
+const newNode = fakeNode("div");
+let newDone = 0;
+RV.run(newNode, "第二句", () => { newDone++; });
+check("新台词顶掉旧动画：旧的立刻补全并归档（消息不丢）",
+    oldDone === 1 && oldNode.textContent === "第一句台词写长一点才好打断" && !oldNode.classes.includes("revealing"),
+    JSON.stringify({ done: oldDone, text: oldNode.textContent }));
+check("顶掉之后新动画自己跑完",
+    await waitFor(() => newDone === 1, 4000) && newNode.textContent === "第二句");
+
+/* 减少动效偏好 → 直接铺全文，不等逐字 tick */
+sandbox.window.matchMedia = () => ({ matches: true });
+const stillNode = fakeNode("div");
+let stillDone = 0;
+RV.run(stillNode, "直接显示", () => { stillDone++; });
+check("减少动效：一句话直接铺全文（回调同步触发）",
+    stillDone === 1 && stillNode.textContent === "直接显示" && stillNode.children.length === 0 && !stillNode.classes.includes("revealing"));
+delete sandbox.window.matchMedia;
+
+/* 语音与动画解耦：say() 里先 speak，再把 commit 交给动画收尾 */
+check("语音不等动画：speak(out) 在 stream() 之前（字幕不拖声音）",
+    /speak\(out\);[^\n]*\n\s*stream\(node\.bubble, out, function \(\) \{ commit\(msg\); \}\)/.test(code));
+check("CSS：逐字隐藏只在 .revealing 期间生效（JS 崩了也不会白屏）",
+    /\.bubble\.revealing \.ch\{/.test(html) && /\.bubble\.revealing \.ch\.on\{/.test(html));
 
 /* ---------------- 总结 ---------------- */
 
