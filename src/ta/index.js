@@ -9,16 +9,21 @@
  *     所以断网、模型挂了、超时，TA 都不会变哑巴
  *
  * 接口：
- *   GET  /api/ta/config   能力清单（可选模型 / 音色 / 预设 / 功能开关 / 限额）
+ *   GET  /api/ta/config   能力清单（可选模型 / 音色 / 预设 / 功能开关 / 限额 / 本机模型提示）
  *   POST /api/ta/chat     { message, persona, recent[], memories[], mood, intimacy, model?, channel? } → { reply }
+ *   POST /api/ta/prompt   { persona, memories[], mood, intimacy, channel? } → { system }（只出提示词，不调模型）
+ *   POST /api/ta/polish   { text, channel? } → { reply }（只做「去 AI 味」清洗，不调模型）
  *   POST /api/ta/tts      { text, voice?, rate?, pitch?, volume? } → audio/*（自建 GPT-SoVITS → Workers AI MeloTTS，来源见响应头 X-TA-TTS-Provider）
  *   POST /api/ta/asr      { audio(base64), mime?, language? } → { text }（Workers AI Whisper）
  *   POST /api/ta/image    预留：图片生成（当前未开放 → 501）
  *
  * 环境变量（全部可选，均非必需）：
  *   TA_DISABLED=1     紧急关闭开关：所有 /api/ta/* 直接 503
- *   TA_MODEL          默认模型 id（cf-llama / ds-chat / extra…）
+ *   TA_MODEL          默认模型 id（cf-llama / ds-chat / local-qwen / extra…）
  *   TA_ASR_MODEL      Whisper 模型 id 覆盖
+ *   TA_LOCAL_LLM_URL  本机模型地址（**必须是隧道/公网地址**：Worker 到不了 127.0.0.1）。
+ *                     不填 = 服务端链路里没有本机模型（页面仍可直连本机，见 public/ta.html）
+ *   TA_LOCAL_LLM_MODEL / TA_LOCAL_LLM_KEY / TA_LOCAL_LLM_TEMPERATURE / TA_LOCAL_LLM_MAX_TOKENS
  *   TA_TTS_MODEL      站内合成层模型（默认 @cf/myshell-ai/melotts）
  *   TA_TTS_LOCAL_URL  自建 GPT-SoVITS 地址（不填 = 该层不参与链）
  *   TA_TTS_LOCAL_REF  默认参考音频（机器上的本地路径）
@@ -29,7 +34,7 @@
  *   DEEPSEEK_API_KEY  复用 HYOOL 同一份 Secret（见 .dev.vars.example）
  */
 
-import { listTaModels, isTaModelId, taModelChain, DEFAULT_TA_MODEL_ID, TA_ASR_MODELS } from "./models.js";
+import { listTaModels, isTaModelId, taModelChain, localLlmHint, DEFAULT_TA_MODEL_ID, TA_ASR_MODELS } from "./models.js";
 import {
     TA_GENDERS,
     TA_PERSONALITIES,
@@ -56,6 +61,10 @@ const LIMITS = {
 /** 每 IP 限额（isolate 级内存计数；够挡住顺手乱刷，不引入任何存储依赖） */
 const QUOTA = {
     chat: { perMin: 18, perDay: 240 },
+    // 本机模型的链路是「/prompt → 本机 LLM → /polish」，一个来回各两次；
+    // 这两条不打模型、只出文本，额度给宽一点，别让本机模型的用户被限流逼回云端
+    prompt: { perMin: 40, perDay: 600 },
+    polish: { perMin: 40, perDay: 600 },
     tts: { perMin: 24, perDay: 320 },
     asr: { perMin: 8, perDay: 120 },
     config: { perMin: 60, perDay: 2000 }
@@ -130,6 +139,8 @@ function devCors(request) {
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
+        // 本地预览（http.server）是跨源：不 expose 的话页面读不到「实际命中哪层」
+        "Access-Control-Expose-Headers": "X-TA-TTS-Provider,X-TA-TTS-Voice,X-TA-TTS-Attempts",
         "Access-Control-Max-Age": "600"
     };
 }
@@ -179,6 +190,7 @@ export function taConfig(env) {
             local: !!(env && trim(env.TA_TTS_LOCAL_URL, 300)),
             local_voices: ttsLocalVoiceIds(env)      // GPT-SoVITS 已配参考音频的音色 id
         },
+        llm: localLlmHint(env),                      // 本机模型（页面直连 / Worker 走隧道）
         asr: {
             available: !!(env && env.AI),
             models: TA_ASR_MODELS
@@ -213,18 +225,20 @@ async function callChatProvider(target, messages, env) {
         return { text: String(text || ""), ms: Date.now() - t0 };
     }
 
-    // deepseek / openai-compatible：同一个 OpenAI 兼容协议，接入口在这里
-    if (!target.baseUrl || !target.apiKey) throw new Error(target.provider + " 未配置。");
+    // deepseek / openai-compatible / local：同一个 OpenAI 兼容协议，接入口在这里
+    if (!target.baseUrl) throw new Error(target.provider + " 未配置地址。");
+    if (target.provider !== "local" && !target.apiKey) throw new Error(target.provider + " 未配置。");
 
+    // 本机模型（qwen3.6 这类 30B+）首字比云端慢，给足 30s；云端仍按 20s
+    const budget = target.provider === "local" ? 30000 : 20000;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    const timer = setTimeout(() => controller.abort(), budget);
     try {
+        const headers = { "Content-Type": "application/json" };
+        if (target.apiKey) headers.Authorization = "Bearer " + target.apiKey;
         const res = await fetch(target.baseUrl + "/chat/completions", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: "Bearer " + target.apiKey
-            },
+            headers: headers,
             body: JSON.stringify({
                 model: target.modelId,
                 messages,
@@ -248,34 +262,41 @@ async function callChatProvider(target, messages, env) {
     }
 }
 
+/**
+ * 把页面传来的对话上下文收紧成标准结构（chat / prompt 共用）：
+ * 人设越界静默回落、记忆与最近对话限量、channel 只认 voice / text。
+ * 页面侧直连本机模型时，提示词必须仍然从这里出 —— 「收紧人设 + 去 AI 味」只有一份实现。
+ */
+function readChatContext(body) {
+    const b = (body && typeof body === "object") ? body : {};
+    return {
+        message: trim(b.message, LIMITS.messageChars),
+        channel: b.channel === "voice" ? "voice" : "text",
+        persona: normalizeTaPersona(b.persona),
+        memories: (Array.isArray(b.memories) ? b.memories : [])
+            .slice(0, LIMITS.memoryItems)
+            .map((m) => ({ type: trim(m && m.type, 12) || "信息", value: trim(m && m.value, 40) }))
+            .filter((m) => m.value),
+        recent: (Array.isArray(b.recent) ? b.recent : [])
+            .slice(-LIMITS.recentTurns)
+            .map((m) => ({
+                role: (m && m.role) === "me" ? "user" : "assistant",
+                content: trim(m && m.text, 300)
+            }))
+            .filter((m) => m.content),
+        mood: b.mood,
+        intimacy: b.intimacy
+    };
+}
+
 async function handleChat(request, env, cors) {
     const body = await request.json().catch(() => ({}));
-    const message = trim(body.message, LIMITS.messageChars);
+    const { message, channel, persona, memories, recent, mood, intimacy } = readChatContext(body);
     if (!message) {
         return json({ success: false, code: "EMPTY", error: "没有收到内容。" }, 400, cors);
     }
 
-    const channel = body.channel === "voice" ? "voice" : "text";
-    const persona = normalizeTaPersona(body.persona);
-    const memories = (Array.isArray(body.memories) ? body.memories : [])
-        .slice(0, LIMITS.memoryItems)
-        .map((m) => ({ type: trim(m && m.type, 12) || "信息", value: trim(m && m.value, 40) }))
-        .filter((m) => m.value);
-    const recent = (Array.isArray(body.recent) ? body.recent : [])
-        .slice(-LIMITS.recentTurns)
-        .map((m) => ({
-            role: (m && m.role) === "me" ? "user" : "assistant",
-            content: trim(m && m.text, 300)
-        }))
-        .filter((m) => m.content);
-
-    const system = buildTaSystemPrompt({
-        persona,
-        memories,
-        mood: body.mood,
-        intimacy: body.intimacy,
-        channel
-    });
+    const system = buildTaSystemPrompt({ persona, memories, mood, intimacy, channel });
 
     const messages = [
         { role: "system", content: system },
@@ -328,12 +349,48 @@ async function handleChat(request, env, cors) {
     }, 200, cors);
 }
 
+/* ---------------------------------------------------------
+   本机模型的两个配套口（页面直连本机时用；都不调任何模型、不烧额度）
+   Worker 在 Cloudflare 边缘，`127.0.0.1` 永远够不着 —— 所以「本机模型」
+   这条路由页面自己发请求，但提示词与清洗仍然回到这里取，保证只有一份实现。
+--------------------------------------------------------- */
+
+/** POST /api/ta/prompt → 只出系统提示词 */
+async function handlePrompt(request, env, cors) {
+    const body = await request.json().catch(() => ({}));
+    const { channel, persona, memories, mood, intimacy } = readChatContext(body);
+    const system = buildTaSystemPrompt({ persona, memories, mood, intimacy, channel });
+    return json({
+        success: true,
+        channel,
+        system,
+        persona: { name: persona.name, personality: persona.personality, gender: persona.gender },
+        max_out: LIMITS.outChars
+    }, 200, cors);
+}
+
+/** POST /api/ta/polish → 只做「去 AI 味」清洗（本机模型吐回来的台词过一遍） */
+async function handlePolish(request, env, cors) {
+    const body = await request.json().catch(() => ({}));
+    const raw = trim(body.text, 1200);
+    if (!raw) return json({ success: false, code: "EMPTY", error: "没有收到内容。" }, 400, cors);
+    const reply = trim(humanizeTaReply(raw, { voice: body.channel === "voice" }), LIMITS.outChars);
+    return json({ success: true, reply, ok: !!reply, code: reply ? "" : "AI_SPEAK" }, 200, cors);
+}
+
 /* =========================================================
    语音：合成（自建 GPT-SoVITS → Workers AI MeloTTS）/ 识别（Workers AI Whisper）
 ========================================================= */
 
 const KNOWN_VOICE_IDS = new Set(TTS_VOICES.map((v) => v.id));
 const DEFAULT_TA_VOICE = (TTS_VOICES[0] && TTS_VOICES[0].id) || "zh-CN-XiaoxiaoNeural";
+
+/* 合成链的时间预算。铁律：**服务端总预算 < 页面的 TTS_TIMEOUT_MS**，
+   否则页面会先放弃、服务器白算一场，用户听到的就永远是兜底音（曾经的真实故障）。 */
+const TTS_TIER_TIMEOUT_MS = 6000;        // 单层单次上限（自建实测 1.4~2.7s，给足余量）
+const TTS_LOCAL_TRIES = 2;               // 自建层最多试几次（隧道冷连接/连接被掐断是一次性抖动）
+const TTS_TOTAL_BUDGET_MS = 20000;       // 整条链上限（页面是 22s）
+const TTS_FAST_FAIL_MS = 2500;           // 只有「这么快就失败」的才值得立刻重试
 
 /** base64 → 字节（Workers 里的 atob 分块解，避免大字符串爆栈） */
 function base64ToBytes(b64) {
@@ -452,7 +509,7 @@ async function synthLocalTts({ env, text, voice, rate }) {
             speed_factor: rateToSpeedFactor(rate),
             seed: -1
         })
-    }), 30000, "自建语音合成");
+    }), TTS_TIER_TIMEOUT_MS, "自建语音合成");
 
     if (!res.ok) {
         const detail = await res.text().catch(() => "");
@@ -474,7 +531,7 @@ async function synthMeloTts({ env, text }) {
     const model = trim(env.TA_TTS_MODEL, 80) || "@cf/myshell-ai/melotts";
     const res = await withTimeout(
         env.AI.run(model, { prompt: text, lang: "zh" }),
-        30000,
+        10000,
         "云端语音合成"
     );
     const audio = base64ToBytes(res && (res.audio || (res.result && res.result.audio)));
@@ -492,29 +549,90 @@ export function ttsChain(env) {
     return chain;
 }
 
-/** 链式合成：自建 GPT-SoVITS → Workers AI MeloTTS；全挂返回 audio:null，页面走设备语音 */
+/**
+ * 这次失败值不值得「立刻再试一次」：
+ *   - 慢失败（多半是超时）不试 —— 重试等于让用户多等一个超时，违背「不停」；
+ *   - 明确的配置/请求错（4xx）不试 —— 重试一百次也是同样的错；
+ *   - 其余（连接被掐断、隧道抖动、空音频、5xx）都值得，这是只有一次性的抖动。
+ */
+function isTransientTtsError(reason, elapsedMs) {
+    if (elapsedMs >= TTS_FAST_FAIL_MS) return false;
+    if (/HTTP (400|401|403|404|405|413)/.test(String(reason || ""))) return false;
+    return true;
+}
+
+/** 失败原因 → ASCII 短码：响应头只能放 ASCII，也方便日志里 grep */
+function ttsReasonCode(error) {
+    const msg = String(error == null ? "" : error);
+    if (/未配置|无 AI binding|无 AI/.test(msg)) return "unconfigured";
+    if (/时间预算/.test(msg)) return "budget";
+    if (/超时/.test(msg)) return "timeout";
+    const http = /HTTP (\d{3})/.exec(msg);
+    if (http) return "http" + http[1];
+    if (/空音频/.test(msg)) return "empty";
+    if (/UNAVAILABLE/.test(msg)) return "unavailable";
+    return "error";
+}
+
+/** attempts[] → X-TA-TTS-Attempts 的头值（没有失败过就返回空串，页面据此判断是否降级） */
+function ttsAttemptsHeader(attempts) {
+    if (!attempts || !attempts.length) return "";
+    return attempts
+        .map((a) => a.provider + "=" + ttsReasonCode(a.error))
+        .join("; ")
+        .slice(0, 160);
+}
+
+/**
+ * 链式合成：自建 GPT-SoVITS → Workers AI MeloTTS；全挂返回 audio:null，页面走设备语音。
+ * 自建层是「自己家里的机器 + 隧道」，最容易出现**一次性的连接抖动**：
+ * 所以它失败且失败得很快时，会在同一层立刻重试一次（不额外烧用户时间），
+ * 每层的失败原因都写日志（wrangler tail 可见），并随成功响应带出去（见 handleTts 的头）。
+ */
 async function synthTts({ env, text, voice, rate }) {
     const attempts = [];
+    const started = Date.now();
     const tiers = [
-        { id: "gptsovits", run: () => synthLocalTts({ env: env, text: text, voice: voice, rate: rate }) },
-        { id: "melotts", run: () => synthMeloTts({ env: env, text: text }) }
+        { id: "gptsovits", tries: TTS_LOCAL_TRIES, run: () => synthLocalTts({ env: env, text: text, voice: voice, rate: rate }) },
+        { id: "melotts", tries: 1, run: () => synthMeloTts({ env: env, text: text }) }
     ];
 
     for (const tier of tiers) {
-        try {
-            const out = await tier.run();
-            if (out && out.audio && out.audio.length) {
-                return {
-                    audio: out.audio,
-                    contentType: out.contentType || "audio/mpeg",
-                    provider: tier.id,
-                    voiceLabel: out.voiceLabel || tier.id,
-                    attempts: attempts
-                };
+        for (let attempt = 1; attempt <= tier.tries; attempt++) {
+            if (Date.now() - started >= TTS_TOTAL_BUDGET_MS) {
+                attempts.push({ provider: tier.id, error: "时间预算已用尽，跳过这一层" });
+                console.warn(`TA TTS SKIP [${tier.id}]: 时间预算已用尽`);
+                break;
             }
-            attempts.push({ provider: tier.id, error: (out && out.skip) || "空音频" });
-        } catch (e) {
-            attempts.push({ provider: tier.id, error: safeError(e) });
+
+            const t0 = Date.now();
+            let reason = "";
+            let skip = false;      // 「未配置」这类跳过不算失败：不重试、不打日志
+            try {
+                const out = await tier.run();
+                if (out && out.audio && out.audio.length) {
+                    return {
+                        audio: out.audio,
+                        contentType: out.contentType || "audio/mpeg",
+                        provider: tier.id,
+                        voiceLabel: out.voiceLabel || tier.id,
+                        attempts: attempts
+                    };
+                }
+                reason = (out && out.skip) || "空音频";
+                skip = !!(out && out.skip);
+            } catch (e) {
+                reason = safeError(e);
+            }
+
+            attempts.push({ provider: tier.id, error: reason });
+            if (skip) break;
+
+            const retry = attempt < tier.tries &&
+                isTransientTtsError(reason, Date.now() - t0) &&
+                (Date.now() - started) < TTS_TOTAL_BUDGET_MS;
+            console.warn(`TA TTS TIER FAIL [${tier.id} 第 ${attempt} 次] ${reason}` + (retry ? " → 立刻重试一次" : ""));
+            if (!retry) break;
         }
     }
 
@@ -551,25 +669,30 @@ async function handleTts(request, env, cors) {
     });
 
     if (!result.audio || !result.audio.length) {
+        const degraded = ttsAttemptsHeader(result.attempts);
         return json({
             success: false,
             code: "TTS_UNAVAILABLE",
             error: "我这边嗓子有点哑，先用本机声音念给你听。",
             attempts: result.attempts
-        }, 502, cors);
+        }, 502, degraded ? { ...cors, "X-TA-TTS-Attempts": degraded } : cors);
     }
 
-    return new Response(result.audio, {
-        status: 200,
-        headers: {
-            "Content-Type": result.contentType || "audio/mpeg",
-            "Cache-Control": "no-store",
-            "Content-Length": String(result.audio.length),
-            "X-TA-TTS-Provider": result.provider,
-            "X-TA-TTS-Voice": result.voiceLabel || voice || DEFAULT_TA_VOICE,
-            ...cors
-        }
-    });
+    const headers = {
+        "Content-Type": result.contentType || "audio/mpeg",
+        "Cache-Control": "no-store",
+        "Content-Length": String(result.audio.length),
+        "X-TA-TTS-Provider": result.provider,
+        "X-TA-TTS-Voice": result.voiceLabel || voice || DEFAULT_TA_VOICE,
+        ...cors
+    };
+
+    // 发生了降级才带这个头：ASCII 短码说清「哪一层、为什么没接上」。
+    // 页面据此讲人话 / 记进状态栏 title，浏览器里就能自查，不必开 wrangler tail。
+    const degraded = ttsAttemptsHeader(result.attempts);
+    if (degraded) headers["X-TA-TTS-Attempts"] = degraded;
+
+    return new Response(result.audio, { status: 200, headers });
 }
 
 /** POST /api/ta/asr { audio: base64 } → { text }（浏览器不支持本地识别时走这里） */
@@ -660,6 +783,20 @@ export async function handleTaRoutes(request, env, pathname, method) {
             const gate = allow("chat", ip);
             if (!gate.ok) return rateLimited(gate, cors);
             return await handleChat(request, env, cors);
+        }
+
+        if (pathname === "/api/ta/prompt") {
+            if (method !== "POST") return json({ success: false, code: "BAD_METHOD" }, 405, cors);
+            const gate = allow("prompt", ip);
+            if (!gate.ok) return rateLimited(gate, cors);
+            return await handlePrompt(request, env, cors);
+        }
+
+        if (pathname === "/api/ta/polish") {
+            if (method !== "POST") return json({ success: false, code: "BAD_METHOD" }, 405, cors);
+            const gate = allow("polish", ip);
+            if (!gate.ok) return rateLimited(gate, cors);
+            return await handlePolish(request, env, cors);
         }
 
         if (pathname === "/api/ta/tts") {

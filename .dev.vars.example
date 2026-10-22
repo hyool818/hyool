@@ -9,6 +9,15 @@ DEEPSEEK_API_KEY=
 # GPU_BASE_URL=
 # GPU_API_KEY=
 
+# TA（AI 伴侣）· 本机模型（qwen3.6 / llama.cpp，可选；见 docs/TA.md §8.1）
+# 默认是「页面直连 http://127.0.0.1:8080/v1」，不需要任何环境变量；
+# 只有想让 Worker 自己调本机模型时（cloudflared 隧道 / 公网反代）才填这里：
+# TA_LOCAL_LLM_URL=https://llm.example.com/v1
+# TA_LOCAL_LLM_MODEL=qwen3.6-35b-a3b-nothink
+# TA_LOCAL_LLM_KEY=
+# TA_LOCAL_LLM_TEMPERATURE=0.95
+# TA_LOCAL_LLM_MAX_TOKENS=320
+
 # TA（AI 伴侣）语音合成 · 自建 GPT-SoVITS（可选；不配 = 只用站内 MeloTTS，见 docs/TA.md §7）
 # 只填域名，/tts 路径由代码补（填完整端点也兼容）；线上换成 wrangler secret / [vars]，本地预览才用本文件
 # 别把 9880 裸开公网：先跑 scripts\start-ta-tts-proxy.ps1（token 网关，监听 9881），隧道指向 9881

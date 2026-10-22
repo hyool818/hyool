@@ -214,6 +214,7 @@ button,input,textarea{font-family:inherit;color:inherit}
       <div class="stats" id="stats"></div>
       <div id="memList" style="display:flex;flex-direction:column;gap:10px"></div>
       <button type="button" class="setting" id="voiceSrcBtn">音色来源：本机语音</button>
+      <button type="button" class="setting" id="llmBtn">台词模型：自动（本机优先）</button>
       <button type="button" class="danger" id="wipeBtn">清空全部本机数据</button>
     </div>
   </aside>
@@ -231,7 +232,14 @@ button,input,textarea{font-family:inherit;color:inherit}
 
   var TA_API_BASE = '/api/ta';
   var CHAT_TIMEOUT_MS = 9000;
-  var TTS_TIMEOUT_MS = 14000;
+  /* 必须比服务端的整条合成链预算（20s）更大：页面先超时的话，
+     服务器白算一场，用户听到的永远是兜底音。两头同时改，别只改一边。 */
+  var TTS_TIMEOUT_MS = 22000;
+  /* 本机模型（OpenAI 兼容端点）：llama.cpp / LM Studio / vLLM / Ollama 都是这个协议。
+     为什么由页面直连：Worker 在 Cloudflare 边缘，永远够不着 127.0.0.1；
+     而 llama.cpp 默认就回 CORS 头，浏览器可以直接说上话。
+     提示词与「去 AI 味」仍然由服务端给（/api/ta/prompt、/api/ta/polish），只有一份实现。 */
+  var LOCAL_LLM = { url: 'http://127.0.0.1:8080/v1', model: '', probeMs: 1500, chatMs: 30000 };
 
   var PERSONAS = [
     { id: 'gentle', title: '温柔 · 守夜人', desc: '「慢慢说，我在听」——先接住情绪，再聊事情。' },
@@ -280,7 +288,12 @@ button,input,textarea{font-family:inherit;color:inherit}
     asr: { available: false },
     tts: { chain: [], local: false, local_voices: [] },  // 服务端合成的实际层（自建 GPT-SoVITS → 站内 MeloTTS）
     ttsProvider: '',   // 上一次成功合成用的层（读 X-TA-TTS-Provider）
-    ttsVoice: ''       // 上一次成功合成用的音色（读 X-TA-TTS-Voice）
+    ttsVoice: '',      // 上一次成功合成用的音色（读 X-TA-TTS-Voice）
+    ttsAttempts: '',   // 上一次的降级原因（读 X-TA-TTS-Attempts，ASCII 短码，空串=没降级）
+    llm: { enabled: false, url: '', model: '', defaults: { url: '', model: '' } },  // 服务端给的本机模型提示（可空）
+    localState: '',    // 本机模型最近一次探测结果：ready / timeout / net / http…（空 = 还没探）
+    localModel: '',    // 本机模型实际用的模型名（来自 /v1/models）
+    lastVia: ''        // 上一句台词是谁说的：local（本机模型）/ cloud（服务端模型）/ 空（本机台词库）
   };
 
   /** 合成层 → 给人看的名字（状态栏用，不出现内部 id 以外的技术词） */
@@ -671,6 +684,8 @@ button,input,textarea{font-family:inherit;color:inherit}
       version: 2,
       persona: null,                              // { gender, personality, name, voice }
       settings: { voice: true, cloudVoice: false, model: '' },  // cloudVoice=false → 用设备本地音色
+      local: { mode: 'auto', url: LOCAL_LLM.url, model: '' },   // 台词模型：auto=本机优先 / cloud=只用云端 / local=只用本机
+      localPrompt: '',                            // 上次从服务端拿到的系统提示（离线时给本机模型兜着用）
       mood: 60,
       intimacy: 0,
       messages: [],
@@ -682,6 +697,14 @@ button,input,textarea{font-family:inherit;color:inherit}
       llmCount: 0,                                // 由模型生成的台词条数（统计用）
       localCount: 0                               // 本机兜底台词的条数（统计用）
     };
+  }
+
+  function trimStr(v, max) { return String(v == null ? '' : v).trim().slice(0, max); }
+
+  /* 只收 http(s) 的 OpenAI 兼容端点；空值/写坏 → 回落默认本机地址 */
+  function normalizeLocalUrl(v) {
+    var s = trimStr(v, 200).replace(/\/+$/, '');
+    return /^https?:\/\/[^\s]+$/i.test(s) ? s : LOCAL_LLM.url;
   }
 
   /* 人设收紧：只接受四项预设，越界静默回落（与后端 src/ta/prompt.js 同一套规则） */
@@ -730,9 +753,126 @@ button,input,textarea{font-family:inherit;color:inherit}
   };
   if (typeof window !== 'undefined') window.AICompanion = API;
 
+  /* 只把「真的失败」当回事：unconfigured 是「这台部署就没接自建层」（不是故障），
+     否则每次合成都刷一条 warning，把真正的降级信息淹掉；UI 那边另有更准的说法。 */
+  function ttsNotice() {
+    var a = String(SERVER.ttsAttempts || '');
+    return a.indexOf('unconfigured') >= 0 ? '' : a;
+  }
+
+  /* 记下这次合成实际走了哪层、有没有降级（头读不到不影响播放；跨源预览要服务端 expose 才读得到） */
+  function readTtsHeaders(res) {
+    try {
+      SERVER.ttsProvider = String(res.headers.get('X-TA-TTS-Provider') || '');
+      SERVER.ttsVoice = String(res.headers.get('X-TA-TTS-Voice') || '');
+      var att = res.headers.get('X-TA-TTS-Attempts');
+      SERVER.ttsAttempts = att ? String(att) : '';
+      var real = ttsNotice();
+      if (real && typeof console !== 'undefined' && console.warn) {
+        console.warn('TA 语音链本次记录：' + real);
+      }
+    } catch (e) { /* 头读不到不影响播放 */ }
+  }
+
+  /* ================= 本机模型（页面直连） =================
+     Worker 在 Cloudflare 边缘，永远够不着 127.0.0.1 —— 所以「本机模型」这条腿
+     由页面自己发请求（llama.cpp / LM Studio / vLLM / Ollama 默认都回 CORS 头）。
+     提示词与「去 AI 味」仍然回服务端取（/api/ta/prompt、/api/ta/polish），只有一份实现。 */
+
+  var LOCAL_PROBE = { at: 0, url: '', res: null };   // 探活缓存：15s 内不重复探，别让每句台词都先等一次超时
+  var PROMPT_CACHE = {};                             // 提示词缓存（本会话最近 8 条）
+
+  function localModelFromList(data) {
+    var list = (data && (data.data || data.models)) || [];
+    if (!list.length) return '';
+    var first = list[0] || {};
+    return String(first.id || first.model || first.name || '');
+  }
+
+  /* 提示词缓存键：只跟「会改变提示词文案」的东西有关（心情/亲密取整到 5，免得每句都变） */
+  function promptKey(p) {
+    var mem = (p && p.memories) || [];
+    var last = mem.length ? String((mem[mem.length - 1] || {}).value || '') : '';
+    return [
+      (p && p.channel) || 'text',
+      (p && p.persona && p.persona.gender) || '',
+      (p && p.persona && p.persona.personality) || '',
+      (p && p.persona && p.persona.name) || '',
+      Math.round(Number(p && p.mood) || 0) / 5,
+      Math.round(Number(p && p.intimacy) || 0) / 5,
+      mem.length + ':' + last
+    ].join('|');
+  }
+
+  function rememberPrompt(key, sys) {
+    var keys = [];
+    for (var k in PROMPT_CACHE) { if (Object.prototype.hasOwnProperty.call(PROMPT_CACHE, k)) keys.push(k); }
+    PROMPT_CACHE[key] = sys;
+    if (keys.length >= 8) { try { delete PROMPT_CACHE[keys[0]]; } catch (e) { } }
+    // 存进同一个存储键（不新增 localStorage 键）：服务端拉不到时，本机模型还能照常说话
+    if (state && state.localPrompt !== sys) { state.localPrompt = sys.slice(0, 4000); save(); }
+  }
+
+  /* 页面侧的最低限度清洗（只在 /api/ta/polish 也拉不到时兜底）：去 Markdown / 去动作描写 / 限长 */
+  function tidyLocal(text, voice) {
+    var s = String(text == null ? '' : text);
+    s = s.replace(/```[\s\S]*?```/g, ' ').replace(/`+/g, '').replace(/\*\*|__|~~/g, '');
+    var out = [];
+    s.split(/\r?\n/).forEach(function (line) {
+      var t = line.replace(/^\s*(?:[-*•·]|\d+[.、)]|#{1,6}\s)\s*/, '').trim();
+      if (!t) return;
+      if (/^[（(][^）)]{1,12}[）)]$/.test(t)) return;      // 整行都是括号动作描写
+      out.push(t);
+    });
+    s = out.join(' ').replace(/^["'「『]+/, '').replace(/["'」』]+$/, '').trim();
+    var max = voice ? 90 : 160;
+    if (s.length > max) s = s.slice(0, max);
+    return s;
+  }
+
+  /* 直接问本机模型要台词（OpenAI 兼容 /chat/completions；不开流式，一句一收） */
+  function localComplete(cfg, model, messages, voice) {
+    if (!model) return Promise.resolve({ ok: false, code: 'NO_MODEL', reply: '' });
+    var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, LOCAL_LLM.chatMs);
+    var t0 = Date.now();
+    var opt = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        temperature: 0.95,
+        max_tokens: voice ? 160 : 320,
+        stream: false
+      })
+    };
+    if (ctl) opt.signal = ctl.signal;
+    return fetch(cfg.url + '/chat/completions', opt).then(function (res) {
+      if (!res.ok) return { ok: false, code: 'HTTP_' + res.status, reply: '' };
+      return res.json().then(function (d) {
+        var c = d && d.choices && d.choices[0];
+        var text = String((c && ((c.message && c.message.content) || c.text)) || '');
+        var raw = tidyLocal(text, voice);
+        if (!raw) return { ok: false, code: 'EMPTY', reply: '' };
+        return {
+          ok: true,
+          raw: raw,
+          reply: raw,
+          model: { id: 'local', label: '本机 · ' + model, provider: 'local' },
+          latency: Date.now() - t0,
+          via: 'local'
+        };
+      });
+    }).catch(function (e) {
+      return { ok: false, code: (e && e.name === 'AbortError') ? 'TIMEOUT' : 'NETWORK', reply: '' };
+    }).finally(function () { clearTimeout(timer); });
+  }
+
   /* ================= 传输层（TA 唯一的联网口） =================
-     后期换设备端本地模型时只改这一处：把 chat / tts / asr 的实现替换掉，
-     引擎层（意图 / 记忆 / 心情 / 台词库）一行都不用动。 */
+     本机模型（§8.1）是这条契约的第一次真换：chat 里收口「本机优先 → 云端 → 模板」，
+     引擎层（意图 / 记忆 / 心情 / 台词库）一行都没动；换设备端模型同样只改这一处。 */
   var TA_API = {
     online: function () {
       return typeof navigator === 'undefined' || navigator.onLine !== false;
@@ -765,12 +905,17 @@ button,input,textarea{font-family:inherit;color:inherit}
         if (d.asr) SERVER.asr = d.asr;
         if (d.voices) SERVER.voices = d.voices;
         if (d.tts) SERVER.tts = d.tts;
+        if (d.llm && typeof d.llm === 'object') {
+          SERVER.llm = d.llm;
+          // 服务端配了隧道地址/模型名时只用来补默认值，不覆盖用户自己填的
+          if (!state.local.model && d.llm.model) state.local.model = trimStr(d.llm.model, 80);
+        }
         return d;
       }).catch(function () { return null; });
     },
 
-    /* 生成台词：服务端已做「去 AI 味」清洗，这里只兜长度与空值 */
-    chat: function (payload) {
+    /* 生成台词：服务端已做「去 AI 味」清洗，这里只兜长度与空值（云端链路） */
+    cloud: function (payload) {
       if (!TA_API.online() || typeof fetch !== 'function') {
         return Promise.resolve({ ok: false, code: 'OFFLINE', reply: '' });
       }
@@ -782,7 +927,7 @@ button,input,textarea{font-family:inherit;color:inherit}
         var d = (r && r.data) || {};
         var text = String(d.reply || '').trim();
         if (r && r.ok && d.success && text) {
-          return { ok: true, reply: text, model: d.model || null, latency: d.latency_ms };
+          return { ok: true, reply: text, model: d.model || null, latency: d.latency_ms, via: 'cloud' };
         }
         return { ok: false, code: String(d.code || ('HTTP_' + (r && r.status))), reply: '' };
       }).catch(function (e) {
@@ -791,24 +936,155 @@ button,input,textarea{font-family:inherit;color:inherit}
       });
     },
 
-    /* 语音合成 → 可直接播放的 objectURL（失败返回 null，页面改用设备语音） */
-    tts: function (text, voice, rate) {
-      if (!TA_API.online() || typeof fetch !== 'function') return Promise.resolve(null);
+    /* 台词主链路：本机优先（auto）/ 只云端（cloud）/ 只本机（local）。
+       「谁来说」在这里收口，引擎层（意图 / 记忆 / 心情 / 台词库）完全不感知。 */
+    chat: function (payload) {
+      if (!TA_API.online() || typeof fetch !== 'function') {
+        return Promise.resolve({ ok: false, code: 'OFFLINE', reply: '' });
+      }
+      var cfg = TA_API.localCfg();
+      var first = cfg.enabled
+        ? TA_API.localChat(payload)
+        : Promise.resolve({ ok: false, code: 'LOCAL_OFF', reply: '' });
+      return first.then(function (r) {
+        if (r && r.ok && r.reply) { SERVER.lastVia = 'local'; return r; }
+        if (cfg.onlyLocal) {
+          SERVER.lastVia = '';
+          return { ok: false, code: (r && r.code) || 'LOCAL_DOWN', reply: '' };
+        }
+        return TA_API.cloud(payload).then(function (c) {
+          SERVER.lastVia = (c && c.ok) ? 'cloud' : '';
+          return c;
+        });
+      });
+    },
+
+    /* 本机模型的设置（存在状态里：地址 / 模型名 / 三种模式） */
+    localCfg: function () {
+      var s = (state && state.local) || {};
+      var mode = /^(auto|cloud|local)$/.test(String(s.mode || '')) ? String(s.mode) : 'auto';
+      return {
+        mode: mode,
+        enabled: mode !== 'cloud',
+        onlyLocal: mode === 'local',
+        url: normalizeLocalUrl(s.url),
+        model: trimStr(s.model, 80)
+      };
+    },
+
+    /* 探一下本机端点活没活：GET /v1/models（1.5s 超时，15s 缓存） */
+    localProbe: function (cfg, force) {
+      var url = (cfg && cfg.url) || normalizeLocalUrl(state && state.local && state.local.url);
+      var now = Date.now();
+      if (!force && LOCAL_PROBE.res && LOCAL_PROBE.url === url && now - LOCAL_PROBE.at < 15000) {
+        return Promise.resolve(LOCAL_PROBE.res);
+      }
+      if (typeof fetch !== 'function') return Promise.resolve({ ok: false, reason: 'nofetch' });
       var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
-      var timer = setTimeout(function () { if (ctl) ctl.abort(); }, TTS_TIMEOUT_MS);
+      var timer = setTimeout(function () { if (ctl) ctl.abort(); }, LOCAL_LLM.probeMs);
+      var opt = { method: 'GET', cache: 'no-store' };
+      if (ctl) opt.signal = ctl.signal;
+      return fetch(url + '/models', opt).then(function (res) {
+        if (!res.ok) return { ok: false, reason: 'http' + res.status };
+        return res.json().then(function (d) {
+          var id = localModelFromList(d);
+          return { ok: !!id, model: id, reason: id ? '' : 'nomodel' };
+        }, function () { return { ok: false, reason: 'json' }; });
+      }).catch(function (e) {
+        return { ok: false, reason: (e && e.name === 'AbortError') ? 'timeout' : 'net' };
+      }).then(function (out) {
+        LOCAL_PROBE = { at: Date.now(), url: url, res: out };
+        SERVER.localState = out.ok ? 'ready' : (out.reason || 'down');
+        if (out.model) SERVER.localModel = out.model;
+        return out;
+      }).finally(function () { clearTimeout(timer); });
+    },
+
+    /* 系统提示词：作者是服务端（人设收紧 + 去 AI 味都写在这份提示里）；拉不到就用上次缓存的那份 */
+    localSystem: function (payload) {
+      var key = promptKey(payload);
+      if (PROMPT_CACHE[key]) return Promise.resolve(PROMPT_CACHE[key]);
+      return TA_API.req('/prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          persona: payload && payload.persona,
+          mood: payload && payload.mood,
+          intimacy: payload && payload.intimacy,
+          memories: payload && payload.memories,
+          channel: payload && payload.channel
+        })
+      }, 6000).then(function (r) {
+        var d = (r && r.data) || {};
+        var sys = (r && r.ok && d.success) ? String(d.system || '') : '';
+        if (sys) { rememberPrompt(key, sys); return sys; }
+        return String((state && state.localPrompt) || '');
+      }).catch(function () {
+        return String((state && state.localPrompt) || '');
+      });
+    },
+
+    /* 走本机模型：探活 → 取提示词 → 本机生成 → 服务端擦 AI 腔 → 返回台词 */
+    localChat: function (payload) {
+      var cfg = TA_API.localCfg();
+      if (!cfg.enabled || typeof fetch !== 'function') {
+        return Promise.resolve({ ok: false, code: 'LOCAL_OFF', reply: '' });
+      }
+      return TA_API.localProbe(cfg).then(function (probe) {
+        if (!probe.ok) return { ok: false, code: 'LOCAL_DOWN', reply: '' };
+        return TA_API.localSystem(payload).then(function (sys) {
+          if (!sys) return { ok: false, code: 'NO_PROMPT', reply: '' };
+          var msgs = [{ role: 'system', content: sys }];
+          ((payload && payload.recent) || []).slice(-8).forEach(function (m) {
+            var t = trimStr(m && m.text, 300);
+            if (t) msgs.push({ role: (m.role === 'me') ? 'user' : 'assistant', content: t });
+          });
+          msgs.push({ role: 'user', content: trimStr(payload && payload.message, 500) });
+          var voice = !!(payload && payload.channel === 'voice');
+          // 用户手填的模型名优先；留空才用 /v1/models 报的第一个
+          return localComplete(cfg, cfg.model || probe.model, msgs, voice).then(function (r) {
+            if (!r.ok) return r;
+            return TA_API.polish(r.raw, voice ? 'voice' : 'text').then(function (clean) {
+              if (clean) r.reply = clean;
+              delete r.raw;
+              return r;
+            });
+          });
+        });
+      });
+    },
+
+    /* 「去 AI 味」：服务端 humanizeTaReply 是唯一权威；拉不到就保留本机 tidyLocal 的结果 */
+    polish: function (text, channel) {
+      if (!TA_API.online() || typeof fetch !== 'function') return Promise.resolve('');
+      return TA_API.req('/polish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: String(text || '').slice(0, 600), channel: channel === 'voice' ? 'voice' : 'text' })
+      }, 5000).then(function (r) {
+        var d = (r && r.data) || {};
+        return (r && r.ok && d.success) ? String(d.reply || '') : '';
+      }).catch(function () { return ''; });
+    },
+
+    /* 语音合成 → 可直接播放的 objectURL（失败返回 null，页面改用设备语音）。
+       ctl 由 speak() 传入：说话被打断 / 被新台词顶掉时立刻掐掉这次合成，
+       免得旧请求还占着自建层和隧道，越堆越慢。 */
+    tts: function (text, voice, rate, ctl) {
+      if (!TA_API.online() || typeof fetch !== 'function') return Promise.resolve(null);
+      var own = (typeof AbortController === 'function') ? new AbortController() : null;
+      var timer = setTimeout(function () { if (own) own.abort(); }, TTS_TIMEOUT_MS);
       var opt = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text, voice: voice, rate: rate || '+0%' })
       };
-      if (ctl) opt.signal = ctl.signal;
+      var signal = (ctl && ctl.signal) ? ctl.signal : (own ? own.signal : null);
+      if (signal) opt.signal = signal;
       return fetch(TA_API_BASE + '/tts', opt).then(function (res) {
-        if (!res.ok) return null;
         // 服务端链决定实际用哪一层（本地 GPT-SoVITS / 站内 MeloTTS），记下来给状态栏用
-        try {
-          SERVER.ttsProvider = String(res.headers.get('X-TA-TTS-Provider') || '');
-          SERVER.ttsVoice = String(res.headers.get('X-TA-TTS-Voice') || '');
-        } catch (e) { /* 头读不到不影响播放 */ }
+        readTtsHeaders(res);
+        if (!res.ok) return null;
         return res.blob();
       }).then(function (blob) {
         return (blob && blob.size > 512) ? URL.createObjectURL(blob) : null;
@@ -841,6 +1117,7 @@ button,input,textarea{font-family:inherit;color:inherit}
   };
 
   API.TA_API = TA_API;
+  API.stateRef = function () { return state; };   // 调试/自测用：拿到当前状态对象（与 localStorage 里那份同源）
   API.SERVER = SERVER;
   API.GENDERS = GENDERS;
   API.VOICES = VOICES;
@@ -883,6 +1160,12 @@ button,input,textarea{font-family:inherit;color:inherit}
           cloudVoice: !!(d.settings && d.settings.cloudVoice),
           model: (d.settings && typeof d.settings.model === 'string') ? d.settings.model.slice(0, 40) : ''
         },
+        local: {
+          mode: /^(auto|cloud|local)$/.test(String((d.local && d.local.mode) || '')) ? String(d.local.mode) : 'auto',
+          url: normalizeLocalUrl(d.local && d.local.url),
+          model: trimStr(d.local && d.local.model, 80)
+        },
+        localPrompt: (typeof d.localPrompt === 'string') ? d.localPrompt.slice(0, 4000) : '',
         mood: clamp(Number(d.mood) || base.mood, 0, 100),
         intimacy: clamp(Number(d.intimacy) || 0, 0, 100),
         messages: Array.isArray(d.messages) ? d.messages.slice(-MAX_MESSAGES) : [],
@@ -922,7 +1205,7 @@ button,input,textarea{font-family:inherit;color:inherit}
     ['stage', 'input', 'sendBtn', 'avatar', 'cpName', 'cpStage', 'cpStatus', 'chips', 'hintRight',
       'setupOverlay', 'genderList', 'voiceList', 'personaList', 'nameList', 'startBtn',
       'openMemory', 'closeDrawer', 'drawer', 'scrim', 'stats', 'memList', 'wipeBtn', 'resetBtn',
-      'voiceSrcBtn',
+      'voiceSrcBtn', 'llmBtn',
       'voiceBtn', 'micBtn', 'imageBtn', 'linkState'
     ].forEach(function (id) { el[id] = document.getElementById(id); });
 
@@ -956,6 +1239,7 @@ button,input,textarea{font-family:inherit;color:inherit}
         : '';
       renderLink();
       setVoiceUI();
+      paintLlmBtn();
     }
 
     /* 底部左侧：连接状态（人话，不出现技术术语式的报错） */
@@ -965,16 +1249,61 @@ button,input,textarea{font-family:inherit;color:inherit}
       var cloud = !!(state.settings && state.settings.cloudVoice);
       var used = TTS_PROVIDER_LABEL[SERVER.ttsProvider] || '';
       var src = cloud ? ('服务端音色' + (used ? '（' + used + '）' : '')) : '本机音色';
+      // 台词是谁说的：本机模型 / 服务端模型；都没接住就是本机台词库
+      var said = (SERVER.lastVia === 'local' || SERVER.lastVia === 'cloud')
+        ? ('台词走' + (SERVER.lastVia === 'local' ? '本机模型' : '模型'))
+        : '台词走本机台词库';
       el.linkState.className = live ? 'cloud' : 'off';
       el.linkState.innerHTML = '<span class="dot">●</span> ' + (!on
         ? '已静音 · 只打字'
-        : (live ? '在线 · 台词走模型 · 语音用' + src : '离线 · 本机台词库 + 设备语音，照常聊'));
+        : (live ? '在线 · ' + said + ' · 语音用' + src : '离线 · 本机台词库 + 设备语音，照常聊'));
+      // 悬停看得到「上次合成走了哪层 / 本机模型连没连上」：排查用，不占版面
+      var notes = [];
+      var note = ttsNotice();
+      if (note) notes.push('语音链本次记录（用 ' + (SERVER.ttsProvider || '?') + '）：' + note);
+      var cfg = TA_API.localCfg();
+      notes.push('台词：' + (SERVER.lastVia === 'local'
+        ? ('本机模型 ' + (SERVER.localModel || '(名字待探)'))
+        : (SERVER.lastVia === 'cloud' ? '服务端模型' : '本机台词库')));
+      notes.push('本机端点：' + cfg.url + '（' + (SERVER.localState === 'ready'
+        ? '能连上'
+        : (SERVER.localState ? '没连上：' + SERVER.localState : '还没探')) + '）');
+      el.linkState.title = notes.join('\n');
+    }
+
+    /* 音色来源按钮：服务端到底有没有自建 GPT-SoVITS，这里如实说 ——
+       否则用户开了「云端音色」听到的还是站内合成，只会觉得声音「莫名变了」。
+       注意只在 config 真的拉回来之后才敢下判断（SERVER.online 为假时什么都不说）。 */
+    function localTtsOff() {
+      return !!(SERVER.online && SERVER.tts && SERVER.tts.local === false);
     }
 
     function setVoiceSrcUI() {
       var cloud = !!(state.settings && state.settings.cloudVoice);
-      var note = (SERVER.tts && SERVER.tts.local) ? '：本地 GPT-SoVITS 优先' : '';
+      var note = (SERVER.tts && SERVER.tts.local)
+        ? '：本地 GPT-SoVITS 优先'
+        : (localTtsOff() ? '：自建 GPT-SoVITS 未接' : '');
       el.voiceSrcBtn.innerHTML = '音色来源：<b>' + (cloud ? '云端（服务端合成' + note + '）' : '本机语音（快、离线可用）') + '</b>　点这里切换';
+    }
+
+    /* 台词模型按钮：点 = 切三种模式（自动 / 只用云端 / 只用本机）；双击 = 改本机地址与模型名 */
+    var LLM_MODE_TEXT = {
+      auto: '自动（本机优先）',
+      cloud: '只用云端',
+      local: '只用本机'
+    };
+
+    function paintLlmBtn() {
+      if (!el.llmBtn) return;
+      var cfg = TA_API.localCfg();
+      el.llmBtn.innerHTML = '台词模型：<b>' + (LLM_MODE_TEXT[cfg.mode] || LLM_MODE_TEXT.auto) + '</b>　点这里切换';
+      var probed = (LOCAL_PROBE.res && LOCAL_PROBE.url === cfg.url) ? LOCAL_PROBE.res : null;
+      var stateText = !probed
+        ? '还没探'
+        : (probed.ok ? ('能连上：' + (probed.model || '已就绪')) : ('没连上（' + (probed.reason || 'down') + '）'));
+      el.llmBtn.title = '本机端点：' + cfg.url +
+        (cfg.model ? ('\n模型名：' + cfg.model) : '\n模型名：自动（取 /v1/models 第一项）') +
+        '\n状态：' + stateText + '\n双击可改地址 / 模型名';
     }
 
     function setVoiceUI() {
@@ -1221,6 +1550,11 @@ button,input,textarea{font-family:inherit;color:inherit}
     var audioEl = null;
     var speakingUrl = null;
     var toastTimer = null;
+    /* 进行中的合成请求：说话打断 / 新台词 / 断网 / 静音都要它立刻停 ——
+       否则旧请求还占着自建层与隧道，越堆越慢（听感就是「越聊越机械」） */
+    var ttsCtl = null;
+    var ttsSeq = 0;
+    var ttsDegradeHinted = false;
 
     function toast(msg) {
       var box = document.getElementById('taToast');
@@ -1236,7 +1570,14 @@ button,input,textarea{font-family:inherit;color:inherit}
       toastTimer = setTimeout(function () { box.style.display = 'none'; }, 2600);
     }
 
+    /* 掐掉进行中的合成 + 把已排队的响应作废（ttsSeq 变了，迟到的结果自己丢掉） */
+    function abortTts() {
+      ttsSeq++;
+      if (ttsCtl) { try { ttsCtl.abort(); } catch (e) { } ttsCtl = null; }
+    }
+
     function stopSpeaking() {
+      abortTts();
       if (audioEl) { try { audioEl.pause(); } catch (e) { } audioEl = null; }
       if (speakingUrl) { try { URL.revokeObjectURL(speakingUrl); } catch (e) { } speakingUrl = null; }
       if (typeof speechSynthesis !== 'undefined') { try { speechSynthesis.cancel(); } catch (e) { } }
@@ -1282,26 +1623,49 @@ button,input,textarea{font-family:inherit;color:inherit}
       } catch (e) { return null; }
     }
 
+    /* 服务端音色没接上时讲一句人话（每次会话只说一次，别念经）：
+       用户「第一次好、后面变机械」的困惑，九成是这里没说话。 */
+    function serverVoiceHint() {
+      if (ttsDegradeHinted) return;
+      ttsDegradeHinted = true;
+      if (SERVER.online && SERVER.tts && SERVER.tts.local === false) {
+        toast('云端音色只有站内合成：自建 GPT-SoVITS 还没接上，先这么听着');
+      } else {
+        toast('服务端音色这次没接上，先用本机声音；下一句我自动再试');
+      }
+    }
+
     /**
      * 说话：默认走设备本地音色（快、离线、按性别挑音色）；
      * 开了「云端音色」或设备没有可用中文音色时，才去要 /api/ta/tts。
+     * 「单飞」：一次只允许一个合成在跑，新的顶掉旧的（旧的连请求一起掐）。
      */
     function speak(text) {
       if (!text || (state.settings && state.settings.voice === false)) return;
       if (document.hidden) return;
-      stopSpeaking();
+      stopSpeaking();                      // 顺带中止上一段还没回来的合成
       var device = pickDeviceVoice();
       var preferCloud = !!(state.settings && state.settings.cloudVoice);
       if (!TA_API.online() || (!preferCloud && device)) { speakLocal(text); return; }
-      TA_API.tts(String(text).slice(0, 300), voiceIdOf(), '+0%').then(function (url) {
-        if (!url) { speakLocal(text); return; }
+      var mySeq = ttsSeq;
+      var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+      ttsCtl = ctl;
+      TA_API.tts(String(text).slice(0, 300), voiceIdOf(), '+0%', ctl).then(function (url) {
+        if (mySeq !== ttsSeq) return;      // 已经被打断 / 被新台词顶掉，这段声音作废
+        ttsCtl = null;
+        if (!url) { serverVoiceHint(); speakLocal(text); return; }
         speakingUrl = url;
         renderLink();   // 状态栏显示这次实际用的是哪一层（本地 GPT-SoVITS / 站内音色）
         audioEl = new Audio(url);
         audioEl.onended = stopSpeaking;
         var p = audioEl.play();
-        if (p && p.catch) p.catch(function () { speakLocal(text); });
-      })['catch'](function () { speakLocal(text); });
+        if (p && p.catch) p.catch(function () { if (mySeq === ttsSeq) speakLocal(text); });
+      })['catch'](function () {
+        if (mySeq !== ttsSeq) return;
+        ttsCtl = null;
+        serverVoiceHint();
+        speakLocal(text);
+      });
     }
 
     function say(out, kind) {
@@ -1310,6 +1674,7 @@ button,input,textarea{font-family:inherit;color:inherit}
       var msg = { id: uid(), role: 'her', text: out, at: Date.now(), src: kind || 'local' };
       if (msg.src === 'llm') state.llmCount = (state.llmCount || 0) + 1;
       else state.localCount = (state.localCount || 0) + 1;
+      renderLink();   // 状态栏如实说这句台词是谁说的（本机模型 / 云端模型 / 本机台词库）
       var node = rowNode({ role: 'her', text: '', at: msg.at });
       el.stage.appendChild(node.row);
       scrollDown();
@@ -1474,8 +1839,14 @@ button,input,textarea{font-family:inherit;color:inherit}
     function openDrawer() {
       renderStats();
       renderMemories();
+      paintLlmBtn();
       el.drawer.classList.add('open');
       el.scrim.classList.add('on');
+      // 打开抽屉顺手探一下本机模型（用户主动打开，探一次不吵；连不上也不弹任何东西）
+      var cfg = TA_API.localCfg();
+      if (cfg.enabled) {
+        TA_API.localProbe(cfg).then(function () { paintLlmBtn(); renderLink(); });
+      }
     }
 
     function closeDrawer() {
@@ -1586,7 +1957,43 @@ button,input,textarea{font-family:inherit;color:inherit}
       save();
       setVoiceSrcUI();
       renderLink();
-      toast(state.settings.cloudVoice ? '音色来源：云端（服务端合成，不行会自动回本机）' : '音色来源：本机语音');
+      if (!state.settings.cloudVoice) toast('音色来源：本机语音');
+      else if (localTtsOff()) toast('云端音色：自建 GPT-SoVITS 还没接上，先用站内合成（不行自动回本机）');
+      else toast('音色来源：云端（服务端合成，不行会自动回本机）');
+    });
+    var llmClickTimer = null;
+    el.llmBtn.addEventListener('click', function () {
+      // 双击是「改地址」，别让第一下就切了模式：等 260ms 再执行单击动作
+      if (llmClickTimer) { clearTimeout(llmClickTimer); llmClickTimer = null; return; }
+      llmClickTimer = setTimeout(function () {
+        llmClickTimer = null;
+        var order = ['auto', 'cloud', 'local'];
+        var cfg = TA_API.localCfg();
+        state.local.mode = order[(order.indexOf(cfg.mode) + 1) % order.length];
+        save();
+        paintLlmBtn();
+        renderLink();
+        toast(state.local.mode === 'auto'
+          ? '台词：本机模型优先，连不上就回云端'
+          : (state.local.mode === 'cloud' ? '台词：只用云端模型' : '台词：只用本机模型'));
+      }, 260);
+    });
+    el.llmBtn.addEventListener('dblclick', function () {
+      if (llmClickTimer) { clearTimeout(llmClickTimer); llmClickTimer = null; }
+      var cfg = TA_API.localCfg();
+      var url = window.prompt('本机模型地址（OpenAI 兼容 /v1，例如 http://127.0.0.1:8080/v1）', cfg.url);
+      if (url == null) return;
+      var model = window.prompt('模型名（留空 = 自动用 /v1/models 的第一项）', cfg.model);
+      state.local.url = normalizeLocalUrl(url);
+      state.local.model = trimStr(model, 80);
+      save();
+      paintLlmBtn();
+      toast('正在试这台本机模型…');
+      TA_API.localProbe(TA_API.localCfg(), true).then(function (r) {
+        paintLlmBtn();
+        renderLink();
+        toast(r.ok ? ('本机模型能连上：' + (r.model || '已就绪')) : '这台没连上，先用云端 / 本机台词兜着');
+      });
     });
     el.imageBtn.addEventListener('click', function () {
       toast('图片生成还在做，后续版本开放');

@@ -5,9 +5,13 @@
  * TA 是独立产品线（后期要烧录进固件），模型口子必须自己收口，
  * 主站换模型不该影响 TA，TA 加模型也不该惊动主站。
  *
- * 固定两家（按需求）：
+ * 三家：
  *   - workers-ai          Cloudflare Workers AI（默认主力，无需 Key，走 env.AI binding）
  *   - deepseek            DeepSeek 官方 OpenAI 兼容 API（需 Secret DEEPSEEK_API_KEY）
+ *   - local               本机模型（llama.cpp / LM Studio / vLLM / Ollama 的 OpenAI 兼容端点）
+ *                         Worker 在边缘、到不了 127.0.0.1，所以这一家有两种用法：
+ *                         ① 页面直连本机（默认，见 public/ta.html 的 TA_API.localChat）；
+ *                         ② Worker 走隧道：TA_LOCAL_LLM_URL 配成隧道域名后才进服务端容灾链。
  *
  * 预留接入口（后期加其它模型，只加注册项、不改调用方）：
  *   - openai-compatible   任意 OpenAI 兼容后端：TA_EXTRA_BASE_URL / TA_EXTRA_API_KEY / TA_EXTRA_MODEL
@@ -41,10 +45,59 @@ export const TA_MODELS = [
         temperature: 0.95,
         maxTokens: 260,
         note: "接入口：配置 TA_EXTRA_BASE_URL / TA_EXTRA_API_KEY / TA_EXTRA_MODEL 即启用。"
+    },
+    {
+        id: "local-qwen",
+        label: "本机 · qwen3.6",
+        provider: "local",
+        modelId: "",
+        temperature: 0.95,
+        maxTokens: 320,
+        note: "接本机 OpenAI 兼容端点（默认 http://127.0.0.1:8080/v1，模型名留空 = 用 /v1/models 第一项）。"
     }
 ];
 
 export const DEFAULT_TA_MODEL_ID = "cf-llama";
+
+/**
+ * 本机模型默认值（env.TA_LOCAL_LLM_* 可覆盖）。
+ * 端口 8080 是 llama.cpp（llama-server）的默认口，模型名与 字字动画 里配的一致。
+ */
+export const TA_LOCAL_LLM_DEFAULTS = {
+    baseUrl: "http://127.0.0.1:8080/v1",
+    modelId: "qwen3.6-35b-a3b-nothink",
+    temperature: 0.95,
+    maxTokens: 320
+};
+
+/** 解析本机模型配置（Worker 侧；页面侧另有一份同名默认值） */
+export function taLocalLlm(env) {
+    const e = env || {};
+    return {
+        baseUrl: String(e.TA_LOCAL_LLM_URL || TA_LOCAL_LLM_DEFAULTS.baseUrl).trim().replace(/\/+$/, ""),
+        modelId: String(e.TA_LOCAL_LLM_MODEL || TA_LOCAL_LLM_DEFAULTS.modelId).trim(),
+        apiKey: String(e.TA_LOCAL_LLM_KEY || "").trim(),
+        temperature: Number(e.TA_LOCAL_LLM_TEMPERATURE) || TA_LOCAL_LLM_DEFAULTS.temperature,
+        maxTokens: Number(e.TA_LOCAL_LLM_MAX_TOKENS) || TA_LOCAL_LLM_DEFAULTS.maxTokens
+    };
+}
+
+/**
+ * /api/ta/config 用：告诉页面「本机模型该填什么」，不给密钥。
+ * enabled 只表示「Worker 侧配了地址（隧道）」；页面直连不依赖这个字段。
+ */
+export function localLlmHint(env) {
+    const rawUrl = String((env && env.TA_LOCAL_LLM_URL) || "").trim();
+    return {
+        enabled: !!rawUrl,
+        url: rawUrl.replace(/\/+$/, ""),
+        model: String((env && env.TA_LOCAL_LLM_MODEL) || "").trim(),
+        defaults: {
+            url: TA_LOCAL_LLM_DEFAULTS.baseUrl,
+            model: TA_LOCAL_LLM_DEFAULTS.modelId
+        }
+    };
+}
 
 /** 语音模型（Workers AI Whisper 系列）；env.TA_ASR_MODEL 可覆盖 */
 export const TA_ASR_MODELS = [
@@ -124,6 +177,14 @@ export function resolveTaTarget(idOrRaw, env) {
         target.baseUrl = String((env && env[baseUrlEnv]) || "").replace(/\/+$/, "");
         target.apiKey = String((env && env[keyEnv]) || "").trim();
         target.modelId = String(row.modelId || (env && env.TA_EXTRA_MODEL) || "").trim();
+    } else if (row.provider === "local") {
+        // 本机模型：地址/密钥/模型名都可以由 TA_LOCAL_LLM_* 覆盖；模型名留空则用默认名
+        const local = taLocalLlm(env);
+        target.baseUrl = local.baseUrl;
+        target.apiKey = local.apiKey;
+        target.modelId = String(row.modelId || local.modelId).trim();
+        target.temperature = Number(row.temperature) || local.temperature;
+        target.maxTokens = Number(row.maxTokens) || local.maxTokens;
     }
 
     target.status = taTargetStatus(target, env);
@@ -137,6 +198,11 @@ export function taTargetStatus(target, env) {
     }
     if (target.provider === "openai-compatible") {
         return target.baseUrl && target.apiKey && target.modelId ? "online" : "coming";
+    }
+    if (target.provider === "local") {
+        // Worker 到不了 127.0.0.1：必须显式配了 TA_LOCAL_LLM_URL（隧道/公网端点）才算 online
+        const explicit = String((env && env.TA_LOCAL_LLM_URL) || "").trim();
+        return explicit && target.modelId ? "online" : "coming";
     }
     return target.apiKey ? "online" : "need_key";
 }
@@ -158,7 +224,8 @@ export function taModelChain(idOrRaw, env) {
         chain.push(t);
     };
 
-    // 好模型优先（用户选的在前），其次接上现网可用的两个固定家底
+    // 好模型优先（用户选的在前）：本机模型（仅 Worker 侧配了隧道地址时）→ DeepSeek → Workers AI
+    push(resolveTaTarget("local-qwen", env));
     push(resolveTaTarget("ds-chat", env));
     push(resolveTaTarget(DEFAULT_TA_MODEL_ID, env));
 

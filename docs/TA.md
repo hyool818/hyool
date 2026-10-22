@@ -58,7 +58,7 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 
 > **`.html` 只是磁盘文件名，不是网址。** Cloudflare 静态资源 `html_handling = auto-trailing-slash`：`/ta` 直接 200 返回 `ta.html`。**不要**去 `src/index.js` 给 `/ta` 加页面路由，加了反而多此一举。
 
-**状态（2026-10-14）**：v2 前后端都已落地 —— 后端 **52 项**断言全绿、页面 **45 项**沙箱断言全绿、真实浏览器冒烟 **26 项 SMOKE-OK**（本地没有后端时也会回落本机兜底，已验证）。下次改动前，先按 §12 跑这三份脚本。
+**状态（2026-10-15）**：v2 前后端都已落地 —— 后端 **59 项**断言全绿、页面 **48 项**沙箱断言全绿、真实浏览器冒烟 **26 项 SMOKE-OK**（本地没有后端时也会回落本机兜底，已验证）。下次改动前，先按 §12 跑这三份脚本。
 
 ## 4. 架构：三层 + 固件移植契约
 
@@ -75,26 +75,34 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 3. 状态结构 = `localStorage` 里那一份 JSON（`hyool-ta-v1`），固件端换成 flash / NVS 读写，字段不变。
 4. 所有「联网失败」的判定都收敛在传输层，引擎层永远只负责「有话说」。
 
+**本机模型就是这条契约的第一个实例**（2026-10-21，见 §8.1）：`TA_API.chat()` 里收口「本机优先 → 云端 → 模板」，引擎层（意图 / 记忆 / 心情 / 台词库）一行未改；页面新增的唯一联网点仍然在 `TA_API` 内部（`localChat` / `localProbe` / `localSystem`）。
+
 ## 5. 后端接口（`src/ta/index.js`）
 
 免登录、免 D1：额度靠「每 IP 分钟窗口 + 当日上限」的内存限流（isolate 级，够挡顺手乱刷）。所有失败都是**软失败**，页面据此静默回落本机兜底。
 
 | 接口 | 入参 | 出参 | 失败行为 |
 |---|---|---|---|
-| `GET /api/ta/config` | — | 模型清单 / 音色池 / 预设 / 功能开关 / 限额 / `tts.{chain,local,local_voices}` | 页面用内置预设继续跑 |
+| `GET /api/ta/config` | — | 模型清单 / 音色池 / 预设 / 功能开关 / 限额 / `tts.{chain,local,local_voices}` / `llm`（本机模型提示，不含密钥） | 页面用内置预设继续跑 |
 | `POST /api/ta/chat` | `message`、`persona`、`recent[]`、`memories[]`、`mood`、`intimacy`、`model?`、`channel?` | `{ reply, model, latency_ms }` | `success:false` + `code`，页面走模板 |
-| `POST /api/ta/tts` | `text`(≤300)、`voice`、`rate`、`pitch`、`volume` | `audio/wav` 或 `audio/mpeg`（按命中的合成层）+ 响应头 `X-TA-TTS-Provider`（`gptsovits` / `melotts`）/ `X-TA-TTS-Voice` | 两层都失败 → **502 `TTS_UNAVAILABLE`**（`attempts[]` 带每层原因），页面改设备本地 `speechSynthesis` |
+| `POST /api/ta/prompt` | `persona`、`memories[]`、`mood`、`intimacy`、`channel?` | `{ system, persona, channel, max_out }`（**只出提示词，不调任何模型**） | 页面用上次缓存的提示词；再不行就走云端链路 |
+| `POST /api/ta/polish` | `text`(≤1200)、`channel?` | `{ reply }`（**只做去 AI 味清洗，不调模型**；擦完为空 → `code:"AI_SPEAK"`） | 页面保留自己那份最低限度清洗的结果 |
+| `POST /api/ta/tts` | `text`(≤300)、`voice`、`rate`、`pitch`、`volume` | `audio/wav` 或 `audio/mpeg`（按命中的合成层）+ 响应头 `X-TA-TTS-Provider`（`gptsovits` / `melotts`）/ `X-TA-TTS-Voice` /（降级时才有）`X-TA-TTS-Attempts`（ASCII 短码，如 `gptsovits=timeout; melotts=…`） | 两层都失败 → **502 `TTS_UNAVAILABLE`**（`attempts[]` 带每层原因，同样带 `X-TA-TTS-Attempts`），页面改设备本地 `speechSynthesis` |
 | `POST /api/ta/asr` | `audio`(base64)、`language?` | `{ text }`（Whisper） | 页面提示重说 / 用浏览器本地识别 |
 | `POST /api/ta/image` | — | **501 `COMING_SOON`** | 页面按钮是锁定态 |
 
-**限额**：chat 18/分、240/日；tts 24/分、320/日；asr 8/分、120/日；config 60/分。单请求上限：输入 500 字、回带 8 轮对话 + 12 条记忆、TTS 300 字、返回台词 ≤200 字。
+**限额**：chat 18/分、240/日；prompt / polish 各 40/分、600/日（这两条不调模型，只给本机链路配提示词与清洗用）；tts 24/分、320/日；asr 8/分、120/日；config 60/分。单请求上限：输入 500 字、回带 8 轮对话 + 12 条记忆、TTS 300 字、返回台词 ≤200 字。
 
 **环境变量**（全部可选，都不填 TA 也能跑）：
 
 | 变量 | 作用 |
 |---|---|
 | `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` / `DEEPSEEK_MODEL` | 复用 HYOOL 同一份 Secret（见 `.dev.vars.example`） |
-| `TA_MODEL` | 默认模型 id（`cf-llama` / `ds-chat` / …），不填 = `cf-llama` |
+| `TA_MODEL` | 默认模型 id（`cf-llama` / `ds-chat` / `local-qwen` / …），不填 = `cf-llama` |
+| `TA_LOCAL_LLM_URL` | **本机模型**地址（OpenAI 兼容 `/v1`）。**Worker 在边缘、到不了 `127.0.0.1`**：这里只能填隧道/公网地址；不填 = 服务端链路里没有本机模型（页面直连不受影响，见 §8） |
+| `TA_LOCAL_LLM_MODEL` | 本机模型名（默认 `qwen3.6-35b-a3b-nothink`） |
+| `TA_LOCAL_LLM_KEY` | 本机端点要 token 时才填（llama.cpp / LM Studio 默认不要） |
+| `TA_LOCAL_LLM_TEMPERATURE` / `TA_LOCAL_LLM_MAX_TOKENS` | 本机模型的采样温度 / 单句上限（默认 0.95 / 320） |
 | `TA_ASR_MODEL` | Whisper 模型覆盖（默认 `@cf/openai/whisper-large-v3-turbo` → 回退 `@cf/openai/whisper`） |
 | `TA_TTS_MODEL` | 站内合成层模型（默认 `@cf/myshell-ai/melotts`） |
 | `TA_TTS_LOCAL_URL` | **自建 GPT-SoVITS** 的地址（只填域名，`/tts` 路径由代码补）。不填 = 该层不参与链（见 §7） |
@@ -125,7 +133,7 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 
 | 方向 | 首选 | 兜底 | 说明 |
 |---|---|---|---|
-| **说（TTS）** | `POST /api/ta/tts` → 服务端链：**① 自建 GPT-SoVITS**（`TA_TTS_LOCAL_URL`，音质最好、可逐音色配参考音频）→ **② Workers AI MeloTTS**（`TA_TTS_MODEL`，站内、零外依赖） | 设备本地 `speechSynthesis`（零网络、系统音色） | 任一层成功即返回（来源写在响应头 `X-TA-TTS-Provider`）；两层都失败才 502 `TTS_UNAVAILABLE`，页面静默改用设备语音 —— 绝不因为语音问题卡住对话 |
+| **说（TTS）** | `POST /api/ta/tts` → 服务端链：**① 自建 GPT-SoVITS**（`TA_TTS_LOCAL_URL`，音质最好、可逐音色配参考音频）→ **② Workers AI MeloTTS**（`TA_TTS_MODEL`，站内、零外依赖） | 设备本地 `speechSynthesis`（零网络、系统音色） | 任一层成功即返回（来源写在响应头 `X-TA-TTS-Provider`）；发生过降级再带 `X-TA-TTS-Attempts`（ASCII 短码）。两层都失败才 502 `TTS_UNAVAILABLE`，页面静默改用设备语音 —— 绝不因为语音问题卡住对话 |
 | **听（ASR）** | 浏览器 `SpeechRecognition`（连续 + 中间结果 = 真·实时，且不消耗服务端额度） | `MediaRecorder` 录音 → `POST /api/ta/asr` → Workers AI Whisper | 两边都不可用时，退回键盘输入，界面给出明确提示 |
 
 > 「本地模型」这条路按两种解读都留了位：**设备/浏览器本地引擎**是默认可用路径（离线也在），**设备端大模型**是固件阶段的替换目标（只改传输层，见 §4）。
@@ -147,7 +155,7 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
    - token 首次由脚本生成到 `scripts/.tools/ta-tts-token.txt`（已 gitignore），之后复用同一份；也可用环境变量 `TA_TTS_PROXY_TOKEN` 覆盖。
    - 自测口径：带 token 打 `http://127.0.0.1:9881/tts` → 200 + `audio/wav`；不带 token → 401。
 4. 让 Worker 连得上：家里机器没公网 IP 就开隧道，**指向网关的 9881（不是裸 9880）**：`cloudflared tunnel --url http://127.0.0.1:9881` → 拿到 `https://xxxx.trycloudflare.com`，填 `TA_TTS_LOCAL_URL`（**只填域名**，`/tts` 由代码补；填完整端点也兼容），再 `npx wrangler secret put TA_TTS_LOCAL_TOKEN`（粘贴上面那串 token）。网关 / 隧道 / 本机任一环挂了都不影响 TA：自动落到 MeloTTS。
-5. 开好了怎么确认：`/api/ta/config` 的 `tts.chain` 会变成 `["gptsovits","melotts"]`、`tts.local = true`、`tts.local_voices` 列出已配参考音频的音色 id；实测口径是 `POST /api/ta/tts` 的响应头 `X-TA-TTS-Provider: gptsovits`（没接通就是 `melotts`）。页面「音色来源 = 云端」时状态栏会显示实际命中的层。
+5. 开好了怎么确认：`/api/ta/config` 的 `tts.chain` 会变成 `["gptsovits","melotts"]`、`tts.local = true`、`tts.local_voices` 列出已配参考音频的音色 id；实测口径是 `POST /api/ta/tts` 的响应头 `X-TA-TTS-Provider: gptsovits`（没接通就是 `melotts`）。页面「音色来源 = 云端」时状态栏会显示实际命中的层；`tts.local = false` 时按钮上会直接写「自建 GPT-SoVITS 未接」，**不让人靠听感猜**。
 
 **参数口径**：`rate`（`+20%` / `-60%`）会换算成自建层的 `speed_factor`（clamp 0.5~2）；`pitch` / `volume` 仍然接收并校验格式（前端契约不变），但当前链上没有支持 SSML prosody 的引擎，**不再改变合成结果**。
 
@@ -155,17 +163,68 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 
 **换行 / 打断**：TA 说话期间用户按下麦克风 → 立即停止播放与合成；新台词开始前会取消上一段语音，避免叠音。
 
-## 8. 模型：固定两家 + 一个接入口
+**稳定性口径（2026-10-15 加固；主题是「一次抖动不该变成永久机械音」）**：
+
+| 环节 | 规则 | 为什么 |
+|---|---|---|
+| 自建层单次超时 | **6 s**（`TTS_TIER_TIMEOUT_MS`） | 实测单句 1.4~2.7 s，给足余量；30 s 的长超时等于让用户干等 |
+| 自建层重试 | 只在**快速失败**（<2.5 s）时同层立刻重试 **1 次** | 隧道冷连接 / 连接被掐断是一次性抖动，重试就救回来了；超时这种「贵的失败」不重试，免得白等两轮 |
+| 4xx | 不重试，直接降级 | `401`（token 不对）/`400`（参考音频不存在）重试一百次也一样 |
+| 整条链预算 | **20 s**（`TTS_TOTAL_BUDGET_MS`） | 硬性小于页面 `TTS_TIMEOUT_MS`（**22 s**）：页面先超时的话服务器白算一场、用户听到的永远是兜底音 —— 这是真实踩过的坑，两个常量要一起改 |
+| 失败可见 | 每层失败写 `console.warn`（`wrangler tail` 可见）+ 降级时回 `X-TA-TTS-Attempts`；页面记进 `SERVER.ttsAttempts`、`console.warn` 一条、状态栏悬停可见 | 「声音怎么变了」必须一次查清，不能靠猜 |
+| 页面请求 | **单飞 + 可中断**：新台词开始 / 说话打断 / 静音 / 切后台 / 断网都 `abort()` 掉在跑的合成，迟到的响应按序号作废 | 旧请求继续占着自建层与隧道、越堆越慢 —— 听感就是「越聊越机械」 |
+| 降级提示 | 服务端合成失败时给一句人话（每会话一次，不刷屏）；`unconfigured`（这台部署没接自建层）不算故障，只写进悬停说明 | 既不静默骗人，也不念经 |
+
+**语音听起来「变机械了」怎么查**（照顺序走，三步内定得到位）：
+
+1. `GET /api/ta/config` → `tts.chain`：若只有 `["melotts"]` 且 `tts.local=false`，说明**自建层根本没启用**（`TA_TTS_LOCAL_URL` 这个 Secret 是空的）→ 按上面第 1~4 步接起来，再 `wrangler secret put TA_TTS_LOCAL_URL`。
+2. 看 `POST /api/ta/tts` 的响应头：`X-TA-TTS-Provider: melotts` + `X-TA-TTS-Attempts: gptsovits=timeout`（或 `=net`）就是隧道那一段断了 —— 本机自测 `curl -s -o NUL -w '%{http_code}' -X POST http://127.0.0.1:9881/tts -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' --data-binary @body.json` 应回 200；`=http401` 是 token 不对；`=http400` 是参考音频路径写错。
+3. 本机三件套是否都在跑：`api_v2.py`（`:9880`）、网关（`:9881`，`scripts\start-ta-tts-proxy.ps1`）、`cloudflared` 隧道。**只开 GPT-SoVITS WebUI（`webui.py`）是没用的** —— Worker 打的是 `api_v2.py` 的 `POST /tts`。
+
+## 8. 模型：云端两家 + 本机一家 + 一个接入口
 
 | 注册 id | 标签 | provider | 状态 |
 |---|---|---|---|
 | `cf-llama` | Cloudflare · llama3.3-70B | `workers-ai`（`env.AI.run`，免密钥） | 默认主力 |
 | `ds-chat` | DeepSeek · chat | `deepseek`（OpenAI 兼容，`DEEPSEEK_API_KEY`） | 配了 Key 自动 online |
+| `local-qwen` | 本机 · qwen3.6 | `local`（OpenAI 兼容端点） | 页面直连默认就是它；Worker 侧配了 `TA_LOCAL_LLM_URL`（隧道）才 online |
 | `extra` | 扩展模型（预留） | `openai-compatible` | 配了 `TA_EXTRA_*` 才 online |
 
 - **只认注册表 id**：请求里塞别的模型名一律回落默认，防止有人拿 TA 白嫖任意模型。
-- **容灾链**：`taModelChain()` 把「用户选的 → DeepSeek → Workers AI」按序排好并去重，逐个尝试；某个挂了自动换下一个，全挂才软失败。没配 Key / 没绑 AI 的模型**不会**被放进链里（不白等一次网络超时）。
+- **容灾链**：`taModelChain()` 把「用户选的 → 本机（有隧道时）→ DeepSeek → Workers AI」按序排好并去重，逐个尝试；某个挂了自动换下一个，全挂才软失败。没配 Key / 没绑 AI 的模型**不会**被放进链里（不白等一次网络超时）。
 - **后期加模型 = 加一行**（`TA_MODELS` 或 `TA_EXTRA_MODELS`），调用方（`src/ta/index.js`、页面）都不用改。原生支持任何 OpenAI 兼容端点，所以自建 GPU / 其它云厂商都能直接接。
+
+### 8.1 本机模型（qwen3.6 / llama.cpp）：为什么由页面直连
+
+Worker 跑在 Cloudflare 边缘，**永远够不着 `127.0.0.1`**。所以「本机模型」这条腿分两种用法：
+
+| 用法 | 走法 | 要配什么 |
+|---|---|---|
+| **页面直连**（默认，推荐） | 浏览器 → `http://127.0.0.1:8080/v1/chat/completions` | 什么都不用配：起好 llama.cpp（默认 8080）即可；地址/模型名可在页面上双击「台词模型」按钮改 |
+| Worker 走隧道 | Worker → `TA_LOCAL_LLM_URL`（cloudflared / 公网反代）→ 本机 | `TA_LOCAL_LLM_URL`（+ 可选 `TA_LOCAL_LLM_KEY`），然后 `wrangler secret put` |
+
+页面直连时的完整链路（每一步都有兜底，任何一步失败就退回云端链路 → 再退回本机台词库）：
+
+```
+/v1/models 探活(1.5s)  →  POST /api/ta/prompt（服务端出提示词）  →  本机 /chat/completions  →  POST /api/ta/polish（服务端去 AI 味）
+```
+
+- **提示词与清洗只有一份实现**：人设收紧在 `src/ta/prompt.js`，页面不写提示词、也不让用户写（红线见 §2）。
+- 提示词按 `人设|心情|亲密|记忆尾条` 缓存；服务端拉不到时用 `state.localPrompt` 里上次那份，**本机模型因此能离线接着说话**。
+- 探活结果缓存 15s；`auto` 模式下连不上就直接走云端，不会每句话都先等一次超时。
+- 三种模式存在 `hyool-ta-v1` 里：`auto`（本机优先，默认）/ `cloud`（只用云端）/ `local`（只用本机）。状态栏与抽屉里的「台词模型」按钮会如实显示这句台词是谁说的。
+- 本机模型的**单次上限 30s**（`LOCAL_LLM.chatMs`）；实测 35B-A3B 首字冷启动 ~40s（模型装载），热身后 1s 内出句 —— 冷启动那次会被判超时并回落云端，属预期。
+- **浏览器策略**：`http://127.0.0.1` 属于「潜在可信来源」，https 页面 → 本机端点不算混合内容；llama.cpp 会按 `Origin` 回 CORS 头（实测 `Origin: https://hyool.com` → `Access-Control-Allow-Origin: https://hyool.com`），所以线上页面也能直连。若哪天被 Chrome 的本地网络访问（LNA）实验拦下，探活会失败并**自动回落云端** —— 那种情况改用下面的 Worker 隧道方式。
+
+起本机端点（llama.cpp，端口与模型名跟 字字动画 里那份配置一致）：
+
+```powershell
+llama-server -m D:\AI\models\qwen3.6-35b-a3b-nothink.gguf --port 8080 --ctx-size 16384 -ngl 99
+# 验证：curl.exe --noproxy "*" http://127.0.0.1:8080/v1/models
+# 自测：node scripts/ta-local-llm-check.mjs
+```
+
+`.dev.vars.example` 里只有 TTS 的样例，本机模型**不需要密钥**；要试隧道再照 §5 的 `TA_LOCAL_LLM_*` 填。
 
 ## 9. 图片生成：接口占位、界面锁定（后期待开放）
 
@@ -179,6 +238,7 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 |---|---|
 | 断网 / 离线 | 页面**不发请求**，直接用本机模板回应；`navigator.onLine` 变化会提示一次「我先离线记着」类台词 |
 | 模型超时（9s）/ 报错 | 静默回落模板，回复里带一句自然的「刚走神了一下」式补丁，**不出现**「网络错误」「请求失败」 |
+| 本机模型连不上 / 冷启动超时（30s） | `auto` 模式当场改走云端链路（探活 1.5s、结果缓存 15s，不会每句都白等）；云端也挂才用模板。`local` 模式（用户明确「只用本机」）才直接回模板 |
 | LLM 回了 AI 腔 | 服务端 `humanizeTaReply()` 先擦（去 Markdown / 去助手腔 / 限长 / 限 emoji）；擦完为空则页面用模板 |
 | 用户说的没模板 | 兜底台词库（`fallback` + `offline` + `confused` 三组）负责接住，且带「防重复窗口」，连回合不会复读同一句 |
 | 记忆为空却问「还记得吗」 | 固定话术说明还没记录（**绝不编造**） |
@@ -191,18 +251,23 @@ Select-String -Path public\ta.html -Pattern '/api/(buddy|companion|hub|me|invite
 - 唯一存储键：**`hyool-ta-v1`**（localStorage）。键名里的 `hyool-` 只是命名前缀，**不代表与主站有数据往来**。
 - 内容：人设预设、消息记录、记忆条目、心情值、亲密值、语音开关。
 - 每次对话**只**把「最近 8 轮 + 12 条记忆 + 当前心情/亲密」发给 `/api/ta/chat`，不带设备标识、不写库、不落盘；服务端日志只有一行失败原因，密钥会被打码。
+- **本机模型**（§8.1）走的是同一个内容口径：`/api/ta/prompt` 只收人设 / 心情 / 亲密 / 记忆，台词由页面直接发到你填的端点（默认 `127.0.0.1`，不出机器）。系统提示词会缓存在同一个 `hyool-ta-v1` 里（离线时给本机模型用），可用「清空全部本机数据」一并删掉。
 - 换键 / 改键名 = 老数据不再读取（等于清空）；「⟲」重新设置伴侣（二次确认，保留对话与记忆）；「清空全部本机数据」= 真删除（二次确认）。
 - 除 `/api/ta/*` 之外没有任何读写入口，没有 Cookie、没有上报、没有跨页共享。
 
 ## 12. 自测
 
-仓库内没有 TA 的测试文件（刻意不污染 `public/`）；两份临时脚本放 `%TEMP%`，跑完即可丢：
+仓库里现在有两个**常驻**自测脚本（放 `scripts/`，不污染 `public/`）：`ta-local-llm-check.mjs`（后端 + 真机）与 `ta-local-page-check.mjs`（页面传输层，vm 沙箱）。其余历史脚本仍按临时文件处理，放 `%TEMP%`：
 
 | 脚本 | 覆盖 | 结果 |
 |---|---|---|
-| `%TEMP%\ta-check\tests.mjs`（配合 `%TEMP%\ta-check\` 里 `src/ta/*` + `src/tts.js` 的镜像与 `package.json`） | **52 项**后端断言：人设越界回落（性别/名字/性格/跨性别音色）、提示词注入与去 AI 感约束、`humanizeTaReply` 去 Markdown/去 AI 腔/限长/限 emoji、模型注册表与容灾链去重、`TA_EXTRA_MODELS` 接入口、config 形状、chat 成功/失败/无 binding/空输入/越界人设不进提示词、**tts 合成链**（自建层优先 + 请求体逐字段透传、参考音频逐音色映射与默认回落 + Bearer、`+20%`→`speed_factor`、自建 400 自动降级 MeloTTS、未配地址不外呼、两层都挂 502 且 `attempts` 带原因、映射表写坏容错、`tts.{chain,local,local_voices}` 暴露）、tts 四类参数校验、asr 三态、image 501、非 `/api/ta` 放行、未知路径 404、方法 405、`TA_DISABLED` 503、同 IP 429、跨域白名单 | `=== ALL PASSED ===`（52 ok / 0 FAIL） |
-| `%TEMP%\ta-page-check.mjs`（读 `d:/hyool/public/ta.html`，Node `vm` 沙箱 + 假 localStorage） | **45 项**页面断言：静态契约（单脚本单样式、无外链、只调 `/api/ta/*`、占位符集合、无 v1 遗留字段、锁定态按钮、音色来源文案已跟上合成链）、`vm.Script` 解析与执行、四大预设池、人设越界与 v1 迁移、13×3 台词条数与兜底三组 ≥12、39 条回复无空无占位符残留、`recall` 不编造、兜底两段式且无技术词、`pickFresh` 防复读、13 类意图边界、记忆抽取噪声、情绪打分、5 级阶段、传输层 11 种软失败（离线/网络错/HTTP 429/服务端软失败/成功透传/config 覆盖音色池/config 同步合成层/tts 成功记下来源与音色/响应无 headers/tts null/asr 空串） | `=== ALL PASSED ===`（45 ok / 0 FAIL） |
+| 仓库内 `scripts/ta-local-llm-check.mjs`（`node scripts/ta-local-llm-check.mjs`；`--offline` 只跑离线部分） | **24 项**本机模型接入断言：`local-qwen` 两种状态（没配 `TA_LOCAL_LLM_URL` = coming，配了 = online）、容灾链进出、模型名覆盖、`/config.llm` 提示不含密钥、`/prompt`（人设越界回落 + 关系阶段/心情/记忆进提示词 + 与 `buildTaSystemPrompt` 同源 + 方法 405）、`/polish`（去 Markdown 与助手腔、全是 AI 腔返回空 + `AI_SPEAK`、空输入 400）、**真机**：用同一份提示词问本机模型再过 `humanizeTaReply`（端点不在线时这两项自动 SKIP） | `=== ALL PASSED ===`（24 ok / 0 FAIL） |
+| 仓库内 `scripts/ta-local-page-check.mjs`（`node scripts/ta-local-page-check.mjs`） | **21 项**页面传输层断言（vm 沙箱跑 `public/ta.html` 里的原始脚本 + 假 fetch）：默认 auto/默认端点、本机在线时台词来自本机、先取 `/prompt` 再问本机、最近对话角色映射、`temperature/max_tokens/stream` 请求体、台词过 `/polish`、手填模型名优先、探活 15s 缓存、提示词拉不到时用缓存照常说、本机挂了回落云端、`cloud` 模式不碰本机、`local` 模式不偷用云端、`polish` 挂了用页面侧清洗、两条链路都挂时软失败 | `=== ALL PASSED ===`（21 ok / 0 FAIL） |
+| `%TEMP%\ta-check\tests.mjs`（配合 `%TEMP%\ta-check\` 里 `src/ta/*` + `src/tts.js` 的镜像与 `package.json`） | **59 项**后端断言：人设越界回落（性别/名字/性格/跨性别音色）、提示词注入与去 AI 感约束、`humanizeTaReply` 去 Markdown/去 AI 腔/限长/限 emoji、模型注册表与容灾链去重、`TA_EXTRA_MODELS` 接入口、config 形状、chat 成功/失败/无 binding/空输入/越界人设不进提示词、**tts 合成链**（自建层优先 + 请求体逐字段透传、参考音频逐音色映射与默认回落 + Bearer、`+20%`→`speed_factor`、自建 400 自动降级 MeloTTS、未配地址不外呼、两层都挂 502 且 `attempts` 带原因、映射表写坏容错、`tts.{chain,local,local_voices}` 暴露）、**语音稳定性**（快速失败同层重试一次后仍用自建层、401 不重试、连抖只试两次、没降级不带 `X-TA-TTS-Attempts`、未配自建层记 `unconfigured`、502 也带降级头、CORS expose 三个 TTS 头）、tts 四类参数校验、asr 三态、image 501、非 `/api/ta` 放行、未知路径 404、方法 405、`TA_DISABLED` 503、同 IP 429、跨域白名单 | `=== ALL PASSED ===`（59 ok / 0 FAIL） |
+| `%TEMP%\ta-page-check.mjs`（读 `d:/hyool/public/ta.html`，Node `vm` 沙箱 + 假 localStorage） | **48 项**页面断言：静态契约（单脚本单样式、无外链、只调 `/api/ta/*`、占位符集合、无 v1 遗留字段、锁定态按钮、音色来源文案已跟上合成链、合成超时 > 服务端预算且带中断/作废机制）、`vm.Script` 解析与执行、四大预设池、人设越界与 v1 迁移、13×3 台词条数与兜底三组 ≥12、39 条回复无空无占位符残留、`recall` 不编造、兜底两段式且无技术词、`pickFresh` 防复读、13 类意图边界、记忆抽取噪声、情绪打分、5 级阶段、传输层软失败（离线/网络错/HTTP 429/服务端软失败/成功透传/config 覆盖音色池/config 同步合成层/tts 成功记下来源与音色/响应无 headers/tts null/asr 空串/tts 单飞打断后返回 null/降级原因记进 `SERVER` 且 `unconfigured` 不误报） | `=== ALL PASSED ===`（48 ok / 0 FAIL） |
 | `%TEMP%\ta-smoke\{server.mjs, smoke.html}` + 仓库自带 `run-browser-test.ps1`（headless Chrome + CDP，iframe 驱动真实页面） | **26 项**浏览器冒烟：预设渲染数量、切性别后音色/名字池联动、无自由输入框、开始对话后浮层关闭 + 顶栏名字 + 开场白、语音开关、图片锁定、状态栏人话、音色来源可切换且文案说明服务端合成、切换后状态栏同步、**无后端时仍回话**（本机兜底）、记忆抽屉与统计 | `TITLE: SMOKE-OK`（26 PASS / 0 FAIL） |
+
+> **真机联调（本机模型，2026-10-21 实测）**：起一个薄壳 node 服务（静态发 `ta.html`，并把 `/api/ta/*` 原样接到 `handleTaRoutes`），再用仓库自带 `run-browser-test.ps1` 跑无头 Chrome：断言「状态栏出现 `台词走本机模型`」「本机真回了台词」「无 JS 异常」。实测 5 项全过（qwen3.6-35b-a3b-nothink 热身后 <2s 出句；首字冷启动约 40s，属模型装载）。
 
 临时脚本的重建方法（每次改完代码先跑，别只靠浏览器手测）：
 
@@ -213,10 +278,10 @@ Copy-Item 'd:\hyool\src\ta\*.js' (Join-Path $dst 'src\ta') -Force
 Copy-Item 'd:\hyool\src\tts.js' (Join-Path $dst 'src\tts.js') -Force
 Set-Content (Join-Path $dst 'package.json') -Value '{"type":"module"}' -Encoding utf8
 # 再把 tests.mjs 放进 $dst，然后：
-cd $dst; node tests.mjs        # 期望 === ALL PASSED ===（52 项后端）
+cd $dst; node tests.mjs        # 期望 === ALL PASSED ===（59 项后端）
 
 # 页面沙箱跑测（把 ta-page-check.mjs 放进 %TEMP%）：
-node "$env:TEMP\ta-page-check.mjs"      # 期望 === ALL PASSED ===（45 项）
+node "$env:TEMP\ta-page-check.mjs"      # 期望 === ALL PASSED ===（48 项）
 
 # 真实浏览器冒烟（本地静态服务器 + 仓库自带 CDP 驱动；ta.html 必须和 smoke.html 同源）：
 #   建 %TEMP%\ta-smoke\：拷入 public\ta.html、smoke.html、server.mjs
@@ -231,12 +296,13 @@ powershell -NoProfile -File .\run-browser-test.ps1 -Url 'http://127.0.0.1:8123/s
 
 - **后端**：`src/ta/models.js`（Workers AI + DeepSeek 固定两家、`openai-compatible` 接入口、容灾链）、`src/ta/prompt.js`（四项人设预设、去 AI 味提示词、输出清洗）、`src/ta/index.js`（`/api/ta/config|chat|tts|asr|image`，免登录、按 IP 限流、`TA_DISABLED` 熔断、日志密钥打码），挂载进 `src/index.js`（约 20 行，主站逻辑零改动）。TTS 只从 `src/tts.js` 借音色表 `TTS_VOICES`，**不再复用它的 Edge 实现**（Edge 已从 TA 链上下线，主站 `/api/tts` 照旧）。
 - **页面**：设置页改为四项预设选择器（性别 / 音色 / 性格 / 预设名，**取消自由输入**）；回复链路「LLM 优先 → 超时/失败/断网立刻回落本机模板」；语音输出三层（云端链「自建 GPT-SoVITS → 站内 MeloTTS」→ 设备 `speechSynthesis`，来源与命中层在状态栏可见）；语音输入两条路（浏览器本地识别 → `MediaRecorder` + Whisper）；说话打断（用户一开口就停播）；图片按钮锁定态 + 人话提示；台词库扩容（每意图每语气 ≥5 条，`fallback` / `offline` / `confused` 各 ≥12 条）+ 防复读窗口；底部状态栏用人话显示在线/离线。
-- **测试**：后端 54 项、页面 45 项、真实浏览器冒烟 26 项，全绿。
+- **测试**：后端 59 项、页面 48 项、真实浏览器冒烟 26 项，全绿。
+- **本机模型（2026-10-21）**：`local-qwen` 注册项 + `TA_LOCAL_LLM_*`；页面直连 OpenAI 兼容端点（llama.cpp / LM Studio / vLLM / Ollama），台词模型三种模式（本机优先 / 只用云端 / 只用本机）、状态栏如实显示谁说的；提示词与「去 AI 味」仍只由服务端出（新增 `/api/ta/prompt`、`/api/ta/polish`）。本机模型接入自测 24 项全绿（`node scripts/ta-local-llm-check.mjs`）。
 
 **未做（按需再做，勿默认动手）**
 
 1. **图片生成真开放**：实现 `/api/ta/image`、把 `features.image` 翻 `true`、按钮解锁。
-2. **模型扩展**：填 `TA_EXTRA_*` 或 `TA_EXTRA_MODELS` 即可接第三方；要更深的多模型切换 UI 再说。
+2. **更多云端模型**：填 `TA_EXTRA_*` / `TA_EXTRA_MODELS` 即可接第三方 —— 本机模型（`local-qwen`）已经在 §8.1 接入；要同时挂多台本机端点、或做更细的模型切换 UI 再说。
 3. **收录与入口**：`noindex,nofollow` → `index,follow`（需补 canonical / og）；在主站加入口 —— **违背隔离原则，默认不做**。
 4. **固件侧**：把 `TA_CORE` 段与传输层契约（§4）搬到设备端，`chat()` 换成设备模型推理；状态改用 flash / NVS。
 5. **真机联调**：iOS Safari 的 `speechSynthesis` 首播需要用户手势、麦克风权限弹窗文案、弱网降级手感。
@@ -251,6 +317,8 @@ powershell -NoProfile -File .\run-browser-test.ps1 -Url 'http://127.0.0.1:8123/s
 | 2026-10-14 | **v2 页面**：`public/ta.html` 升级 —— 人设四项预设选择器（取消自由输入）、LLM 优先 + 模板兜底链路、语音输出/输入双层、说话打断、图片锁定态、台词库扩容（防复读窗口）、在线/离线人话状态栏、v1 存档自动迁移（同键 `hyool-ta-v1`）。页面 41 项沙箱 + 24 项浏览器冒烟全绿；顺手修掉「全新用户点开始对话后不开场」的静默缺陷。 |
 | 2026-10-14 | **TTS 换链（弃用 Edge）**：TA 的合成不再走 Edge（免费 readaloud 只有单档 24kHz/48kbps、无 `<mstts:express-as>` 情感风格、CF 出口实测 403），改为「**自建 GPT-SoVITS → 站内 Workers AI MeloTTS → 设备语音**」；`/api/ta/tts` 返回真实 `Content-Type`（wav/mp3）+ 响应头 `X-TA-TTS-Provider` / `X-TA-TTS-Voice`，两层都失败才 502 `TTS_UNAVAILABLE`（`attempts[]` 带每层原因）；`rate` 换算成自建层 `speed_factor`，`pitch`/`volume` 仍校验但不再影响输出；`/api/ta/config` 新增 `tts.{chain,local,local_voices}`；新增 `TA_TTS_LOCAL_*` 一组环境变量（§5/§7）。文档 §7 补 GPT-SoVITS 装机 + 隧道接法。后端 52 项 / 页面 45 项 / 冒烟 26 项全绿。 |
 | 2026-10-14 | **自建 GPT-SoVITS 落地 + 鉴权网关**：`api_v2.py` 端到端实测打通 —— Worker 的请求体原样可用（v2 底模 32 kHz / v2Pro 32 kHz / v4 48 kHz 三档都出音频，单句 1.4~2.7 s，`/set_gpt_weights` + `/set_sovits_weights` 可热切权重）；新增 `scripts/ta-tts-proxy.mjs` + `scripts/start-ta-tts-proxy.ps1`（token 校验反代：只放行 `POST /tts`、体上限 64 KiB、401 兜底，隧道指向网关而不是裸 9880）；修掉 `TA_TTS_LOCAL_URL`「只填域名」时代码没补 `/tts` 的文档/实现不一致（新增 `localTtsEndpoint()`，域名与完整端点都收，后端 52 → 54 项）。 |
+| 2026-10-15 | **语音稳定性加固（线上实测驱动）**：实测定位到「第一次好、后面变机械」的根因有两层 —— ① 线上 `/api/ta/config` 的 `tts.chain` 只有 `["melotts"]`、`local:false`（`TA_TTS_LOCAL_URL` Secret 为空，**自建层根本没启用**，听到的就是站内 MeloTTS）；② 代码里页面 `TTS_TIMEOUT_MS`(14s) 小于后端自建层超时(30s)，且页面合成请求从不中断/去重 —— 一次抖动就永久掉兜底音。修法：后端自建层单次超时 30s → **6s**、**快速失败（<2.5s）才同层重试一次**（4xx 不重试）、整条链预算 **20s**、每层失败写 `console.warn`（`wrangler tail` 可见）、降级时回 ASCII 头 `X-TA-TTS-Attempts`（`gptsovits=timeout` / `=net` / `=http401` / `=unconfigured`，502 也带），devCors 补 `Access-Control-Expose-Headers`（本地预览才读得到来源头）；页面 `TTS_TIMEOUT_MS` → **22s**、合成**单飞 + 可中断**（新台词/说话打断/静音/切后台/断网都 `abort()`，迟到响应按序号作废）、降级时给一句人话（每会话一次）、`tts.local=false` 时「音色来源」按钮直说「自建 GPT-SoVITS 未接」、状态栏悬停可看降级原因。文档 §7 补「稳定性口径」表 + 「变机械了怎么查」三步排查。后端 59 项 / 页面 48 项 / 冒烟 26 项全绿。**遗留：线上自建层仍未接（需先起 `api_v2.py` + 网关 + 隧道，再 `wrangler secret put TA_TTS_LOCAL_URL`）。** |
+| 2026-10-21 | **本机模型接入（qwen3.6）**：新增注册项 `local-qwen`（provider `local`）+ `TA_LOCAL_LLM_URL/MODEL/KEY/TEMPERATURE/MAX_TOKENS`；Worker 到不了 `127.0.0.1`，因此「本机模型」由**页面直连**（`TA_API.localChat`：探活 `/v1/models` → 取提示词 → `/chat/completions` → 回服务端擦 AI 腔），服务端链路在配了隧道地址时也会把本机模型排到最前。新增 `POST /api/ta/prompt`（只出提示词）与 `POST /api/ta/polish`（只做去 AI 味），提示词与清洗保持单一实现；`/config` 新增 `llm` 提示（不含密钥）。页面新增「台词模型」按钮（自动 / 只用云端 / 只用本机，双击改地址与模型名）、状态栏如实显示台词由谁生成、系统提示词缓存在同一 `hyool-ta-v1` 里以支持离线本机对话。新增 `scripts/ta-local-llm-check.mjs`（24 项，含真机调用）全绿。 |
 
 ## 15. 触发词（用户只会说这几个词）
 
