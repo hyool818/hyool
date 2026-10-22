@@ -11,7 +11,11 @@ binding = "ASSETS"
 binding = "AI"
 
 [vars]
-# TA 自建语音层（GPT-SoVITS）参考音色：稳定配置放这里；易变的 URL / token 用 wrangler secret（见 docs/TA.md §7）
+# TA 自建语音层（GPT-SoVITS）参考音色：稳定配置放这里；只有 token 必须用 wrangler secret（见 docs/TA.md §7）
+# 参考音频三级优先：TA_TTS_LOCAL_VOICES[voice] -> FEMALE_REF/MALE_REF -> TA_TTS_LOCAL_REF（下面这条是兜底）
+TA_TTS_LOCAL_URL = 'https://ata-disc-slots-honolulu.trycloudflare.com'
+TA_TTS_LOCAL_FEMALE_REF = 'D:\AI\refs\xiaoya-b.wav'
+TA_TTS_LOCAL_FEMALE_PROMPT_TEXT = '如果你看到我在发呆，可能是在想中午吃什么。'
 TA_TTS_LOCAL_REF = 'D:\ai\tmp\dataset_demo\seg_0003.wav'
 TA_TTS_LOCAL_PROMPT_TEXT = '这件事我想了很久，还是决定告诉你。'
 TA_TTS_LOCAL_PROMPT_LANG = 'zh'
